@@ -3,9 +3,9 @@ them with the music (``music.py``) into ``build/magnus_trailer.mp4``.
 
 Every frame is drawn fresh: a shot with a ``scene`` draws that scene (``scenes.py``) at the shot's
 progress; the code moment types its code and redraws the opening's matter curve; cards and the
-"Flexible." pillar are drawn here; a shot with ``still_from`` is a placeholder until it is remade:
-its paper figure (or notebook animation) framed on the dark ground, slowly zooming, tagged as a
-placeholder.  Words go on a caption band, one phrase after another.  Cuts are hard, on the beat.
+"Flexible." pillar are drawn here.  Every scene is drawn below a title band at the top of the frame,
+where its words go, one phrase after another (clear of a video player's controls).  Cuts are hard,
+on the beat.
 Run ``data.py`` first.  Uses every core it is given::
 
     nice -n 19 python tools/trailer/cut.py [--jobs 4] [--width 1920] [--frames-only]
@@ -17,7 +17,7 @@ import sys
 
 import numpy as np
 
-from common import (BUILD, REPO, HERE, BG, INK, MUT, BLUE, AMBER, TEAL, VIOLET, MONO, DISP, FPS, SPB,
+from common import (BUILD, REPO, HERE, BG, INK, BLUE, AMBER, TEAL, VIOLET, MONO, DISP, FPS, SPB,
                     seg, setup_matplotlib)
 
 T = __import__('json').loads((HERE / 'trailer.json').read_text())
@@ -59,18 +59,23 @@ def logotype(fig, ax, x, y, size, alpha=1.0, ha='center'):
         x0 += w
 
 
-def caption(ax, phrases, u, n_frames, act, big=False):
-    """The on-screen words on a band at the bottom: one phrase after another, each fading in."""
+CONTENT_FRAC = 0.85                         # scenes are drawn at 0.85 of the frame, below the band
+BAND = 1.35                                 # the title band: the top 1.35 of the 9 units
+
+
+def caption(ax, phrases, u, n_frames, act):
+    """The scene's words in a band at the top of the frame, clear of a player's controls: one phrase
+    after another, each fading in, with the act's color as an accent."""
     if not phrases:
         return
-    k = len(phrases)
-    j = min(k - 1, int(u * k)) if k > 1 else 0
-    local = (u * k - j) if k > 1 else u
-    a = seg(local, 0, 0.25 * k / max(n_frames / FPS, 0.5)) if k > 1 else seg(u, 0, min(1.0, 0.3 / max(n_frames / FPS, 0.3)))
     from matplotlib.patches import Rectangle
-    ax.add_patch(Rectangle((0, 0), 16, 1.15, fc=BG, ec='none', alpha=0.93, zorder=20))
-    ax.add_patch(Rectangle((0.8, 0.3), 0.08, 0.55, fc=ACT_COLOR[act], ec='none', alpha=a, zorder=21))
-    text(ax, 1.1, 0.575, phrases[j], 30 if big else 26, INK, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center', zorder=21)
+    k = len(phrases)
+    j = min(k - 1, int(u * k))
+    fade_in = 0.3 / max(n_frames / FPS / k, 0.3)            # 0.3 s per phrase
+    a = seg(u * k - j, 0, fade_in)
+    ax.add_patch(Rectangle((0.8, 9 - BAND / 2 - 0.3), 0.08, 0.6, fc=ACT_COLOR[act], ec='none', zorder=21))
+    text(ax, 1.1, 9 - BAND / 2, phrases[j], 28, INK, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center',
+         zorder=21)
 
 
 # ------------------------------------------------------------------ shots drawn here
@@ -103,14 +108,20 @@ def card(fig, ax, s, u, n):
         typed = words[0][:int(len(words[0]) * seg(u * beats, 0.3, 3))]
         text(ax, 8, 6.9, '$ ' + typed, 40, TEAL, MONO, ha='center', va='center')
         for i, w in enumerate(words[1:5]):
-            text(ax, 8, 5.6 - 0.62 * i, w, 21, INK if i < 3 else MUT, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
+            text(ax, 8, 5.6 - 0.62 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
         logotype(fig, ax, 8, 2.35, 70, alpha=at(9))
-        text(ax, 8, 1.25, 'accurate  ·  fast  ·  flexible', 24, AMBER, [DISP, 'DejaVu Sans'], alpha=at(10),
+        text(ax, 8, 1.25, 'Accurate.  Fast.  Flexible.', 24, AMBER, [DISP, 'DejaVu Sans'], alpha=at(10),
              ha='center', va='center')
     else:
         for i, w in enumerate(words):
             text(ax, 8, 5.4 - 1.15 * i + 0.575 * (len(words) - 1), w, 48 if len(words) == 1 or i == 0 else 40,
                  INK, [DISP, 'DejaVu Sans'], alpha=at(2 * i), ha='center', va='center', weight=700)
+
+
+# The code moment is drawn in the content box (0.85 of the frame), so its units are 0.85 as wide as
+# the frame's: a monospace character (0.6 em) of CODE_PT points spans CHAR_W of them.
+CODE_PT = 14.5
+CHAR_W = 0.6 * CODE_PT / 72 / CONTENT_FRAC
 
 
 def code_moment(fig, ax, s, u, n):
@@ -128,9 +139,9 @@ def code_moment(fig, ax, s, u, n):
         if i in s.get('highlight', []) and u > 0.52:
             ax.add_patch(FancyBboxPatch((0.75, y - 0.26), 8.1, 0.52, boxstyle='round,pad=0,rounding_size=0.05',
                                         fc=AMBER, ec='none', alpha=0.18 * seg(u, 0.52, 0.6)))
-        text(ax, 0.95, y, vis, 17, '#cfd6e4', MONO, va='center')
+        text(ax, 0.95, y, vis, CODE_PT, '#cfd6e4', MONO, va='center')
         if 0 < left + len(ln) <= len(ln) and u < 0.5 and int(u * 60) % 2 == 0:
-            text(ax, 0.95 + 0.1235 * len(vis), y, '▌', 17, TEAL, MONO, va='center')
+            text(ax, 0.95 + CHAR_W * len(vis), y, '▌', CODE_PT, TEAL, MONO, va='center')
     d = scenes.load('opening.npz')
     L, Pm = d['L'], d['Pm']
     g = seg(u, 0.55, 0.95)
@@ -167,55 +178,40 @@ def flexible(fig, ax, s, u, n):
 
 
 def pillar(fig, ax, s, u, n):
-    from matplotlib.patches import Rectangle
     a = seg(u, 0, 0.18)
-    ax.add_patch(Rectangle((0, 1.15), 9.6, 1.9, fc=BG, ec='none', alpha=0.78 * a, zorder=18))
-    text(ax, 0.8, 2.35, s['words'][0], 60, TEAL, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center', zorder=19)
-    text(ax, 0.8, 1.45, s['sub'], 19, INK, MONO, alpha=seg(u, 0.1, 0.3), va='center', zorder=19)
-
-
-_still_cache = {}
-
-
-def paper_image(path):
-    """A paper figure (first page) or a notebook GIF (all frames), as RGB arrays, cached."""
-    if path not in _still_cache:
-        from PIL import Image, ImageSequence
-        if path.endswith('.pdf'):
-            try:
-                import pymupdf
-            except ImportError:
-                import fitz as pymupdf
-            page = pymupdf.open(REPO / path)[0]
-            z = 1500 / page.rect.width
-            pix = page.get_pixmap(matrix=pymupdf.Matrix(z, z), alpha=False)
-            frames = [np.asarray(Image.frombytes('RGB', (pix.width, pix.height), pix.samples))]
-        else:
-            frames = [np.asarray(f.convert('RGB')) for f in ImageSequence.Iterator(Image.open(REPO / path))]
-        _still_cache[path] = frames
-    return _still_cache[path]
-
-
-def placeholder(fig, ax, s, u, n):
-    frames = paper_image(s['still_from'])
-    im = frames[int((0.2 + 0.8 * u) * (len(frames) - 1))] if len(frames) > 1 else frames[0]
-    h, w = im.shape[:2]
-    z = 1.0 + 0.06 * u                                   # a slow push in
-    box_w, box_h = 13.0, 7.0
-    sc = min(box_w / w, box_h / h) * z
-    cw, ch = w * sc, h * sc
-    x0, y0 = 8 - cw / 2, 1.3 + box_h / 2 - ch / 2 + 0.3
-    from matplotlib.patches import FancyBboxPatch
-    ax.add_patch(FancyBboxPatch((x0 - 0.15, y0 - 0.15), cw + 0.3, ch + 0.3, boxstyle='round,pad=0,rounding_size=0.15',
-                                fc='#ffffff', ec='#232c3f', lw=1.5, zorder=1))
-    ax.imshow(im, extent=(x0, x0 + cw, y0, y0 + ch), zorder=2, interpolation='antialiased')
-    ax.set_xlim(0, 16)
-    ax.set_ylim(0, 9)
-    text(ax, 15.4, 8.7, 'placeholder: to be remade', 12, MUT, MONO, ha='right', va='center', zorder=25)
+    text(ax, 0.8, 9 - BAND / 2, s['words'][0], 44, TEAL, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center')
+    import textwrap
+    text(ax, 5.2 if len(s['words'][0]) < 10 else 6.4, 9 - BAND / 2, textwrap.fill(s['sub'], 52), 18, INK, MONO,
+         alpha=seg(u, 0.1, 0.3), va='center', linespacing=1.5)
 
 
 # ------------------------------------------------------------------ one frame of the cut
 _plt = None
+
+
+# Scenes are drawn below the title band: a box of the frame's own aspect, 0.85 of its height.
+CONTENT = ((1 - CONTENT_FRAC) / 2, 0.0, CONTENT_FRAC, CONTENT_FRAC)
+
+
+def in_content(fig, draw):
+    """Runs draw(fig, ax) with ax covering CONTENT in the scene's 16 x 9 units, and every axes the
+    scene adds (given in whole-frame fractions) mapped into CONTENT too."""
+    add = fig.add_axes
+    cx, cy, cw, ch = CONTENT
+
+    def mapped(rect, **kw):
+        x, y, w, h = rect
+        return add([cx + x * cw, cy + y * ch, w * cw, h * ch], **kw)
+
+    ax = add(list(CONTENT))
+    ax.set_xlim(0, 16)
+    ax.set_ylim(0, 9)
+    ax.axis('off')
+    fig.add_axes = mapped
+    try:
+        draw(fig, ax)
+    finally:
+        fig.add_axes = add
 
 
 def draw_frame(job):
@@ -231,28 +227,29 @@ def draw_frame(job):
     u_scene = min(1.0, j / max(1, (n - 1) * (1 - HOLD)))
     u = j / max(1, n - 1)
     fig = _plt.figure(figsize=(16, 9), dpi=WIDTH / 16, facecolor=BG)
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, 16)
-    ax.set_ylim(0, 9)
-    ax.axis('off')
     kind = s.get('kind')
     if kind == 'card':
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.set_xlim(0, 16)
+        ax.set_ylim(0, 9)
+        ax.axis('off')
         card(fig, ax, s, u, n)
-    elif kind == 'code':
-        code_moment(fig, ax, s, u, n)
-        caption(ax, s['words'], u, n, s['act'])
-    elif s['id'] == 't_flexible':
-        flexible(fig, ax, s, u, n)
-        pillar(fig, ax, s, u, n)
-    elif 'scene' in s:
-        scenes.SCENES[s['scene']][0](fig, ax, u_scene)
+    else:
+        if kind == 'code':
+            in_content(fig, lambda f, a: code_moment(f, a, s, u, n))
+        elif s['id'] == 't_flexible':
+            in_content(fig, lambda f, a: flexible(f, a, s, u, n))
+        else:
+            draw = scenes.all_scenes()[s['scene']][0]
+            in_content(fig, lambda f, a: draw(f, a, u_scene))
+        ax = fig.add_axes([0, 0, 1, 1])                    # the title band, over everything
+        ax.set_xlim(0, 16)
+        ax.set_ylim(0, 9)
+        ax.axis('off')
         if kind == 'pillar':
             pillar(fig, ax, s, u, n)
         else:
             caption(ax, s['words'], u, n, s['act'])
-    elif 'still_from' in s:
-        placeholder(fig, ax, s, u, n)
-        caption(ax, s['words'], u, n, s['act'])
     # fade in from black at the start, out to black at the end
     total = TL[-1][1] + TL[-1][2]
     fade = max(1 - i / 12, (i - (total - 45)) / 45, 0)

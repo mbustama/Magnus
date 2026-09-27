@@ -21,12 +21,12 @@ from common import BUILD, REPO  # noqa: E402
 T = json.loads((HERE.parent / 'trailer.json').read_text())
 SPB = 60.0 / T['bpm']
 ACTS = {1: ('Two journeys', 'One neutrino, vacuum against matter', 'A low drone; a single tone per track', 'a'),
-        2: ('The burden', 'A new solver for every setup and theory', 'Pulse enters, one hit per cell', 'a'),
+        2: ('The problem', 'A new solver for every setup and theory, and the question', 'Pulse enters, one hit per cell', 'a'),
         3: ('The reveal', 'The name and the promise', 'First full chord, then the groove', 'a'),
-        4: ('Just the Hamiltonian', 'What you give, the one code moment, and how Magnus picks its method',
+        4: ('How it works', 'The Hamiltonian, the code, and how Magnus picks its solver',
             'Rising arpeggio as the curve redraws', 'b'),
-        5: ('Capabilities', 'Breadth, one cut per 1.9 s on the beat', 'Full groove, building', 'b'),
-        6: ('Beyond the textbook', "The paper's long examples, the solar discs first",
+        5: ('What you can do', 'From two flavors to cosmic neutrinos', 'Full groove, building', 'b'),
+        6: ('From textbook to frontier', "The paper's research examples",
             'Climax; the melody plays a computed probability', 'b'),
         7: ('Accurate, fast, flexible', 'Three words, each over its evidence', 'Three hits, resolving', 'c'),
         8: ('Get it', 'The call to action', 'Final chord, long fade', 'c')}

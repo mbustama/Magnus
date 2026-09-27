@@ -91,7 +91,7 @@ def opening(fig, ax, u):
         a.set_xticks([0, 2500, 5000, 7500, 10000] if dens is not None else [])
         monoticks(a)
         if dens is not None:
-            a.set_xlabel('distance travelled  L  [km]', color=MUT, fontfamily=MONO, fontsize=13)
+            a.set_xlabel('Distance travelled, L [km]', color=MUT, fontfamily=MONO, fontsize=13)
     t(ax, 15.04, 0.4, 'E = %g GeV' % d['E'], 13, MUT, ha='right')
 
 
@@ -124,9 +124,9 @@ def switch(fig, ax, u):
             a.axvline(r * km / 1e6, color=MUT, lw=0.8, ls=(0, (2, 4)))
     glow(a, xn, lam[min(k, len(X) - 1), 1], BLUE)
     t(a, 0, hi, 'THE LEVELS THE NEUTRINO FOLLOWS', 14, TEAL, DISP, weight=700, va='top')
-    labels = ((res[0], 'slow crossing\nadiabatic transport', TEAL, 'left', lo),
-              (wins[0][0], 'shock crossing  \nnon-adiabatic  ', AMBER, 'right', hi * 0.93 + lo * 0.07),
-              (res[2], 'slow crossing\nadiabatic transport', TEAL, 'left', lo))
+    labels = ((res[0], 'Slow crossing,\nadiabatic transport', TEAL, 'left', lo),
+              (wins[0][0], 'Shock crossing,  \nnon-adiabatic  ', AMBER, 'right', hi * 0.93 + lo * 0.07),
+              (res[2], 'Slow crossing,\nadiabatic transport', TEAL, 'left', lo))
     for pos, s, col, ha, y in labels:
         p = seg(xn, pos * km / 1e6, pos * km / 1e6 + 0.15)
         t(a, pos * km / 1e6 + (0.03 if ha == 'left' else 0), y, s, 12, col, ha=ha,
@@ -152,7 +152,7 @@ def switch(fig, ax, u):
         ai.text(xx[-1] - 600, y0, '1000 km\n', color=MUT, fontfamily=MONO, fontsize=11, ha='center', va='bottom', alpha=m)
         ai.text(0.03, 0.97, 'MAGNUS PATCH', transform=ai.transAxes, color=AMBER, fontfamily=DISP, fontsize=14,
                 weight=700, va='top', alpha=m)
-        ai.text(0.03, 0.87, 'window found by Magnus,\nsolved exactly', transform=ai.transAxes, color=INK,
+        ai.text(0.03, 0.87, 'Window found by Magnus,\nsolved exactly', transform=ai.transAxes, color=INK,
                 fontfamily=MONO, fontsize=12, va='top', alpha=m)
         for s in ai.spines.values():
             s.set_visible(True)
@@ -169,7 +169,7 @@ def switch(fig, ax, u):
         ap.scatter(LX[:kk], P[:kk], s=22, color=BLUE, lw=0)
         j = kk - 1
         ap.scatter([LX[j]], [P[j]], s=90, color='#fff', zorder=5, lw=0)
-        ap.text(0, 1.3, r'$P(\nu_e \to \nu_e)$ = %.2f     one dot, one call:  %s' % (P[j], engines[j]), color=INK,
+        ap.text(0, 1.3, r'$P(\nu_e \to \nu_e)$ = %.2f     One dot per call, answered by: %s' % (P[j], engines[j]), color=INK,
                 fontfamily=MONO, fontsize=15, va='top')
     ap.set_xticks([0, 1, 2, 3, 4])
     ap.set_xticklabels(['0', '1', '2', '3', '4 million km'])
@@ -181,7 +181,6 @@ def burden(fig, ax, u):
     rows = ['Reactor', 'Accelerator', 'Through the Earth', 'The Sun', 'Supernova']
     cols = ['Standard', 'Sterile', 'NSI', 'Lorentz viol.', 'Long-range']
     x0, y0, cw, ch = 3.1, 1.2, 1.55, 1.12
-    t(ax, x0, 8.35, 'EVERY SETUP × EVERY THEORY', 15, AMBER, DISP, weight=700, alpha=seg(u, 0, 0.08))
     for j, c in enumerate(cols):
         t(ax, x0 + j * cw + cw / 2, y0 + 5 * ch + 0.25, c, 12.5, MUT, ha='center', alpha=seg(u, 0.02 + 0.02 * j, 0.1 + 0.02 * j))
     fade = 1 - 0.55 * seg(u, 0.62, 0.8)                 # the grid dims as it collapses
@@ -201,8 +200,8 @@ def burden(fig, ax, u):
     b = seg(u, 0.74, 0.86)
     box(ax, 12.3, 3.1, 3.1, 1.8, fc='#1a1406', ec=AMBER, lw=2.2, r=0.2, alpha=b)
     t(ax, 13.85, 4.25, r'$H(E,\,x)$', 30, INK, ha='center', va='center', alpha=b)
-    t(ax, 13.85, 3.45, 'one solver', 13, AMBER, ha='center', va='center', alpha=seg(u, 0.84, 0.92))
-    t(ax, 13.85, 2.5, '25 files → 1 function', 12, MUT, ha='center', alpha=seg(u, 0.9, 0.98))
+    t(ax, 13.85, 3.45, 'One solver', 13, AMBER, ha='center', va='center', alpha=seg(u, 0.84, 0.92))
+    t(ax, 13.85, 2.5, '25 files become 1 function', 12, MUT, ha='center', alpha=seg(u, 0.9, 0.98))
 
 
 # ------------------------------------------------------------------ diagram 2: the Hamiltonian
@@ -212,8 +211,8 @@ def hamiltonian(fig, ax, u):
              (r'$+\; V(x)\,P_e$', 8.6, AMBER, 0.38), (r'$+\; H_{\rm new}(x)$', 12.0, VIOLET, 0.64)]
     for s, x, col, a in terms:
         t(ax, x, 7.7, s, 34, col, ha='center', va='center', alpha=seg(u, a, a + 0.1))
-    cards = [(1.0, BLUE, 'VACUUM', 'mixing + mass splittings', 0.16), (6.0, AMBER, 'MATTER', 'constant or not', 0.42),
-             (11.0, VIOLET, 'BEYOND THE SM', 'your new physics', 0.68)]
+    cards = [(1.0, BLUE, 'VACUUM', 'Mixing and mass splittings', 0.16), (6.0, AMBER, 'MATTER', 'Constant or not', 0.42),
+             (11.0, VIOLET, 'BEYOND THE SM', 'Your new physics', 0.68)]
     for x, col, head, sub, a in cards:
         v = seg(u, a, a + 0.1)
         box(ax, x, 1.1, 4.2, 5.0, ec=col, lw=1.8, alpha=v)
@@ -235,27 +234,25 @@ def hamiltonian(fig, ax, u):
     if g > 0:
         ax.plot(xs[:k], 2.3 + 0 * xs[:k], color=AMBER, lw=2.4, alpha=0.55)
         ax.plot(xs[:k], (2.9 + 1.2 * np.exp(-((xs - 8.1) / 0.7)**2) + 0.12 * np.sin(9 * xs))[:k], color=AMBER, lw=2.6)
-    t(ax, 9.9, 2.3, 'constant', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
-    t(ax, 9.3, 4.35, 'varying', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
-    for k, c in enumerate(['sterile neutrinos', 'non-standard interactions', 'Lorentz violation', 'long-range forces']):
+    t(ax, 9.9, 2.3, 'Constant', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
+    t(ax, 9.3, 4.35, 'Varying', 11, MUT, va='center', alpha=seg(u, 0.58, 0.64))
+    for k, c in enumerate(['Sterile neutrinos', 'Non-standard interactions', 'Lorentz violation', 'Long-range forces']):
         v = seg(u, 0.72 + 0.05 * k, 0.8 + 0.05 * k)
         box(ax, 11.4, 3.9 - 0.62 * k, 3.4, 0.46, fc='#161028', ec=VIOLET, lw=1.2, r=0.23, alpha=v)
         t(ax, 13.1, 4.13 - 0.62 * k, c, 11.5, VIOLET, ha='center', va='center', alpha=v)
-    t(ax, 8, 0.45, 'any sum of these; any number of flavors', 13, MUT, ha='center', alpha=seg(u, 0.92, 1.0))
+    t(ax, 8, 0.45, 'Any sum of these; any number of flavors', 13, MUT, ha='center', alpha=seg(u, 0.92, 1.0))
 
 
 # ------------------------------------------------------------------ diagram 3: how Magnus works
 def slabs(fig, ax, u):
     D = load('diagrams.json')
     d = load('opening.npz')
-    t(ax, 0.8, 8.2, 'SLICE THE PATH. MULTIPLY. REFINE UNTIL TWO ANSWERS AGREE.', 16, TEAL, DISP, weight=700,
-      alpha=seg(u, 0, 0.08))
     X = 0.8 + 9.4 * d['L'] / d['L'][-1]
     Y = 5.0 + 1.9 * (d['rho'] - d['rho'].min()) / (d['rho'].max() - d['rho'].min())
     k = max(2, int(seg(u, 0.0, 0.2) * len(X)))
     ax.fill_between(X[:k], 5.0, Y[:k], color=AMBER, alpha=0.12, lw=0)
     ax.plot(X[:k], Y[:k], color=AMBER, lw=2)
-    t(ax, 0.8, 7.35, 'density along the path', 11, MUT, alpha=seg(u, 0.05, 0.15))
+    t(ax, 0.8, 7.35, 'Density along the path', 11, MUT, alpha=seg(u, 0.05, 0.15))
     for j in range(7):
         v = seg(u, 0.18 + 0.02 * j, 0.24 + 0.02 * j)
         if v > 0:
@@ -267,7 +264,7 @@ def slabs(fig, ax, u):
       alpha=seg(u, 0.44, 0.52))
     t(ax, 5.5, 2.85, r'$P = |U_{e\mu}|^2$, unitary by construction', 13, MUT, ha='center', alpha=seg(u, 0.5, 0.56))
     lad = D['ladder']
-    t(ax, 11.0, 7.35, 'slabs    P(νμ→νe)', 13, MUT, alpha=seg(u, 0.5, 0.55))
+    t(ax, 11.0, 7.35, 'Slabs    P(νμ→νe)', 13, MUT, alpha=seg(u, 0.5, 0.55))
     for k, (ns, P) in enumerate(lad):
         v = seg(u, 0.54 + 0.055 * k, 0.58 + 0.055 * k)
         yk = 6.75 - 0.62 * k
@@ -275,23 +272,22 @@ def slabs(fig, ax, u):
         t(ax, 11.0, yk, '%5d    %.5f' % (ns, P), 15, TEAL if ok else INK, alpha=v)
         if k:
             t(ax, 14.9, yk, '✓ agree' if ok else 'Δ %.0e' % abs(P - lad[k - 1][1]), 11.5, TEAL if ok else MUT, alpha=v)
-    t(ax, 11.0, 6.75 - 0.62 * len(lad) - 0.1, 'tolerance 1e-5;  converged value %.5f' % D['ladder_converged'], 12, MUT,
+    t(ax, 11.0, 6.75 - 0.62 * len(lad) - 0.1, 'Tolerance 1e-5;  converged value %.5f' % D['ladder_converged'], 12, MUT,
       alpha=seg(u, 0.94, 1.0))
 
 
 # ------------------------------------------------------------------ diagram 4: strategy='auto'
-AUTO_LEAVES = [(6.55, AMBER, 'constant density', 'one exact exponential per energy'),
-               (5.05, TEAL, 'energy scan, one baseline', 'Magnus ladder, slabs shared by all energies'),
-               (3.55, TEAL, 'baseline scan, one energy', 'cumulative scan: one pass along the path'),
-               (2.05, TEAL, 'one point, modest phase', 'adaptive Magnus ladder'),
-               (0.55, VIOLET, 'one point, extreme phase', 'hybrid: adiabatic transport + Magnus patches')]
+AUTO_LEAVES = [(6.55, AMBER, 'Constant density', 'One exact exponential per energy'),
+               (5.05, TEAL, 'Energy scan, one baseline', 'Magnus ladder, slabs shared by all energies'),
+               (3.55, TEAL, 'Baseline scan, one energy', 'Cumulative scan: one pass along the path'),
+               (2.05, TEAL, 'One point, modest phase', 'Adaptive Magnus ladder'),
+               (0.55, VIOLET, 'One point, extreme phase', 'Hybrid: adiabatic transport + Magnus patches')]
 
 
 def auto(fig, ax, u):
-    t(ax, 0.8, 8.2, "STRATEGY='AUTO' PICKS THE SOLVER", 16, BLUE, DISP, weight=700, alpha=seg(u, 0, 0.08))
     v = seg(u, 0, 0.1)
     box(ax, 0.8, 3.4, 2.6, 1.2, ec=BLUE, lw=2, alpha=v)
-    t(ax, 2.1, 4.0, 'your call', 15, INK, ha='center', va='center', alpha=v)
+    t(ax, 2.1, 4.0, 'Your call', 15, INK, ha='center', va='center', alpha=v)
     for k, (y, col, cond, eng) in enumerate(AUTO_LEAVES):
         a = 0.1 + 0.16 * k
         v, w = seg(u, a + 0.04, a + 0.1), seg(u, a + 0.08, a + 0.14)
@@ -300,14 +296,13 @@ def auto(fig, ax, u):
         t(ax, 5.45, y + 0.45, cond, 13, INK, va='center', alpha=v)
         arrow(ax, (9.2, y + 0.45), (9.75, y + 0.45), col=col, lw=1.4, alpha=w)
         t(ax, 9.85, y + 0.45, eng, 13, col, va='center', alpha=w)
-    t(ax, 9.85, 0.15, 'certified, or handed back to the ladder', 11, MUT, alpha=seg(u, 0.9, 0.98))
+    t(ax, 9.85, 0.15, 'Certified, or handed back to the ladder', 11, MUT, alpha=seg(u, 0.9, 0.98))
     t(ax, 0.8, 2.4, 'strategy_info tells you\nwhich one answered', 12, MUT, linespacing=1.4, alpha=seg(u, 0.92, 1.0))
 
 
 # ------------------------------------------------------------------ diagram 5: fast
 def fast(fig, ax, u):
     D = load('diagrams.json')
-    t(ax, 0.8, 8.2, 'THOUSANDS OF ENERGIES. ONE CALL.', 16, TEAL, DISP, weight=700, alpha=seg(u, 0, 0.08))
     E, P = np.asarray(D['fast']['E']), np.asarray(D['fast']['P'])
     s = seg(u, 0.1, 0.45)                                # the energies stream into the call
     for k, yy in enumerate(np.linspace(1.0, 7.4, 60)):
@@ -342,7 +337,6 @@ def fast(fig, ax, u):
 # ------------------------------------------------------------------ diagram 6: 2 to 5 flavors
 def flavors(fig, ax, u):
     D = load('diagrams.json')
-    t(ax, 0.8, 8.2, '2 TO 5 FLAVORS, READY-MADE', 16, AMBER, DISP, weight=700, alpha=seg(u, 0, 0.1))
     fcol = [BLUE, AMBER, TEAL, ROSE, VIOLET]
     names = [r'$\nu_e$', r'$\nu_\mu$', r'$\nu_\tau$', r'$\nu_{s1}$', r'$\nu_{s2}$']
     for g, dd in enumerate((2, 3, 4, 5)):
@@ -360,7 +354,7 @@ def flavors(fig, ax, u):
     for f in range(5):
         ax.add_patch(Rectangle((0.9 + f * 2.6, 0.55), 0.35, 0.35, fc=fcol[f], ec='none', alpha=v))
         t(ax, 1.35 + f * 2.6, 0.72, names[f] + ('' if f < 3 else ' sterile'), 13, MUT, va='center', alpha=v)
-    t(ax, 0.9, 1.3, 'each bar: the flavor content of one mass state', 11.5, MUT, va='center', alpha=seg(u, 0.85, 1.0))
+    t(ax, 0.9, 1.3, 'Each bar: the flavor content of one mass state', 11.5, MUT, va='center', alpha=seg(u, 0.85, 1.0))
 
 
 # name -> (draw function, beats, data it needs); beats match trailer.json
@@ -368,3 +362,9 @@ SCENES = {'opening': (opening, 14, 'opening'), 'switch': (switch, 12, 'adiabatic
           'burden': (burden, 10, None), 'hamiltonian': (hamiltonian, 8, 'diagrams'),
           'slabs': (slabs, 4, 'diagrams'), 'auto': (auto, 6, None), 'fast': (fast, 4, 'diagrams'),
           'flavors': (flavors, 3, 'diagrams')}
+
+
+def all_scenes():
+    """These scenes and the remade paper scenes (``paper_scenes.py``), by name."""
+    import paper_scenes
+    return {**SCENES, **{k: (f, b, 'paper') for k, (f, b) in paper_scenes.SCENES.items()}}

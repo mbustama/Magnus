@@ -133,7 +133,132 @@ def diagrams():
              all(np.allclose(np.sum(U[d], axis=1), 1) for d in U)))
 
 
-STEPS = {'opening': opening, 'code': code, 'adiabatic': adiabatic, 'diagrams': diagrams}
+def paper():
+    """The remade paper scenes.  What the paper already computed is read from
+    notebooks/paper_figure_cache.json (read only: this never writes it); the rest is computed
+    here with the paper's own settings (notebook 28's cells, cited per block)."""
+    import magnus.earth as earth
+    cache = json.loads((REPO / 'notebooks' / 'paper_figure_cache.json').read_text())
+    val = lambda k: cache[k]['value']                                  # noqa: E731
+    out = {}
+    OSC = gd.load_nufit_params('NuFIT 6.1')
+    # cell 42: the oscillograms, 170 directions x 200 energies each
+    out['osc_cz'] = np.linspace(-1.0, -0.05, 170)
+    out['osc_e_gev'] = np.logspace(np.log10(2.0), np.log10(60.0), 200)
+    out['osc_e_tev'] = np.logspace(np.log10(1.0), np.log10(30.0), 200)
+    for k, tag in (('osc_3nu', 'Earth_3_nu'), ('osc_3p1', 'Earth_3_1'), ('osc_3p2', 'Earth_3_2')):
+        out[k] = np.asarray(val('oscillogram_' + tag))
+    out['osc_chord_km'] = np.array([earth.distance_traveled_inside_earth(float(c)) for c in out['osc_cz']])
+    # cell 62: the long-range force in the Sun
+    lr = val('solar_long_range')
+    out['lr_e_mev'] = np.logspace(np.log10(0.1), np.log10(20.0), 70)
+    out['lr_std'], out['lr_1'], out['lr_01'] = (np.asarray(lr[k]) for k in ('std', '1', '0.1'))
+    # cell 66: the Sun in the nu_e channel, P against impact parameter at nine energies
+    energies = (0.01, 10.0, 30.0, 100.0, 300.0, 1.0e3, 3.0e3, 1.0e4, 5.0e4)
+    out['sun_e_gev'] = np.array(energies)
+    discs = []
+    for e in energies:
+        P = np.asarray(val('solar_disk_%s' % ('%g' % e).replace('.', 'p').replace('+', '')), float)
+        grid = np.linspace(0.0, 1.0, len(P))
+        P[np.isnan(P)] = P[np.isfinite(P)][-1]
+        discs.append(np.interp(np.linspace(0, 1, 2001), grid, P))
+    out['sun_P'] = np.array(discs)
+    # cell 69: the jet, P(nu_e -> nu_e) at Earth
+    out['jet_e_tev'] = np.geomspace(0.1, 1.0e4, 161)
+    for k in ('smooth', 'turbulent', 'stepped'):
+        out['jet_' + k] = np.asarray(val('jet_' + k)['P_earth'])[:, gd.NUE, gd.NUE]
+    # cells 86-88: geoneutrinos, four production points
+    out['geo_e_mev'] = 1.0 / np.linspace(1.0 / 1.8, 1.0 / 3.3, 22500)
+    for k, depth, cz, from_detector in (('local', 10.0, 0.078, True), ('far_crust', 20.0, -0.272, False),
+                                        ('mantle', 1000.0, -0.552, False), ('core', 2800.0, -0.872, False)):
+        out['geo_' + k] = np.asarray(val('geo_energy_' + k))
+        depths = (dict(source_depth=1.4, detector_depth=depth) if from_detector
+                  else dict(source_depth=depth, detector_depth=1.4))
+        out['geo_L_' + k] = earth.distance_traveled_inside_earth(cz, **depths)          # km
+    out['geo_vac_avg'] = float(op.osc_prob_3nu_vacuum(2.5 * gd.UNIT_MEV, 1.0e8 * gd.UNIT_KM, average=True,
+                                                      nubar=True, nu_i=gd.NUE, nu_f=gd.NUE, **OSC))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        # cell 44: from Fermilab to four sites
+        E = np.logspace(np.log10(0.3), np.log10(10.0), 400)
+        out['fnal_e_gev'] = E
+        for site in ('snolab', 'homestake', 'cern', 'south_pole'):
+            a, b = earth.loc_coords_dms['fermilab'], earth.loc_coords_dms[site]
+            out['fnal_L_' + site] = earth.chord_length_inside_earth(a['lat'], a['lon'], b['lat'], b['lon'])
+            out['fnal_' + site] = np.asarray(op.osc_prob_3nu_earth(E * gd.UNIT_GEV, loc_ini='fermilab', loc_fin=site,
+                                                                   nu_i=gd.NUMU, nu_f=gd.NUE, **OSC))
+        # CP violation: the bi-probability ellipses at Fermilab -> Homestake, 2.5 GeV, NO and IO
+        dcp = np.linspace(0, 2 * np.pi, 121)
+        out['cp_dcp'] = dcp
+        for order in ('NO', 'IO'):
+            p = gd.load_nufit_params('NuFIT 6.1', ordering=order)
+            nu, nb = [], []
+            for d in dcp:
+                q = dict(p, dCP=float(d))
+                kw = dict(loc_ini='fermilab', loc_fin='homestake', nu_i=gd.NUMU, nu_f=gd.NUE, **q)
+                nu.append(float(np.ravel(op.osc_prob_3nu_earth(2.5 * gd.UNIT_GEV, **kw))[0]))
+                nb.append(float(np.ravel(op.osc_prob_3nu_earth(2.5 * gd.UNIT_GEV, nubar=True, **kw))[0]))
+            out['cp_%s_nu' % order], out['cp_%s_nubar' % order] = np.array(nu), np.array(nb)
+        # cell 27: standard, NSI and LIV through the Earth at cos(theta_z) = -0.9
+        cz = -0.9
+        L = earth.distance_traveled_inside_earth(cz) * gd.UNIT_KM
+        E = np.logspace(0, np.log10(40.0), 260) * gd.UNIT_GEV
+        EPS = dict(eps_ee=0.10, eps_em=0.05 + 0.0j, eps_et=0.0j, eps_mm=0.0, eps_mt=0.03 + 0.0j, eps_tt=0.0)
+        LIV = dict(b1=0.0, b2=0.0, b3=np.pi / L, Lambda=1.0, sxi12=0.0, sxi23=1.0 / np.sqrt(2.0), sxi13=0.0,
+                   dxiCP=0.0, n_liv=0)
+        kw = dict(costhz=cz, L=L, nu_i=gd.NUMU, nu_f=gd.NUMU, rtol=1e-6, atol=1e-6, **OSC)
+        out['bsm_e_gev'] = E / gd.UNIT_GEV
+        out['bsm_std'] = np.asarray(op.osc_prob_3nu_earth(E, **kw))
+        out['bsm_nsi'] = np.asarray(op.osc_prob_3nu_earth_nsi(E, **kw, **EPS))
+        out['bsm_liv'] = np.asarray(op.osc_prob_3nu_earth_liv(E, **kw, **LIV))
+        # cell 84: flavor ratios at Earth from a pion-decay source, 100 TeV, 100 Mpc
+        E_tri, L_src = 100.0 * gd.UNIT_TEV, 100.0 * 3.0857e19 * gd.CONV_KM_TO_INV_EV
+        src = np.array([1 / 3, 2 / 3, 0.0])
+        liv_a = dict(sxi12=OSC['s12'], sxi23=OSC['s23'], sxi13=OSC['s13'], dxiCP=0.0, b1=0.0, b2=0.0,
+                     Lambda=1.0, n_liv=1)
+        b3u = float(OSC['D31']) / (2.0 * E_tri**2)
+
+        def frac(P, n=3):
+            f = np.einsum('a,ab->b', np.pad(src, (0, P.shape[0] - 3)), P)[:3]
+            return f / f.sum()
+
+        ratios = np.concatenate([[0.0], np.logspace(-3.0, 3.0, 121)])
+        out['tri_liv'] = np.array([frac(np.asarray(op.osc_prob_3nu_vacuum_liv(
+            E_tri, L_src, average=True, b3=r * b3u, **liv_a, **OSC))) for r in ratios])
+        s2 = np.linspace(0.0, 0.3, 61)
+        out['tri_sterile'] = np.array([frac(np.asarray(op.osc_prob_4nu_vacuum(
+            E_tri, L_src, average=True, s14=np.sqrt(x), s24=np.sqrt(x), s34=0.0, D41=1.0, **OSC))) for x in s2])
+        out['tri_vac'] = out['tri_liv'][0]
+        # cell 48: a buried body swept by a beam over 1500 km of crust
+        from magnus import matter as mt
+        L0, Es, alpha = 1500.0, np.linspace(25.0, 150.0, 400) * gd.UNIT_MEV, np.linspace(-15.0, 15.0, 160)
+        ne = lambda rho: mt.num_density_e_func(0.0, lambda _: rho, electron_fraction=0.5,     # noqa: E731
+                                               ratio_number_neutrons_to_protons=1.0,
+                                               density_matter_is_in_g_per_cm3=True)
+        ne_c, ne_b = ne(3.3), ne(10.0)
+        ckw = dict(osc_params=OSC, L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE, nubar=True, rtol=1e-6, atol=1e-6,
+                   density_is_of_number_of_electrons=True)
+        P0 = np.asarray(op.osc_prob_matter_std_potential(3, ne_c, Es, L0 * gd.UNIT_KM, **ckw))
+        dP = np.zeros((len(Es), len(alpha)))
+        R, D0 = 125.0, 750.0
+        for j, a in enumerate(alpha):
+            miss = abs(D0 * np.sin(np.radians(a)))
+            if miss >= R:
+                continue
+            h, mid = np.sqrt(R**2 - miss**2), D0 * np.cos(np.radians(a))
+            lo, hi = mid - h, mid + h
+            prof = lambda l, lo=lo, hi=hi: ne_c + (ne_b - ne_c) * ((np.asarray(l) / gd.UNIT_KM >= lo) &  # noqa: E731
+                                                                   (np.asarray(l) / gd.UNIT_KM <= hi))
+            dP[:, j] = np.asarray(op.osc_prob_matter_std_potential(3, prof, Es, L0 * gd.UNIT_KM,
+                                  t_breakpoints=np.array([lo, hi]) * gd.UNIT_KM, **ckw)) - P0
+        out['cav_e_mev'], out['cav_alpha'], out['cav_dP'] = Es / gd.UNIT_MEV, alpha, dP
+    np.savez(BUILD / 'paper.npz', **out)
+    print('paper: oscillograms %s; Fermilab chords %s km; cavity |dP| max %.3f; flavor triangle %d + %d points'
+          % (out['osc_3nu'].shape, [int(out['fnal_L_' + s]) for s in ('snolab', 'homestake', 'cern', 'south_pole')],
+             np.abs(out['cav_dP']).max(), len(out['tri_liv']), len(out['tri_sterile'])))
+
+
+STEPS = {'opening': opening, 'code': code, 'adiabatic': adiabatic, 'diagrams': diagrams, 'paper': paper}
 
 if __name__ == '__main__':
     BUILD.mkdir(exist_ok=True)

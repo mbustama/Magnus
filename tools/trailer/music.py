@@ -3,16 +3,18 @@ sampled, so there is nothing to license.
 
 96 bpm in D minor, following the music cue of each act in ``trailer.json``'s storyboard:
 
-1. Two journeys: a low drone, and a soft tone per track (one for vacuum, one for matter).
-2. The burden: a pulse enters, one hit per beat, a tick on the off-beats.
-3. The reveal: the first full chord with a low boom, then the groove.
-4. Just the Hamiltonian: a rising arpeggio over the groove.
-5. Capabilities: the full groove, building.
-6. Beyond the textbook: the climax; the melody **plays a computed probability**: the Earth
-   spectrum of the "Fast" diagram (P(nu_mu -> nu_e), 1-30 GeV, from ``build/diagrams.json``),
+1. Two journeys: a quiet low drone, and a soft tone per track (one for vacuum, one for matter).
+2. The problem: a pulse enters, one hit per beat, a tick on the off-beats.
+3. The reveal: a low boom and the first full chord, then the groove.
+4. How it works: a rising arpeggio over the groove.
+5. What you can do: the full groove, building.
+6. From textbook to frontier: the climax; the melody **plays a computed probability**: the
+   Earth spectrum of the "Fast" diagram (P(nu_mu -> nu_e), 1-30 GeV, from ``build/diagrams.json``),
    sampled on eighth notes and mapped onto the D-minor pentatonic scale.
 7. Accurate, fast, flexible: three chord hits, resolving.
 8. Get it: the final chord, D major, with a long fade.
+
+Deterministic: the noise uses a fixed seed, so every run writes the same audio.
 
     python tools/trailer/music.py          # -> build/music.wav, as long as the cut
 """

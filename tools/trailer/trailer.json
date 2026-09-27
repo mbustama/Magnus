@@ -1,5 +1,5 @@
 {
- "_about": "Script and timeline of the trailer (issue #99), draft v2.2. Durations are in beats at 96 bpm (0.625 s per beat). A shot's picture is either a new scene drawn by scenes.py ('scene') or the paper figure or notebook animation it will be remade from ('still_from'); every plot is remade for the video by these scripts, and no figure source is edited. Every word card and code line is for the author to approve.",
+ "_about": "Script and timeline of the trailer (issue #99), second cut. Durations are in beats at 96 bpm (0.625 s per beat). A shot's picture is either a new scene drawn by scenes.py ('scene') or the paper figure or notebook animation it will be remade from ('still_from'); every plot is remade for the video by these scripts, and no figure source is edited. Every word card and code line is for the author to approve.",
  "fps": 30,
  "size": [
   1920,
@@ -11,78 +11,78 @@
    "id": "open_tracks",
    "act": 1,
    "beats": 14,
-   "kind": "schematic",
    "words": [
-    "Same neutrino.",
-    "Different matter.",
-    "Different fate."
+    "One neutrino, two journeys.",
+    "Through empty space, and through matter.",
+    "Matter changes how it oscillates."
    ],
+   "kind": "schematic",
+   "scene": "opening",
    "visual": "new schematic: one neutrino rides two parallel tracks, vacuum above and matter of varying density below (the track glows with the density); on each track P(nu_mu -> nu_e) draws itself up to where the neutrino is, and the two curves part",
-   "source": "new: tools/trailer/data.py (Magnus, 3 GeV, 0 to 10,000 km) and scenes.py; the video animates the neutrino's position",
-   "scene": "opening"
+   "source": "new: tools/trailer/data.py (Magnus, 3 GeV, 0 to 10,000 km) and scenes.py; the video animates the neutrino's position"
   },
   {
    "id": "burden_grid",
    "act": 2,
-   "beats": 10,
-   "kind": "schematic",
+   "beats": 12,
    "words": [
-    "Every experimental setup,",
-    "every theory proposal:",
-    "its own solver."
+    "Every experiment needs oscillation probabilities.",
+    "Every new idea in physics changes the calculation.",
+    "So each case ends up with its own solver, written from scratch."
    ],
-   "visual": "new diagram: a 5 x 5 grid, experiments down, theories across; solver files fill it cell by cell on the beat, then every row's arrow converges on one box, H(E, x)",
-   "source": "new: tools/trailer/scenes.py, diagram 1",
-   "scene": "burden"
+   "kind": "schematic",
+   "scene": "burden",
+   "visual": "a 5 x 5 grid, experiments down, theories across; a solver file fills every cell, then every row converges on one box, H(E, x)",
+   "source": "new: tools/trailer/scenes.py"
   },
   {
-   "id": "burden_cost",
+   "id": "burden_q",
    "act": 2,
    "beats": 6,
-   "kind": "card",
    "words": [
-    "Written again.",
-    "Checked again.",
-    "Every time."
+    "What if you never had to",
+    "write one again?"
    ],
-   "visual": "the pile of solver files blurs; the three phrases hit on the beat",
-   "source": ""
+   "kind": "card",
+   "visual": "the question, on the beat; the music drops out for the last beat"
   },
   {
    "id": "reveal",
    "act": 3,
    "beats": 13,
-   "kind": "card",
    "words": [
     "Magνs",
     "Any number of flavors.",
     "Any matter profile.",
     "Standard Model and beyond.",
-    "One call."
+    "You write the physics. Magνs does the math."
    ],
-   "visual": "the pile collapses into the logotype; the four lines land one per two beats (author's wording)",
-   "source": ""
+   "kind": "card",
+   "visual": "the logotype answers the question; the four lines land one per two beats"
   },
   {
    "id": "hamiltonian",
    "act": 4,
    "beats": 8,
-   "kind": "schematic",
    "words": [
-    "You only need to give a Hamiltonian."
+    "All you provide is the Hamiltonian."
    ],
+   "kind": "schematic",
+   "scene": "hamiltonian",
    "visual": "new diagram: H(E, x) = H_vac/E + V(x) P_e + H_new(x) writes itself; each term lights its card: vacuum (the flavor content of the three mass states, from NuFIT), matter (a constant and a varying V(x)), beyond the Standard Model (four chips)",
-   "source": "new: tools/trailer/scenes.py, diagram 2",
-   "scene": "hamiltonian"
+   "source": "new: tools/trailer/scenes.py"
   },
   {
    "id": "code_moment",
    "act": 4,
-   "beats": 14,
-   "kind": "code",
+   "beats": 10,
    "words": [
-    "Write it. Call it."
+    "Write your Hamiltonian. Call one function."
    ],
+   "kind": "code",
+   "scene": "opening",
+   "visual": "the code types in; beside it the matter curve of the opening redraws from this call",
+   "source": "checked by tools/trailer/data.py (step code): runs without a warning and matches osc_prob_matter_std_potential to 4e-8 (H_vac, V, P_e built off screen)",
    "code": [
     "import magnus.oscprob as oscprob",
     "",
@@ -95,189 +95,190 @@
    "highlight": [
     2,
     3
-   ],
-   "visual": "the code types in; beside it the matter curve of the opening redraws from this call",
-   "source": "checked by tools/trailer/data.py (step code): runs without a warning and matches osc_prob_matter_std_potential to 4e-8 (H_vac, V, P_e built off screen)",
-   "scene": "opening"
+   ]
   },
   {
    "id": "auto_picks",
    "act": 4,
    "beats": 6,
-   "kind": "schematic",
    "words": [
-    "Magνs picks the solver."
+    "Magνs picks the right solver for each calculation."
    ],
+   "kind": "schematic",
+   "scene": "auto",
    "visual": "new diagram: from 'your call', five branches light in turn: constant density, energy scan, baseline scan, one point at modest phase, one point at extreme phase, each to its engine",
-   "source": "new: tools/trailer/scenes.py, diagram 4 (from the strategy docs of osc_prob_matter_std_potential)",
-   "scene": "auto"
+   "source": "new: tools/trailer/scenes.py, diagram 4 (from the strategy docs of osc_prob_matter_std_potential)"
   },
   {
    "id": "switch",
    "act": 4,
-   "beats": 12,
-   "kind": "schematic",
+   "beats": 11,
    "words": [
-    "Slow change: adiabatic transport.",
-    "Sharp change: found, and solved exactly.",
-    "Magνs decides."
+    "Where matter changes slowly, it follows the neutrino adiabatically.",
+    "Where it changes abruptly, it finds the spot and solves it exactly.",
+    "No tuning needed."
    ],
+   "kind": "schematic",
+   "scene": "switch",
    "visual": "new schematic: a 10 MeV neutrino leaves a dense stellar envelope and crosses the MSW resonance three times. The instantaneous levels draw along its path; the two slow crossings glow teal (adiabatic transport); at the shock front Magnus flags a 600 km window, the view zooms into it, and it turns amber (exact Magnus patch). Below, P(nu_e -> nu_e) lands one dot per call; the engine name under each dot flips from 'magnus' (short paths) to 'hybrid' (long ones).",
-   "source": "new: tools/trailer/data.py. strategy='auto' per point: 15 calls answered by the Magnus ladder, 225 by the hybrid, no warnings; the hybrid finds one window at the shock; every checked point within 3.2e-5 of an independent reference (common.reference_pee, no Magnus code). 4.7 million km path, shock width 105 km, illustrative profile.",
-   "scene": "switch"
+   "source": "new: tools/trailer/data.py. strategy='auto' per point: 15 calls answered by the Magnus ladder, 225 by the hybrid, no warnings; the hybrid finds one window at the shock; every checked point within 3.2e-5 of an independent reference (common.reference_pee, no Magnus code). 4.7 million km path, shock width 105 km, illustrative profile."
   },
   {
    "id": "m_flavors",
    "act": 5,
-   "beats": 3,
+   "beats": 4,
    "words": [
-    "2 to 5 flavors, ready-made"
+    "Two to five flavors, built in."
    ],
+   "kind": "schematic",
+   "scene": "flavors",
    "visual": "new diagram: bars for the flavor content of each mass state, growing from 2 to 3, 3+1 and 3+2 flavors",
-   "source": "new: tools/trailer/scenes.py, diagram 6 (the package's mixing matrices)",
-   "scene": "flavors"
+   "source": "new: tools/trailer/scenes.py, diagram 6 (the package's mixing matrices)"
   },
   {
    "id": "m_earth",
    "act": 5,
-   "beats": 3,
+   "beats": 9,
    "words": [
-    "Through the Earth"
+    "Through the Earth, one direction at a time.",
+    "Standard physics: three flavors."
    ],
-   "visual": "the oscillogram fills in column by column",
-   "source": "plotting.plot_oscillogram data, remade",
-   "still_from": "resources/paper/figs/earth_oscillogram.pdf"
+   "kind": "schematic",
+   "scene": "earth_osc",
+   "visual": "a globe, a quarter cut away to show the PREM layers; the chord to the detector sweeps from straight up through the core to the horizon, and the oscillogram builds column by column with it",
+   "source": "the paper's oscillogram (notebook 28, cell 42), from its cache"
+  },
+  {
+   "id": "m_earth_more",
+   "act": 5,
+   "beats": 6,
+   "words": [
+    "Or add more flavors: sterile neutrinos."
+   ],
+   "kind": "schematic",
+   "scene": "earth_more",
+   "visual": "the three-flavor oscillogram moves aside; the 3+1 and 3+2 oscillograms build beside it",
+   "source": "the paper's oscillograms (notebook 28, cell 42), from its cache"
+  },
+  {
+   "id": "m_baselines",
+   "act": 5,
+   "beats": 7,
+   "words": [
+    "From Fermilab to anywhere on Earth."
+   ],
+   "kind": "schematic",
+   "scene": "baselines",
+   "visual": "chords from Fermilab to SNOLAB, Homestake, CERN and the South Pole draw one by one, each with its appearance probability",
+   "source": "as the paper (notebook 28, cell 44), computed with Magnus"
   },
   {
    "id": "m_cp",
    "act": 5,
-   "beats": 3,
+   "beats": 5,
    "words": [
-    "CP violation"
+    "Map out CP violation."
    ],
-   "visual": "bi-probability ellipses trace as delta_CP runs",
-   "source": "notebook 27, scene 1, remade",
-   "still_from": "img/anim_cp.gif"
+   "kind": "schematic",
+   "scene": "cp",
+   "visual": "the bi-probability ellipses trace as the CP phase turns, for both mass orderings, Fermilab to Homestake",
+   "source": "computed with Magnus"
   },
   {
-   "id": "m_sterile",
+   "id": "m_bsm",
    "act": 5,
-   "beats": 3,
+   "beats": 8,
    "words": [
-    "Sterile neutrinos"
+    "Start from the Standard Model.",
+    "Add non-standard interactions.",
+    "Add Lorentz violation."
    ],
-   "visual": "the 3+1 curve peels away from the standard one",
-   "source": "notebook 27, scene 2, remade",
-   "still_from": "img/anim_sterile.gif"
-  },
-  {
-   "id": "m_nsi",
-   "act": 5,
-   "beats": 3,
-   "words": [
-    "Non-standard interactions"
-   ],
-   "visual": "the NSI curve peels away",
-   "source": "paper Figure 3 calls, remade",
-   "still_from": "resources/paper/figs/bsm.pdf"
-  },
-  {
-   "id": "m_liv",
-   "act": 5,
-   "beats": 3,
-   "words": [
-    "Lorentz violation"
-   ],
-   "visual": "the LIV curve peels away",
-   "source": "paper Figure 3 calls, remade",
-   "still_from": "resources/paper/figs/bsm.pdf"
-  },
-  {
-   "id": "m_shock",
-   "act": 5,
-   "beats": 3,
-   "words": [
-    "Supernova shocks"
-   ],
-   "visual": "the front sweeps; t_breakpoints=front flashes on screen",
-   "source": "notebook 27, scene 6, remade",
-   "still_from": "resources/paper/figs/shock_probability.pdf"
+   "kind": "schematic",
+   "scene": "bsm",
+   "visual": "one panel: the standard curve draws, then the NSI curve, then the Lorentz-violating one",
+   "source": "as the paper (notebook 28, cell 27), computed with Magnus"
   },
   {
    "id": "m_cosmic",
    "act": 5,
-   "beats": 3,
+   "beats": 6,
    "words": [
-    "Cosmic neutrinos"
+    "Cosmic neutrinos: predict the flavor mix at Earth."
    ],
-   "visual": "points settle into the flavor triangle, one source type at a time",
-   "source": "paper Figure 8, remade",
-   "still_from": "resources/paper/figs/astro_ternary.pdf"
+   "kind": "schematic",
+   "scene": "triangle",
+   "visual": "the flavor triangle; the Lorentz-violation and sterile-neutrino paths draw away from the standard point",
+   "source": "as the paper (notebook 28, cell 84), computed with Magnus"
   },
   {
-   "id": "beyond_card",
+   "id": "frontier",
    "act": 6,
    "beats": 3,
+   "words": [
+    "From textbook to frontier."
+   ],
    "kind": "card",
-   "words": [
-    "Beyond the textbook."
-   ],
-   "source": ""
+   "visual": "title card"
   },
   {
-   "id": "b_tomography",
+   "id": "b_sun",
    "act": 6,
-   "beats": 4,
+   "beats": 7,
    "words": [
-    "See the Sun through its neutrinos"
+    "Image the Sun with its own neutrinos."
    ],
-   "visual": "the solar discs: the Sun face-on in the nu_e channel builds ray by ray, then a slow zoom",
-   "source": "paper Figures 5e, 5f, remade",
-   "still_from": "resources/paper/figs/solar_adiabaticity.pdf"
+   "kind": "schematic",
+   "scene": "sun",
+   "visual": "the Sun in the electron-neutrino channel, scanned ray by ray at 30 GeV, then from 100 GeV to 3 TeV",
+   "source": "the paper's solar tomography (notebook 28, cell 66), from its cache"
   },
   {
    "id": "b_cavity",
    "act": 6,
-   "beats": 4,
+   "beats": 7,
    "words": [
-    "Find a hidden cavity"
+    "Find a hidden body deep underground."
    ],
-   "visual": "the beam sweeps across a buried body; the change-in-probability map builds angle by angle",
-   "source": "paper Figures 4c, 4d, remade",
-   "still_from": "resources/paper/figs/cavity_sweep.pdf"
+   "kind": "schematic",
+   "scene": "cavity",
+   "visual": "a beam sweeps across a buried body; the change in probability builds angle by angle",
+   "source": "as the paper (notebook 28, cell 48), computed with Magnus"
   },
   {
    "id": "b_geo",
    "act": 6,
-   "beats": 4,
+   "beats": 7,
    "words": [
-    "Map where geoneutrinos come from"
+    "Trace where geoneutrinos come from."
    ],
-   "visual": "Borexino geometry; the flux map lights up by source region",
-   "source": "paper Figures 8c-8e, remade",
-   "still_from": "resources/paper/figs/geoneutrino_flux.pdf"
+   "kind": "schematic",
+   "scene": "geo",
+   "visual": "the globe with its quarter cut; four production points light up one by one, each drawing its survival probability",
+   "source": "the paper's geoneutrino curves (notebook 28, cells 86-88), from its cache"
   },
   {
    "id": "b_jet",
    "act": 6,
-   "beats": 4,
+   "beats": 7,
    "words": [
-    "Neutrinos from inside a star"
+    "Follow neutrinos out of a stellar jet."
    ],
-   "visual": "a jet head moves out through three envelopes; the survival probability follows",
-   "source": "paper Figure 5g, remade",
-   "still_from": "resources/paper/figs/jet.pdf"
+   "kind": "schematic",
+   "scene": "jet",
+   "visual": "a neutrino leaves a jet inside a star; the probability at Earth draws for three envelopes",
+   "source": "the paper's jet (notebook 28, cell 69), from its cache"
   },
   {
    "id": "b_lri",
    "act": 6,
-   "beats": 4,
+   "beats": 7,
    "words": [
-    "Add your own physics"
+    "Test new long-range forces."
    ],
-   "visual": "a long-range-force coupling dial turns; the solar curve bends",
-   "source": "paper LRI figure, remade",
-   "still_from": "resources/paper/figs/solar_long_range.pdf"
+   "kind": "schematic",
+   "scene": "lri",
+   "visual": "neutrinos leave three Suns, carrying the reach of the new force with them; the averaged survival probability draws below",
+   "source": "the paper's long-range sweep (notebook 28, cell 62), from its cache"
   },
   {
    "id": "t_accurate",
@@ -287,7 +288,7 @@
    "words": [
     "Accurate."
    ],
-   "sub": "Adaptive until successive answers agree, and it warns when they don't.",
+   "sub": "It refines until successive answers agree, and warns you when they don't.",
    "visual": "new diagram: the path is cut into slabs, one exponential each, multiplied into U; beside it the real ladder at one point (2 to 21 slabs) jumps, then two answers agree within 1e-5",
    "source": "new: tools/trailer/scenes.py, diagram 3 (fixed-slab Magnus runs at 3 GeV, 10,000 km)",
    "scene": "slabs"
@@ -321,17 +322,16 @@
    "id": "cta",
    "act": 8,
    "beats": 13,
-   "kind": "card",
    "words": [
     "pip install magnuspy",
+    "Fully documented API  ·  Tutorial notebooks",
     "Docs: mbustama.github.io/Magnus",
     "Code: github.com/mbustama/Magnus",
-    "Documentation and 29 tutorial notebooks",
-    "Mauricio Bustamante · mbustamante@gmail.com",
+    "Mauricio Bustamante  ·  mbustamante@gmail.com",
     "Magνs: accurate, fast, flexible."
    ],
-   "visual": "the install line types in; docs and code links fade in; the author line; the logotype with its three words last",
-   "source": ""
+   "kind": "card",
+   "visual": "the install line types in; the documentation, links and author follow; the logotype with its three words last"
   }
  ],
  "decisions": [

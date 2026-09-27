@@ -27,10 +27,17 @@ PLAYWRIGHT_FFMPEG = '/opt/pw-browsers/ffmpeg-1011/ffmpeg-linux'
 
 
 def ffmpeg():
-    for exe in (os.environ.get('FFMPEG'), shutil.which('ffmpeg'), PLAYWRIGHT_FFMPEG):
+    """$FFMPEG; else the static ffmpeg of the imageio-ffmpeg package (pip install imageio-ffmpeg), which
+    has libx264, aac and PNG input; else one on the PATH; else Playwright's (WebM clips only)."""
+    try:
+        import imageio_ffmpeg
+        bundled = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        bundled = None
+    for exe in (os.environ.get('FFMPEG'), bundled, shutil.which('ffmpeg'), PLAYWRIGHT_FFMPEG):
         if exe and os.path.exists(exe):
             return exe
-    raise SystemExit('no ffmpeg found: set $FFMPEG')
+    raise SystemExit('no ffmpeg found: pip install imageio-ffmpeg, or set $FFMPEG')
 
 
 WIDTH = 1280                                         # pixels; the drawing is 16 x 9 inches
@@ -72,7 +79,7 @@ def encode(frames, n, name):
 
 
 def render(name, stills_only=False):
-    draw, beats, _ = scenes.SCENES[name]
+    draw, beats, _ = scenes.all_scenes()[name]
     (BUILD / 'stills').mkdir(parents=True, exist_ok=True)
     frame(draw, 1.0, BUILD / 'stills' / (name + '.png'))
     if stills_only:
@@ -93,8 +100,8 @@ if __name__ == '__main__':
         i = args.index('--width')
         WIDTH = int(args[i + 1])
         del args[i:i + 2]
-    unknown = [a for a in args if not a.startswith('--') and a not in scenes.SCENES]
+    unknown = [a for a in args if not a.startswith('--') and a not in scenes.all_scenes()]
     if unknown:
-        raise SystemExit('unknown scene(s) %s; choose from %s' % (unknown, ', '.join(scenes.SCENES)))
-    for name in [a for a in args if not a.startswith('--')] or list(scenes.SCENES):
+        raise SystemExit('unknown scene(s) %s; choose from %s' % (unknown, ', '.join(scenes.all_scenes())))
+    for name in [a for a in args if not a.startswith('--')] or list(scenes.all_scenes()):
         render(name, stills_only)
