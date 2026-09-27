@@ -964,10 +964,28 @@ def _probability_ylabel(nu_i, nu_f, num_flavors):
 
 def plot_probability_with_profile(
     x: Sequence[float],
-    profiles: Optional[Sequence[Union[Sequence[float], Dict[str, Any]]]],
-    panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
+    profiles: Optional[Sequence[Union[Sequence[float], Dict[str, Any]]]] = None,
+    panels: Optional[Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]]] = None,
     *,
-    xlabel: str = r'Baseline, $L$~[km]',
+    trajectories: Optional[Sequence[Dict[str, Any]]] = None,
+    x_axis: Optional[str] = None,
+    x_unit: Optional[float] = None,
+    energy: Optional[float] = None,
+    nu_i: Optional[int] = None,
+    nu_f: Optional[int] = None,
+    num_flavors: Optional[int] = None,
+    osc_params: Optional[Dict[str, float]] = None,
+    electron_fraction: Optional[float] = None,
+    electron_fraction_core: Optional[float] = None,
+    electron_fraction_mantle: Optional[float] = None,
+    electron_fraction_crust: Optional[float] = None,
+    electron_fraction_ocean: Optional[float] = None,
+    ratio_number_neutrons_to_protons: Optional[float] = None,
+    wrapper_kw: Optional[Dict[str, Any]] = None,
+    show_profile: Optional[bool] = None,
+    panel_per_trajectory: Optional[bool] = None,
+    return_probability: bool = False,
+    xlabel: Optional[str] = None,
     profile_ylabel: str = r'$\frac{N_e}{N_{\rm Av}}$~[cm$^{-3}$]',
     panel_ylabels: Optional[Sequence[Optional[str]]] = None,
     panel_annotations: Optional[Sequence[Optional[str]]] = None,
@@ -1011,24 +1029,95 @@ def plot_probability_with_profile(
     panel it is the profile-plus-probability figure of the introduction and the
     two-flavor notebooks.
 
+    It draws curves you computed, or, given ``trajectories`` instead of
+    ``profiles`` and ``panels``, computes them through the Earth wrappers
+    (:func:`magnus.oscprob.osc_prob_3nu_earth` and its two-, four- and
+    five-flavor siblings), which declare the PREM layer boundaries as slab
+    edges and use a layered electron fraction unless told otherwise.  The
+    density panel then shows the electron density those wrappers integrate
+    along each trajectory.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Computes the probabilities through the Earth wrappers when given
+       ``trajectories``; ``profiles`` and ``panels`` default to None.
 
     Parameters
     ----------
     x : sequence of float
         Shared abscissa, or, when the panels have different abscissae, the one
         used by the profile panel. Individual curves may carry their own ``x``.
+        When computing, baselines measured from where the neutrino enters the
+        Earth (``x_axis='baseline'``) or energies (``x_axis='energy'``), in
+        units of ``x_unit``.
     profiles : sequence or None
         Curves for the density panel, in the form :func:`plot_curves` takes.
         A curve may add its own abscissa under ``'x'``. Pass ``None`` (or an
         empty sequence) to omit the density panel entirely and get a plain
         stack of probability panels sharing an abscissa -- the layout the
         long-baseline notebook uses for a probability above its
-        energy-smoothed version.
+        energy-smoothed version.  Leave it None when computing.
     panels : sequence of sequence
         One entry per probability panel; each entry is a sequence of curves.
+        Required unless computing, and then left None.
+    trajectories : sequence of dict, optional
+        Compute instead of draw: one curve per entry, each a path through the
+        Earth given as ``'costhz'`` (the cosine of the zenith angle) or as
+        ``'loc_ini'`` and ``'loc_fin'`` (two named locations of
+        :data:`magnus.earth.loc_coords_dms`, or their coordinates, joined by
+        the chord between them).  An entry may carry its own abscissa under
+        ``'x'`` -- a baseline grid ending at its own chord length, say -- and
+        any :class:`~matplotlib.lines.Line2D` keyword (``color``, ``ls``,
+        ``label``...) for its curve.
+    x_axis : str, optional
+        What the abscissa is when computing, ``'baseline'`` or ``'energy'``.
+        ``'baseline'`` (the default): one
+        wrapper call per trajectory over all its baselines, at ``energy``; a
+        baseline longer than the trajectory's chord is an error.
+        ``'energy'``: one call per trajectory over all its energies, at the
+        full chord.
+    x_unit : float, optional
+        What one unit of the abscissa is, in the wrappers' units: a length in
+        :math:`\text{eV}^{-1}` or an energy in eV.  Default
+        :data:`magnus.globaldefs.UNIT_KM` for baselines (``x`` in km) and
+        :data:`magnus.globaldefs.UNIT_GEV` for energies (``x`` in GeV).
+    energy : float, optional
+        Neutrino energy [eV], required on the baseline axis and refused on the
+        energy axis.
+    nu_i, nu_f : int, optional
+        Initial and final flavors when computing, e.g.
+        :data:`magnus.globaldefs.NUMU` and :data:`magnus.globaldefs.NUE`.
+    num_flavors : int, optional
+        2, 3, 4 or 5: which Earth wrapper computes the probabilities.
+    osc_params : dict, optional
+        Mixing parameters, passed to the wrapper as keywords: ``sth`` and
+        ``Dm2`` (required) at two flavors; at three to five flavors any of the
+        wrapper's own (``s12``, ..., ``D41``...), the rest taking the wrapper's
+        defaults.  :func:`magnus.globaldefs.load_nufit_params` returns such a
+        dict.
+    electron_fraction, electron_fraction_core, electron_fraction_mantle, electron_fraction_crust, electron_fraction_ocean : float, optional
+        The Earth's composition, as the wrappers take it: one :math:`Y_e` for
+        the whole Earth, or per PREM layer.  Default: None, the layered values.
+        The density panel follows them too.
+    ratio_number_neutrons_to_protons : float, optional
+        Passed to the wrapper; matters from four flavors up.  Default: None,
+        derived from the same :math:`Y_e`.
+    wrapper_kw : dict, optional
+        Any other wrapper keyword, e.g. ``rtol`` or ``nubar``.
+    show_profile : bool, optional
+        Whether to draw the density panel when computing.  Default: yes on the
+        baseline axis, no on the energy axis, where the abscissa is not a
+        position along the trajectory (so ``True`` there is an error).
+    panel_per_trajectory : bool, optional
+        When computing, one probability panel per trajectory (the default) or
+        all curves in one panel.
+    return_probability : bool, optional
+        When computing, also return the probabilities drawn.  Default False.
     xlabel : str, optional
-        Abscissa label, placed under the bottom panel.
+        Abscissa label, placed under the bottom panel.  Default
+        ``'Baseline, $L$~[km]'``, or, when computing on the energy axis, a
+        neutrino-energy label in GeV or MeV (for those two ``x_unit`` values).
     profile_ylabel : str, optional
         Ordinate label of the density panel.
     panel_ylabels : sequence of str, optional
@@ -1116,6 +1205,20 @@ def plot_probability_with_profile(
     ax : numpy.ndarray of Axes
         Length ``1 + len(panels)`` with a density panel, which comes first;
         length ``len(panels)`` without one.
+    probability : list of numpy.ndarray
+        Only with ``return_probability=True``: one array per trajectory, over
+        its abscissa.
+
+    Raises
+    ------
+    ValueError
+        If ``panels`` is missing or empty when drawing; if ``trajectories`` is
+        given together with ``profiles`` or ``panels``, or any computing
+        argument without ``trajectories``; if a trajectory names neither or
+        both of ``costhz`` and the two locations; if ``x_axis`` is unknown,
+        ``energy`` is missing on the baseline axis or given on the energy axis,
+        or ``show_profile=True`` on the energy axis; and for the channel,
+        flavor-count and duplicate-keyword checks of :func:`plot_oscillogram`.
 
     Examples
     --------
@@ -1135,7 +1238,60 @@ def plot_probability_with_profile(
             xlim=(L[0], L[-1]), profile_ylim=(0, 6),
         )
         print(len(ax))
+
+    Computed through the Earth wrappers instead, along a chord that crosses
+    the core, with the electron density it samples on top:
+
+    .. jupyter-execute::
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import numpy as np
+        import magnus.globaldefs as gd
+        from magnus.plotting import plot_probability_with_profile
+
+        L = np.linspace(100.0, 11000.0, 200)    # [km]; the chord is 11 467 km long
+        fig, ax, P = plot_probability_with_profile(
+            L, trajectories=[dict(costhz=-0.9, label=r'$\cos\theta_z = -0.9$')],
+            energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+            xscale='linear', return_probability=True)
+        print(len(ax), P[0].shape)
     """
+    computing = dict(x_axis=x_axis, x_unit=x_unit, energy=energy, nu_i=nu_i, nu_f=nu_f,
+                     num_flavors=num_flavors, osc_params=osc_params,
+                     electron_fraction=electron_fraction,
+                     electron_fraction_core=electron_fraction_core,
+                     electron_fraction_mantle=electron_fraction_mantle,
+                     electron_fraction_crust=electron_fraction_crust,
+                     electron_fraction_ocean=electron_fraction_ocean,
+                     ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                     wrapper_kw=wrapper_kw, show_profile=show_profile,
+                     panel_per_trajectory=panel_per_trajectory)
+    probability = None
+    if trajectories is not None:
+        if profiles is not None or panels is not None:
+            raise ValueError(
+                'Error in magnus: plotting.plot_probability_with_profile: give either curves '
+                'to draw (profiles, panels) or trajectories to compute them from, not both.')
+        profiles, panels, probability, computed_xlabel = _profile_through_earth_wrappers(
+            x, trajectories, **computing)
+        if xlabel is None:
+            xlabel = computed_xlabel
+    else:
+        given = [name for name, value in computing.items() if value is not None]
+        if return_probability:
+            given.append('return_probability')
+        if given:
+            raise ValueError(
+                'Error in magnus: plotting.plot_probability_with_profile: '
+                + ', '.join(given) + ' compute the probabilities, which needs trajectories; '
+                'give either curves to draw or trajectories to compute them from, not both.')
+        if panels is None:
+            raise ValueError('Error in magnus: plotting.plot_probability_with_profile: give '
+                             'panels to draw, or trajectories to compute them from.')
+    if xlabel is None:
+        xlabel = r'Baseline, $L$~[km]'
+
     _, plt = _mpl()
     n_panels = len(panels)
     if n_panels == 0:
@@ -1239,7 +1395,116 @@ def plot_probability_with_profile(
         overlay.set_ylabel(shared_ylabel, labelpad=shared_ylabel_labelpad)
 
     _finish(fig, savefig, savefig_kw, tight_layout)
+    if return_probability:
+        return fig, ax, probability
     return fig, ax
+
+
+_TRAJECTORY_GEOMETRY = ('costhz', 'loc_ini', 'loc_fin')
+
+
+def _costhz_of_trajectory(caller, entry):
+    r"""The cosine of the zenith angle of one trajectory: given, or of the chord between two
+    surface locations (named, or as coordinates), resolved as the Earth wrappers do."""
+    locations = [k for k in ('loc_ini', 'loc_fin') if k in entry]
+    if ('costhz' in entry) == bool(locations) or len(locations) == 1:
+        raise ValueError(
+            'Error in magnus: plotting.%s: each trajectory needs either costhz or both '
+            'loc_ini and loc_fin, and not both; got keys %s.' % (caller, sorted(entry)))
+    if 'costhz' in entry:
+        return float(entry['costhz'])
+    from magnus import earth
+    ends = []
+    for key in ('loc_ini', 'loc_fin'):
+        loc = entry[key]
+        if isinstance(loc, str):
+            loc = earth.coordinates_of_named_location(caller, loc_name=loc)
+        ends.append(loc)
+    (lat1, lon1), (lat2, lon2) = ends
+    return float(earth.costhz_between_points_on_surface(lat1, lon1, lat2, lon2))
+
+
+def _profile_through_earth_wrappers(x, trajectories, x_axis, x_unit, energy, nu_i, nu_f,
+                                    num_flavors, osc_params, wrapper_kw, show_profile,
+                                    panel_per_trajectory, **composition):
+    r"""Density curves, probability panels, the probabilities and a default abscissa label.
+
+    One wrapper call per trajectory: over its baselines at one energy (the wrapper's
+    baseline-array path), or over its energies at the full chord (the energy-batched
+    engine).  The density drawn is the one the wrapper integrates: the same PREM
+    profile, electron fraction and ocean density, from the same resolution.
+    """
+    caller = 'plot_probability_with_profile'
+    where = 'Error in magnus: plotting.%s: ' % caller
+    x_axis = 'baseline' if x_axis is None else x_axis
+    if x_axis not in ('baseline', 'energy'):
+        raise ValueError(where + "x_axis is 'baseline' or 'energy', not %r." % (x_axis,))
+    on_baseline = x_axis == 'baseline'
+    if on_baseline and energy is None:
+        raise ValueError(where + 'on the baseline axis, computing needs energy [eV].')
+    if not on_baseline and energy is not None:
+        raise ValueError(where + 'on the energy axis the energies are the abscissa; energy '
+                         'cannot also be given.')
+    if show_profile is None:
+        show_profile = on_baseline
+    elif show_profile and not on_baseline:
+        raise ValueError(where + 'show_profile=True needs the baseline axis: on the energy '
+                         'axis the abscissa is not a position along the trajectory.')
+    if len(trajectories) == 0:
+        raise ValueError(where + 'trajectories is empty; at least one is required.')
+    depths = sorted({'source_depth', 'detector_depth'} & set(wrapper_kw or {}))
+    if depths:
+        raise ValueError(where + 'the trajectories here run from surface to surface; '
+                         + ', '.join(depths) + ' cannot be given.')
+    fn, kwargs = _earth_wrapper_and_arguments(
+        caller, nu_i, nu_f, num_flavors, osc_params, wrapper_kw, composition,
+        reserved={'energy', 'costhz', 'L', 'loc_ini', 'loc_fin'})
+
+    from magnus import earth, globaldefs as gd, oscprob
+    if x_unit is None:
+        x_unit = gd.UNIT_KM if on_baseline else gd.UNIT_GEV
+    if on_baseline:
+        xlabel = r'Baseline, $L$~[km]' if x_unit == gd.UNIT_KM else r'Baseline, $L$'
+    else:
+        unit = {gd.UNIT_GEV: '~[GeV]', gd.UNIT_MEV: '~[MeV]'}.get(x_unit, '')
+        xlabel = r'Neutrino energy, $E_\nu$' + unit
+    # n_e in units of N_Av per cm^3, which reads as rho*Y_e in g cm^-3
+    per_n_av = gd.N_AV/gd.CONV_CM_TO_INV_EV**3
+
+    profiles, curves, probability = [], [], []
+    for entry in trajectories:
+        entry = dict(entry)
+        costhz = _costhz_of_trajectory(caller, entry)
+        for key in _TRAJECTORY_GEOMETRY:
+            entry.pop(key, None)
+        xi = np.asarray(entry.pop('x', x), dtype=float)
+        if on_baseline:
+            prob = fn(energy, costhz=costhz, L=xi*x_unit, **kwargs)
+        else:
+            chord = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+            prob = fn(xi*x_unit, costhz=costhz, L=chord, **kwargs)
+        prob = np.asarray(prob, dtype=float).reshape(len(xi))
+        probability.append(prob)
+        curves.append(dict(entry, x=xi, y=prob))
+        if show_profile:
+            # num_flavors=3: the wrapper call above already raised any composition
+            # warning, and the electron density does not depend on the neutron ratio
+            rho_func, _ = oscprob._earth_composition(
+                costhz, composition.get('electron_fraction'), None,
+                composition.get('electron_fraction_core'),
+                composition.get('electron_fraction_mantle'),
+                composition.get('electron_fraction_crust'),
+                composition.get('electron_fraction_ocean'),
+                caller, num_flavors=3,
+                density_matter_ocean=(wrapper_kw or {}).get('density_matter_ocean'))
+            style = {k: v for k, v in entry.items() if k != 'label'}
+            profiles.append(dict(style, x=xi, y=rho_func(xi*x_unit)/per_n_av))
+
+    if panel_per_trajectory is None or panel_per_trajectory:
+        panels = [[curve] for curve in curves]
+    else:
+        panels = [curves]
+    return profiles, panels, probability, xlabel
 
 
 def plot_probability_with_average(
@@ -1379,9 +1644,24 @@ def plot_probability_with_average(
 
 
 def plot_biprobability(
-    prob_nu: Sequence[Sequence[float]],
-    prob_nubar: Sequence[Sequence[float]],
+    prob_nu: Optional[Sequence[Sequence[float]]] = None,
+    prob_nubar: Optional[Sequence[Sequence[float]]] = None,
     *,
+    configurations: Optional[Sequence[Dict[str, Any]]] = None,
+    dcp: Optional[Sequence[float]] = None,
+    energy: Optional[float] = None,
+    nu_i: Optional[int] = None,
+    nu_f: Optional[int] = None,
+    num_flavors: Optional[int] = None,
+    osc_params: Optional[Dict[str, float]] = None,
+    electron_fraction: Optional[float] = None,
+    electron_fraction_core: Optional[float] = None,
+    electron_fraction_mantle: Optional[float] = None,
+    electron_fraction_crust: Optional[float] = None,
+    electron_fraction_ocean: Optional[float] = None,
+    ratio_number_neutrons_to_protons: Optional[float] = None,
+    wrapper_kw: Optional[Dict[str, Any]] = None,
+    return_probability: bool = False,
     labels: Optional[Sequence[str]] = None,
     curve_kw: Optional[Sequence[Dict[str, Any]]] = None,
     markers: Optional[Sequence[Dict[str, Any]]] = None,
@@ -1412,13 +1692,62 @@ def plot_biprobability(
     :math:`\delta_{\rm CP}` runs over :math:`[-\pi, \pi]`, with optional
     markers at selected phases.
 
+    It draws probabilities you computed, or, given ``configurations`` instead,
+    computes them through the Earth wrappers
+    (:func:`magnus.oscprob.osc_prob_3nu_earth` and its four- and five-flavor
+    siblings), which declare the PREM layer boundaries as slab edges and use a
+    layered electron fraction unless told otherwise.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       Computes the probabilities through the Earth wrappers when given
+       ``configurations``; markers may name a phase (``'dcp'``); ``nu_i`` and
+       ``nu_f`` set the default axis labels.
 
     Parameters
     ----------
     prob_nu, prob_nubar : sequence of sequence of float
         One entry per curve, each a sequence of probabilities over the same
-        grid of :math:`\delta_{\rm CP}` values.
+        grid of :math:`\delta_{\rm CP}` values.  Required unless computing,
+        and then left None.
+    configurations : sequence of dict, optional
+        Compute instead of draw: one curve per entry, each a path through the
+        Earth -- ``'costhz'``, with ``'L'`` [:math:`\text{eV}^{-1}`] or, by
+        default, the full chord; or ``'loc_ini'`` and ``'loc_fin'``, two
+        locations joined by the chord between them -- plus, optionally, its
+        own ``'energy'`` and any other wrapper keyword for that curve alone
+        (the inverted-ordering parameters for an inverted-ordering curve, say).
+        A configuration's entry overrides the shared ``energy``,
+        ``osc_params``, composition or ``wrapper_kw`` value for its curve.
+        Style the curves with ``labels`` and ``curve_kw``, as when drawing.
+    dcp : sequence of float, optional
+        The phases the curves run over, in the wrapper's convention (radians,
+        or degrees under ``angles='deg'``).  Default: 100 points from
+        :math:`-\pi` to :math:`\pi`.
+    energy : float, optional
+        Neutrino energy [eV] shared by the configurations that give none.
+    nu_i, nu_f : int, optional
+        The channel: the default axis labels, and, when computing, what is
+        computed.  Default :math:`\nu_\mu \to \nu_e`.  Give both or
+        neither.
+    num_flavors : int, optional
+        3, 4 or 5: which Earth wrapper computes the probabilities (two flavors
+        have no CP phase).
+    osc_params : dict, optional
+        Mixing parameters shared by all curves, as the wrapper takes them.  A
+        ``dCP`` in it, or in a configuration, is replaced by the phases in
+        ``dcp`` (and a marker's), so a set from
+        :func:`magnus.globaldefs.load_nufit_params` can be passed whole.
+    electron_fraction, electron_fraction_core, electron_fraction_mantle, electron_fraction_crust, electron_fraction_ocean : float, optional
+        The Earth's composition, as the wrappers take it.  Default: None, the
+        layered values.
+    ratio_number_neutrons_to_protons : float, optional
+        Passed to the wrapper; matters from four flavors up.
+    wrapper_kw : dict, optional
+        Any other wrapper keyword, e.g. ``rtol``.
+    return_probability : bool, optional
+        Also return the probabilities drawn.  Default False.
     labels : sequence of str, optional
         Legend label per curve.
     curve_kw : sequence of dict, optional
@@ -1427,11 +1756,12 @@ def plot_biprobability(
         Markers at selected phases. Each entry gives its position either as
         ``'index'`` (a position along the curve) or as ``'xy'`` (an explicit
         coordinate pair, which is what you have when the marked phases were
-        computed separately from the curve). Optionally ``'marker'``,
+        computed separately from the curve) or, when computing, as ``'dcp'``
+        (a phase, computed for each curve it marks). Optionally ``'marker'``,
         ``'label'``, ``'filled'`` and ``'curve'`` (which curve it belongs to,
         default all).
     xlabel, ylabel : str, optional
-        Axis labels. Default to the :math:`\nu_\mu \to \nu_e` pair.
+        Axis labels. Default to the ``nu_i``, ``nu_f`` pair.
     title : str, optional
         Title.
     title_fontsize : float, optional
@@ -1467,6 +1797,23 @@ def plot_biprobability(
     -------
     fig : matplotlib.figure.Figure
     ax : matplotlib.axes.Axes
+    prob_nu, prob_nubar : numpy.ndarray or sequence
+        Only with ``return_probability=True``: the probabilities drawn, arrays
+        of shape ``(len(configurations), len(dcp))`` when computed, the inputs
+        as given otherwise.
+
+    Raises
+    ------
+    ValueError
+        If the two probabilities have different numbers of curves, or one is
+        missing when drawing; if ``configurations`` is given together with
+        them, or a computing argument without ``configurations``; if a marker
+        gives none or more than one of ``index``, ``xy`` and ``dcp``, or
+        ``dcp`` when drawing; if a configuration has no energy, no geometry or
+        both geometries, ``L`` with two locations, or a per-point keyword
+        (``nubar``, ``nu_i``, ``nu_f``); if only one of ``nu_i``,
+        ``nu_f`` is given; and for the flavor-count and duplicate-keyword
+        checks of :func:`plot_oscillogram`, here with ``num_flavors`` 3, 4 or 5.
 
     Examples
     --------
@@ -1483,8 +1830,60 @@ def plot_biprobability(
 
         fig, ax = plot_biprobability([P_nu], [P_nubar], labels=['NO'])
         print(ax.get_xlabel())
+
+    Computed through the Earth wrappers instead, from Fermilab to Homestake at
+    2 GeV, both orderings, with the phase :math:`\delta_{\rm CP} = 0` marked:
+
+    .. jupyter-execute::
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import numpy as np
+        import magnus.globaldefs as gd
+        from magnus.plotting import plot_biprobability
+
+        where = dict(loc_ini='fermilab', loc_fin='homestake')
+        fig, ax, P_nu, P_nubar = plot_biprobability(
+            configurations=[dict(where, **gd.load_nufit_params('NuFIT 6.1', 'NO')),
+                            dict(where, **gd.load_nufit_params('NuFIT 6.1', 'IO'))],
+            dcp=np.linspace(-np.pi, np.pi, 25), energy=2.0*gd.UNIT_GEV, num_flavors=3,
+            labels=['NO', 'IO'], markers=[dict(dcp=0.0, marker='*', label='0')],
+            return_probability=True)
+        print(P_nu.shape)
     """
     import magnus.globaldefs as gd
+
+    where = 'Error in magnus: plotting.plot_biprobability: '
+    if (nu_i is None) != (nu_f is None):
+        raise ValueError(where + 'give both nu_i and nu_f, or neither.')
+    channel = (gd.NUMU, gd.NUE) if nu_i is None else (nu_i, nu_f)
+    computing = dict(dcp=dcp, energy=energy, num_flavors=num_flavors, osc_params=osc_params,
+                     electron_fraction=electron_fraction,
+                     electron_fraction_core=electron_fraction_core,
+                     electron_fraction_mantle=electron_fraction_mantle,
+                     electron_fraction_crust=electron_fraction_crust,
+                     electron_fraction_ocean=electron_fraction_ocean,
+                     ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                     wrapper_kw=wrapper_kw)
+    points = {}
+    if configurations is not None:
+        if prob_nu is not None or prob_nubar is not None:
+            raise ValueError(where + 'give either probabilities to draw or configurations to '
+                             'compute them from, not both.')
+        prob_nu, prob_nubar, points = _biprobability_through_earth_wrappers(
+            configurations, markers, channel, **computing)
+    else:
+        given = [name for name, value in computing.items() if value is not None]
+        if given:
+            raise ValueError(where + ', '.join(given) + ' compute the probabilities, which '
+                             'needs configurations; give either probabilities to draw or '
+                             'configurations to compute them from, not both.')
+        if prob_nu is None or prob_nubar is None:
+            raise ValueError(where + 'give prob_nu and prob_nubar to draw, or configurations '
+                             'to compute them from.')
+        if any('dcp' in m for m in (markers or [])):
+            raise ValueError(where + "a marker's 'dcp' is a phase to compute, which needs "
+                             'configurations; mark a drawn curve by its index or xy.')
 
     _, plt = _mpl()
     if len(prob_nu) != len(prob_nubar):
@@ -1494,9 +1893,9 @@ def plot_biprobability(
             f'{len(prob_nubar)}'
         )
     if xlabel is None:
-        xlabel = prob_label(gd.NUMU, gd.NUE)
+        xlabel = prob_label(*channel)
     if ylabel is None:
-        ylabel = prob_label(gd.NUMU, gd.NUE, nubar=True)
+        ylabel = prob_label(*channel, nubar=True)
 
     skw = dict(subplots_kw or {})
     gs_kw = skw.pop('gridspec_kw', None) or dict(height_ratios=[1.0],
@@ -1515,19 +1914,21 @@ def plot_biprobability(
         colors.append(kw['color'])
         ax.plot(np.asarray(yn), np.asarray(yb), **kw)
 
-    for m in (markers or []):
-        if 'index' not in m and 'xy' not in m:
+    for j, m in enumerate(markers or []):
+        if sum(key in m for key in ('index', 'xy', 'dcp')) != 1:
             raise ValueError(
-                "Error in magnus: plotting.plot_biprobability: each marker needs either an "
-                "'index' along the curve or an explicit 'xy' coordinate pair; "
-                f'got keys {sorted(m)}'
+                "Error in magnus: plotting.plot_biprobability: each marker needs one of an "
+                "'index' along the curve, an explicit 'xy' coordinate pair, or, when "
+                f"computing, a phase 'dcp'; got keys {sorted(m)}"
             )
         filled = m.get('filled', True)
         which = m.get('curve')
         targets = range(len(prob_nu)) if which is None else [which]
         for i in targets:
             c = colors[i]
-            if 'xy' in m:
+            if 'dcp' in m:
+                x, y = points[(j, i)]
+            elif 'xy' in m:
                 x, y = m['xy']
             else:
                 x = np.asarray(prob_nu[i])[m['index']]
@@ -1570,16 +1971,87 @@ def plot_biprobability(
     _apply_locators(ax.yaxis, ymajor, yminor)
 
     _finish(fig, savefig, savefig_kw, tight_layout)
+    if return_probability:
+        return fig, ax, prob_nu, prob_nubar
     return fig, ax
+
+
+def _biprobability_through_earth_wrappers(configurations, markers, channel, dcp, energy,
+                                          num_flavors, osc_params, wrapper_kw, **composition):
+    r"""Neutrino and antineutrino probabilities, ``(len(configurations), len(dcp))`` each,
+    and the marked points, keyed by (marker index, curve index).
+
+    Two calls per phase and curve, one per ``nubar``: the phase changes the Hamiltonian,
+    so nothing is batched across it.
+    """
+    caller = 'plot_biprobability'
+    where = 'Error in magnus: plotting.%s: ' % caller
+    fn, shared = _earth_wrapper_and_arguments(
+        caller, channel[0], channel[1], num_flavors, osc_params, wrapper_kw, composition,
+        reserved={'energy', 'costhz', 'L', 'loc_ini', 'loc_fin', 'nubar'},
+        flavors=(3, 4, 5))
+    # A parameter set such as load_nufit_params returns carries its own dCP; the phases
+    # scanned take its place, which is what this plot is (documented under osc_params).
+    shared.pop('dCP', None)
+    if len(configurations) == 0:
+        raise ValueError(where + 'configurations is empty; at least one is required.')
+
+    from magnus import earth, globaldefs as gd
+    dcp = np.linspace(-np.pi, np.pi, 100) if dcp is None else np.asarray(dcp, dtype=float)
+    marked = [(j, m) for j, m in enumerate(markers or []) if 'dcp' in m]
+    prob_nu = np.empty((len(configurations), len(dcp)))
+    prob_nubar = np.empty_like(prob_nu)
+    points = {}
+    for i, conf in enumerate(configurations):
+        conf = dict(conf)
+        conf.pop('dCP', None)
+        per_point = sorted({'nubar', 'nu_i', 'nu_f'} & set(conf))
+        if per_point:
+            raise ValueError(where + 'these are set by plot_biprobability itself and cannot be '
+                             'given in a configuration: ' + ', '.join(per_point) + '.')
+        E = conf.pop('energy', energy)
+        if E is None:
+            raise ValueError(where + 'configuration %d gives no energy, and no shared energy '
+                             'is given.' % i)
+        locations = [k for k in ('loc_ini', 'loc_fin') if k in conf]
+        if ('costhz' in conf) == bool(locations) or len(locations) == 1:
+            raise ValueError(where + 'each configuration needs either costhz or both loc_ini '
+                             'and loc_fin, and not both; got keys %s.' % sorted(conf))
+        if locations and 'L' in conf:
+            raise ValueError(where + 'L goes with costhz; two locations fix the baseline '
+                             'themselves (configuration %d).' % i)
+        if 'costhz' in conf and 'L' not in conf:
+            conf['L'] = earth.distance_traveled_inside_earth(float(conf['costhz']))*gd.UNIT_KM
+        kwargs = {**shared, **conf}
+
+        def prob(phase, nubar):
+            return np.asarray(fn(E, dCP=phase, nubar=nubar, **kwargs), dtype=float).item()
+
+        prob_nu[i] = [prob(d, False) for d in dcp]
+        prob_nubar[i] = [prob(d, True) for d in dcp]
+        for j, m in marked:
+            if m.get('curve') in (None, i):
+                points[(j, i)] = (prob(m['dcp'], False), prob(m['dcp'], True))
+    return prob_nu, prob_nubar, points
 
 
 def plot_oscillogram(
     costhz: Sequence[float],
     log10_energy: Sequence[float],
-    probability: Sequence[Sequence[float]],
+    probability: Optional[Sequence[Sequence[float]]] = None,
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    num_flavors: Optional[int] = None,
+    osc_params: Optional[Dict[str, float]] = None,
+    electron_fraction: Optional[float] = None,
+    electron_fraction_core: Optional[float] = None,
+    electron_fraction_mantle: Optional[float] = None,
+    electron_fraction_crust: Optional[float] = None,
+    electron_fraction_ocean: Optional[float] = None,
+    ratio_number_neutrons_to_protons: Optional[float] = None,
+    wrapper_kw: Optional[Dict[str, Any]] = None,
+    return_probability: bool = False,
     levels: int = 120,
     cmap: str = 'plasma',
     xlabel: str = r'Zenith angle, $\cos(\theta_z)$',
@@ -1610,19 +2082,58 @@ def plot_oscillogram(
     :math:`\log_{10} E_\nu`, with a color bar and the channel annotated in the
     corner over a white stroke so it stays legible against the color map.
 
+    Given a ``probability`` array, it draws it.  Given none, it computes it first
+    through the Earth wrappers (:func:`magnus.oscprob.osc_prob_3nu_earth` and its
+    two-, four- and five-flavor siblings), one call per zenith angle over the whole
+    energy array, so each is an energy scan the energy-batched engine answers.  The
+    wrappers declare the PREM layer boundaries as slab edges and use a layered
+    electron fraction unless it is overridden here.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       ``probability`` is optional: without it, the oscillogram is computed through
+       the Earth wrappers.  Adds ``num_flavors``, ``osc_params``, the
+       electron-fraction keywords, ``wrapper_kw`` and ``return_probability``.
 
     Parameters
     ----------
     costhz : sequence of float
-        Zenith-angle cosines, the abscissa.
+        Zenith-angle cosines, the abscissa.  The physical range is
+        :math:`[-1, 0]`; at :math:`\cos\theta_z \geq 0` the path inside the Earth
+        has zero length and the computed probability is the identity.
     log10_energy : sequence of float
         :math:`\log_{10}` of the energy in GeV, the ordinate.
-    probability : sequence of sequence of float
-        Probability with shape ``(len(log10_energy), len(costhz))``.
+    probability : sequence of sequence of float, optional
+        Probability with shape ``(len(log10_energy), len(costhz))``.  If None
+        (default), it is computed through the Earth wrappers, which needs
+        ``nu_i``, ``nu_f`` and ``num_flavors``.  Give either this or the
+        arguments that compute it, not both.
     nu_i, nu_f : int, optional
         Flavor pair, used for the color-bar label and the annotation when
-        those are not given explicitly.
+        those are not given explicitly, and as the channel when the
+        probability is computed.  For two flavors they index the wrapper's
+        :math:`2 \times 2` matrix (0 or 1).
+    num_flavors : int, optional
+        2, 3, 4 or 5: which Earth wrapper computes the probability.
+    osc_params : dict, optional
+        Mixing parameters, passed to the wrapper by name (``sth`` and ``Dm2``
+        at two flavors, where they are required; ``s12``, ..., ``D31`` and the
+        sterile ones at three to five flavors, where the wrapper's default set
+        applies to any left out).
+    electron_fraction, electron_fraction_core, electron_fraction_mantle, electron_fraction_crust, electron_fraction_ocean : float, optional
+        Electron fraction, everywhere or per PREM layer.  None (default) keeps
+        the wrappers' layered values.  Passed to the wrapper unchanged, with
+        the wrapper's meaning and validation.
+    ratio_number_neutrons_to_protons : float, optional
+        Passed to the wrapper unchanged; None keeps its default.
+    wrapper_kw : dict, optional
+        Any other keyword the Earth wrapper accepts (``rtol``, ``atol``,
+        ``nubar``, ``integration_method``, ``magnus_exp_order``, ...).  The
+        channel, the geometry and the composition keywords above cannot be
+        given here too.
+    return_probability : bool, optional
+        If True, also return the probability drawn.  Default is False.
     levels : int, optional
         Number of filled contour levels. Default is ``120``.
     cmap : str, optional
@@ -1662,9 +2173,23 @@ def plot_oscillogram(
     -------
     fig : matplotlib.figure.Figure
     ax : matplotlib.axes.Axes
+    probability : np.ndarray
+        Only with ``return_probability=True``: the probability drawn, shape
+        ``(len(log10_energy), len(costhz))``.
+
+    Raises
+    ------
+    ValueError
+        If the probability has the wrong shape; if it is given together with
+        any argument that would compute it; if it is to be computed without
+        ``nu_i``, ``nu_f`` or a valid ``num_flavors``, or at two flavors
+        without ``osc_params``; or if a keyword arrives both explicitly and in
+        ``wrapper_kw``.
 
     Examples
     --------
+    A precomputed probability is drawn as given:
+
     .. jupyter-execute::
 
         import matplotlib
@@ -1679,9 +2204,53 @@ def plot_oscillogram(
 
         fig, ax = plot_oscillogram(c, lE, P, nu_i=gd.NUMU, nu_f=gd.NUMU)
         print(ax.get_xlabel())
+
+    Without one, it is computed through the Earth wrappers, here at three flavors
+    with the default mixing parameters and the layered electron fraction:
+
+    .. jupyter-execute::
+
+        import matplotlib
+        matplotlib.use('Agg')
+        import numpy as np
+        import magnus.globaldefs as gd
+        from magnus.plotting import plot_oscillogram
+
+        import warnings
+        from magnus.magnus import MagnusConvergenceWarning
+
+        c = np.linspace(-1.0, -0.1, 25)
+        lE = np.linspace(0.0, 1.0, 20)
+        # A few of these chords need the adaptive refinement to widen its first grids;
+        # this is the expected, informational MagnusConvergenceWarning discussed in the
+        # package README.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            fig, ax, P = plot_oscillogram(c, lE, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                          return_probability=True)
+        print(P.shape, round(float(P.max()), 3))
     """
     mpl, plt = _mpl()
     import matplotlib.patheffects as path_effects
+
+    computing = dict(num_flavors=num_flavors, osc_params=osc_params,
+                     electron_fraction=electron_fraction,
+                     electron_fraction_core=electron_fraction_core,
+                     electron_fraction_mantle=electron_fraction_mantle,
+                     electron_fraction_crust=electron_fraction_crust,
+                     electron_fraction_ocean=electron_fraction_ocean,
+                     ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
+                     wrapper_kw=wrapper_kw)
+    if probability is None:
+        probability = _oscillogram_through_earth_wrappers(costhz, log10_energy, nu_i, nu_f,
+                                                          **computing)
+    else:
+        given = [name for name, value in computing.items() if value is not None]
+        if given:
+            raise ValueError(
+                'Error in magnus: plotting.plot_oscillogram: give either a probability to draw '
+                'or the arguments that compute it, not both; got a probability and '
+                + ', '.join(given) + '.')
 
     prob = np.asarray(probability)
     expected = (len(log10_energy), len(costhz))
@@ -1729,4 +2298,68 @@ def plot_oscillogram(
     ax.set_ylabel(ylabel)
 
     _finish(fig, savefig, savefig_kw, tight_layout)
+    if return_probability:
+        return fig, ax, prob
     return fig, ax
+
+
+_EARTH_COMPOSITION_KEYS = ('electron_fraction', 'electron_fraction_core',
+                           'electron_fraction_mantle', 'electron_fraction_crust',
+                           'electron_fraction_ocean', 'ratio_number_neutrons_to_protons')
+
+
+def _oscillogram_through_earth_wrappers(costhz, log10_energy, nu_i, nu_f, num_flavors,
+                                        osc_params, wrapper_kw, **composition):
+    r"""Probability of shape ``(len(log10_energy), len(costhz))`` from the Earth wrappers.
+
+    One call per zenith angle over the whole energy array: an energy scan at one
+    baseline, which the energy-batched engine answers.  The wrapper declares the
+    PREM layer boundaries itself; the composition keywords left at None are not
+    passed, so the wrapper's own defaults (a layered electron fraction) apply.
+    """
+    fn, kwargs = _earth_wrapper_and_arguments(
+        'plot_oscillogram', nu_i, nu_f, num_flavors, osc_params, wrapper_kw, composition,
+        reserved={'energy', 'costhz', 'L'})
+
+    from magnus import earth, globaldefs as gd
+    energy = 10.0**np.asarray(log10_energy, dtype=float)*gd.UNIT_GEV
+    probability = np.empty((len(energy), len(costhz)))
+    for j, cz in enumerate(costhz):
+        L = earth.distance_traveled_inside_earth(float(cz))*gd.UNIT_KM
+        probability[:, j] = np.asarray(fn(energy, costhz=float(cz), L=L, **kwargs),
+                                       dtype=float).reshape(len(energy))
+    return probability
+
+
+def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wrapper_kw,
+                                 composition, reserved, flavors=(2, 3, 4, 5)):
+    r"""The Earth wrapper for ``num_flavors`` and the keywords every call to it shares.
+
+    The checks the plotting functions that compute through the Earth wrappers have in
+    common: a channel, a flavor count the wrapper exists for, the two-flavor parameters
+    that have no default, and no keyword arriving twice -- ``reserved`` names what the
+    caller sets per call, which ``wrapper_kw`` and ``osc_params`` may not also set.  The
+    composition keywords left at None are dropped, so the wrapper's own defaults (a
+    layered electron fraction) apply.
+    """
+    where = 'Error in magnus: plotting.%s: ' % caller
+    if nu_i is None or nu_f is None:
+        raise ValueError(where + 'computing the probability needs nu_i and nu_f.')
+    if num_flavors not in flavors:
+        allowed = ', '.join(str(n) for n in flavors[:-1]) + ' or %d' % flavors[-1]
+        raise ValueError(where + 'computing the probability needs num_flavors = %s, not %r.'
+                         % (allowed, num_flavors))
+    osc_params = dict(osc_params or {})
+    if num_flavors == 2 and not {'sth', 'Dm2'} <= set(osc_params):
+        raise ValueError(where + 'at two flavors, osc_params must give sth and Dm2.')
+    wrapper_kw = dict(wrapper_kw or {})
+    reserved = set(reserved) | {'nu_i', 'nu_f'} | set(_EARTH_COMPOSITION_KEYS)
+    clash = sorted(reserved & (set(wrapper_kw) | set(osc_params)))
+    if clash:
+        raise ValueError(where + 'these belong to %s itself and cannot be given in '
+                         'wrapper_kw or osc_params: ' % caller + ', '.join(clash) + '.')
+    composition = {k: v for k, v in composition.items() if v is not None}
+
+    from magnus import oscprob
+    fn = getattr(oscprob, 'osc_prob_%dnu_earth' % num_flavors)
+    return fn, dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition, **wrapper_kw)

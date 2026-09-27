@@ -9,6 +9,36 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`plotting.plot_oscillogram` computes the oscillogram when not given one**
+  (issue #95).  Without a `probability` array it calls the Earth wrapper
+  (`osc_prob_{2,3,4,5}nu_earth`) once per zenith angle over the whole energy
+  array, so each call is an energy scan the energy-batched engine answers, with
+  the PREM layer boundaries declared.  New keywords: `num_flavors`,
+  `osc_params`, the wrappers' electron-fraction keywords (`electron_fraction`,
+  `electron_fraction_core`, `_mantle`, `_crust`, `_ocean`, and
+  `ratio_number_neutrons_to_protons`; left at None they keep the wrappers'
+  layered values), `wrapper_kw` for anything else the wrappers accept, and
+  `return_probability`.  A precomputed `probability` is drawn as before;
+  giving it together with any of the computing arguments raises rather than
+  ignoring them.
+
+- **`plotting.plot_probability_with_profile` and `plotting.plot_biprobability`
+  compute through the Earth wrappers too.**  `plot_probability_with_profile`
+  takes `trajectories` (each a `costhz`, or `loc_ini` and `loc_fin`, with its
+  own abscissa and line style) in place of `profiles` and `panels`, and makes
+  one wrapper call per trajectory: over its baselines at one `energy`
+  (`x_axis='baseline'`), or over its energies at the full chord
+  (`x_axis='energy'`).  Its density panel is then the electron density the
+  wrapper integrates, following the same electron-fraction keywords.
+  `plot_biprobability` takes `configurations` (a path, optionally its own
+  `energy` and parameters, e.g. inverted ordering for one curve) in place of
+  `prob_nu` and `prob_nubar`, runs `dCP` over `dcp`, and computes markers
+  given as a phase (`'dcp'`); `nu_i` and `nu_f` now also set its default axis
+  labels.  Both share `plot_oscillogram`'s other computing keywords
+  (`num_flavors`, `osc_params`, the composition keywords, `wrapper_kw`,
+  `return_probability`) and its rule that drawing and computing arguments are
+  not mixed.  Existing calls are unchanged.
+
 - **`strategy_info` in vacuum.** `osc_prob_vacuum` and its wrappers
   (`osc_prob_{2,3,4,5}nu_vacuum`) accept `strategy_info`, as every other
   scenario function does; before, passing it raised `ValueError` (unrecognized
@@ -147,6 +177,36 @@ and the project uses [Semantic Versioning](https://semver.org/).
   loader's in the last bit, and a caller pinned to 6.0 keeps the same bits.
 
 ### Changed
+
+- **Notebooks 04, 05, 06 and 07 compute their Earth probabilities through the
+  Earth wrappers** (issue #95 for notebook 06).  They built the PREM
+  Hamiltonian by hand, without declaring the layer boundaries, on fixed grids
+  (notebook 06 also with a uniform electron fraction of 0.5).  The wrappers
+  declare the boundaries, use the layered electron fraction and refine to their
+  default tolerance.  One exception is stated where it happens: notebook 07's
+  3+1 energy scan reaches the standard `max_n_slabs` at its lowest energies,
+  where the sterile phase is of order 1e6 radians, so it warns as expected; a
+  new cell computes one of those probabilities with `max_n_slabs=10**6` as
+  well, which removes the warning at a longer runtime.  Against a reference at `rtol=1e-9`, the largest error on
+  the sampled points fell from 3.2e-2 to 8e-12 (07, 3+1 to the South Pole),
+  from 1.2e-3 to 5e-6 (05, 2 GeV to the South Pole) and from 3e-4 to under 1e-6
+  (04).  Notebooks 04 and 05 now call the computing forms of
+  `plot_probability_with_profile` and `plot_biprobability`; notebook 07's
+  3+1-versus-energy figure labels its axis in MeV, the unit its energies were
+  always in, and its aliasing comment gives the sterile phase as ~1e6 radians
+  (it said ~1e9).  Notebook 06's two-flavor nu_mu-nu_tau oscillogram is now
+  computed in vacuum along each chord: neither flavor feels the
+  charged-current potential, so the matter term drops out, and the two-flavor
+  Earth wrapper (which applies it to its first flavor, nu_e) had given this
+  system a matter effect it does not have.  Its crude-settings demonstration
+  moved to the 1-2 sector, with its error stated (up to 2e-2 at one slab per
+  layer and first order, against 1e-5 at the default tolerance).  Notebook
+  05's best-fit markers are labelled NuFIT 6.1, the parameters they use (they
+  said NuFit 6.0), and notebook 01's text says the same of its parameters.
+  Notebook 05's check against the closed-form vacuum formula now draws its
+  own markers: it drew the Magnus markers of the cell before, and its unused
+  inverted-ordering markers had been computed with the normal-ordering mass
+  splittings and best-fit phase.
 
 - **Python 3.13 declared supported.**  The `pyproject.toml` classifiers now list
   3.13, which CI has tested and passed on `main`; they listed only 3.10-3.12 before,

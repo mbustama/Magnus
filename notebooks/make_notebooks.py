@@ -205,7 +205,7 @@ Let's now move on to three-neutrino oscillations.  No new import is needed: the 
 \end{equation}
 where $\mathbf{U}_{\rm PMNS}$ is the complex-valued Pontecorvo-Maki-Nakagawa-Sakata (PMNS) matrix, parametrized using three mixing angles, $\theta_{12}$, $\theta_{23}$, and $\theta_{13}$, and one CP-violation phase, $\delta_{\rm CP}$.
 
-Like before, for this example we set the values of the oscillation parameters to their central values from NuFit 6.0, *i.e.*,'''),
+Like before, for this example we set the values of the oscillation parameters to their central values from NuFIT 6.1, *i.e.*,'''),
     code(r'''s12 = NUFIT_NO['s12'] # sin(theta_12) [adim]
 s23 = NUFIT_NO['s23'] # sin(theta_23) [adim]
 s13 = NUFIT_NO['s13'] # sin(theta_13) [adim]
@@ -3268,14 +3268,10 @@ books['04_magnus_long_baseline.ipynb'] = notebook(
     [
     code(r'''import numpy as np
 import scipy as sp
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 
 # Mag(nu)s is imported as an installed package -- from the repository root,
 # 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
 import magnus.oscprob as oscprob
-import magnus.hamiltonians as hamiltonians
-import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
 
@@ -3316,9 +3312,12 @@ print("Baseline from Fermilab to Homestake: " + str(baseline) + " km")
 
 costhz = earth.costhz_between_points_on_surface(lat1, lon1, lat2, lon2)
 print("Cosine of zenith angle of Fermilab measured from Homestake: " + str(costhz))'''),
-    md(r'''With the zenith angle in hand, the probability is computed exactly as in the earlier
-notebooks; `02_magnus_2nu_vacuum_matter.ipynb` and `03_magnus_3nu_vacuum_matter.ipynb`
-cover the seven settings in detail.
+    md(r'''With the zenith angle in hand, the probability comes from the Earth wrappers,
+`osc_prob_3nu_earth` and its two-, four- and five-flavor siblings.  They build the PREM
+density along the chord, declare its layer boundaries as slab edges, so that no slab
+straddles a density jump, and use a layered electron fraction (iron core, rock mantle)
+unless told otherwise; `02_magnus_2nu_vacuum_matter.ipynb` and
+`03_magnus_3nu_vacuum_matter.ipynb` cover the settings they share with `osc_prob`.
 
 One thing to get right here, because this is the notebook where it bites.  `earth` returns
 lengths in kilometers, and every `osc_prob` entry point wants them in $\text{eV}^{-1}$, so
@@ -3339,33 +3338,11 @@ s13 = NUFIT_NO['s13'] # [adim]
 dCP = NUFIT_NO['dCP'] # [adim]
 D21 = NUFIT_NO['D21'] # [eV^2]
 D31 = NUFIT_NO['D31'] # [eV^2]
+osc_params = dict(s12=s12, s23=s23, s13=s13, dCP=dCP, D21=D21, D31=D31)
 
-# Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r):
-    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
-    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
-    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
-    # would disagree with them by up to a factor of four on a core-crossing chord, with
-    # nothing on screen to say why.  For the uniform composition earlier versions
-    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
-    ye = earth.electron_fraction_func_prem(r)
-    return matter.num_density_e_func(r, earth.density_matter_func_prem,
-        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
-        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
-
-# Coherent forward potential inside Earth, using the PREM density model
-def VCC_func_prem(r):
-    return matter.VCC_func(r, num_density_e_func_prem) # [eV]
-
-# Vacuum Hamiltonian without the 1/E prefactor 
-H_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
-                                                                               compute_matrix_multiplication=False)
-
-# Hamiltonian including matter effects inside Earth using the PREM density model
-def H_func_prem(costhz, l, energy):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return (1/energy)*H_vac_energy_indep + hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r))
+# The Earth wrappers build the PREM density along the chord themselves, with its layer
+# boundaries declared as slab edges and a layered electron fraction.  For the uniform
+# Y_e = 0.5 earlier versions assumed, pass electron_fraction=0.5 to them.
 
 # Cosines of zenith angles of Fermilab measured from the detector locations (we would get the same result if we seapped them, since we
 # consider that Earth is radially symmetric)
@@ -3379,52 +3356,20 @@ costhz_arr = [earth.costhz_between_points_on_surface(earth.loc_coords_dms[det.lo
 # Maximum baselines inside the Earth
 l_max_arr = [earth.distance_traveled_inside_earth(costhz) for costhz in costhz_arr] # [km]
 
-# Helper function for labeling plots
-def prob_label(nu_i, nu_f):
-    if (nu_i == gd.NUE):
-        if (nu_f == gd.NUE):
-            label = r'$P_{\nu_e \to \nu_e}$'
-        elif (nu_f == gd.NUMU):
-            label = r'$P_{\nu_e \to \nu_\mu}$'
-        elif (nu_f == gd.NUTAU):
-            label = r'$P_{\nu_e \to \nu_\tau}$'
-    elif (nu_i == gd.NUMU):
-        if (nu_f == gd.NUE):
-            label = r'$P_{\nu_\mu \to \nu_e}$'
-        elif (nu_f == gd.NUMU):
-            label = r'$P_{\nu_\mu \to \nu_\mu}$'
-        elif (nu_f == gd.NUTAU):
-            label = r'$P_{\nu_\mu \to \nu_\tau}$'
-    elif (nu_i == gd.NUTAU):
-        if (nu_f == gd.NUE):
-            label = r'$P_{\nu_\tau \to \nu_e}$'
-        elif (nu_f == gd.NUMU):
-            label = r'$P_{\nu_\tau \to \nu_\mu}$'
-        elif (nu_f == gd.NUTAU):
-            label = r'$P_{\nu_\tau \to \nu_\tau}$'
-    return label
-
 # Per-detector colors and line styles, shared by both figures
 lc = ['C0', 'C2', 'C3', 'C4']
 ls = ['-', '-', '-', '-']'''),
     md(r'''First, the probabilities against baseline.  Each trajectory is sampled from its start out
 to its own full chord length, so the abscissa ends at a different distance in each panel.'''),
-    code(r'''# osc_prob returns a 3x3 NumPy array with the probabilities: [[Pee, Pem, Pet], [Pme, Pmm, Pmt], [Pte, Ptm, Ptt]]
-nu_i, nu_f = gd.NUE, gd.NUE # Initial and final flavors; can also choose NUMU or NUTAU
+    code(r'''nu_i, nu_f = gd.NUE, gd.NUE # Initial and final flavors; can also choose NUMU or NUTAU
 energy = 10.*gd.UNIT_MEV # [eV]
 
 l_min = 1.e2 # [km]
-
-# Generate probabilities for the different directions
-distances_arr, prob_arr = [], []
 l_npts = 3000
-for i in range(len(costhz_arr)):
-    print("detector = " + detectors[i])
-    distances = np.logspace(np.log10(l_min), np.log10(l_max_arr[i]), l_npts) # [km
-    distances_arr.append(distances)
-    prob = np.array([oscprob.osc_prob(lambda ll: H_func_prem(costhz_arr[i], ll, energy), 0, l*gd.CONV_KM_TO_INV_EV,
-                                      n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] for l in distances]) 
-    prob_arr.append(prob)'''),
+
+# Each trajectory runs from where it enters the Earth out to its own chord length
+distances_arr = [np.logspace(np.log10(l_min), np.log10(l_max_arr[i]), l_npts)
+                 for i in range(len(costhz_arr))] # [km]'''),
     md(r'''Now we plot them, one panel per detector, with the electron-density profile
 each trajectory samples stacked on top.
 
@@ -3435,23 +3380,19 @@ core, which is the step up to $N_e/N_{\rm Av} \approx 5.5$ near
 $10^4$ km. Where that step falls along the baseline is exactly where the
 corresponding probability curve changes character.
 
-This is one call to `magnus.plotting.plot_probability_with_profile`; the
-density panel, the shared logarithmic abscissa, the suppressed tick labels on
-every panel but the last, and the legend styling are its defaults.'''),
-    code(r'''# The electron-density profile each trajectory samples, in units of N_Av, so
-# that the panel reads directly as rho*Y_e in g cm^-3.
-profiles, panels = [], []
-for i in range(len(costhz_arr)):
-    n_e = np.array([num_density_e_func_prem(
-                        earth.earth_radial_distance_from_depth(costhz_arr[i], l))
-                    for l in distances_arr[i]])
-    n_e = n_e/(gd.N_AV/pow(gd.CONV_CM_TO_INV_EV, 3.0))
-    profiles.append(dict(x=distances_arr[i], y=n_e, color=lc[i], ls=ls[i]))
-    panels.append([dict(x=distances_arr[i], y=prob_arr[i], color=lc[i], ls=ls[i],
-                        label=detectors[i])])
-
-fig, ax = plotting.plot_probability_with_profile(
-    distances_arr[0], profiles, panels,
+This is one call to `magnus.plotting.plot_probability_with_profile`.  Given
+trajectories rather than curves, it computes as well as draws: one
+`osc_prob_3nu_earth` call per detector covers all 3000 baselines, and the
+density panel shows the electron density, $\rho Y_e$ in g cm$^{-3}$, that
+the call integrates.  The shared logarithmic abscissa, the suppressed tick
+labels on every panel but the last, and the legend styling are its
+defaults.'''),
+    code(r'''fig, ax = plotting.plot_probability_with_profile(
+    distances_arr[0],
+    trajectories=[dict(costhz=costhz_arr[i], x=distances_arr[i], color=lc[i], ls=ls[i],
+                       label=detectors[i])
+                  for i in range(len(costhz_arr))],
+    energy=energy, nu_i=nu_i, nu_f=nu_f, num_flavors=3, osc_params=osc_params,
     xlim=(l_min, max(l_max_arr)),
     profile_ylim=(0, 6), profile_ymajor=2, profile_yminor=1,
     panel_ymajor=0.10, panel_yminor=0.02,
@@ -3468,14 +3409,11 @@ energy_min, energy_max = 1.e1, 1.e2 # [MeV]
 energy_npts = 3000
 energies = np.logspace(np.log10(energy_min), np.log10(energy_max), energy_npts) # [MeV]
 
-# Generate probabilities for the different directions
-prob_arr = []
-for i in range(len(costhz_arr)):
-    print("detector = " + detectors[i])
-    prob = np.array([oscprob.osc_prob(lambda l: H_func_prem(costhz_arr[i], l, enu*gd.UNIT_MEV), 
-                                      0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] for enu in energies]) 
-    prob_arr.append(prob)'''),
+# One osc_prob_3nu_earth call per detector covers every energy at once
+prob_arr = [oscprob.osc_prob_3nu_earth(energies*gd.UNIT_MEV, costhz=costhz_arr[i],
+                                       L=l_max_arr[i]*gd.UNIT_KM, nu_i=nu_i, nu_f=nu_f,
+                                       **osc_params)
+            for i in range(len(costhz_arr))]'''),
     md(r'''Finally, the same four trajectories against energy, at the full baseline in
 each case.
 
@@ -3523,7 +3461,6 @@ import magnus.oscprob as oscprob
 import magnus.oscprobstd as oscprobstd
 import magnus.hamiltonians as hamiltonians
 import magnus.matter as matter
-import magnus.earth as earth
 import magnus.globaldefs as gd
 
 # Best-fit oscillation parameters from the latest global fit.
@@ -3650,7 +3587,7 @@ prob_nubar_IO = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO,
 
 # Points for selected values of dCP
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
@@ -3715,7 +3652,7 @@ prob_nubar_std_IO = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(ham
 
 # Points for selected values of dCP
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_std_NO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
@@ -3725,11 +3662,11 @@ prob_nubar_std_NO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std
     hamiltonians.pmns_mixing_matrix(s12_NO, s23_NO, s13_NO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
     nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
 prob_nu_std_IO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
-    hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
+    hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_IO, D31_IO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
+    nubar=False)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 prob_nubar_std_IO_sel = np.array([[dCP/np.pi, oscprobstd.osc_prob_3nu_vacuum_std(
-    hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_NO, D31_NO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
-    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_NO['dCP']]])
+    hamiltonians.pmns_mixing_matrix(s12_IO, s23_IO, s13_IO, dCP), D21_IO, D31_IO, energy, baseline*gd.CONV_KM_TO_INV_EV, 
+    nubar=True)[nu_i][nu_f]] for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_std_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_NO_sel[i][1], prob_nubar_std_NO_sel[i][1]]] 
                      for i in range(len(dCP_sel)+1)]
 points_std_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_IO_sel[i][1], prob_nubar_std_IO_sel[i][1]]] 
@@ -3737,7 +3674,7 @@ points_std_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_IO_s
     code(r'''make_plot_biprobability([prob_nu_std_NO, prob_nu_std_IO], 
                         [prob_nubar_std_NO, prob_nubar_std_IO],
                         lc=['C0', 'C1'], ls=['-', '-'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_NO_sel, points_IO_sel],
+                        points_sel_arr=[points_std_NO_sel, points_std_IO_sel],
                         label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
                         label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
                         annotations=[
@@ -3811,7 +3748,7 @@ prob_nubar_IO = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO,
 
 # Points for selected values of dCP
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
@@ -3910,7 +3847,7 @@ prob_nubar_IO = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO,
 
 # Points for selected values of dCP
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
@@ -4009,7 +3946,7 @@ prob_nubar_IO = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12_IO,
 
 # Points for selected values of dCP
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
 prob_nu_NO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
@@ -4055,186 +3992,84 @@ points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1]
     md(r'''Now through the Earth, with the layered PREM profile rather than a constant density: a
 beam from Fermilab to SNOLAB, Homestake, CERN and the South Pole.  Notebook
 `04_magnus_long_baseline.ipynb` shows the density profile each of those trajectories
-samples.  Normal ordering throughout.'''),
-    code(r'''# Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r):
-    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
-    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
-    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
-    # would disagree with them by up to a factor of four on a core-crossing chord, with
-    # nothing on screen to say why.  For the uniform composition earlier versions
-    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
-    ye = earth.electron_fraction_func_prem(r)
-    return matter.num_density_e_func(r, earth.density_matter_func_prem,
-        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
-        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
+samples.  Normal ordering throughout.
 
-# Coherent forward potential inside Earth, using the PREM density model
-def VCC_func_prem(r):
-    return matter.VCC_func(r, num_density_e_func_prem) # [eV]
-
-# Hamiltonian for neutrinos (the matter potential is added)
-def H_nu(costhz, l, energy, s12, s23, s13, dCP, D21, D31):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return hamiltonians.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31, nubar=False) \
-    + hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r))
-
-# Hamiltonian for anti-neutrinos (the matter potential is subtracted)
-def H_nubar(costhz, l, energy, s12, s23, s13, dCP, D21, D31):
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return hamiltonians.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31, nubar=True) \
-    - hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r))
-
-# Cosines of zenith angles of Fermilab measured from the detector locations (we would get the same result if we seapped them, since we
-# consider that Earth is radially symmetric)
+Here `magnus.plotting.plot_biprobability` computes the curves itself.  Given
+configurations rather than probabilities, it calls `osc_prob_3nu_earth` for each
+detector, phase and neutrino or antineutrino, so the PREM layer boundaries are declared
+as slab edges and the electron fraction is layered.  A marker can name a phase, and its
+point is computed the same way.'''),
+    code(r'''# From Fermilab to four detectors, named as in earth.loc_coords_dms
 detectors = ['SNOLAB', 'Homestake', 'CERN', "South Pole"]
-costhz_arr = [earth.costhz_between_points_on_surface(earth.loc_coords_dms[det.lower().replace(" ", "_")]['lat'], 
-                                                     earth.loc_coords_dms[det.lower().replace(" ", "_")]['lon'],
-                                                     earth.loc_coords_dms['fermilab']['lat'], 
-                                                     earth.loc_coords_dms['fermilab']['lon']) 
-             for det in detectors]
+configurations = [dict(loc_ini='fermilab', loc_fin=det.lower().replace(" ", "_"))
+                  for det in detectors]
 
-# Maximum baselines inside the Earth
-l_max_arr = [earth.distance_traveled_inside_earth(costhz) for costhz in costhz_arr] # [km]'''),
-    code(r'''# Neutrino energy
-energy = 2*gd.UNIT_GEV # [eV]
+# We will compute the appearance probabilities, i.e., nu_mu --> nu_e and nu_mu-bar --> nu_e-bar
+nu_i, nu_f = gd.NUMU, gd.NUE
 
 # Values of the delta_CP phase at which to compute the probabilities
 dCP_npts = 100
 dCP_arr = np.linspace(-np.pi, np.pi, dCP_npts)
 
-# We will compute the appearance probabilities, i.e., nu_mu --> nu_e and nu_mu-bar --> nu_e-bar
-nu_i, nu_f = gd.NUMU, gd.NUE
-
-# Points for selected values of dCP
+# Markers at selected values of dCP, and at the NuFIT best fit
 dCP_sel = [-np.pi, -0.75*np.pi, -0.5*np.pi, -0.25*np.pi, 0, 0.25*np.pi, 0.5*np.pi, 0.75*np.pi]
-dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFit 6.0']
+dCP_label_sel = [r'$-\pi, \pi$', r'$-3\pi/4$', r'$-\pi/2$', r'$-\pi/4$', r'$0$', r'$\pi/4$', r'$\pi/2$', r'$3\pi/4$', 'NuFIT 6.1']
 markers = ['o', 'v', 's', 'p', '*', 'p', 's', 'v', '^']
 filled = [True, True, True, True, True, False, False, False, True]
+markers_sel = [dict(dcp=d, marker=m, filled=f, label=lab)
+               for d, lab, m, f in zip(dCP_sel + [NUFIT_NO['dCP']], dCP_label_sel, markers, filled)]
 
-# Below, we use n_slabs=100, n_tpts_per_slab=10, and magnus_exp_order=3, which would allow for the MSW resonance to be picked (say, around 
-# 10 GeV), but for our choice of 2 GeV, far from the resonance, this is overkill 
-prob_nu_arr, prob_nubar_arr, points_sel_arr = [], [], []
-for i in range(len(detectors)):
-    print("detector = " + detectors[i])
-    # nu_mu --> nu_e
-    prob_nu = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(costhz_arr[i], l, energy, 
-                                                                    s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                     0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3, 
-                                                     integration_method='simpson', n_jobs=10)[nu_i][nu_f]] for dCP in dCP_arr])
-    # nu_mu-bar --> nu_e-bar
-    prob_nubar = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
-                                                                          s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO),
-                                                        0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                        integration_method='simpson', n_jobs=10)[nu_i][nu_f]] for dCP in dCP_arr])
-    prob_nu_arr.append(prob_nu)
-    prob_nubar_arr.append(prob_nubar)
-    # Compute selected points
-    points_nu_sel, points_nubar_sel = [], []
-    prob_nu_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(costhz_arr[i], l, energy, 
-                                                                    s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                         0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                         n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                         integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
-    prob_nubar_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
-                                                                              s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                            0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                            n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                            integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
-    points_sel = [[dCP_label_sel[j], markers[j], filled[j], [prob_nu_sel[j][1], prob_nubar_sel[j][1]]] for j in range(len(dCP_sel)+1)]
-    points_sel_arr.append(points_sel)'''),
-    code(r'''make_plot_biprobability(prob_nu_arr, prob_nubar_arr,
-                        lc=['C0', 'C1', 'C2', 'C3'], ls=['-', '--', ':', '-.'], lw=[1.0, 1.0, 1.0, 1.0],
-                        points_sel_arr=points_sel_arr,
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'From Fermilab to ... ($E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
-                             'ha': 'left'},
-                            {'text': 'SNOLAB', 'xy': (0.36,0.42), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'Homestake', 'xy': (0.55,0.27), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'CERN', 'xy': (0.50,0.105), 'color': 'C2', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'South Pole', 'xy': (0.36,0.78), 'color': 'C3', 'fontsize': 20, 'ha': 'left'}
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.02),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.005),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0,0.10], ylim=[0,0.07], save_fig=False)'''),
+# Labels and styles shared by both figures
+label_prob_nu = r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$'
+label_prob_nubar = r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$'
+curve_kw = [dict(color=c, ls=l, lw=1.0) for c, l in zip(['C0', 'C1', 'C2', 'C3'], ['-', '--', ':', '-.'])]'''),
+    code(r'''energy = 2*gd.UNIT_GEV # [eV]
+
+fig, ax = plotting.plot_biprobability(
+    configurations=configurations, dcp=dCP_arr, energy=energy, nu_i=nu_i, nu_f=nu_f,
+    num_flavors=3, osc_params=NUFIT_NO, markers=markers_sel, curve_kw=curve_kw,
+    xlabel=label_prob_nu, ylabel=label_prob_nubar,
+    annotations=[
+        {'text': r'From Fermilab to ... ($E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20,
+         'ha': 'left'},
+        {'text': 'SNOLAB', 'xy': (0.36,0.42), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'Homestake', 'xy': (0.55,0.27), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'CERN', 'xy': (0.50,0.105), 'color': 'C2', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'South Pole', 'xy': (0.36,0.78), 'color': 'C3', 'fontsize': 20, 'ha': 'left'}
+    ],
+    xmajor=0.02, xminor=0.005, ymajor=0.01, yminor=0.002,
+    legend_loc='upper right', legend_kw=dict(fontsize=15, ncol=1, framealpha=1.0),
+    xlim=(0, 0.10), ylim=(0, 0.07))'''),
     md(r'''The plot above is at 2 GeV, well below the MSW resonance for every one of these
-trajectories, so first order and a single slab suffice.
+trajectories.
 
 The resonance energy depends on the density the trajectory samples, and for the
 atmospheric splitting it falls near 10.6 GeV in the crust, 6.3 GeV in the upper mantle and
 2.9 GeV in the outer core.  No single energy is on resonance for all four baselines at
-once, which is the practical reason to raise the expansion order rather than to tune the
-energy: below we repeat the calculation at 20 GeV with `magnus_exp_order=3` and
-`n_slabs=100`.
+once.  Below we repeat the calculation at 20 GeV, and only the energy changes in the
+call: the wrapper refines each probability until two successive grids agree to its
+default tolerance, rather than using a grid fixed in advance.
 
 That is the habit worth keeping when new physics is involved.  A sterile state or a
 non-standard interaction moves the resonance somewhere you have not calculated, and a
-low-order, few-slab run can step straight over it.'''),
-    code(r'''# Neutrino energy
-energy = 20*gd.UNIT_GEV # [eV]
+low-order, few-slab grid fixed in advance can step straight over it.'''),
+    code(r'''energy = 20*gd.UNIT_GEV # [eV]
 
-# Below, we use n_labs=100, n_tpts_per_slab=10, and magnus_exp_order=3, which would allow for the MSW resonance to be picked (say, around 
-# 10 GeV), but for our choice of 2 GeV, far from the resonance, this is overkill 
-prob_nu_arr, prob_nubar_arr, points_sel_arr = [], [], []
-for i in range(len(detectors)):
-    print("detector = " + detectors[i])
-    # nu_mu --> nu_e
-    prob_nu = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(costhz_arr[i], l, energy, 
-                                                                    s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                     0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3, 
-                                                     integration_method='simpson', n_jobs=10)[nu_i][nu_f]] for dCP in dCP_arr])
-    # nu_mu-bar --> nu_e-bar
-    prob_nubar = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
-                                                                          s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO),
-                                                        0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                        integration_method='simpson', n_jobs=10)[nu_i][nu_f]] for dCP in dCP_arr])
-    prob_nu_arr.append(prob_nu)
-    prob_nubar_arr.append(prob_nubar)
-    # Compute selected points
-    points_nu_sel, points_nubar_sel = [], []
-    prob_nu_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nu(costhz_arr[i], l, energy, 
-                                                                    s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                         0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                         n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                         integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
-    prob_nubar_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(costhz_arr[i], l, energy, 
-                                                                              s12_NO, s23_NO, s13_NO, dCP, D21_NO, D31_NO), 
-                                                            0.0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                                            n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                                                            integration_method='simpson', n_jobs=10)[nu_i][nu_f]] 
-                               for dCP in dCP_sel+[NUFIT_NO['dCP']]])
-    points_sel = [[dCP_label_sel[j], markers[j], filled[j], [prob_nu_sel[j][1], prob_nubar_sel[j][1]]] for j in range(len(dCP_sel)+1)]
-    points_sel_arr.append(points_sel)'''),
-    code(r'''make_plot_biprobability(prob_nu_arr, prob_nubar_arr,
-                        lc=['C0', 'C1', 'C2', 'C3'], ls=['-', '--', ':', '-.'], lw=[1.0, 1.0, 1.0, 1.0],
-                        points_sel_arr=points_sel_arr,
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'From Fermilab to ... ($E_\nu = 20$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
-                             'ha': 'left'},
-                            {'text': 'SNOLAB', 'xy': (0.06,0.32), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'Homestake', 'xy': (0.13,0.71), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'CERN', 'xy': (0.60,0.86), 'color': 'C2', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'South Pole', 'xy': (0.30,0.15), 'color': 'C3', 'fontsize': 20, 'ha': 'left'}
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.005),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.001),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.0005),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.0001),
-                        leg_fontsize=15, leg_loc='lower right', leg_ncol=2, xlim=[0,0.016], ylim=[0,0.002], save_fig=False)'''),
+fig, ax = plotting.plot_biprobability(
+    configurations=configurations, dcp=dCP_arr, energy=energy, nu_i=nu_i, nu_f=nu_f,
+    num_flavors=3, osc_params=NUFIT_NO, markers=markers_sel, curve_kw=curve_kw,
+    xlabel=label_prob_nu, ylabel=label_prob_nubar,
+    annotations=[
+        {'text': r'From Fermilab to ... ($E_\nu = 20$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20,
+         'ha': 'left'},
+        {'text': 'SNOLAB', 'xy': (0.06,0.32), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'Homestake', 'xy': (0.13,0.71), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'CERN', 'xy': (0.60,0.86), 'color': 'C2', 'fontsize': 20, 'ha': 'left'},
+        {'text': 'South Pole', 'xy': (0.30,0.15), 'color': 'C3', 'fontsize': 20, 'ha': 'left'}
+    ],
+    xmajor=0.005, xminor=0.001, ymajor=0.0005, yminor=0.0001,
+    legend_loc='lower right', legend_kw=dict(fontsize=15, ncol=2, framealpha=1.0),
+    xlim=(0, 0.016), ylim=(0, 0.002))'''),
     ])
 
 # ---------------------------------------------------- 06_magnus_oscillograms
@@ -4243,23 +4078,18 @@ books['06_magnus_oscillograms.ipynb'] = notebook(
     'Probability across zenith angle and energy at once -- the two-dimensional map of what an atmospheric-neutrino detector sees.\n\nThis is the workload that most rewards passing arrays rather than looping: the energies share a chord, so the matter profile is built once.',
     [
     code(r'''import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.patheffects as path_effects
 
 # Mag(nu)s is imported as an installed package -- from the repository root,
 # 'pip install -e .' (add [plot] for magnus.plotting). No sys.path juggling.
 import magnus.oscprob as oscprob
-import magnus.hamiltonians as hamiltonians
-import magnus.matter as matter
 import magnus.earth as earth
 import magnus.globaldefs as gd
+import magnus.plotting as plotting
 
 # Best-fit oscillation parameters from the latest global fit.
 # load_nufit_params returns exactly the six parameters the
 # osc_prob_3nu_* functions take, so it can be splatted straight in.
-NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')
-import magnus.plotting as plotting'''),
+NUFIT_NO = gd.load_nufit_params('NuFIT 6.1', 'NO')'''),
     md(r'''## Oscillograms
 
 An oscillogram is the natural way to look at oscillations through the Earth:
@@ -4275,21 +4105,32 @@ $\cos\theta_z = -0.84$: a chord grazes the outer core, at radius $3480$~km,
 at $\cos\theta_z = -0.8376$, so trajectories steeper than that cross a region
 where PREM's density jumps by roughly a factor of two.
 
-Below we define a helper that computes an oscillogram and draws it. The
-drawing is a single call to `magnus.plotting.plot_oscillogram`; the color
+The probabilities come from the Earth wrappers, `osc_prob_2nu_earth` and
+`osc_prob_3nu_earth`. Given a zenith angle, a wrapper builds the PREM profile
+along that chord, declares every layer boundary it crosses as a slab edge (a
+slab never straddles a density jump), and uses a layered electron fraction,
+which its `electron_fraction` keywords override. One call takes the whole
+energy array at once: the energies share the chord, so it is an energy scan at
+one baseline, which the energy-batched engine answers.  The one exception is the
+two-flavor $\nu_\mu$-$\nu_\tau$ oscillogram, which has no matter term at all and is
+computed in vacuum along the chord (explained where it is drawn).
+
+Below we define a helper that computes an oscillogram that way and draws it.
+The drawing is a single call to `magnus.plotting.plot_oscillogram`; the color
 map, the color-bar label, the tick spacings, and the white-stroked corner
 annotation (which has to stay legible against a `plasma` background) are its
 defaults.'''),
-    code(r'''def make_oscillogram_plot(nu_i, nu_f, H_func, costhz_arr, log10_Enu_arr,
-                          n_slabs=100, n_tpts_per_slab=10, magnus_exp_order=3,
-                          n_jobs=10, integration_method='trapezoid',
-                          validate_input=False, sector_2nu=None,
+    code(r'''def make_oscillogram_plot(nu_i, nu_f, costhz_arr, log10_Enu_arr, n_flavors=3, osc_params=None,
+                          electron_fraction=None, electron_fraction_core=None,
+                          electron_fraction_mantle=None, electron_fraction_crust=None,
+                          electron_fraction_ocean=None, sector_2nu=None,
                           cbar_label_pre='', save_plot=False, path=None,
-                          filename=None, format=None):
-    """Compute an oscillogram over (cos theta_z, log10 E) and plot it.
+                          filename=None, format=None, **wrapper_kw):
+    """Compute an oscillogram over (cos theta_z, log10 E) through the Earth wrappers and plot it.
 
-    Only the computation lives here now; the drawing is one call to
-    magnus.plotting.plot_oscillogram, which carries the house style.
+    One wrapper call per zenith angle, over the whole energy array.  The electron-fraction
+    keywords are passed to the wrapper when given; left at None, the wrapper's layered values
+    apply.  Any other keyword (rtol, atol, n_slabs, magnus_exp_order, ...) goes to the wrapper.
     """
     # For 2nu oscillations in the 23 sector the flavor indices have to be
     # remapped onto the 2x2 block the Hamiltonian actually spans.
@@ -4299,15 +4140,32 @@ defaults.'''),
     else:
         nu_i_, nu_f_ = nu_i, nu_f
 
-    # prob_arr[i][j] is the requested probability at Enu_arr[i], costhz_arr[j]
-    prob_arr = np.array([[oscprob.osc_prob(
-                              lambda l: H_func(costhz_arr[j], l, Enu_arr[i]*gd.UNIT_GEV),
-                              0, l_max_arr[j]*gd.CONV_KM_TO_INV_EV,
-                              n_slabs=n_slabs, n_tpts_per_slab=n_tpts_per_slab,
-                              magnus_exp_order=magnus_exp_order, n_jobs=n_jobs,
-                              validate_input=validate_input)[nu_i_][nu_f_]
-                          for j in range(costhz_npts)]
-                         for i in range(Enu_npts)])
+    wrapper = {2: oscprob.osc_prob_2nu_earth, 3: oscprob.osc_prob_3nu_earth}[n_flavors]
+    composition = {k: v for k, v in dict(electron_fraction=electron_fraction,
+                                         electron_fraction_core=electron_fraction_core,
+                                         electron_fraction_mantle=electron_fraction_mantle,
+                                         electron_fraction_crust=electron_fraction_crust,
+                                         electron_fraction_ocean=electron_fraction_ocean).items()
+                   if v is not None}
+
+    # prob_arr[i][j] is the requested probability at Enu_arr[i], costhz_arr[j]:
+    # one column per zenith angle, each an energy scan along that chord.
+    prob_arr = np.empty((len(Enu_arr), len(costhz_arr)))
+    for j, costhz in enumerate(costhz_arr):
+        L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+        if sector_2nu == '23':
+            # nu_mu and nu_tau feel the same neutral-current potential and no charged-current
+            # one, so in this two-flavor system matter adds only a common phase: the vacuum
+            # probability along the chord.  (The two-flavor Earth wrapper puts the
+            # charged-current potential on its first flavor, which it takes to be nu_e.)
+            if composition or wrapper_kw:
+                raise ValueError('the 2-3 sector has no matter term, so it takes no '
+                                 'composition or refinement settings')
+            prob_arr[:, j] = oscprob.osc_prob_2nu_vacuum(Enu_arr*gd.UNIT_GEV, L, nu_i=nu_i_,
+                                                         nu_f=nu_f_, **osc_params)
+            continue
+        prob_arr[:, j] = wrapper(Enu_arr*gd.UNIT_GEV, costhz=costhz, L=L, nu_i=nu_i_, nu_f=nu_f_,
+                                 **(osc_params or {}), **composition, **wrapper_kw)
 
     sector_label = {'23': r' (23 sector)', '12': r' (12 sector)'}.get(sector_2nu, '')
 
@@ -4324,125 +4182,132 @@ defaults.'''),
     return prob_arr'''),
     md(r'''Define the ranges of zenith angle (and, therefore, baseline) and neutrino energies'''),
     code(r'''# Cosines of zenith angles
-costhz_min, costhz_max, costhz_npts = -1.0, 0, 150 #100 
-costhz_arr = np.linspace(costhz_min, costhz_max, costhz_npts) 
-
-# Baselines, L [km]
-l_max_arr = [earth.distance_traveled_inside_earth(costhz) for costhz in costhz_arr] 
+costhz_min, costhz_max, costhz_npts = -1.0, 0, 150 #100
+costhz_arr = np.linspace(costhz_min, costhz_max, costhz_npts)
 
 # Neutrino energies [GeV]
 log10_Enu_min, log10_Enu_max, Enu_npts = 0.0, 1.0, 150 #100
 Enu_arr = np.logspace(log10_Enu_min, log10_Enu_max, Enu_npts)
 log10_Enu_arr = np.log10(Enu_arr)'''),
-    md(r'''Define the coherent forward potential inside the Earth from the PREM density model.
+    md(r'''Generate and plot the $2\nu$ oscillograms.  Let's start with the 2-3 sector, which
+describes mixing between $\nu_\mu$ and $\nu_\tau$, with one mixing angle and one mass
+splitting.
 
-Rounding can leave a radius a hair outside the Earth, and `density_matter_func_prem`
-refuses a radius past the surface rather than extrapolating.  Its `tol` is the *relative*
-margin it allows first: a radius within `tol` of `EARTH_RADIUS` is clamped onto the
-surface, and anything beyond raises.  The default is $10^{-8}$; the $10^{-15}$ passed
-below is stricter, not more forgiving.'''),
-    code(r'''# r is the radius from the center of the Earth [km].  
-
-def density_matter_func_prem_wrapper(r):
-    return earth.density_matter_func_prem(r, tol=1.e-15)
-    
-def VCC_func_prem(r):
-    return matter.VCC_func(r, lambda rr : matter.num_density_e_func(rr, density_matter_func_prem_wrapper, 
-                                                                    ratio_number_neutrons_to_protons=1.0, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True)) # [eV]'''),
-    md(r'''Generate and plot the $2\nu$ oscillograms.  Let's consider the 2-3 sector, which describes mixing between $\nu_\mu$ and $\nu_\tau$. First, we define the Hamiltonians:'''),
-    code(r'''# # Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = NUFIT_NO['s23'] # [adim]
-Dm2 = NUFIT_NO['D31'] # [eV^2]
-
-# Vacuum Hamiltonian without the (1/E) prefactor
-H_vac_2nu_23_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) # [eV^2]
-
-# Matter Hamiltonian
-def H_2nu_23_func_prem(costhz, l, energy):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) 
-    return (1/energy)*H_vac_2nu_23_energy_indep + hamiltonians.hamiltonian_2nu_matter(VCC_func_prem(r)) # [eV]'''),
-    md(r'''Now plot the oscillogram; the probabilities are computed inside the `make_oscillogram_plot` function:'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, H_2nu_23_func_prem, costhz_arr, log10_Enu_arr,
-                      n_slabs=1, n_tpts_per_slab=100, magnus_exp_order=1, n_jobs=1, integration_method='trapezoid', validate_input=False,
-                      sector_2nu='23', cbar_label_pre=r'Two-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
-    md(r'''The core boundary shows clearly near $\cos\theta_z = -0.84$, as it should.
-
-Note how little the two-flavor case needs: one slab (`n_slabs = 1`) and first order
-(`magnus_exp_order = 1`).  That combination treats the Hamiltonian as constant along each
-chord, which amounts to using the average density the trajectory sees.  It suffices here
-because the 2-3 sector at these energies sits far from a matter resonance.'''),
-    md(r'''Now we can do the same for the 1-2 sector, starting with defining a new Hamiltonian with the mixing parameters of that sector:'''),
+In matter, $\nu_\mu$ and $\nu_\tau$ feel the same neutral-current potential and neither
+feels the charged-current one, so in a two-flavor $\nu_\mu$-$\nu_\tau$ system the matter
+term is a multiple of the identity: it adds a common phase and drops out of every
+probability.  The oscillogram is the vacuum one along each chord, so the helper computes
+this sector with `osc_prob_2nu_vacuum`.  The two-flavor Earth wrapper would be the wrong
+tool: it puts the charged-current potential on its first flavor, which it takes to be
+$\nu_e$.  The three-flavor oscillograms below show the matter effects this approximation
+leaves out, which reach $\nu_\mu$ through its mixing with $\nu_e$.'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-sth = NUFIT_NO['s12'] # [adim]
-Dm2 = NUFIT_NO['D21'] # [eV^2]
-
-# Vacuum Hamiltonian without the (1/E) prefactor
-H_vac_2nu_12_energy_indep = hamiltonians.hamiltonian_2nu_vacuum_energy_independent(sth, Dm2) # [eV^2]
-
-# Matter Hamiltonian
-def H_2nu_12_func_prem(costhz, l, energy):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) 
-    return (1/energy)*H_vac_2nu_12_energy_indep + hamiltonians.hamiltonian_2nu_matter(VCC_func_prem(r)) # [eV]'''),
-    md(r'''And then plot it:'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, H_2nu_12_func_prem, costhz_arr, log10_Enu_arr,
-                      n_slabs=1, n_tpts_per_slab=100, magnus_exp_order=1, n_jobs=1, integration_method='trapezoid', validate_input=False,
-                      sector_2nu='12', cbar_label_pre=r'Two-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
-    md(r'''Finally, let's do the same for $3\nu$ oscillations.  First, define the Hamiltonians:'''),
+params_2nu_23 = dict(sth=NUFIT_NO['s23'], # [adim]
+                     Dm2=NUFIT_NO['D31']) # [eV^2]'''),
+    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
+                      osc_params=params_2nu_23, sector_2nu='23',
+                      cbar_label_pre=r'Two-neutrino probability, ')'''),
+    md(r'''With no matter term, nothing in this pattern marks the core: it depends on the chord
+only through its length.'''),
+    md(r'''Now the 1-2 sector.  Its first flavor is $\nu_e$, which does feel the charged-current
+potential, so this one goes through the two-flavor Earth wrapper, with the mixing
+parameters of that sector:'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
-s12 = NUFIT_NO['s12'] # [adim]
-s23 = NUFIT_NO['s23'] # [adim]
-s13 = NUFIT_NO['s13'] # [adim]
-dCP = NUFIT_NO['dCP'] # [adim]
-D21 = NUFIT_NO['D21'] # [eV^2]
-D31 = NUFIT_NO['D31'] # [eV^2]
+params_2nu_12 = dict(sth=NUFIT_NO['s12'], # [adim]
+                     Dm2=NUFIT_NO['D21']) # [eV^2]'''),
+    md(r'''Plot it deliberately at the crudest settings: a fixed grid (`rtol=None`, so no
+refinement) of one slab (`n_slabs = 1`) at first order (`magnus_exp_order = 1`).'''),
+    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
+                      osc_params=params_2nu_12, sector_2nu='12',
+                      rtol=None, atol=None, n_slabs=1, magnus_exp_order=1,
+                      cbar_label_pre=r'Two-neutrino probability, ')'''),
+    md(r'''The core shows as a change of pattern near $\cos\theta_z = -0.84$, where the chords
+start to cross it.
 
-# Vacuum Hamiltonian without the (1/E) prefactor
-H_vac_3nu_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31) # [eV^2]
+One slab is not one slab for the whole chord: the wrapper always cuts the grid at the
+layer boundaries, so `n_slabs = 1` means one slab per stretch between them, and first
+order treats the Hamiltonian as constant on each -- in effect the average density of
+every layer the chord crosses.  That is crude, and it shows in the numbers if not in the
+picture: against a reference at `rtol=1e-9`, these settings are off by up to $2 \times
+10^{-2}$ somewhere on this grid, where the wrapper's default tolerance stays within
+$10^{-5}$.
 
-# Matter Hamiltonian
-def H_3nu_func_prem(costhz, l, energy):
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) 
-    return (1/energy)*H_vac_3nu_energy_indep + hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r)) # [eV]'''),
-    md(r'''And then plot it:'''),
-    code(r'''def density_matter_func_prem_wrapper(r):
-    return earth.density_matter_func_prem(r, tol=1.e-15)
-    
-def VCC_func_prem(r):
-    return matter.VCC_func(r, lambda rr : matter.num_density_e_func(rr, density_matter_func_prem_wrapper, 
-                                                                    ratio_number_neutrons_to_protons=1.0, electron_fraction=0.5, density_matter_is_in_g_per_cm3=True)) # [eV]'''),
-    md(r'''First at the same minimal settings as the two-flavor case: one slab, first order.'''),
-    code(r'''prob_arr_3nu_order_1 = make_oscillogram_plot(gd.NUMU, gd.NUMU, H_3nu_func_prem, costhz_arr, log10_Enu_arr,
-                                             n_slabs=1, n_tpts_per_slab=100, magnus_exp_order=1, n_jobs=1,
-                                             integration_method='trapezoid', validate_input=False,
-                                             sector_2nu=None, cbar_label_pre=r'Three-neutrino probability, ', save_plot=False, 
-                                             path=None, filename=None, format=None)'''),
+The cell prints a `MagnusConvergenceWarning`: at settings this crude some slabs are wider
+than the sufficient condition for the Magnus series to converge, which is the point of the
+example.  Several cells below print it too, including ones that refine to a tolerance,
+where it can come from the coarse levels the refinement passes through.  Notebook 20 lists
+what each warning means and whether to act on it; for this one the answer is often not.
+The warning that says a result missed the tolerance it was asked for is
+`ToleranceNotAchievedWarning`, and none of these cells raises it.'''),
+    md(r'''Finally, let's do the same for $3\nu$ oscillations.  `NUFIT_NO` holds exactly the six
+parameters the three-flavor wrapper takes, so it is passed as is.
+
+First at the same crude settings as the two-flavor case: one slab per stretch between
+layer boundaries, first order.'''),
+    code(r'''prob_arr_3nu_order_1 = make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr,
+                                             n_flavors=3, osc_params=NUFIT_NO,
+                                             rtol=None, atol=None, n_slabs=1, magnus_exp_order=1,
+                                             cbar_label_pre=r'Three-neutrino probability, ')'''),
     md(r'''The shape is right, core boundary included, but the fine structure is not resolved yet.
 
 Raising the slab count to `n_slabs = 10` and the order to `magnus_exp_order = 3` fixes
 that.  Three flavors carry two mass splittings and therefore two oscillation scales, and
-a single constant slab cannot hold both.'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, H_3nu_func_prem, costhz_arr, log10_Enu_arr,
-                      n_slabs=10, n_tpts_per_slab=100, magnus_exp_order=3, n_jobs=5, integration_method='trapezoid', validate_input=False,
-                      sector_2nu=None, cbar_label_pre=r'Three-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
-    md(r'''To decide whether that is converged, raise `n_slabs`, `n_tpts_per_slab` or
-`magnus_exp_order` and see whether the map moves.  Notebook 21 explains why agreement
-between two settings is a stopping rule rather than an error bound.
+a constant Hamiltonian per layer cannot hold both.'''),
+    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=3,
+                      osc_params=NUFIT_NO, rtol=None, atol=None, n_slabs=10, magnus_exp_order=3,
+                      cbar_label_pre=r'Three-neutrino probability, ')'''),
+    md(r'''To decide whether that is converged, raise `n_slabs` or `magnus_exp_order` and see
+whether the map moves -- or, simpler, leave the grid to the wrapper: without `rtol=None`
+it refines until two successive levels agree to its default tolerance, $10^{-3}$, which is
+what the remaining maps do.  Notebook 21 explains why agreement between two levels is a
+stopping rule rather than an error bound.
 
 One note on speed, because this is the notebook where a reader reaches for it.  The
-helper above loops over the grid and calls `osc_prob` once per point, and on a
-single-point call `n_jobs` is accepted and does nothing: parallelism lives in
-`osc_prob_energy_baseline`, which distributes *points* over processes.  For a map this
-size the way to go faster is not more processes but fewer calls, passing the whole energy
-array to one of the batched entry points.'''),
-    md(r'''The same helper draws any channel. A few others follow.'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUTAU, H_3nu_func_prem, costhz_arr, log10_Enu_arr,
-                      n_slabs=10, n_tpts_per_slab=100, magnus_exp_order=3, n_jobs=5, integration_method='trapezoid', validate_input=False,
-                      sector_2nu=None, cbar_label_pre=r'Three-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUE, H_3nu_func_prem, costhz_arr, log10_Enu_arr,
-                      n_slabs=10, n_tpts_per_slab=100, magnus_exp_order=3, n_jobs=5, integration_method='trapezoid', validate_input=False,
-                      sector_2nu=None, cbar_label_pre=r'Three-neutrino probability, ', save_plot=False, path=None, filename=None, format=None)'''),
+helper makes one call per zenith angle, each with all 150 energies, so a whole map is 150
+calls, each answered by the energy-batched engine.  Looping over single points instead
+(22 500 calls per map) is what makes oscillograms slow; `n_jobs` would only spread those
+points over processes, and an energy scan at one baseline is already faster in one.'''),
+    md(r'''The same helper draws any channel. A few others follow, at the wrapper's default
+tolerance.'''),
+    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUTAU, costhz_arr, log10_Enu_arr, n_flavors=3,
+                      osc_params=NUFIT_NO, cbar_label_pre=r'Three-neutrino probability, ')'''),
+    code(r'''prob_arr_3nu_mue = make_oscillogram_plot(gd.NUMU, gd.NUE, costhz_arr, log10_Enu_arr, n_flavors=3,
+                                         osc_params=NUFIT_NO,
+                                         cbar_label_pre=r'Three-neutrino probability, ')'''),
+    md(r'''### `plot_oscillogram` on its own
+
+The helper above is a thin layer over `magnus.plotting.plot_oscillogram`, which can also
+compute the oscillogram itself.  Given no probability array, it makes the same calls --
+one Earth-wrapper call per zenith angle over the whole energy array -- with the flavor
+count, the mixing parameters and the channel it is given.  `return_probability=True`
+hands back the array it drew.'''),
+    code(r'''fig, ax, prob_mue_layered = plotting.plot_oscillogram(
+    costhz_arr, log10_Enu_arr, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, osc_params=NUFIT_NO,
+    cbar_label_prefix=r'Three-neutrino probability, ', return_probability=True)
+print('same map as the helper made above:', np.array_equal(prob_mue_layered, prob_arr_3nu_mue))'''),
+    md(r'''### The electron fraction
+
+The wrappers use a layered electron fraction by default, the PREM composition of each
+layer.  The keywords `electron_fraction` (one value everywhere) and
+`electron_fraction_core`, `_mantle`, `_crust`, `_ocean` (per layer) override it, in the
+wrappers, in `plot_oscillogram` and in the helper alike.  Here is the same channel with
+$Y_e = 0.5$ everywhere, and the difference it makes.'''),
+    code(r'''fig, ax, prob_mue_uniform = plotting.plot_oscillogram(
+    costhz_arr, log10_Enu_arr, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, osc_params=NUFIT_NO,
+    electron_fraction=0.5, cbar_label_prefix=r'Three-neutrino probability, $Y_e = 0.5$, ',
+    return_probability=True)
+
+difference = prob_mue_layered - prob_mue_uniform
+largest = np.max(np.abs(difference))
+i, j = np.unravel_index(np.argmax(np.abs(difference)), difference.shape)
+print('largest difference %.3f, at cos(theta_z) = %.2f and E = %.2f GeV'
+      % (largest, costhz_arr[j], Enu_arr[i]))'''),
+    md(r'''A precomputed array is drawn as given -- here the difference itself, on a diverging
+color map with symmetric levels:'''),
+    code(r'''plotting.plot_oscillogram(
+    costhz_arr, log10_Enu_arr, difference, nu_i=gd.NUMU, nu_f=gd.NUE,
+    cmap='RdBu_r', contourf_kw=dict(levels=np.linspace(-largest, largest, 41)),
+    cbar_label=r'Layered minus uniform $Y_e$');'''),
     ])
 
 # -------------------------------------------------- 07_magnus_bsm_sterile_nu
@@ -4751,8 +4616,11 @@ $1/2$ in isoscalar matter, and reaches the $\nu_e$ value at $r = 2$.
 
 So at three flavors the composition of the Earth only matters through the electron
 density, while from four flavors up it also fixes how strongly the sterile state feels
-the medium.  That is why `ratio_number_neutrons_to_protons` appears below and did not
-appear in the earlier notebooks.'''),
+the medium.  That is why the four- and five-flavor Earth wrappers, which compute
+everything below, take `ratio_number_neutrons_to_protons`.  By default they derive it
+from the same layered electron fraction as the density, so the two describe one Earth;
+like the other Earth wrappers, they also declare the PREM layer boundaries as slab
+edges.'''),
     md(r'''### 3.1 Mixing parameters'''),
     code(r'''# Standard mixing parameters (predefined examples from globaldefs; can change them to anything else)
 s12 = NUFIT_NO['s12'] # [adim]
@@ -4761,23 +4629,7 @@ s13 = NUFIT_NO['s13'] # [adim]
 dCP = NUFIT_NO['dCP'] # [adim]
 D21 = NUFIT_NO['D21'] # [eV^2]
 D31 = NUFIT_NO['D31'] # [eV^2]
-
-# Electron number density inside Earth, using the PREM density model
-def num_density_e_func_prem(r):
-    # Y_e per PREM layer (iron core, rock mantle), with the neutron-to-proton ratio
-    # derived from it -- the same composition osc_prob_*_earth uses internally, so this
-    # recipe and the wrappers describe one Earth rather than two.  A uniform 0.5 here
-    # would disagree with them by up to a factor of four on a core-crossing chord, with
-    # nothing on screen to say why.  For the uniform composition earlier versions
-    # assumed, pass electron_fraction=0.5 here and to the wrappers alike.
-    ye = earth.electron_fraction_func_prem(r)
-    return matter.num_density_e_func(r, earth.density_matter_func_prem,
-        ratio_number_neutrons_to_protons=earth.neutron_to_proton_ratio_from_electron_fraction(ye),
-        electron_fraction=ye, density_matter_is_in_g_per_cm3=True) # [eV^{-3}]
-
-# Coherent forward potential inside Earth, using the PREM density model
-def VCC_func_prem(r):
-    return matter.VCC_func(r, num_density_e_func_prem) # [eV]
+osc_params_3nu = dict(s12=s12, s23=s23, s13=s13, dCP=dCP, D21=D21, D31=D31)
 
 # Cosines of zenith angles of Fermilab measured from the detector locations (we would get the same result if we seapped them, since we
 # consider that Earth is radially symmetric)
@@ -4798,27 +4650,12 @@ s24 = 1.e-1 # [adim]
 d24 = 0.0 # [adim]
 s34 = 1.e-1 # [adim]
 D41 = 0.5 # [eV^2]
-
-# Vacuum Hamiltonian without the 1/E prefactor 
-H_3nu_vac_en_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31, 
-                                                                               compute_matrix_multiplication=False)
-H_4nu_vac_en_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, 
-                                                                               compute_matrix_multiplication=False)
-
-# Hamiltonian including matter effects inside Earth using the PREM density model
-def H_3nu_prem(costhz, l, energy):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return (1/energy)*H_3nu_vac_en_indep + hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r))
-    
-def H_4nu_prem(costhz, l, energy):
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return (1/energy)*H_4nu_vac_en_indep + hamiltonians.hamiltonian_4nu_matter(VCC_func_prem(r))'''),
+osc_params_4nu = dict(osc_params_3nu, s14=s14, d14=d14, s24=s24, d24=d24, s34=s34, D41=D41)'''),
     code(r'''# This scan is the most expensive cell in the notebook: four trajectories, two
 # flavor counts, and a genuine PREM profile sampled inside every slab.
 #
 # The grid is deliberately coarse. With D41 = 0.5 eV^2 the sterile oscillation
-# accumulates ~1e9 radians over an Earth-crossing baseline at these energies, so
+# accumulates ~1e6 radians (Dm41^2 L/2E, 1.5e6 at 10 MeV to the South Pole), so
 # the curve is aliased at *any* practical number of points -- a denser grid draws
 # a different alias, not a better-resolved oscillation. What survives sampling is
 # the envelope and the average, and 200 points show those as well as 3000 did, at
@@ -4830,18 +4667,13 @@ energy_min, energy_max = 1.e1, 1.e2 # [MeV]
 energy_npts = 200   # see the note below on why a dense grid buys nothing here
 energies = np.logspace(np.log10(energy_min), np.log10(energy_max), energy_npts) # [MeV]
 
-# Generate probabilities for the different directions
+# Generate probabilities for the different directions: one call per trajectory and flavor
+# count covers every energy at once
 prob_3nu_arr, prob_4nu_arr = [], []
 for i in range(len(costhz_arr)):
-    print("detector = " + detectors[i])
-    prob_3nu = np.array([oscprob.osc_prob(lambda l: H_3nu_prem(costhz_arr[i], l, enu*gd.UNIT_MEV), 
-                                          0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                          n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] for enu in energies]) 
-    prob_4nu = np.array([oscprob.osc_prob(lambda l: H_4nu_prem(costhz_arr[i], l, enu*gd.UNIT_MEV), 
-                                          0, l_max_arr[i]*gd.CONV_KM_TO_INV_EV, 
-                                          n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] for enu in energies]) 
-    prob_3nu_arr.append(prob_3nu)
-    prob_4nu_arr.append(prob_4nu)'''),
+    where = dict(costhz=costhz_arr[i], L=l_max_arr[i]*gd.UNIT_KM, nu_i=nu_i, nu_f=nu_f)
+    prob_3nu_arr.append(oscprob.osc_prob_3nu_earth(energies*gd.UNIT_MEV, **where, **osc_params_3nu))
+    prob_4nu_arr.append(oscprob.osc_prob_4nu_earth(energies*gd.UNIT_MEV, **where, **osc_params_4nu))'''),
     code(r'''# One panel per trajectory, sharing an abscissa: the comparison the reader makes
 # is between panels, so every panel has to carry identical limits, scales and
 # tick spacings. plot_curves_stacked enforces that rather than leaving it to
@@ -4858,7 +4690,7 @@ panels = [[dict(y=prob_3nu_arr[i], color='0.7', ls='--'),
 
 fig, ax = plotting.plot_curves_stacked(
     energies, panels,
-    xlabel=r'Neutrino energy, $E_\nu$~[GeV]',
+    xlabel=r'Neutrino energy, $E_\nu$~[MeV]',
     ylabel=r'Probability,~'+plotting.prob_label(nu_i, nu_f),
     title=r'3+1 oscillations inside Earth (PREM)',
     xlim=(energy_min, energy_max), ylim=(0, 1),
@@ -4881,6 +4713,32 @@ fig, ax = plotting.plot_curves_stacked(
 # end; this is that escape hatch doing its job.
 for axx in ax:
     axx.grid(visible=True, c='0.8', which='major', axis='y')'''),
+    md(r'''The scan above uses the standard `max_n_slabs`, so the `ToleranceNotAchievedWarning`
+it prints is expected.  At the lowest energies the sterile phase along these chords is of
+order $10^6$ radians, and resolving it takes more slabs than the standard cap allows,
+whatever tolerance is requested: the refinement stops at the cap before two successive
+levels can agree.  The warning goes away if you raise `max_n_slabs`, at the cost of
+longer runtimes.
+
+Here is one probability, $P_{\nu_e \to \nu_e}$ at 10 MeV from Fermilab to the South Pole,
+computed both ways:'''),
+    code(r'''import time
+import warnings
+
+where = dict(costhz=costhz_arr[3], L=l_max_arr[3]*gd.UNIT_KM, nu_i=nu_i, nu_f=nu_f)
+for label, max_n_slabs in (('standard max_n_slabs', None), ('max_n_slabs = 10^6  ', 10**6)):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always', oscprob.ToleranceNotAchievedWarning)
+        t0 = time.perf_counter()
+        P = oscprob.osc_prob_4nu_earth(10.0*gd.UNIT_MEV, max_n_slabs=max_n_slabs,
+                                       **where, **osc_params_4nu)
+        elapsed = time.perf_counter() - t0
+    warned = any(issubclass(w.category, oscprob.ToleranceNotAchievedWarning) for w in caught)
+    print('%s   P = %.12f   %7.3f s   ToleranceNotAchievedWarning: %s'
+          % (label, float(P), elapsed, 'yes' if warned else 'no'))'''),
+    md(r'''The warning says convergence could not be *verified* at the standard cap, not that the
+answer is wrong: the two values above agree far inside the tolerance, and only the run with
+the higher cap can vouch for its own result, at the price of the longer runtime shown.'''),
     md(r'''### 3.3 Probabilities vs. active-sterile mixing parameter'''),
     md(r'''Now hold the baseline fixed, Fermilab to Homestake, about $1\,300$~km, which is DUNE, and
 sweep one active-sterile mixing angle instead.
@@ -4911,27 +4769,15 @@ s24_npts = 100
 s24_arr = np.linspace(0.0, 1.0, s24_npts) # [adim]
 D41_arr = [1.e-2, 1.e-1, 1.e0, 1.e1] # [eV^2]
 D41_label = [r'$\Delta m_{41}^2 = 0.01$~eV$^2$', r'$\Delta m_{41}^2 = 0.1$~eV$^2$', r'$\Delta m_{41}^2 = 1$~eV$^2$', 
-             r'$\Delta m_{41}^2 = 10$~eV$^2$']
+             r'$\Delta m_{41}^2 = 10$~eV$^2$']'''),
+    code(r'''where = dict(costhz=costhz, L=l_max*gd.UNIT_KM, nu_i=nu_i, nu_f=nu_f)
 
-# Hamiltonian including matter effects inside Earth using the PREM density model
-def H_3nu_prem(costhz, l, energy):
-    # Given a direction (costhz) and a depth (l), compute the radial distance from the center of the Earth (r)
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return hamiltonians.hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31) \
-            + hamiltonians.hamiltonian_3nu_matter(VCC_func_prem(r))
-    
-def H_4nu_prem(costhz, l, energy, s14, d14, s24, d24, s34, D21, D31, D41):
-    r = earth.earth_radial_distance_from_depth(costhz, l/gd.CONV_KM_TO_INV_EV) # [km]
-    return hamiltonians.hamiltonian_4nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41) \
-            + hamiltonians.hamiltonian_4nu_matter(VCC_func_prem(r))'''),
-    code(r'''prob_3nu = oscprob.osc_prob(lambda l: H_3nu_prem(costhz, l, energy), 
-                                      0, l_max*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f]
+prob_3nu = oscprob.osc_prob_3nu_earth(energy, **where, **osc_params_3nu)
 
-prob_4nu = np.array([[oscprob.osc_prob(lambda l: H_4nu_prem(costhz, l, energy, s14, d14, s24, d24, s34, D21, D31, D41), 
-                                      0, l_max*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=3, n_jobs=10)[nu_i][nu_f] for s24 in s24_arr]
-                     for D41 in D41_arr]) '''),
+prob_4nu = np.array([[oscprob.osc_prob_4nu_earth(energy, **where, **osc_params_3nu,
+                                                 s14=s14, d14=d14, s24=s24, d24=d24, s34=s34, D41=D41)
+                      for s24 in s24_arr]
+                     for D41 in D41_arr])'''),
     code(r'''# A plain set of curves against a swept variable, which is what plot_curves is
 # for. (The hand-built version carried a 1x1 gridspec_kw, which did nothing.)
 ls = ['-', '--', ':', '-.']
