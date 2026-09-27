@@ -105,14 +105,14 @@ All of them live in a single module, `magnus.hamiltonians`, which we import as''
     md(r'''\begin{equation}
 \mathbf{H}_{2\nu}^{\rm vac}
 =
-\mathbf{U}^T 
+\mathbf{U}
 \left(
  \begin{array}{cc}
-  \frac{\Delta m^2}{2E} & 0 \\
-  0 & -\frac{\Delta m^2}{2E} \\
+  -\frac{\Delta m^2}{4E} & 0 \\
+  0 & \frac{\Delta m^2}{4E} \\
  \end{array}
 \right)
-\mathbf{U} \;,
+\mathbf{U}^T \;,
 \end{equation}'''),
     md(r'''where the mixing matrix, $\mathbf{U}$, is parametrized by a single mixing angle, $\theta$, i.e.,'''),
     md(r'''\begin{equation}
@@ -171,7 +171,7 @@ where $P_{\mu e} = P_{e \mu}$.'''),
 
 For convenience, Mag$\nu$s includes a wrapper to return the probability matrix in vacuum for given values of the oscillation parameters, the neutrino baseline, and the neutrino energy, bypassing the more lengthy procedure above:'''),
     code(r'''oscprob.osc_prob_2nu_vacuum(energy, baseline, sth, Dm2)'''),
-    md(r'''This function can also return the probability matrices for multiple energies and baselines, passed to it either as lists of NumPy arrays. Internally, it will `zip` energy and baseline arrays (*i.e.*, (`zip(energy, L)`), compute the probability matrix for each element of the zip object, and return a NumPy array containing all of the matrices, in the `zip` order. This means that the lengths of the provided energy and baseline arrays should be equal, and that the length of the returned array will also be equal to that.  For example,'''),
+    md(r'''This function can also return the probability matrices for multiple energies and baselines, passed to it either as lists or as NumPy arrays. Internally, it will `zip` energy and baseline arrays (*i.e.*, (`zip(energy, L)`), compute the probability matrix for each element of the zip object, and return a NumPy array containing all of the matrices, in the `zip` order. This means that the lengths of the provided energy and baseline arrays should be equal, and that the length of the returned array will also be equal to that.  For example,'''),
     code(r'''prob = oscprob.osc_prob_2nu_vacuum(gd.UNIT_MEV*np.array([1.0, 10.0]), [baseline, baseline], sth, Dm2)
 prob'''),
     md(r'''And from this we can select the probability channel we are interested, say $\nu_e \to \nu_\mu$,'''),
@@ -193,7 +193,7 @@ Let's now move on to three-neutrino oscillations.  No new import is needed: the 
 \begin{equation}
  \mathbf{H}_{3\nu}^{\rm vac}
  =
- \mathbf{U}_{\rm PMNS}^\dagger
+ \mathbf{U}_{\rm PMNS}
  \left(
   \begin{array}{ccc}
    0 & 0 & 0 \\
@@ -201,7 +201,7 @@ Let's now move on to three-neutrino oscillations.  No new import is needed: the 
    0 & 0 & \frac{\Delta m_{31}^2}{2E}
   \end{array}
  \right)
- \mathbf{U}_\textrm{PMNS} \;,
+ \mathbf{U}_{\rm PMNS}^\dagger \;,
 \end{equation}
 where $\mathbf{U}_{\rm PMNS}$ is the complex-valued Pontecorvo-Maki-Nakagawa-Sakata (PMNS) matrix, parametrized using three mixing angles, $\theta_{12}$, $\theta_{23}$, and $\theta_{13}$, and one CP-violation phase, $\delta_{\rm CP}$.
 
@@ -227,7 +227,10 @@ P'''),
   \end{array}
  \right) \;,
 \end{equation}
-where $P_{\alpha \beta} = P_{\beta \alpha}$, with $\alpha, \beta = e, \mu, \tau$.'''),
+with $\alpha, \beta = e, \mu, \tau$.  Unlike the two-neutrino matrix, this one is in general
+**not** symmetric: with $\delta_{\rm CP} \neq 0$, $P_{\alpha\beta} \neq P_{\beta\alpha}$ -- in the
+output below, $P_{e\mu}$ and $P_{\mu e}$ differ in the second decimal.  That difference is CP
+violation; notebook 15 takes it apart.'''),
     md(r'''We can retrieve probabilities for specific channels using flavor indices, as before, *e.g.*,'''),
     code(r'''P[gd.NUE][gd.NUE]'''),
     code(r'''P[gd.NUE][gd.NUMU]'''),
@@ -243,7 +246,7 @@ prob'''),
                             nu_i=gd.NUE, nu_f=gd.NUMU)'''),
     md(r'''If the vacuum probability needs to computed for many values of energy and baseline, it is more computationally efficient to call `osc_prob_3nu_vacuum` once with the array of energies and baselines at which it must be computed than calling it multiple times, each for a different value of energy and baseline.  The reason is that, internally, `osc_prob_3nu_vacuum` has an overhead that is the same regardless if it is computed for one or multiple probability computations.
 
-Also, `osc_prob_3nu_vacuum` can be called without passing values for any of the oscillation parameters; this is useful if we just want to quickly a probability.  If so, internally, the function will assign them values from a default parameter set in Mag$\nu$s, which is set to a recent experimental determination.  Let's call `osc_prob_3nu_vacuum` with `verbose = 1` to see a warning when parameters are assigned default values:'''),
+Also, `osc_prob_3nu_vacuum` can be called without passing values for any of the oscillation parameters; this is useful if we just want to get a probability quickly.  If so, internally, the function will assign them values from a default parameter set in Mag$\nu$s, which is set to a recent experimental determination.  Let's call `osc_prob_3nu_vacuum` with `verbose = 1` to see a warning when parameters are assigned default values:'''),
     code(r'''oscprob.osc_prob_3nu_vacuum(gd.UNIT_MEV*np.array([1.0, 10.0]), baseline, 
                             nu_i=gd.NUE, nu_f=gd.NUMU, verbose=1)'''),
     md(r'''We can also specify only some of the oscillation parameter values, and let `osc_prob_3nu_vacuum` set the unspecified parameters to their default values, *e.g.*,'''),
@@ -436,6 +439,10 @@ energy = 1.0*gd.UNIT_MEV # [eV]
 baseline_arr = np.logspace(0.0, 2.0, npts) # [km]
 rho_lo, rho_hi = 10*gd.UNIT_G_PER_CM3, 100*gd.UNIT_G_PER_CM3 # 10 and 100 g cm^{-3} in natural units [eV^4]
 
+# The vacuum curve is computed here too, for antineutrinos and on the same grid, so that the
+# three curves differ only by the matter density
+prob_3nu_vacuum_nubar_vs_baseline = oscprob.osc_prob_3nu_vacuum(energy, gd.UNIT_KM*baseline_arr,
+                                                                nu_i=nu_i, nu_f=nu_f, nubar=True)
 prob_3nu_matt_const_lo_vs_baseline = oscprob.osc_prob_3nu_matter_constant_density(energy, gd.UNIT_KM*baseline_arr, 
                                                                                   rho=rho_lo, nu_i=nu_i, nu_f=nu_f, nubar=True)
 prob_3nu_matt_const_hi_vs_baseline = oscprob.osc_prob_3nu_matter_constant_density(energy, gd.UNIT_KM*baseline_arr, 
@@ -450,7 +457,7 @@ prob_3nu_matt_const_hi_vs_baseline = oscprob.osc_prob_3nu_matter_constant_densit
 #                                for l in gd.UNIT_KM*baseline_arr]
 
 fig, ax = plt.subplots(ncols=1, nrows=1, figsize=[18,9])
-ax.plot(baseline_arr, prob_3nu_vacuum_vs_baseline, label=r'Vacuum', c='0.7', ls='--')
+ax.plot(baseline_arr, prob_3nu_vacuum_nubar_vs_baseline, label=r'Vacuum', c='0.7', ls='--')
 ax.plot(baseline_arr, prob_3nu_matt_const_lo_vs_baseline, label=r'Matter, $\rho = $~{:.0f}'.format(rho_lo/gd.UNIT_G_PER_CM3)+r'~g~cm$^{-3}$')
 ax.plot(baseline_arr, prob_3nu_matt_const_hi_vs_baseline, label=r'Matter, $\rho = $~{:.0f}'.format(rho_hi/gd.UNIT_G_PER_CM3)+r'~g~cm$^{-3}$')
 ax.legend(fontsize=17, frameon=True, loc='upper left', handlelength=1.2, handleheight=0.7, borderpad=0.8, 
@@ -462,7 +469,7 @@ ax.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(base=0.02))
 ax.set_xlim(baseline_arr[0], baseline_arr[-1])
 ax.set_ylim(0, 1)
 ax.set_xscale('log')
-ax.set_title(r'$3\nu$  oscillations, $E_\nu = $~{:.2f}~MeV'.format(energy/gd.UNIT_MEV), fontsize=20, pad=10)'''),
+_ = ax.set_title(r'$3\nu$  oscillations, $E_\nu = $~{:.2f}~MeV'.format(energy/gd.UNIT_MEV), fontsize=20, pad=10)'''),
     md(r'''And now we plot the probabilities *vs.* energy:'''),
     code(r'''nu_i, nu_f = gd.NUE, gd.NUMU
 npts = 1000
@@ -470,6 +477,9 @@ energy_arr = np.logspace(0.0, 2.0, npts) # [MeV]
 baseline = 100.*gd.UNIT_KM # 100 km natural units [eV^{-1}]
 rho_lo, rho_hi = 10*gd.UNIT_G_PER_CM3, 100*gd.UNIT_G_PER_CM3 # 10 and 100 g cm^{-3} in natural units [eV^4]
 
+# Vacuum, for antineutrinos and at this same 100 km baseline
+prob_3nu_vacuum_nubar_vs_energy = oscprob.osc_prob_3nu_vacuum(gd.UNIT_MEV*energy_arr, baseline,
+                                                              nu_i=nu_i, nu_f=nu_f, nubar=True)
 prob_3nu_matt_const_lo_vs_energy = oscprob.osc_prob_3nu_matter_constant_density(gd.UNIT_MEV*energy_arr, baseline, 
                                                                                 rho=rho_lo, nu_i=nu_i, nu_f=nu_f, nubar=True)
 prob_3nu_matt_const_hi_vs_energy = oscprob.osc_prob_3nu_matter_constant_density(gd.UNIT_MEV*energy_arr, baseline, 
@@ -485,7 +495,7 @@ prob_3nu_matt_const_hi_vs_energy = oscprob.osc_prob_3nu_matter_constant_density(
 
 fig, ax = plt.subplots(ncols=1, nrows=1, figsize=[18,9])
 
-ax.plot(energy_arr, prob_3nu_vacuum_vs_energy, label=r'Vacuum', c='0.7', ls='--')
+ax.plot(energy_arr, prob_3nu_vacuum_nubar_vs_energy, label=r'Vacuum', c='0.7', ls='--')
 ax.plot(energy_arr, prob_3nu_matt_const_lo_vs_energy, label=r'Matter, $\rho = $~{:.0f}'.format(rho_lo/gd.UNIT_G_PER_CM3)+r'~g~cm$^{-3}$')
 ax.plot(energy_arr, prob_3nu_matt_const_hi_vs_energy, label=r'Matter, $\rho = $~{:.0f}'.format(rho_hi/gd.UNIT_G_PER_CM3)+r'~g~cm$^{-3}$')
 ax.legend(fontsize=17, frameon=True, loc='upper right', handlelength=1.2, handleheight=0.7, borderpad=0.8, 
@@ -497,14 +507,14 @@ ax.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(base=0.02))
 ax.set_xlim(energy_arr[0], energy_arr[-1])
 ax.set_ylim(0, 1)
 ax.set_xscale('log')
-ax.set_title(r'$3\nu$ oscillations, $L = $~{:.2f}~km'.format(baseline/gd.UNIT_KM), fontsize=20, pad=10)'''),
+_ = ax.set_title(r'$3\nu$ oscillations, $L = $~{:.2f}~km'.format(baseline/gd.UNIT_KM), fontsize=20, pad=10)'''),
     md(r'''So far, we have only computed oscillation probabilities in cases where the Hamiltonian is time-independent (or, equivalently, position-independent), *i.e.*, in vacuum and in matter with uniform density.  As we pointed out earlier, in these cases only the first term of the Magnus expansion is nonzero, and so the problem reduces to a simple one.  
 
 Where Mag$\nu$s really shows its power and flexibility is when computing oscillation probabilities for time- or position-*dependent* Hamiltonians.  
 
 Let's illustrate this first for a matter density profile that an exponentially falling as a function of distance, *e.g.*, like inside the Sun.
 
-We can no longer use the pre-defined functions for oscillations in vacuum or constant-density matter (`osc_prob_3nu_matter_vacuum` and `osc_prob_3nu_matter_constant_density`), but we need to define our own Hamiltonians.  We do this by calling `hamiltonian_3nu_matter` with different profiles of matter potential.'''),
+We can no longer use the pre-defined functions for oscillations in vacuum or constant-density matter (`osc_prob_3nu_vacuum` and `osc_prob_3nu_matter_constant_density`), but we need to define our own Hamiltonians.  We do this by calling `hamiltonian_3nu_matter` with different profiles of matter potential.'''),
     md(r'''### A note on speed: let your Hamiltonian take an array
 
 The Hamiltonians defined below are written so that they work whether they are
@@ -549,7 +559,7 @@ VCC[..., None, None]*e00        # (npts, 3, 3), not an error
 A Hamiltonian that ignores its argument entirely -- constant density -- is
 detected separately and costs nothing either way.'''),
     code(r'''# H_vac_energy_indep is the vacuum Hamiltonian without the multiplicative (1/E) factor.  Since this part will not change anymore in our
-# examples below, we compute it once and save it.  (Note: in this case, we could have used the function `osc_prob_3nu_matter_vacuum` to
+# examples below, we compute it once and save it.  (Note: in this case, we could have used the function `osc_prob_3nu_vacuum` to
 # compute probabilities, but we choose to compute them from scratch, as the other cases.)
 H_vac_energy_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31) # [eV^2]
 def H_vac(energy):
@@ -630,8 +640,10 @@ def H_gaussian_density(l, energy):
 
 Note how the cell below computes them: one `osc_prob` call per baseline, inside a Python
 loop. That is the slow way round, and it is worth saying so rather than leaving it as the
-example to copy. `osc_prob` takes an **array** of baselines and answers the whole scan in one
-call, walking the profile once instead of a thousand times; notebook 24 prices that. `n_jobs`
+example to copy. `osc_prob` takes one baseline at a time (an array raises), but
+`oscprob.osc_prob_energy_baseline` takes an **array** of baselines and, with `cumulative=True`,
+answers the whole scan in one call, walking the profile once instead of a thousand times;
+notebook 24 prices that. `n_jobs`
 would not rescue the loop either -- it divides the points handed to a *single* call among
 processes, and every call here is handed exactly one.'''),
     code(r'''nu_i, nu_f = gd.NUE, gd.NUE
@@ -1970,6 +1982,11 @@ prob_vac = np.array([oscprob.osc_prob(H_func,
                                       n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1)[nu_i][nu_f] for l in distances])
 # # Using standard formula
 # prob_std = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, energy, l*gd.CONV_KM_TO_INV_EV)[nu_i][nu_f] for l in distances])'''),
+    md(r'''The scan above prints a `ToleranceNotAchievedWarning`, and so does the energy scan in
+section 7.3; both are expected.  They run at the standard `max_n_slabs`, and the phase
+accumulated over this solar path is more than that cap resolves, so the refinement stops at the
+cap before two successive levels can agree.  The warning goes away if you raise `max_n_slabs`,
+at the cost of longer runtimes.'''),
     md(r'''Note what the oscillating curve is and is not.  It is the probability at one exact
 distance, and no experiment resolves that: the phase turns over far faster than any
 detector's energy resolution.  The measurable quantity is the average, which notebook 10
@@ -2195,10 +2212,10 @@ prob_all = oscprob.osc_prob_3nu_vacuum(
         savefig=('../fig/'+filename+'.pdf') if save_plot else None,
         savefig_kw=dict(dpi=300))
     return fig, ax'''),
-    code(r'''make_plot_prob_vac_vs_baseline(gd.NUE, gd.NUE, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_baseline(gd.NUE, gd.NUMU, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_baseline(gd.NUMU, gd.NUMU, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_baseline(gd.NUMU, gd.NUTAU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_baseline(gd.NUE, gd.NUE, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_baseline(gd.NUE, gd.NUMU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_baseline(gd.NUMU, gd.NUMU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_baseline(gd.NUMU, gd.NUTAU, save_plot=True)'''),
     md(r'''## 1.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e-1, 1.e1 # [GeV]
@@ -2252,10 +2269,10 @@ prob_all = oscprob.osc_prob_3nu_vacuum(
         savefig=('../fig/'+filename+'.pdf') if save_plot else None,
         savefig_kw=dict(dpi=300))
     return fig, ax'''),
-    code(r'''make_plot_prob_vac_vs_energy(gd.NUE, gd.NUE, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_energy(gd.NUE, gd.NUMU, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_energy(gd.NUMU, gd.NUMU, save_plot=True)'''),
-    code(r'''make_plot_prob_vac_vs_energy(gd.NUMU, gd.NUTAU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_energy(gd.NUE, gd.NUE, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_energy(gd.NUE, gd.NUMU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_energy(gd.NUMU, gd.NUMU, save_plot=True)'''),
+    code(r'''fig, ax = make_plot_prob_vac_vs_energy(gd.NUMU, gd.NUTAU, save_plot=True)'''),
     md(r'''# 2. Probabilities 3$\nu$: in matter with constant density'''),
     md(r'''## 2.1 The setting, and the last of the formulas
 
@@ -3208,6 +3225,11 @@ fig, ax = plotting.plot_probability_with_profile(
     title=r'$2\nu$~in the Sun, $E_\nu = $~{:.2f}~MeV'.format(energy/gd.UNIT_MEV),
     title_fontsize=20, legend_title=r'Matter profile', legend_loc='lower left',
     grid=False)'''),
+    md(r'''The distance scan above prints a `ToleranceNotAchievedWarning`, and so does the energy scan in
+section 7.3; both are expected.  They run at the standard `max_n_slabs`, and the phase
+accumulated over this solar path is more than that cap resolves, so the refinement stops at the
+cap before two successive levels can agree.  The warning goes away if you raise `max_n_slabs`,
+at the cost of longer runtimes.'''),
     md(r'''## 7.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e-1, 1.e2 # [MeV]
@@ -3416,15 +3438,13 @@ prob_arr = [oscprob.osc_prob_3nu_earth(energies*gd.UNIT_MEV, costhz=costhz_arr[i
                                        L=l_max_arr[i]*gd.UNIT_KM, nu_i=nu_i, nu_f=nu_f,
                                        **osc_params)
             for i in range(len(costhz_arr))]'''),
-    md(r'''Finally, the same four trajectories against energy, at the full baseline in
-each case.
-
-Two panels: the probability as computed, and below it the same curve passed
-through a Savitzky-Golay filter. The lower panel is not cosmetic. Above a few
-tens of MeV the oscillation length falls well below any real detector's energy
-resolution, so what an experiment measures is the local average, not the
-fringes -- and the averaged curve is where the matter effect shows up as a
-genuine, resolvable feature rather than as faster wiggles.
+    md(r'''Two panels: the probability as computed, and below it the same curve passed
+through a Savitzky-Golay filter. The lower panel is not cosmetic. Over chords
+this long the probability oscillates in energy faster than any real detector
+resolves -- fastest at the low-energy end, since the oscillation length,
+$4\pi E/\Delta m^2$, grows with energy -- so what an experiment measures is the
+local average, not the fringes -- and the averaged curve is where the matter
+effect shows up as a genuine, resolvable feature rather than as faster wiggles.
 
 The same function draws it, with `profiles=None` to omit the density panel.'''),
     code(r'''# No density panel this time: the lower panel is the same probability with the
@@ -3546,8 +3566,8 @@ dCP_IO = NUFIT_IO['dCP'] # [adim]
 D21_IO = NUFIT_IO['D21'] # [eV^2]
 D31_IO = NUFIT_IO['D31'] # [eV^2]'''),
     code(r'''# Pick the baseline and energy of T2K
-baseline = 810 # [km]
-energy = 2*gd.UNIT_MEV # [eV]
+baseline = 295 # [km]
+energy = 0.6*gd.UNIT_GEV # [eV]
 
 # Values of the delta_CP phase at which to compute the probabilities
 dCP_npts = 100
@@ -3614,22 +3634,22 @@ prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12
                               for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
-    code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
-                        [prob_nubar_NO, prob_nubar_IO],
-                        lc=['C0', 'C1'], ls=['-', '-'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_NO_sel, points_IO_sel],
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': 'Vacuum', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'NO', 'xy': (0.5,0.75), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'IO', 'xy': (0.17,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'}
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.10),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.02),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.10),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.02),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0,0.50], ylim=[0,0.50], save_fig=False)'''),
+    code(r'''fig, ax = make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
+                                  [prob_nubar_NO, prob_nubar_IO],
+                                  lc=['C0', 'C1'], ls=['-', '-'], lw=[1.0, 1.0],
+                                  points_sel_arr=[points_NO_sel, points_IO_sel],
+                                  label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
+                                  label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
+                                  annotations=[
+                                      {'text': r'Vacuum, T2K ($L = 295$~km, $E_\nu = 0.6$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'NO', 'xy': (0.22,0.38), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'IO', 'xy': (0.50,0.80), 'color': 'C1', 'fontsize': 20, 'ha': 'left'}
+                                  ], 
+                                  xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.02,0.07], ylim=[0.02,0.07], save_fig=False)'''),
     md(r'''The curves above came from the Magnus expansion at first order, which is exact in vacuum:
 the Hamiltonian does not depend on position, so one slab and one term reproduce it.  As a
 check, we compute the same biprobability from the closed-form three-flavor vacuum
@@ -3673,22 +3693,22 @@ points_std_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_NO_s
                      for i in range(len(dCP_sel)+1)]
 points_std_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_std_IO_sel[i][1], prob_nubar_std_IO_sel[i][1]]] 
                      for i in range(len(dCP_sel)+1)]'''),
-    code(r'''make_plot_biprobability([prob_nu_std_NO, prob_nu_std_IO], 
-                        [prob_nubar_std_NO, prob_nubar_std_IO],
-                        lc=['C0', 'C1'], ls=['-', '-'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_std_NO_sel, points_std_IO_sel],
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'Vacuum (using standard $3\nu$ formula)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'NO', 'xy': (0.5,0.75), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'IO', 'xy': (0.17,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'}
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.10),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.02),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.10),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.02),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0,0.50], ylim=[0,0.50], save_fig=False)'''),
+    code(r'''fig, ax = make_plot_biprobability([prob_nu_std_NO, prob_nu_std_IO], 
+                                  [prob_nubar_std_NO, prob_nubar_std_IO],
+                                  lc=['C0', 'C1'], ls=['-', '-'], lw=[1.0, 1.0],
+                                  points_sel_arr=[points_std_NO_sel, points_std_IO_sel],
+                                  label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
+                                  label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
+                                  annotations=[
+                                      {'text': r'Vacuum, T2K, standard $3\nu$ formula', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'NO', 'xy': (0.22,0.38), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'IO', 'xy': (0.50,0.80), 'color': 'C1', 'fontsize': 20, 'ha': 'left'}
+                                  ], 
+                                  xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.02,0.07], ylim=[0.02,0.07], save_fig=False)'''),
     md(r'''The two are identical, as they must be.'''),
     md(r'''## In matter, long-baseline experiments (constant density, Earth's crust)'''),
     md(r'''Now the same plot in matter, at constant density, for the NO$\nu$A, T2K and DUNE
@@ -3775,23 +3795,23 @@ prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12
                               for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
-    code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
-                        [prob_nubar_NO, prob_nubar_IO],
-                        lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_NO_sel, points_IO_sel],
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'NO$\nu$A ($L = 810$~km, $E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
-                             'ha': 'left'},
-                            {'text': 'NO', 'xy': (0.14,0.67), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'IO', 'xy': (0.5,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.025,0.06], ylim=[0.025,0.06], save_fig=False)'''),
+    code(r'''fig, ax = make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
+                                  [prob_nubar_NO, prob_nubar_IO],
+                                  lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
+                                  points_sel_arr=[points_NO_sel, points_IO_sel],
+                                  label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
+                                  label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
+                                  annotations=[
+                                      {'text': r'NO$\nu$A ($L = 810$~km, $E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
+                                       'ha': 'left'},
+                                      {'text': 'NO', 'xy': (0.14,0.67), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'IO', 'xy': (0.5,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
+                                  ], 
+                                  xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.025,0.06], ylim=[0.025,0.06], save_fig=False)'''),
     code(r'''# ====== T2K ======
 
 # Pick the baseline and energy of T2K
@@ -3874,23 +3894,23 @@ prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12
                               for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
-    code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
-                        [prob_nubar_NO, prob_nubar_IO],
-                        lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_NO_sel, points_IO_sel],
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'T2K ($L = 295$~km, $E_\nu = 0.6$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
-                             'ha': 'left'},
-                            {'text': 'NO', 'xy': (0.18,0.67), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'IO', 'xy': (0.45,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.025,0.065], ylim=[0.025,0.065], save_fig=False)'''),
+    code(r'''fig, ax = make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
+                                  [prob_nubar_NO, prob_nubar_IO],
+                                  lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
+                                  points_sel_arr=[points_NO_sel, points_IO_sel],
+                                  label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
+                                  label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
+                                  annotations=[
+                                      {'text': r'T2K ($L = 295$~km, $E_\nu = 0.6$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
+                                       'ha': 'left'},
+                                      {'text': 'NO', 'xy': (0.18,0.67), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'IO', 'xy': (0.45,0.75), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
+                                  ], 
+                                  xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.025,0.065], ylim=[0.025,0.065], save_fig=False)'''),
     code(r'''# ====== DUNE ======
 
 # Pick the baseline and energy of DUNE
@@ -3973,23 +3993,23 @@ prob_nubar_IO_sel = np.array([[dCP/np.pi, oscprob.osc_prob(lambda l: H_nubar(s12
                               for dCP in dCP_sel+[NUFIT_IO['dCP']]])
 points_NO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_NO_sel[i][1], prob_nubar_NO_sel[i][1]]] for i in range(len(dCP_sel)+1)]
 points_IO_sel = [[dCP_label_sel[i], markers[i], filled[i], [prob_nu_IO_sel[i][1], prob_nubar_IO_sel[i][1]]] for i in range(len(dCP_sel)+1)]'''),
-    code(r'''make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
-                        [prob_nubar_NO, prob_nubar_IO],
-                        lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
-                        points_sel_arr=[points_NO_sel, points_IO_sel],
-                        label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
-                        label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
-                        annotations=[
-                            {'text': r'DUNE ($L = 1300$~km, $E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
-                             'ha': 'left'},
-                            {'text': 'NO', 'xy': (0.10,0.74), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
-                            {'text': 'IO', 'xy': (0.55,0.85), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
-                        ], 
-                        xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
-                        yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
-                        leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.018,0.06], ylim=[0.018,0.06], save_fig=False)'''),
+    code(r'''fig, ax = make_plot_biprobability([prob_nu_NO, prob_nu_IO], 
+                                  [prob_nubar_NO, prob_nubar_IO],
+                                  lc=['C0', 'C1'], ls=['-', '--'], lw=[1.0, 1.0],
+                                  points_sel_arr=[points_NO_sel, points_IO_sel],
+                                  label_prob_nu=r'Neutrino probability, $P_{\nu_\mu \to \nu_e}$', 
+                                  label_prob_nubar=r'Anti-neutrino probability, $P_{\bar{\nu}_\mu \to \bar{\nu}_e}$',
+                                  annotations=[
+                                      {'text': r'DUNE ($L = 1300$~km, $E_\nu = 2$~GeV)', 'xy': (0.02,0.95), 'color': 'k', 'fontsize': 20, 
+                                       'ha': 'left'},
+                                      {'text': 'NO', 'xy': (0.10,0.74), 'color': 'C0', 'fontsize': 20, 'ha': 'left'},
+                                      {'text': 'IO', 'xy': (0.55,0.85), 'color': 'C1', 'fontsize': 20, 'ha': 'left'},
+                                  ], 
+                                  xaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  xaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  yaxis_major_locator=mpl.ticker.MultipleLocator(base=0.01),
+                                  yaxis_minor_locator=mpl.ticker.MultipleLocator(base=0.002),
+                                  leg_fontsize=15, leg_loc='upper right', leg_ncol=1, xlim=[0.018,0.06], ylim=[0.018,0.06], save_fig=False)'''),
     md(r'''## In matter, through the Earth (varying density, PREM)'''),
     md(r'''Now through the Earth, with the layered PREM profile rather than a constant density: a
 beam from Fermilab to SNOLAB, Homestake, CERN and the South Pole.  Notebook
@@ -4206,9 +4226,9 @@ leaves out, which reach $\nu_\mu$ through its mixing with $\nu_e$.'''),
     code(r'''# Mixing parameters (predefined examples from globaldefs; can change them to anything else)
 params_2nu_23 = dict(sth=NUFIT_NO['s23'], # [adim]
                      Dm2=NUFIT_NO['D31']) # [eV^2]'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
-                      osc_params=params_2nu_23, sector_2nu='23',
-                      cbar_label_pre=r'Two-neutrino probability, ')'''),
+    code(r'''prob_arr_2nu_23 = make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
+                                        osc_params=params_2nu_23, sector_2nu='23',
+                                        cbar_label_pre=r'Two-neutrino probability, ')'''),
     md(r'''With no matter term, nothing in this pattern marks the core: it depends on the chord
 only through its length.'''),
     md(r'''Now the 1-2 sector.  Its first flavor is $\nu_e$, which does feel the charged-current
@@ -4219,10 +4239,10 @@ params_2nu_12 = dict(sth=NUFIT_NO['s12'], # [adim]
                      Dm2=NUFIT_NO['D21']) # [eV^2]'''),
     md(r'''Plot it deliberately at the crudest settings: a fixed grid (`rtol=None`, so no
 refinement) of one slab (`n_slabs = 1`) at first order (`magnus_exp_order = 1`).'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
-                      osc_params=params_2nu_12, sector_2nu='12',
-                      rtol=None, atol=None, n_slabs=1, magnus_exp_order=1,
-                      cbar_label_pre=r'Two-neutrino probability, ')'''),
+    code(r'''prob_arr_2nu_12 = make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=2,
+                                        osc_params=params_2nu_12, sector_2nu='12',
+                                        rtol=None, atol=None, n_slabs=1, magnus_exp_order=1,
+                                        cbar_label_pre=r'Two-neutrino probability, ')'''),
     md(r'''The core shows as a change of pattern near $\cos\theta_z = -0.84$, where the chords
 start to cross it.
 
@@ -4255,9 +4275,9 @@ layer boundaries, first order.'''),
 Raising the slab count to `n_slabs = 10` and the order to `magnus_exp_order = 3` fixes
 that.  Three flavors carry two mass splittings and therefore two oscillation scales, and
 a constant Hamiltonian per layer cannot hold both.'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=3,
-                      osc_params=NUFIT_NO, rtol=None, atol=None, n_slabs=10, magnus_exp_order=3,
-                      cbar_label_pre=r'Three-neutrino probability, ')'''),
+    code(r'''prob_arr_3nu_mumu = make_oscillogram_plot(gd.NUMU, gd.NUMU, costhz_arr, log10_Enu_arr, n_flavors=3,
+                                          osc_params=NUFIT_NO, rtol=None, atol=None, n_slabs=10, magnus_exp_order=3,
+                                          cbar_label_pre=r'Three-neutrino probability, ')'''),
     md(r'''To decide whether that is converged, raise `n_slabs` or `magnus_exp_order` and see
 whether the map moves -- or, simpler, leave the grid to the wrapper: without `rtol=None`
 it refines until two successive levels agree to its default tolerance, $10^{-3}$, which is
@@ -4271,8 +4291,8 @@ calls, each answered by the energy-batched engine.  Looping over single points i
 points over processes, and an energy scan at one baseline is already faster in one.'''),
     md(r'''The same helper draws any channel. A few others follow, at the wrapper's default
 tolerance.'''),
-    code(r'''make_oscillogram_plot(gd.NUMU, gd.NUTAU, costhz_arr, log10_Enu_arr, n_flavors=3,
-                      osc_params=NUFIT_NO, cbar_label_pre=r'Three-neutrino probability, ')'''),
+    code(r'''prob_arr_3nu_mutau = make_oscillogram_plot(gd.NUMU, gd.NUTAU, costhz_arr, log10_Enu_arr, n_flavors=3,
+                                           osc_params=NUFIT_NO, cbar_label_pre=r'Three-neutrino probability, ')'''),
     code(r'''prob_arr_3nu_mue = make_oscillogram_plot(gd.NUMU, gd.NUE, costhz_arr, log10_Enu_arr, n_flavors=3,
                                          osc_params=NUFIT_NO,
                                          cbar_label_pre=r'Three-neutrino probability, ')'''),
@@ -4480,10 +4500,10 @@ H_4nu_vac = hamiltonians.hamiltonian_4nu_vacuum(energy, s12, s23, s13, dCP, s14,
                                                    compute_matrix_multiplication=False)
 prob_4nu_all = np.array([oscprob.osc_prob(lambda l: H_4nu_vac, 0.0, l*gd.CONV_KM_TO_INV_EV, n_slabs=1, n_tpts_per_slab=2, 
                                           magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_4nu_all, prob_3nu_all, N=1,
-                                   title=r'3+1 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_4nu_all, prob_3nu_all, N=1, 
-                                   title=r'3+1 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_4nu_all, prob_3nu_all, N=1,
+                                             title=r'3+1 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_4nu_all, prob_3nu_all, N=1, 
+                                             title=r'3+1 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
     md(r'''### 1.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e0, 1.e2 # [GeV]
@@ -4505,10 +4525,10 @@ H_4nu_vac_en_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12,
 prob_4nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_4nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
                                           n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1) for enu in energies])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
-                                 title=r'3+1 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_4nu_all, prob_3nu_all, N=1,
-                                 title=r'3+1 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
+                                           title=r'3+1 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_4nu_all, prob_3nu_all, N=1,
+                                           title=r'3+1 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
     md(r'''# 2. Probabilities in a 3+1 system ($4\nu$): in matter with constant density'''),
     md(r'''### 2.1 Mixing parameters
 
@@ -4562,12 +4582,12 @@ H_4nu_matt = hamiltonians.hamiltonian_4nu_matter(VCC)
 H_4nu = lambda l: H_4nu_vac + H_4nu_matt
 prob_4nu_all = np.array([oscprob.osc_prob(H_4nu, 0.0, l*gd.CONV_KM_TO_INV_EV, n_slabs=1, n_tpts_per_slab=2, 
                                           magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_4nu_all, prob_3nu_all, N=1,
-                                   title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
-                                   r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_4nu_all, prob_3nu_all, N=1,
-                                   title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
-                                   r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_4nu_all, prob_3nu_all, N=1,
+                                             title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
+                                             r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_4nu_all, prob_3nu_all, N=1,
+                                             title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
+                                             r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
     md(r'''### 2.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e-1, 1.e1 # [GeV]
@@ -4600,12 +4620,12 @@ def H_4nu(energy, l):
 prob_4nu_all = np.array([oscprob.osc_prob(lambda l: H_4nu(enu*gd.UNIT_GEV, l), 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
                                           n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1) for enu in energies])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
-                                 title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
-                                       r'$L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_4nu_all, prob_3nu_all, N=1,
-                                 title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
-                                       r'$L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
+                                           title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
+                                                 r'$L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_4nu_all, prob_3nu_all, N=1,
+                                           title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
+                                                 r'$L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
     md(r'''# 3. Probabilities in a 3+1 system ($4\nu$): long-baseline inside Earth (PREM)'''),
     md(r'''Notebook `04_magnus_long_baseline.ipynb` covers the trajectory geometry in detail.
 
@@ -4858,8 +4878,8 @@ H_5nu_vac = hamiltonians.hamiltonian_5nu_vacuum(energy, s12, s23, s13, dCP, s14,
                                                    D21, D31, D41, D51, compute_matrix_multiplication=False)
 prob_5nu_all = np.array([oscprob.osc_prob(lambda l: H_5nu_vac, 0.0, l*gd.CONV_KM_TO_INV_EV, n_slabs=1, n_tpts_per_slab=2, 
                                           magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_5nu_all, prob_3nu_all, N=2,
-                                   title=r'3+2 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_baseline(gd.NUE, gd.NUE, distances, prob_5nu_all, prob_3nu_all, N=2,
+                                             title=r'3+2 oscillations in vacuum, $E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV), save_plot=False)'''),
     md(r'''### 4.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e0, 1.e2 # [GeV]
@@ -4882,8 +4902,8 @@ H_5nu_vac_en_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12,
 prob_5nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_5nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
                                           n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1) for enu in energies])'''),
-    code(r'''make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_5nu_all, prob_3nu_all, N=2,
-                                 title=r'3+2 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_5nu_all, prob_3nu_all, N=2,
+                                           title=r'3+2 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
     ])
 
 # --------------------------------------------------------- 08_magnus_bsm_nsi
@@ -5027,10 +5047,10 @@ prob_matt_std_all = np.array([oscprob.osc_prob(lambda r: H_vac+H_matt, 0.0, l*gd
                                                magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda r: H_vac+H_matt+H_nsi, 0.0, l*gd.CONV_KM_TO_INV_EV, n_slabs=1, n_tpts_per_slab=2, 
                                                magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUE, gd.NUE, distances, prob_matt_nsi_all, prob_matt_std_all, N=2,
-                                           title=r'$2\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                                   r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
-                                           save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUE, gd.NUE, distances, prob_matt_nsi_all, prob_matt_std_all, N=2,
+                                                     title=r'$2\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                             r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
+                                                     save_plot=False)'''),
     md(r'''## 1.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e-1, 1.e1 # [GeV]
@@ -5066,10 +5086,10 @@ def H_matt_nsi(energy, l):
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
                                                n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1) for enu in energies])'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=2,
-                                         title=r'$2\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                               r'$L = $~{:.2f}~km'.format(baseline),
-                                         save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=2,
+                                                   title=r'$2\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                         r'$L = $~{:.2f}~km'.format(baseline),
+                                                   save_plot=False)'''),
     md(r'''# 2. Probabilities with NSI in 3$\nu$: in matter with constant density
 
 Three flavors is where a non-standard interaction becomes qualitatively new rather than
@@ -5120,14 +5140,14 @@ prob_matt_std_all = np.array([oscprob.osc_prob(lambda r: H_vac+H_matt, 0.0, l*gd
                                                magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda r: H_vac+H_matt+H_nsi, 0.0, l*gd.CONV_KM_TO_INV_EV, n_slabs=1, n_tpts_per_slab=2, 
                                                magnus_exp_order=1, integration_method='simpson', n_jobs=1) for l in distances])'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUE, gd.NUE, distances, prob_matt_nsi_all, prob_matt_std_all, N=3,
-                                           title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                                   r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
-                                           save_plot=False)'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_matt_nsi_all, prob_matt_std_all, N=3,
-                                           title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                                   r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
-                                           save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUE, gd.NUE, distances, prob_matt_nsi_all, prob_matt_std_all, N=3,
+                                                     title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                             r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
+                                                     save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_baseline(gd.NUMU, gd.NUTAU, distances, prob_matt_nsi_all, prob_matt_std_all, N=3,
+                                                     title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                             r'$E_\nu = $~{:.2f}~GeV'.format(energy/gd.UNIT_GEV),
+                                                     save_plot=False)'''),
     md(r'''## 2.3 Probabilities vs. energy'''),
     code(r'''# Energies
 energy_min, energy_max = 1.e-1, 1.e1 # [GeV]
@@ -5163,14 +5183,14 @@ def H_matt_nsi(energy, l):
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
                                                n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=1) for enu in energies])'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=3,
-                                         title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                               r'$L = $~{:.2f}~km'.format(baseline),
-                                         save_plot=False)'''),
-    code(r'''make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_matt_nsi_all, prob_matt_std_all, N=3,
-                                         title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
-                                               r'$L = $~{:.2f}~km'.format(baseline),
-                                         save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=3,
+                                                   title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                         r'$L = $~{:.2f}~km'.format(baseline),
+                                                   save_plot=False)'''),
+    code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_matt_nsi_all, prob_matt_std_all, N=3,
+                                                   title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
+                                                         r'$L = $~{:.2f}~km'.format(baseline),
+                                                   save_plot=False)'''),
     ])
 
 # --------------------------------------------------------- 09_magnus_bsm_liv
@@ -5192,7 +5212,7 @@ import magnus.plotting as plotting'''),
 
 Every `osc_prob_{2,3,4,5}nu_*` family has a `_liv` counterpart -- in vacuum, in
 constant- and exponential-density matter, inside the Earth, and inside the Sun:'''),
-    code(r'''[n for n in dir(oscprob) if n.startswith('osc_prob') and n.endswith('liv')]'''),
+    code(r'''[n for n in dir(oscprob) if n.startswith('osc_prob') and 'liv' in n]'''),
     md(r'''They take the standard mixing parameters plus the LIV ones. For three
 flavors those are `sxi12`, `sxi23`, `sxi13`, `dxiCP` (the mixing of the LIV
 eigenbasis into flavor), `b1`, `b2`, `b3` (its eigenvalues), `Lambda`, and
@@ -5386,7 +5406,7 @@ set the strongest limits on the higher-dimension operators.
 # -------------------------------------------- 10_magnus_averaged_probability
 books['10_magnus_averaged_probability.ipynb'] = notebook(
     'Phase-averaged (decohered) probabilities: `average=True`',
-    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, and it costs one matrix product instead of resolving $10^{15}$ radians.\n`average=True` returns it wherever every phase has decohered.  Where one has not, it\nreturns the **phase average**: each interference term kept, weighted by how much its\nphase spreads across the energy resolution (`average_spread`, 10 % by default).\n\nEvery oscillation-probability function in Mag$\nu$s takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Mag$\nu$s ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
+    "A neutrino from an astrophysical source arrives with an oscillation phase\n$\\Delta m^2 L / 2E$ of order $10^{15}$.  Nothing in that number — the source\ndistance, the size of the production region, the detector's energy resolution —\nis known to anything close to the precision it would take to predict the phase,\nso the measurement integrates over many complete cycles and every oscillatory\nterm averages away.  What survives is\n\n$$P(\\nu_\\alpha \\to \\nu_\\beta) = \\sum_i |V_{\\alpha i}|^2 |V_{\\beta i}|^2$$\n\nwhere $V$ diagonalizes the Hamiltonian.  This is the exact $L/E \\to \\infty$\nlimit, and it costs one matrix product instead of resolving $10^{15}$ radians.\n`average=True` returns it wherever every phase has decohered.  Where one has not, it\nreturns the **phase average**: each interference term kept, weighted by how much its\nphase spreads across the energy resolution (`average_spread`, 10 % by default).\n\nEvery oscillation-probability function in Mag$\\nu$s takes `average=True`.  This\nnotebook shows it for **2ν, 3ν, 4ν and 5ν**, and for a **custom Hamiltonian**\nthat is not one of the ones Mag$\\nu$s ships with.  Each plot plots the oscillating\nprobability against baseline (solid) together with its averaged value (dashed),\nso the average can be read as what the oscillation settles around.\n\nSee the [Phase-Averaged Probabilities](https://mbustama.github.io/Magnus/averaged_probability.html)\npage of the documentation for the derivation, the coherence criterion, and the\ntreatment of position-dependent Hamiltonians.",
     [
     code(r'''import numpy as np
 import matplotlib.pyplot as plt
@@ -5452,7 +5472,7 @@ P_avg = np.asarray(oscprob.osc_prob_2nu_vacuum(energy, distances[-1], sth, Dm2,
 print('averaged survival  P_ee =', round(float(P_avg[0, 0]), 5))
 print('1 - sin^2(2 theta)/2     =', round(1.0 - 0.5*(2*sth*np.sqrt(1-sth**2))**2, 5))
 
-plot_oscillating_and_averaged(
+fig, ax = plot_oscillating_and_averaged(
     distances,
     [P_osc[:, 0, 0], P_osc[:, 0, 1]],
     [P_avg[0, 0], P_avg[0, 1]],
@@ -5476,7 +5496,7 @@ print('averaged 3nu probability matrix:')
 print(np.round(P_avg, 4))
 print('rows sum to', np.round(P_avg.sum(axis=-1), 12))
 
-plot_oscillating_and_averaged(
+fig, ax = plot_oscillating_and_averaged(
     distances,
     [P_osc[:, 0, 0], P_osc[:, 0, 1], P_osc[:, 0, 2]],
     [P_avg[0, 0], P_avg[0, 1], P_avg[0, 2]],
@@ -5571,7 +5591,7 @@ print('averaged custom-Hamiltonian matrix:')
 print(np.round(P_avg, 4))
 print('symmetric:', np.allclose(P_avg, P_avg.T))
 
-plot_oscillating_and_averaged(
+fig, ax = plot_oscillating_and_averaged(
     distances,
     [P_osc[:, 0, 0], P_osc[:, 0, 1], P_osc[:, 0, 2]],
     [P_avg[0, 0], P_avg[0, 1], P_avg[0, 2]],
@@ -5679,7 +5699,7 @@ where $\Omega$ is the series expansion
 \begin{equation}
  \Omega(t_i, t_f) = \sum_{k=1}^{\infty} \Omega_k(t_i, t_f) \;,
 \end{equation}
-where the terms $\Omega_k$ of the expansion are computed recursively in terms of lower-order terms (see Wikipedia entry).  Mag$\nu$s can return the terms $\Omega_k$ and also the matrix exponential, $U$.  The present version of the code implements calculation up to $k = 6$ term.'''),
+where the terms $\Omega_k$ of the expansion are computed recursively in terms of lower-order terms (see Wikipedia entry).  Mag$\nu$s can return the terms $\Omega_k$ and also the matrix exponential, $U$.  The present version of the code implements the terms up to order `magnus.magnus.MAGNUS_EXP_ORDER_MAX` = 10 (with the `trapezoid` and `simpson` integrators; the Gauss-Legendre schemes stop at 8).'''),
     md(r'''First, define a sample $3 \times 3$ complex matrix (unlike the Hamiltonian in the case of neutrino oscillations, it does not have to be Hermitian).'''),
     code(r'''def A3(t):
     # return np.array([[1+1j*t, 2/(1+t), 3j*t], [0, 4-1j*t, 5+3j*t], [-3j*np.sqrt(t), -2j*(1/(1+t)), 1]], dtype=np.complex128)
@@ -5890,7 +5910,7 @@ print("   int " + et.format_term(terms_12[-1]))'''),
 # --------------------------------------- 12_magnus_adiabatic_hybrid_strategy
 books['12_magnus_adiabatic_hybrid_strategy.ipynb'] = notebook(
     "The `strategy` parameter: `'auto'` vs. `'hybrid'` vs. `'magnus'`",
-    "Every matter/NSI/LIV oscillation-probability function in Mag$\nu$s (and every\n`osc_prob_*_sun`/`osc_prob_*_sun_nsi`/`osc_prob_*_sun_liv` wrapper built on\nthem, plus the fully generic `osc_prob_sun`/`osc_prob_earth`) accepts a\n`strategy` keyword: `'auto'` (the default), `'hybrid'`, or `'magnus'`.\n\n* **`'magnus'`** uses only the traditional Magnus-expansion machinery: the\n  closed-form two-flavor interaction-picture integrator when it applies, or\n  the general adaptive slab-refinement method. This is the exact behavior\n  Mag$\nu$s had before this feature existed.\n* **`'hybrid'`** additionally tries an **adiabatic-transport-plus-Magnus-patch**\n  propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue\n  crossing of the instantaneous Hamiltonian, the evolution operator is\n  computed via the instantaneous eigenbasis (cheap regardless of how large\n  the accumulated oscillation phase is); near a genuine MSW resonance, a\n  short, exact Magnus patch is stitched in. The result stays exactly\n  unitary, and the whole computation self-certifies against its own\n  internal tolerances.\n* **`'auto'`** tries `'hybrid'` first, silently falling back to `'magnus'`\n  for any point where it does not apply or fails to self-certify.\n\nThis notebook reproduces, live, the validation described in\n[`docs/source/adiabatic_strategy.rst`](../docs/source/adiabatic_strategy.rst):\nfor a sequence of increasingly demanding cases (2 through 5 flavors,\nstandard oscillations and an engineered BSM resonance), we compare all\nthree `strategy` values against each other **and** against a\ntight-tolerance `scipy.integrate.solve_ivp` solution of the same\nSchrödinger equation, in both **runtime** and **accuracy**.\n\n**The headline result, previewed:** for 3 or more flavors, `strategy='magnus'`\n(the old default behavior) does not just get *slower* as the accumulated\noscillation phase grows -- with the library's default refinement caps, it\ncan hit them and return a **silently plausible-looking but wrong** answer,\nstill warning about it but not fixing it. `strategy='hybrid'`/`'auto'` are\nboth **fast and correct** in exactly this regime.",
+    "Every matter/NSI/LIV oscillation-probability function in Mag$\\nu$s (and every\n`osc_prob_*_sun`/`osc_prob_*_sun_nsi`/`osc_prob_*_sun_liv` wrapper built on\nthem, plus the fully generic `osc_prob_sun`/`osc_prob_earth`) accepts a\n`strategy` keyword: `'auto'` (the default), `'hybrid'`, or `'magnus'`.\n\n* **`'magnus'`** uses only the traditional Magnus-expansion machinery: the\n  closed-form two-flavor interaction-picture integrator when it applies, or\n  the general adaptive slab-refinement method. This is the exact behavior\n  Mag$\\nu$s had before this feature existed.\n* **`'hybrid'`** additionally tries an **adiabatic-transport-plus-Magnus-patch**\n  propagator (`magnus.adiabatic.hybrid_propagator`): away from an eigenvalue\n  crossing of the instantaneous Hamiltonian, the evolution operator is\n  computed via the instantaneous eigenbasis (cheap regardless of how large\n  the accumulated oscillation phase is); near a genuine MSW resonance, a\n  short, exact Magnus patch is stitched in. The result stays exactly\n  unitary, and the whole computation self-certifies against its own\n  internal tolerances.\n* **`'auto'`** tries `'hybrid'` first, silently falling back to `'magnus'`\n  for any point where it does not apply or fails to self-certify.\n\nThis notebook reproduces, live, the validation described in\n[`docs/source/adiabatic_strategy.rst`](../docs/source/adiabatic_strategy.rst):\nfor a sequence of increasingly demanding cases (2 through 5 flavors,\nstandard oscillations and an engineered BSM resonance), we compare all\nthree `strategy` values against each other **and** against a\ntight-tolerance `scipy.integrate.solve_ivp` solution of the same\nSchrödinger equation, in both **runtime** and **accuracy**.\n\n**The headline result, previewed:** `strategy='hybrid'`/`'auto'` is fast in\nevery case below and within the package's $10^{-3}$ target of the `solve_ivp`\nground truth. `strategy='magnus'` (the old default behavior) is within it too on\nthe standard cases -- at four and five flavors it is the more accurate of the two\n-- but on the engineered resonance it runs into the library's default refinement\ncaps, says so with `ToleranceNotAchievedWarning`, and returns answers just\noutside the target. At two flavors it is accurate and much slower.",
     [
     code(r'''import time
 import warnings
@@ -5975,14 +5995,14 @@ def run_case(name, wrapper_func, wrapper_kwargs, H_func, l0, l1, dim):
     return P_by_strategy, P_exact"""),
     md(r'''## Case 1: two flavors
 
-Two-flavor oscillations already have a dedicated, exact, closed-form
-"interaction-picture" fast path in Mag$\nu$s, independent of `strategy` (see
-`docs/source/methodology.rst`). So for two flavors, all three `strategy`
-values end up doing essentially the same thing -- and, at this particular
-baseline, even `solve_ivp` itself is cheap, since a 2-level ODE is
-inexpensive to integrate directly. The dramatic differences start
-showing up at three flavors and beyond, where no such closed-form
-shortcut exists.'''),
+Two-flavor oscillations have a dedicated, exact, closed-form
+"interaction-picture" integrator in Mag$\nu$s (see
+`docs/source/methodology.rst`), which is what `'magnus'` runs here. All three
+`strategy` values are accurate at two flavors, but they are not equally fast:
+at this baseline `'magnus'` takes on the order of a hundred times longer than
+`'hybrid'`/`'auto'`, which transport along the instantaneous eigenbasis
+instead. Even `solve_ivp` is cheap here, since a 2-level ODE is inexpensive to
+integrate directly.'''),
     code(r'''l_scale = gd.L_SCALE_SUN                  # length scale of the Sun's density profile
 energy = 18.0 * gd.UNIT_MEV                # a representative solar-neutrino (8B/hep) energy
 
@@ -6007,13 +6027,12 @@ with warnings.catch_warnings():
     md(r'''## Case 2: three flavors, no resonance in range
 
 For three (or more) flavors there is no closed-form fast path: `'magnus'`
-must resolve the full accumulated phase slab by slab. At this baseline
-that phase is large enough that, with the library's *default* refinement
-caps, `'magnus'` hits them and returns -- fast, but **wrong**, flagged by
-`ToleranceNotAchievedWarning`. `'hybrid'`/`'auto'` instead recognize that
-the trajectory is purely adiabatic here (no resonance at this energy) and
-return the correct answer via cheap instantaneous-eigenbasis transport,
-with no patch needed at all.'''),
+must resolve the full accumulated phase slab by slab. At this baseline it
+still converges within the library's *default* refinement caps -- no warning,
+and an error against `solve_ivp` inside the $10^{-3}$ target. `'hybrid'`/`'auto'`
+recognize that the trajectory is purely adiabatic here (no resonance at this
+energy) and answer via cheap instantaneous-eigenbasis transport, with no patch
+needed at all, a little faster and a little more accurate.'''),
     code(r'''osc = gd.OSC_PARAMS_PREDEFINED["OSC_PARAMS_DEFAULT"]
 hvac3 = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
     osc["s12"], osc["s23"], osc["s13"], osc["dCP"], osc["D21"], osc["D31"])
@@ -6227,15 +6246,17 @@ fig.subplots_adjust(bottom=0.32, top=0.82)
 plt.show()'''),
     md(r'''## Takeaways
 
-* For **two flavors**, a dedicated closed-form fast path already handles
-  the accumulated-phase problem, independent of `strategy` -- and a
-  direct ODE solve is itself inexpensive, so there is little practical
-  difference between the three `strategy` values at this baseline.
+* For **two flavors**, all three `strategy` values are accurate, and
+  `'magnus'` runs the closed-form interaction-picture integrator -- but at
+  this baseline it is on the order of a hundred times slower than
+  `'hybrid'`/`'auto'`.
 * For **three or more flavors**, `strategy='magnus'` has no such
-  shortcut. With the library's default refinement caps, it does not
-  necessarily get dramatically *slower* as the accumulated phase grows --
-  it can instead hit its caps and return **quickly but wrong**,
-  correctly flagged by `ToleranceNotAchievedWarning` but not fixed by it.
+  shortcut. On the standard cases it still lands inside the $10^{-3}$
+  target -- at four and five flavors more accurately than `'hybrid'`, though
+  at five it reaches its caps and warns while doing so. On the engineered
+  resonance it hits its default refinement caps and returns **quickly but
+  just outside the target**, correctly flagged by
+  `ToleranceNotAchievedWarning` but not fixed by it.
 * `strategy='hybrid'` (and the default, `'auto'`, which tries `'hybrid'`
   first) stays **fast and correct** across every case tested here --
   0-window (purely adiabatic) cases in particular are ~$10^3$ times
@@ -7325,7 +7346,7 @@ it tells you back**: declare the front with `t_breakpoints` on a scan, check a s
 against a second route, and treat a warning as the answer declining to certify rather than as
 noise. A result that is outside tolerance and silent is the dangerous one; across the five
 widths swept above there were none.'''),
-    md(r'''## 6. Two BSM scenarios on the shock
+    md(r'''## 5. Two BSM scenarios on the shock
 
 The same two scenarios notebook 13 puts on the Sun, put here on the shock, and the contrast
 between the two notebooks is the reason to read them together.
@@ -7350,7 +7371,7 @@ P_std_shock = np.asarray(oscprob.osc_prob_matter_std_potential(
     n_slabs=32000, max_n_slabs=128000)).reshape(len(Ls), 3, 3)[:, 0, 0]
 print('standard 3nu along the ray: P_ee runs %.4f .. %.4f'
       % (P_std_shock.min(), P_std_shock.max()))'''),
-    md(r'''### 6.1 Non-standard interactions
+    md(r'''### 5.1 Non-standard interactions
 
 The $\varepsilon$ below is the same one notebook 13 puts on the Sun, deliberately: identical
 numbers on a different observable are what make the comparison closing this section mean
@@ -7369,7 +7390,7 @@ print('eps = %s' % {k: v for k, v in EPS_SHOCK.items() if v})
 print('departure from the standard curve: max %.4f, mean %.4f'
       % (np.max(np.abs(P_nsi_shock - P_std_shock)),
          np.mean(np.abs(P_nsi_shock - P_std_shock))))'''),
-    md(r'''### 6.2 A sterile state
+    md(r'''### 5.2 A sterile state
 
 **The splitting here is $\Delta m^2_{41} = 1\,\mathrm{eV}^2$ -- the physically motivated
 short-baseline value -- and notebook 25 deliberately uses $10^{-2}$ instead.** That is not an
@@ -7752,8 +7773,13 @@ of this length actually probes.'''),
     code(r'''sth_atm, Dm2_atm = osc['s23'], osc['D31']
 
 def num_density_e_prem(r):
+    # Y_e per PREM layer, and the neutron-to-proton ratio that follows from it: the
+    # composition the Earth wrappers use by default (0.5 would be uniform isoscalar matter)
+    ye = earth.electron_fraction_func_prem(r)
     return matter.num_density_e_func(r, earth.density_matter_func_prem,
-                                     electron_fraction=0.5,
+                                     electron_fraction=ye,
+                                     ratio_number_neutrons_to_protons=
+                                         earth.neutron_to_proton_ratio_from_electron_fraction(ye),
                                      density_matter_is_in_g_per_cm3=True)   # [eV^3]
 
 def VCC_prem(r):
@@ -7785,7 +7811,7 @@ rho_along = earth.density_matter_func_prem(
 rho_bar = float(np.mean(rho_along))
 VCC_bar = matter.vcc_func_from_rho_func(rho_bar, density_matter_is_in_g_per_cm3=True)
 
-print('density along the chord: %.2f g/cm^3 (core) -> %.2f (crust)'
+print('density along the chord: %.2f g/cm^3 (core) -> %.2f (surface)'
       % (rho_along.max(), rho_along.min()))
 print('mean density           : %.4f g/cm^3' % rho_bar)'''),
     md(r'''The cell below raises a `MagnusConvergenceWarning`. It is worth reading rather than
@@ -7828,11 +7854,11 @@ print('max |exact - vacuum|       = %.3f' % np.max(np.abs(exact - vacuum)))'''),
 | $2\nu$ vacuum, closed form | $4\times10^{-16}$ |
 | $3\nu$ vacuum, closed form | $5\times10^{-14}$ |
 | $2\nu$ constant density, closed form | $3\times10^{-16}$ |
-| $2\nu$ Earth chord vs **mean-density** formula | **wrong by up to 0.51** |
+| $2\nu$ Earth chord vs **mean-density** formula | **wrong by up to 0.59** |
 
 The closed forms are exact and Mag$\nu$s agrees with all of them. The failure in the last row
 is not the formula's -- it is the substitution of a constant density for a varying one, and it
-is worth 0.51 in probability at the peak, with an rms of 0.23 across two decades in energy.
+is worth 0.59 in probability at the peak, with an rms of 0.22 across two decades in energy.
 
 The mean density is not a bad *estimate* of the profile; it is simply not what the neutrino
 sees. Oscillation depends on the arrangement of the matter along the path, not only on its
@@ -7936,8 +7962,13 @@ slower. `MagnusConvergenceWarning` reports a slab wider than the sufficient cond
 series to converge -- a statement about slab width, not about the answer; notebook 20 takes
 it apart.'''),
     code(r'''def num_density_e_prem(r):
+    # Y_e per PREM layer, and the neutron-to-proton ratio that follows from it: the
+    # composition the Earth wrappers use by default (0.5 would be uniform isoscalar matter)
+    ye = earth.electron_fraction_func_prem(r)
     return matter.num_density_e_func(r, earth.density_matter_func_prem,
-                                     electron_fraction=0.5,
+                                     electron_fraction=ye,
+                                     ratio_number_neutrons_to_protons=
+                                         earth.neutron_to_proton_ratio_from_electron_fraction(ye),
                                      density_matter_is_in_g_per_cm3=True)   # [eV^3]
 
 def VCC_prem(r):
@@ -7983,7 +8014,7 @@ print('  antineutrinos NO %.4f   IO %.4f' % (earth_p[('NO', True)][i],
     md(r'''The resonance is in the **neutrinos** if the ordering is normal and in the
 **antineutrinos** if it is inverted. That is the cleanest statement of how an atmospheric
 experiment determines the ordering, and here it is as a pair of numbers differing by a factor
-of a hundred rather than a few percent.'''),
+of forty or more rather than a few percent.'''),
     code(r'''fig, ax = plotting.plot_probability_vs_energy(
     E_gev_earth,
     [dict(y=earth_p[('NO', False)], label=r'$\nu$, NO', color='C3'),
@@ -8031,7 +8062,7 @@ increasingly not.
 |---|---|---|---|
 | ordering | **sign of `D31`** | vacuum, 1300 km | 0.10 |
 | | | crust, $\nu$ / $\bar\nu$ | 0.13 / 0.06 |
-| | | **core chord, $\nu$ / $\bar\nu$** | **0.49 / 0.42** |
+| | | **core chord, $\nu$ / $\bar\nu$** | **0.43 / 0.42** |
 | octant | $\sin^2\theta_{23}$ vs $1-\sin^2\theta_{23}$ | 1300 km, either channel | ~0.015 |
 
 Two practical notes. The shipped NuFIT NO and IO sets differ in ordering, octant *and*
@@ -8497,8 +8528,12 @@ needs the profile machinery at all.'''),
     code(r'''prem_edges = np.concatenate(([0.0], earth.PREM_BOUNDARIES))
 r_prem = np.unique(np.concatenate(
     [np.linspace(a, b, 900) for a, b in zip(prem_edges[:-1], prem_edges[1:])]))
+# Y_e per PREM layer, as the Earth wrappers use for the standard matter term
+ye_prem = earth.electron_fraction_func_prem(r_prem)
 ne_prem = matter.num_density_e_func(r_prem, earth.density_matter_func_prem,
-                                    electron_fraction=0.5,
+                                    electron_fraction=ye_prem,
+                                    ratio_number_neutrons_to_protons=
+                                        earth.neutron_to_proton_ratio_from_electron_fraction(ye_prem),
                                     density_matter_is_in_g_per_cm3=True)
 
 print('grid: %d nodes, with one on every PREM boundary' % len(r_prem))
@@ -8539,7 +8574,7 @@ One number in the table above needs its reference read carefully. $V(0)/V(R)$ do
 converge on the density contrast printed beneath it, and should not: a point at the *surface*
 has electrons only on its inward side, so $V(R)$ tends to half the local limit while $V(0)$
 tends to the whole of it. The short-range ratio therefore approaches **twice** the contrast,
-about 10, which is the direction the column is moving.
+about 9.5, which is the direction the column is moving.
 
 ### Through the Earth
 
@@ -8574,7 +8609,7 @@ with warnings.catch_warnings():
                                    L=L_EARTH, nu_i=gd.NUMU, nu_f=gd.NUMU)
 
 gap = np.abs(np.asarray(p_std) - np.asarray(p_lrf))
-print('V_new(0) is 10%% of V_CC there')
+print('V_new(0) is 10% of V_CC there')
 print('max |standard - long range| = %.4f  at %.2f GeV'
       % (gap.max(), E_gev[gap.argmax()]))'''),
     code(r'''fig, ax = plotting.plot_probability_vs_energy(
@@ -8617,7 +8652,7 @@ place a closed-form implementation divides by zero, and the Magnus expansion nev
 denominators -- it exponentiates a matrix, and a degenerate matrix exponentiates perfectly
 well.
 
-Second, and more useful in practice: Mag$\nu$s has **fourteen** warning classes, and they do not
+Second, and more useful in practice: Mag$\nu$s has **fifteen** warning classes, and they do not
 all mean the same kind of thing. Some report a bad input, some an expensive choice, and some a
 condition that was not met but may not matter. Knowing which is which is the difference between
 a warning you act on and one you note.''',
@@ -8695,7 +8730,7 @@ For a constant Hamiltonian one slab is already exact, so all three agree.'''),
                       ('rtol=atol=None ', dict(rtol=None, atol=None))):
     P = np.asarray(oscprob.osc_prob(h_vac/ENERGY, 0.0, BASELINE, **kwargs))
     print('%s P_ee = %.12f' % (label, P[0][0]))'''),
-    md(r'''## 6. The fourteen warnings
+    md(r'''## 6. The fifteen warnings
 
 | class | says | act on it? |
 |---|---|---|
@@ -8713,6 +8748,7 @@ For a constant Hamiltonian one slab is already exact, so all three agree.'''),
 | `CrossCheckInconclusiveWarning` | a spread of zero because nothing was compared | yes -- the check did not run |
 | `SterileMatterCompositionWarning` | the sterile entry and the density describe different media | yes |
 | `PseudoDiracSplittingWarning` | a pseudo-Dirac splitting is not small against the standard ones | yes -- wrong regime |
+| `SolarModelRangeWarning` | a baseline reaches past a solar model's last tabulated radius with `stop_at_table_edge=True`, so no probability is returned there | yes -- shorten the baseline or allow the continuation |
 
 `MagnusConvergenceWarning` deserves its own sentence: it is a statement about **slab width, not
 about the answer**, and it is measured to be a false alarm about three quarters of the time. It
@@ -8786,7 +8822,8 @@ $1/(\lambda_i - \lambda_j)$ that closed forms must.
 
 For the warnings, one rule: **`MagnusConvergenceWarning` is about slab width, everything else
 is about you.** Three of them have measured false-alarm rates, in `diagnostics.rst`: 76 % for
-`MagnusConvergenceWarning`, 59 % and 57 % for the two tolerance warnings -- against 2 silent
+`MagnusConvergenceWarning`, 59 % for `UnmarkedDiscontinuityWarning` and 57 % for
+`ToleranceNotAchievedWarning` -- against 2 silent
 misses in the whole population of 168 configurations.
 
 Notebook 21 takes the tolerance itself further, and it is the one to read next if you have
@@ -8959,8 +8996,11 @@ agree to within a loose tolerance, whatever the answer -- and the ladder would t
 convergence it had not achieved.
 
 That was a real defect, fixed in PR #35: the ladder certified an agreement between two nearly
-identical grids. The fix is that `n_slabs` is now a **floor** rather than a target, so a
-refinement step is guaranteed to be a real one.
+identical grids. The fix is that `n_slabs` is now a **floor** rather than a target, and an
+agreement only counts between levels whose real grids differ by at least 25 %
+(`oscprob.MIN_EFFECTIVE_REFINEMENT`). The energy-batched engine kept the defect on grids with
+declared breakpoints until PR #94, which applies the same rule there: its real edge count now
+grows by at least that factor per level.
 
 ## Summary
 
@@ -9461,7 +9501,7 @@ on, off, gap = timed(H_prem, energy=5.0*gd.UNIT_GEV)
 print('plain PREM lookup, single point')
 print('  palindrome on  : %.4f s' % on)
 print('  palindrome off : %.4f s   speed-up %.2fx' % (off, off/on))'''),
-    md(r'''About 1.00x -- the bookkeeping costs as much as the lookups it saves. The package
+    md(r'''Close to 1x -- the bookkeeping costs about as much as the lookups it saves. The package
 documentation quotes 0.91x for this case, and disarming the optimization here would cost you
 nothing.
 
@@ -9487,13 +9527,15 @@ for label, kwargs in (('single point', dict(energy=5.0*gd.UNIT_GEV)),
                        dict(energy=np.logspace(0.0, 1.5, 20)*gd.UNIT_GEV))):
     on, off, gap = timed(H_expensive, **kwargs)
     print('%-26s %-10.4f %-10.4f %-10.2f %.1e' % (label, on, off, off/on, gap))'''),
-    md(r'''Now it pays: the mirrored path is faster by a factor approaching two, and the answers
+    md(r'''Now it pays: the mirrored path is about twice as fast, and the answers
 agree to round-off. The package documentation quotes 1.4--1.67x on an expensive `H_func`,
 measured on a different profile; the numbers above are the same effect on this one.
 
 The lesson is not that the palindrome is worth 1.68x here and 2.44x on the scan. It is that
-**it is worth exactly half of whatever your Hamiltonian charges per position, and nothing for
-what it charges per call**. If
+**it saves half of whatever your Hamiltonian charges per position, and nothing of what it
+charges per call** -- so at most a factor of two from the halving itself. A single measured
+ratio above two, like the scan's, is more than halving accounts for; timings this short also
+move with caching and allocation, so read these ratios as indicative. If
 you want it off, `magnus.magnus.USE_PALINDROME = False`.
 
 Note also that only `osc_prob_earth` gets this: a chord is symmetric by geometry, and
@@ -9552,14 +9594,14 @@ because the two ends of the range differ by an order of magnitude in cost per sl
 Two constraints shape everything below, and both are properties of the integrator rather than
 of the physics.
 
-**With the default `gl` integrator only three orders are distinct.** Gauss--Legendre schemes
-come in whole nodes: orders 1--2 share the 1-node scheme, 3--4 the 2-node scheme, 5--6 the
-3-node scheme. So asking for order 3 gets you order 4's arithmetic at order 4's price. The
-table below shows all six anyway, once, because seeing the pairs collapse is more convincing
-than being told they do.
+**With the default `gl` integrator the orders come in pairs.** Gauss--Legendre schemes come in
+whole nodes: orders 1--2 share the 1-node scheme, 3--4 the 2-node scheme, 5--6 the 3-node
+scheme and 7--8 the 4-node scheme. So asking for order 3 gets you order 4's arithmetic at
+order 4's price. The table below shows orders 1--6, pairs included, because seeing the pairs
+collapse is more convincing than being told they do.
 
-**`gl` stops at 6.** `magnus._validate` rejects higher orders for `gl`; `MAGNUS_EXP_ORDER_MAX`
-is 10, but reaching 7--10 requires `trapezoid` or `simpson`, which changes the *integrator* as
+**`gl` stops at 8.** `magnus._validate` rejects higher orders for `gl`; `MAGNUS_EXP_ORDER_MAX`
+is 10, but reaching 9--10 requires `trapezoid` or `simpson`, which changes the *integrator* as
 well as the order. Those points are not on the same curve and are not drawn here.'''),
     code(r'''from scipy.integrate import solve_ivp
 from scipy.linalg import expm as sp_expm
@@ -9815,8 +9857,7 @@ truncation.
 The sweep raises the order from 1 to 10 on a smooth exponential profile at a deliberately
 coarse four slabs, so the order is the only thing moving. `integration_method='simpson'` is
 used rather than the default `gl`, because Gauss--Legendre nodes coincide in pairs and `gl`
-offers only three distinct schemes wearing six names --- the answer would freeze every second
-point.
+stops at 8 --- the answer would freeze every second point, and the sweep could not reach 10.
 
 The left panel is the answer converging. The right panel is the point.'''),
     code(r'''PER_NE_ORD = matter.VCC_func(l=0.0, num_density_e_func=lambda l: 1.0)
@@ -10437,14 +10478,15 @@ other. Batched, the two codes are within a small factor and both sit at machine 
 looped rows are an order of magnitude slower on both sides, which is the Python interpreter
 talking, not the physics.
 
-The single-point picture is different and worth stating plainly: one probability at one energy
-costs Mag$\nu$s about 1.7 times what it costs NuOscProbExact, and almost all of that gap is
+The single-point picture is different and worth stating plainly: called one energy at a time,
+a probability costs Mag$\nu$s about seven times what it costs NuOscProbExact (97 against 14
+$\mu$s above), and almost all of that gap is
 parameter resolution in the wrapper -- NuFIT defaults, unit flags, engine dispatch -- rather
 than arithmetic. The matrix exponential is under a tenth of the call.'''),
     md(r'''Both are exact to round-off; the closed form is several times faster. That is the
 right result and it is worth stating plainly: **if constant density is your whole problem, a
 closed-form code is the better tool.** Mag$\nu$s earns its cost on profiles that vary, where no
-closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.51 on
+closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.59 on
 an Earth chord.
 
 ## 4. PREM, three flavors: the comparison that is actually about method
@@ -10722,10 +10764,11 @@ setting of that code's own dial.'''),
     md(r'''## 5. PREM, 3+1: a sterile state through the Earth
 
 The 3+1 case is where the two codes' cost structures separate most, and for a reason worth
-naming: Mag$\nu$s's compiled Cayley--Hamilton exponential covers $2\times2$ and $3\times3$ only,
-because there is no practical closed form for a $4\times4$ Hermitian eigenproblem. Four flavors
-therefore exponentiate through `numpy.linalg.eigh`, and Mag$\nu$s loses the factor it had at
-three flavors. NuOscProbExact's SU(4) closed form has no such cliff.
+naming: Mag$\nu$s's compiled Cayley--Hamilton exponential covers $2\times2$ and $3\times3$ only.
+Four and five flavors exponentiate through a compiled, batched Jacobi eigensolver instead -- since
+version 1.0.9; before it, through `numpy.linalg.eigh` -- so they do not get the closed form's
+margin. NuOscProbExact's SU(4) closed form has no such cliff. The stored timings in this section
+were taken before the Jacobi eigensolver, and have not been re-measured since.
 
 An eV-scale splitting over an Earth-crossing baseline also carries a very large accumulated
 phase, which is the regime where a refinement ladder works hardest.'''),
@@ -10806,7 +10849,7 @@ if HAVE_NPE_EARTH:
 referee was corrected, not the least accurate one.** The two axes point in opposite directions
 here, so they are worth separating.
 
-**Cost: NuOscProbExact, by about 400x.** 56 000 $\mu$s per probability against 130, and the
+**Cost: NuOscProbExact, by about 400x.** About 60 000 $\mu$s per probability against 130, and the
 cost does not fall when the tolerance is loosened. That flatness is a real diagnosis: the
 refinement ladder is not converging and stopping, it is running to its slab ceiling, which is
 why a `MagnusConvergenceWarning` appears on every row. An eV-scale $\Delta m^2_{41}$ over an
@@ -11226,8 +11269,8 @@ alone and survives a change of machine. "Code A is faster than code B" does not.
 | | |
 |---|---|
 | constant density, exactness | Mag$\nu$s and NuOscProbExact both $\sim10^{-16}$ |
-| constant density, speed | **comparable batched**, both ~1 $\mu$s/probability; both an order of magnitude slower called one energy at a time |
-| single point, constant density | the closed form by ~1.7×, almost all of it wrapper parameter resolution |
+| constant density, speed | **within about 5x batched**, 7.3 and 1.4 $\mu$s/probability; both an order of magnitude slower called one energy at a time |
+| single point, constant density | the closed form by ~7×, almost all of it wrapper parameter resolution |
 | PREM, 3ν, cost per call | NuOscProbExact by ~20× |
 | PREM, 3ν, accuracy reachable | Mag$\nu$s to $3\times10^{-10}$; the closed form stalls near $6\times10^{-5}$ |
 | PREM, 3+1, cost per call | NuOscProbExact by ~400×, and Mag$\nu$s *warns* |
@@ -11327,8 +11370,8 @@ grows, because the per-call overhead is amortized while the arithmetic is not.
 The two gaps are different in kind. **Batching** removes Python-level dispatch -- it is the
 same arithmetic, called once instead of $N$ times. **The kernel** removes the arithmetic's own
 overhead, replacing `numpy.linalg.eigh`'s per-matrix LAPACK loop with a closed form over the
-whole stack. That second gap is the one that closes for four and five flavors, where no closed
-form for the eigenproblem exists and the `eigh` path is all there is.'''),
+whole stack. At four and five flavors there is no closed form for the eigenproblem; the compiled
+path there is a batched Jacobi eigensolver rather than `eigh`.'''),
     md(r'''## 9. A smooth profile: where each method runs out
 
 PREM is the profile that flatters a closed form, because a piecewise-constant density is
@@ -11720,8 +11763,8 @@ nuSQuIDS has a dial Mag$\nu$s's adiabatic route does not: the solver tolerance. 
 gives the speed-against-accuracy curve below -- and something more useful than the curve.
 
 **Below `rel_error` $=10^{-6}$ this calculation stops returning probabilities, and says
-nothing about it.** At $10^{-4}$ the survival probability reaches **2.83**; on looser settings
-still, the flavor probabilities run from $-19$ to $+45$. The obvious guard against that --
+nothing about it.** At $10^{-4}$ the flavor probabilities run from $-1.19$ to **3.09**. The
+obvious guard against that --
 sum the flavor probabilities and check they are 1 -- **passes on every one of those rows, to
 $10^{-16}$**. That is not a bug in the guard. nuSQuIDS evolves the density matrix in an SU(3)
 basis whose identity component is the trace, so the flavor sum is conserved *by construction*
@@ -11809,7 +11852,7 @@ comparison at that scale is not available at any affordable cost, and saying so 
 than drawing one that looks like it is.
 
 What is left is the horizontal distance, and it is large in a way that is not about
-implementation quality. Mag$\nu$s returns the averaged observable in **about 0.7 s** because it
+implementation quality. Mag$\nu$s returns the averaged observable in **about 1 s** because it
 never propagates and never samples. nuSQuIDS needs about **ten minutes** merely to reach the
 tolerance at which its output is a probability, and then a further factor of $N$ to average
 the phase away. Neither NuOscProbExact nor nuSQuIDS offers an averaging flag.
@@ -11819,8 +11862,8 @@ experiment actually asks** -- and the gap is a property of the question, not of 
     md(r"""### 10b. The same observable at 3+1, and a check that the sterile state is felt
 
 A sterile state changes the solar answer through the matter term, not just through mixing, and
-that is worth showing here because **this notebook's own referee was wrong about it until
-today** (section 5). The matter potential carries $\mathrm{diag}(1, 0, 0, r/2)$ with
+that is worth showing here because **this notebook's own referee was wrong about it until it
+was corrected** (section 5). The matter potential carries $\mathrm{diag}(1, 0, 0, r/2)$ with
 $r = n_n/n_p$: the active flavors share $V_{\rm NC}$ and it cancels, a sterile state feels
 neither current and so keeps $-V_{\rm NC} = (r/2)\,V_{\rm CC}$.
 
@@ -12128,7 +12171,7 @@ is smooth on the scale of the slabs -- which is section 9's regime, where fourth
 Gauss--Legendre integration beats second-order midpoint sampling. NuOscProbExact's finest
 setting here reaches $5.6\times10^{-6}$; Mag$\nu$s is **22 times more accurate than that for
 three times the cost** ($2.5\times10^{-7}$ at 7400 $\mu$s against 2500), and then continues
-nearly four more orders of magnitude to $9.9\times10^{-10}$, which the slab product does not
+nearly four more orders of magnitude to $9.6\times10^{-10}$, which the slab product does not
 reach at any dial measured.
 
 So the shock is not one case with one answer. **The width of the front decides which method
@@ -12397,7 +12440,7 @@ Put the three shock sections together and the pattern is the point:
 
 | | 0.07 km front | 70 km front |
 |---|---|---|
-| standard 3$\nu$ | NuOscProbExact by ~230x | Mag$\nu$s, to $9.9\times10^{-10}$ |
+| standard 3$\nu$ | NuOscProbExact by ~230x | Mag$\nu$s, to $9.6\times10^{-10}$ |
 | 3+1 | -- | Mag$\nu$s, to $1.1\times10^{-8}$ |
 | NSI | -- | Mag$\nu$s, to $6.5\times10^{-10}$ |
 
@@ -12774,9 +12817,11 @@ value, and Hamiltonians that vary along the path.'''),
     md(r'''## 5. The refinement ladder, deciding
 
 A tolerance is not met by raising the order --- it is met by **adding slabs**, and the ladder
-does that on its own until two successive refinements agree to within what was asked. The
-interesting rows are the ones where it stops being able to: past a point it hits its ceiling
-and says so with a warning rather than returning a silently wrong number.
+does that on its own until two successive refinements agree to within what was asked. On this
+profile it never runs out of room: every tolerance down to $10^{-11}$ is met, and on every row
+the delivered error sits below the one requested. When the ladder does reach its ceiling --
+notebook 21 shows a case -- it says so with `ToleranceNotAchievedWarning` rather than returning
+a silently wrong number, and the figure marks that row.
 
 This one is a table rather than a picture, so it is not animated.'''),
     code(r'''import warnings as _warnings
@@ -12794,9 +12839,12 @@ def laddered(rtol):
             rtol=rtol, atol=rtol*1.0e-2, nu_i=gd.NUMU, nu_f=gd.NUE)))
         # `certified` is filled in by the hybrid dispatcher, not by the bare
         # ladder, so on strategy='magnus' it is always None and cannot be the
-        # signal. What the ladder itself reports is the warning.
-        warned = any('Tolerance' in w.category.__name__ or
-                     'Convergence' in w.category.__name__ for w in caught)
+        # signal. What the ladder itself reports is the warning -- the tolerance
+        # one.  MagnusConvergenceWarning is about slab width on some level the
+        # ladder passed through, fires on converged answers too, and says
+        # nothing about running out of room.
+        warned = any(issubclass(w.category, oscprob.ToleranceNotAchievedWarning)
+                     for w in caught)
     return p, warned
 
 
@@ -20492,8 +20540,9 @@ print('that have travelled megaparsecs.')'''),
   nothing when it is not used.
 * In the coherent regime the **block form** returns the Dirac answer and the naive
   eigenstate sum is wrong by the number of states sharing a block.
-* Between the two limits no averaged expression applies, and the library says so rather than
-  returning a plausible number.
+* Between the two limits neither closed form applies. `average=True` then returns the phase
+  average at the energy spread asked for, and `PhaseAveragingWarning` says the answer depends
+  on that spread; `coherence_report` names the pairs responsible.
 * The effect lives at astrophysical baselines. On Earth the pair phase is $10^{-14}$ radians."""),
     ])
 
@@ -20537,7 +20586,7 @@ READING_ORDER = [
     ('19_magnus_custom_hamiltonian.ipynb', 'Bring your own Hamiltonian',
      'the contract, the vectorization trick, and what the Earth declares for you'),
     ('20_magnus_numerical_edge_cases.ipynb', 'Numerical edge cases',
-     'degeneracies that return numbers, and what the fourteen warnings mean'),
+     'degeneracies that return numbers, and what the fifteen warnings mean'),
     ('21_magnus_what_tolerance_means.ipynb', 'What rtol and atol promise',
      'a stopping criterion, not an error bound'),
     ('22_magnus_which_engine_answered.ipynb', 'Which engine answered, and why',

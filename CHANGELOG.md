@@ -178,6 +178,25 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Notebook corrections from a read of all twenty-nine notebooks** (notebook 28 left for
+  its own rerun).  Wrong numbers: 05's vacuum biprobability used 810 km and 2 MeV under a
+  T2K label (now 295 km, 0.6 GeV); 01 compared a neutrino vacuum curve with antineutrino
+  matter curves, and in the energy plot at a different baseline; 16, 17 and 19 built PREM
+  with a uniform Y_e = 0.5 and now use the layered composition the Earth wrappers use
+  (16: the mean-density substitution is wrong by up to 0.59, was 0.51; 17: the core-chord
+  ordering split is 0.43 / 0.42, was 0.49 / 0.42).  Text that contradicted the library:
+  01's two- and three-flavor Hamiltonian equations, its claim that the three-flavor
+  probability matrix is symmetric, a function name that does not exist, and `osc_prob`
+  taking an array of baselines; 11's order ceiling (10, not 6); 24's Gauss-Legendre ceiling
+  (8, not 6); 25's four-flavor exponential (a Jacobi eigensolver since 1.0.9); 20's warning
+  count (fifteen) and false-alarm attributions; 21's refinement fix (PR #94 alongside #35);
+  29's statement on the regime between the averaging limits.  Text that contradicted its
+  own output: 12's comparison of the three strategies (re-run and rewritten), 24, 25 and
+  27 (whose ladder table counted MagnusConvergenceWarning as running out of room).  Also
+  the broken `Mag$\nu$s` in the 10 and 12 introductions, stray return values printed
+  after plots, 14's section numbering, 09's listing of the `_liv` wrappers, 19's "10%%",
+  and a note on the expected tolerance warnings in 02's and 03's solar sections.
+
 - **Notebooks 04, 05, 06 and 07 compute their Earth probabilities through the
   Earth wrappers** (issue #95 for notebook 06).  They built the PREM
   Hamiltonian by hand, without declaring the layer boundaries, on fixed grids
