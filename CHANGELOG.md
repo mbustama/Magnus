@@ -352,6 +352,30 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The hybrid strategy no longer certifies a wrong answer across a sharp step between its
+  probe points** (issue #100).  A density step narrower than the probe spacing, away from any
+  resonance, is neither a gap extremum nor a probe point, so no adiabaticity check ever landed
+  on it: every refinement agreed on adiabatic transport across it, and `strategy='auto'`
+  returned the hybrid's answer as certified, with no warning.  On the issue's profile (a shock
+  of width 0.8 on a path of 3e5, in units of the inverse vacuum splitting) that was
+  `P_ee = 0.153` against a correct 0.492.  Before certifying, `hybrid_propagator` now compares,
+  on every probe interval, the change of `H` across it with the derivatives measured at its
+  ends, which catches a step of any width; at the steepest point of any interval flagged it
+  evaluates the adiabaticity parameter exactly, and if that could move the answer by the
+  tolerance it repeats the refinement with the point examined from the first level.  The
+  issue's case now certifies 0.4921 against 0.4922.
+  - **Nothing else moves.**  Over the 53 cases of the physical-profile population (solar
+    tables, BS05, supernova shocks and turbulence, Earth chords with an undeclared crust, and
+    the issue's profiles), 50 are bit-for-bit what they were, probabilities and certification
+    alike.  The three that change were certified wrong by 0.34 to 0.49, and now certify
+    within 1.2e-4 of `solve_ivp`.
+  - **Nor does the speed.**  The check reads arrays the probe sweep already computed: 25 us
+    at 400 probe points and 0.31 ms at 6400, only on calls about to certify.  Over 37 timed
+    cases, from 7 ms tabulated profiles to 5 s solar-model scans, main and this change agree
+    within run-to-run noise (-1.1 % summed).
+  - It still cannot see a bump that rises and falls between two probe points (see
+    `docs/source/adiabatic_strategy.rst`); a step, however narrow, is no longer in that class.
+
 - **The energy-batched scan now warns when it accepts an energy at the slab cap** (part of
   #71).  Once `'trapezoid'` or `'simpson'` reach `max_n_slabs` (2000 by default), each
   further level refines only the points per slab; two such levels agreeing verifies the

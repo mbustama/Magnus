@@ -336,13 +336,26 @@ probe grid** -- see the two limits below.
      to certify, so :func:`magnus.oscprob.osc_prob` falls through to the
      general Magnus path, which handles such profiles correctly. Passing
      ``t_breakpoints`` at the discontinuities is better still.
-   * **A feature narrower than the probe spacing**, which no fixed grid can
-     detect: neither the probe nor its refinement samples it, so
+   * **A bump narrower than the probe spacing**, which rises and falls between
+     two probe points: neither the probe nor its refinement samples it, so
      :math:`\gamma` looks small and no window opens. Measured on a Gaussian
      resonance of width :math:`10^{-5}(l_1-l_0)`, the returned probability was
      wrong by 2.9e-02 while reporting ``certified=True``. The general Magnus
      path is no better here (it misses the feature too, though it does warn).
      If a narrow feature's position is known, pass ``t_breakpoints``.
+
+     A **step** narrower than the probe spacing is not in this class (issue
+     #100): its full height lies between two probe
+     points, so the change of :math:`H` across that interval is far steeper
+     than the derivatives measured at its ends.  Before certifying,
+     ``hybrid_propagator`` compares the two on every probe interval, on arrays
+     it has already computed, evaluates :math:`\gamma` exactly at the steepest
+     point of any interval where the chord is more than twice as steep, and, if
+     that point could move the answer by the tolerance, repeats the refinement
+     with it examined from the first level.  Measured on a shock of width 0.8
+     (in units of the inverse vacuum splitting) on a path of :math:`3\times10^5`,
+     the result certified went from 0.153 to 0.4921, against 0.4922.  Where
+     nothing is found, the result certified is bit-for-bit the one before.
 
 .. note::
 

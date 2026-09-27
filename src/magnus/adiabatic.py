@@ -673,116 +673,87 @@ scans as well as points says otherwise.
 """
 
 
-SHARP_SCAN_POINTS_PER_OSCILLATION = 2
-r"""int: Module-level constant
+SHARP_CHORD_RATIO = 2.0
+r"""float: Module-level constant
 
-Points per oscillation length of the **slowest** oscillation on the fine grid of
-``_sharp_feature_points``, the scan :func:`hybrid_propagator` runs before it certifies (issue
-#100).  The slowest oscillation is enough, because what the scan must not miss is a sharp change
-of ``H``, and a change of any width shows up in full between two neighbouring fine points.
+How much steeper than the derivative at both of its ends the chord of ``H`` across one probe
+interval must be before ``_sharp_feature_points`` looks inside it (issue #100).  On a smooth
+stretch the chord slope is the derivative somewhere inside the interval, which the two ends
+bracket unless the derivative peaks in between; a step hidden between two probe points makes the
+chord steeper than both ends by the ratio of the interval to the step's width, however narrow
+the step.
 
-.. versionadded:: 1.1.2
+.. versionadded:: 1.1.1
 """
 
 
-SHARP_SCAN_MAX_POINTS = 2**21
+SHARP_MAX_POINTS = 16
 r"""int: Module-level constant
 
-Ceiling on the fine grid of ``_sharp_feature_points``.  A longer path is scanned more coarsely
-than :data:`SHARP_SCAN_POINTS_PER_OSCILLATION` asks, which still sees every step (a step's full
-height falls between two neighbouring points however coarse the grid) but locates it less
-precisely.
+At most this many probe intervals are looked into by ``_sharp_feature_points``, those whose
+chord carries the largest jump relative to the gap first.
 
-.. versionadded:: 1.1.2
+.. versionadded:: 1.1.1
 """
 
 
-SHARP_SCAN_MAX_PEAKS = 16
-r"""int: Module-level constant
-
-At most this many flagged positions are returned by ``_sharp_feature_points``, the largest
-first.
-
-.. versionadded:: 1.1.2
-"""
-
-
-def _sharp_feature_points(H_func: Callable, l0: float, l1: float, gamma_crit: float,
-                          chunk: int = 2**16) -> List[float]:
-    r"""Positions between the probe points where ``H`` changes fast enough to break adiabatic
-    transport, found on a grid fine relative to the slowest oscillation (issue #100).
+def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float) -> List[float]:
+    r"""Positions between the probe points where ``H`` changes too sharply for adiabatic transport,
+    found from the probe grid :func:`find_resonance_candidates` already evaluated (issue #100).
 
     The probe grid of :func:`find_nonadiabatic_windows` is spaced by the path length over
     ``n_probe``, at most 6400 points, so a feature narrower than that spacing can sit between two
-    probe points: a sharp density jump far from any resonance is not a gap extremum either, so
+    probe points.  A sharp density jump far from any resonance is not a gap extremum either, so
     no candidate lands on it, and :func:`hybrid_propagator` certified adiabatic transport across
-    it -- 0.153 against a correct 0.492 in issue #100.  This looks at the path on a grid of
-    :data:`SHARP_SCAN_POINTS_PER_OSCILLATION` points per oscillation length of the smallest gap,
-    and flags every local maximum of
+    it: 0.153 against a correct 0.492 in issue #100.
 
-    .. math::
+    For each probe interval this compares the chord, :math:`\lVert H(l_{i+1}) - H(l_i)\rVert_F`,
+    with the derivatives the probe sweep measured at its two ends, times the interval's length.
+    An interval is looked into when the chord is more than :data:`SHARP_CHORD_RATIO` times both
+    (something happened between the probe points that neither saw) and the jump is not
+    negligible against the smaller gap at its ends: a sudden change of ``H`` by
+    :math:`\lVert\Delta H\rVert` mixes the levels by about :math:`\lVert\Delta H\rVert/g`, so
+    a jump below :math:`\sqrt{\mathrm{tol}}/10` of the gap moves no probability by the
+    tolerance.  Inside each such interval, the steepest step is narrowed down twice on 33 points,
+    and its middle is returned; the caller evaluates :math:`\gamma` there exactly.
 
-       \tilde\gamma_i = \frac{\lVert H(l_{i+1}) - H(l_i)\rVert_F}{(l_{i+1} - l_i)\, g(l_i)^2} ,
+    Costs one difference and one norm per probe interval, on arrays already in memory, and
+    Hamiltonian evaluations only inside the intervals it looks into.  What it cannot see is a
+    bump that rises and falls between two probe points, leaving the chord unchanged; that is
+    :func:`find_hidden_features`' job.
 
-    with ``g`` the smallest gap, taken from a coarse grid.  This bounds the adiabaticity
-    parameter of every level pair from above, up to the error in ``g``, so a peak below
-    ``gamma_crit`` cannot hide a :math:`\gamma` above it.  A flagged step is then narrowed down
-    twice on 33 points, so that the returned position sits on the steepest part of the feature,
-    where the caller evaluates :math:`\gamma` exactly.
-
-    Costs Hamiltonian evaluations only, no eigendecomposition on the fine grid.  Returns ``[]``
-    for a Hamiltonian that cannot be evaluated on an array of positions: the scan would then be
-    a Python loop over up to :data:`SHARP_SCAN_MAX_POINTS` points, and the hybrid strategy keeps
-    its earlier behaviour there.
-
-    .. versionadded:: 1.1.2
+    .. versionadded:: 1.1.1
     """
-    l0, l1 = float(l0), float(l1)
-    if not l1 > l0:
+    Hs, dH, lam, ls = probe.get('H'), probe['dH'], probe['lam'], probe['ls']
+    if Hs is None or len(ls) < 2 or lam.shape[-1] < 2:
         return []
-    coarse = np.linspace(l0, l1, 257)
-    try:
-        Hc = np.asarray(H_func(coarse), dtype=complex)
-    except Exception:                      # noqa: BLE001 -- any failure means "not vectorized"
+    # Squared Frobenius norms through real views: this runs on every certified call, on up to
+    # 6400 intervals, so it is written for speed (0.67 ms there, 53 us at 400 probe points).
+    n = len(ls)
+    dl = np.diff(ls)
+    chord = np.ascontiguousarray(np.diff(Hs, axis=0)).view(float).reshape(n - 1, -1)
+    chord2 = np.einsum('ij,ij->i', chord, chord)
+    slope = np.ascontiguousarray(dH).view(float).reshape(n, -1)
+    slope2 = np.einsum('ij,ij->i', slope, slope)
+    flag = np.flatnonzero(chord2 > SHARP_CHORD_RATIO**2*np.maximum(slope2[:-1], slope2[1:])*dl*dl)
+    if flag.size == 0:
         return []
-    if Hc.ndim != 3 or Hc.shape[0] != len(coarse) or Hc.shape[-1] < 2:
+    gap = np.min(np.diff(lam[np.union1d(flag, flag + 1)], axis=1), axis=1)
+    gap = dict(zip(np.union1d(flag, flag + 1).tolist(), gap.tolist()))
+    g = np.array([min(gap[i], gap[i + 1]) for i in flag.tolist()])
+    keep = chord2[flag] > 0.01*tol*g*g
+    flag, g = flag[keep], g[keep]
+    if flag.size == 0:
         return []
-    gap = np.min(np.diff(np.linalg.eigvalsh(Hc), axis=1), axis=1)
-    if not np.all(np.isfinite(gap)) or np.any(gap <= 0.0):
-        return []
-    phase = float(np.sum(0.5*(gap[1:] + gap[:-1])*np.diff(coarse)))
-    n = int(min(SHARP_SCAN_MAX_POINTS,
-                max(len(coarse), np.ceil(SHARP_SCAN_POINTS_PER_OSCILLATION*phase/(2.0*np.pi)))))
-    x = np.linspace(l0, l1, n)
-    dx = x[1] - x[0]
-    step2 = np.empty(n - 1)                # squared Frobenius norm of each step of H
-    for a in range(0, n - 1, chunk):
-        dH = np.diff(np.asarray(H_func(x[a:a + chunk + 1]), dtype=complex), axis=0)
-        step2[a:a + len(dH)] = np.sum(dH.real**2 + dH.imag**2, axis=(1, 2))
-    # The smaller gap at the two ends of the coarse interval each fine step falls in: smooth
-    # enough for a bound, and never larger than the gap it stands for, so a peak is never missed
-    # for want of it.
-    g_lo = np.minimum(gap[:-1], gap[1:])
-    g = g_lo[np.minimum(((x[:-1] - l0)*((len(coarse) - 1)/(l1 - l0))).astype(np.intp),
-                        len(g_lo) - 1)]
-    proxy = step2/(dx*g*g)**2               # the square of the bound above
-    gamma_crit = gamma_crit**2
-    inner = proxy[1:-1]
-    peaks = np.where((inner >= proxy[:-2]) & (inner > proxy[2:]) & (inner > gamma_crit))[0] + 1
-    if len(proxy) > 1:
-        if proxy[0] > max(gamma_crit, proxy[1]):
-            peaks = np.append(peaks, 0)
-        if proxy[-1] > max(gamma_crit, proxy[-2]):
-            peaks = np.append(peaks, len(proxy) - 1)
-    peaks = peaks[np.argsort(-proxy[peaks], kind='stable')][:SHARP_SCAN_MAX_PEAKS]
+    flag = flag[np.argsort(-(chord2[flag]/np.maximum(g, 1e-300)**2),
+                           kind='stable')][:SHARP_MAX_POINTS]
     out = []
-    for i in peaks:
-        a, b = x[i], x[i + 1]
+    for i in flag:
+        a, b = ls[i], ls[i + 1]
         for _ in range(2):                 # narrow down to the steepest sub-step, twice
             sub = np.linspace(a, b, 33)
-            Hs = np.asarray(H_func(sub), dtype=complex)
-            dH = np.diff(Hs, axis=0)
-            k = int(np.argmax(np.sum(dH.real**2 + dH.imag**2, axis=(1, 2))))
+            step = np.diff(_H_on_grid(H_func, sub), axis=0)
+            k = int(np.argmax(np.sum(step.real**2 + step.imag**2, axis=(1, 2))))
             a, b = sub[k], sub[k + 1]
         out.append(float(0.5*(a + b)))
     return sorted(out)
@@ -1220,7 +1191,8 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     info : dict, optional
         If given, filled in place with the probe-grid quantities this function had to compute
         anyway -- ``'ls'`` (the grid), ``'lam'``, ``'W'`` (eigenvalues and eigenvectors, shapes
-        ``(n, d)`` and ``(n, d, d)``) and ``'dH'``. :func:`find_nonadiabatic_windows` sweeps
+        ``(n, d)`` and ``(n, d, d)``), ``'dH'`` and ``'H'`` (the Hamiltonians, shape
+        ``(n, d, d)``; added in 1.1.1). :func:`find_nonadiabatic_windows` sweeps
         :math:`\gamma` on exactly this grid with exactly this finite-difference step, so
         without this it would recompute all of it: ~600 extra Hamiltonian evaluations and a
         second eigendecomposition, which measured as **1.4x** on an ordinary single-point solar
@@ -1272,7 +1244,7 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     lam, W = np.linalg.eigh(Hs)
     dH = _dH_dl_on_grid(H_func, ls, h, bounds)
     if info is not None:
-        info.update(ls=ls, lam=lam, W=W, dH=dH)
+        info.update(ls=ls, lam=lam, W=W, dH=dH, H=Hs)
 
     def f_pairs(pos: np.ndarray, js: List[int], ks: List[int]) -> List[float]:
         # The Hellmann-Feynman gap derivative at many (position, pair) points.  The
@@ -1469,7 +1441,8 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     threshold: Optional[float] = 0.1, n_probe: Optional[int] = 200,
     fd_step_frac: Optional[float] = 1e-6,
     info: Optional[Dict] = None,
-    extra_points: Optional[List[float]] = None) -> Tuple[List[Tuple[float, float]], List[Dict]]:
+    extra_points: Optional[List[float]] = None,
+    _probe_out: Optional[Dict] = None) -> Tuple[List[Tuple[float, float]], List[Dict]]:
     r"""Finds every position window along ``[l0, l1]`` where ``H_func`` needs a Magnus patch.
 
     Calls :func:`find_resonance_candidates`, evaluates the adiabaticity parameter
@@ -1519,7 +1492,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
         :func:`hybrid_propagator` passes the sharp features found between the probe points
         (issue #100).  Default: None.
 
-        .. versionadded:: 1.1.2
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -1528,7 +1501,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
         the candidate list from :func:`find_resonance_candidates`, each entry additionally
         carrying its evaluated ``'gamma'``.
     """
-    probe = {}
+    probe = {} if _probe_out is None else _probe_out
     candidates = find_resonance_candidates(H_func, l0, l1, n_probe=n_probe,
         fd_step_frac=fd_step_frac, info=probe)
     fd_step = (l1 - l0) * fd_step_frac
@@ -1736,7 +1709,8 @@ def _local_evolution_operator(H_func: Callable, l_b: float, l_c: float, magnus_e
 def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: float,
     n_probe: int, n_points: int, fd_step_frac: float, magnus_exp_order: int,
     integration_method: str, patch_atol: float = 1.0e-7,
-    extra_points: Optional[List[float]] = None) -> Tuple[np.ndarray,
+    extra_points: Optional[List[float]] = None,
+    probe_out: Optional[Dict] = None) -> Tuple[np.ndarray,
                                       List[Tuple[float, float]], bool, float, float]:
     r"""One evaluation of the hybrid propagator at a fixed set of internal tolerance knobs (see
     :func:`hybrid_propagator` for the self-certifying refinement built on top of this).
@@ -1746,10 +1720,11 @@ def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: f
     (which the caller needs to judge the stretch adiabatic transport carries alone -- see
     :data:`GAMMA_TO_ERROR`).  ``patch_atol`` is what every local patch converges to; see
     :func:`hybrid_propagator` for how it follows the requested tolerance.  ``extra_points``
-    goes to :func:`find_nonadiabatic_windows`."""
+    goes to :func:`find_nonadiabatic_windows`, and ``probe_out``, if given, receives its probe
+    grid (see ``_sharp_feature_points``)."""
     info = {}
     windows, _ = find_nonadiabatic_windows(H_func, l0, l1, threshold=threshold, n_probe=n_probe,
-        fd_step_frac=fd_step_frac, info=info, extra_points=extra_points)
+        fd_step_frac=fd_step_frac, info=info, extra_points=extra_points, _probe_out=probe_out)
     gamma_max = info.get('gamma_max', 0.0)
     gamma_unpatched = info.get('gamma_unpatched', gamma_max)
     if not windows:
@@ -2052,7 +2027,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
 
     U_prev, windows_prev, ok_prev, gamma_prev, gu_prev = _hybrid_propagator_once(H_func, l0,
         l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method,
-        patch_atol, _sharp_points)
+        patch_atol, extra_points=_sharp_points)
     if not ok_prev or not resolved:
         report(len(windows_prev), gamma_prev, gu_prev, 1, ok_prev)
         return U_prev, windows_prev, False
@@ -2078,19 +2053,19 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     # than the probe spacing, away from any gap extremum, is seen by neither the candidates nor
     # the probe sweep, so every refinement above agrees on adiabatic transport across it and
     # adiabatic_is_good_enough has nothing to object to: certified at 0.153 against a correct
-    # 0.492.  The scan runs once, and only here, so a call that ends uncertified never pays for
-    # it; and where it finds nothing that could move the answer by the tolerance, the result
-    # certified is exactly the one certified before.
-    extra_points = _sharp_points            # None: not scanned yet
+    # 0.492.  The look runs once, only here, and on the probe grid of the level about to be
+    # certified, which is already in memory; where it finds nothing that could move the answer
+    # by the tolerance, the result certified is exactly the one certified before.
+    extra_points = _sharp_points            # None: not looked yet
 
-    def sharp_features_matter(windows: List[Tuple[float, float]]) -> bool:
+    def sharp_features_matter(windows: List[Tuple[float, float]], probe: Dict) -> bool:
         r"""Whether a sharp feature outside ``windows`` has a gamma the certification could not
-        accept.  Scans on first use; afterwards the points found are in ``extra_points``, and
+        accept.  Looks on first use; afterwards the points found are in ``extra_points``, and
         :func:`find_nonadiabatic_windows` accounts for them itself."""
         nonlocal extra_points
         if extra_points is not None:
             return False
-        extra_points = _sharp_feature_points(H_func, l0, l1, (atol + rtol)/GAMMA_TO_ERROR)
+        extra_points = _sharp_feature_points(H_func, probe, atol + rtol)
         outside = [p for p in extra_points if not any(a <= p <= b for a, b in windows)]
         if not outside:
             return False
@@ -2114,9 +2089,10 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # would pass on a comparison of a result with itself -- which is no evidence of
             # convergence at all. Stop and report the result as uncertified instead.
             break
+        probe_next = {}
         U_next, windows_next, ok_next, gamma_next, gu_next = _hybrid_propagator_once(H_func,
             l0, l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order,
-            integration_method, patch_atol, extra_points)
+            integration_method, patch_atol, extra_points=extra_points, probe_out=probe_next)
         if not ok_next:
             report(len(windows_next), gamma_next, gu_next, iterations, False)
             return U_next, windows_next, False
@@ -2128,7 +2104,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             # which opens windows over it eventually, since gamma is measured on the same grid
             # the threshold is compared against.
             if adiabatic_is_good_enough(max(gu_next, gu_prev)):
-                if not sharp_features_matter(windows_next):
+                if not sharp_features_matter(windows_next, probe_next):
                     report(len(windows_next), max(gamma_next, gamma_prev),
                            max(gu_next, gu_prev), iterations, True)
                     return U_next, windows_next, True

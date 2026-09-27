@@ -354,7 +354,7 @@ def test_hybrid_propagator_does_not_certify_when_the_first_patch_fails(monkeypat
     calls = []
 
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
-                  magnus_exp_order, integration_method, patch_atol=1.0e-7):
+                  magnus_exp_order, integration_method, patch_atol=1.0e-7, **kwargs):
         calls.append((threshold, n_probe, n_points))
         return np.eye(2, dtype=complex), [(1.0, 2.0)], False, 0.0, 0.0
 
@@ -378,7 +378,7 @@ def test_hybrid_propagator_does_not_certify_when_a_later_patch_fails(monkeypatch
     calls = []
 
     def fake_once(H_func, l0, l1, threshold, n_probe, n_points, fd_step_frac,
-                  magnus_exp_order, integration_method, patch_atol=1.0e-7):
+                  magnus_exp_order, integration_method, patch_atol=1.0e-7, **kwargs):
         calls.append((threshold, n_probe, n_points))
         return np.eye(2, dtype=complex), [], results[len(calls) - 1], 0.0, 0.0
 
@@ -695,6 +695,81 @@ def test_subthreshold_nonadiabaticity_is_not_certified_on_agreement_alone():
     P_exact = np.abs(exact_U(H_func, 0.0, l1, 2)).T**2
     err = np.max(np.abs(P - P_exact))
     assert err < 1e-3, f"certified but wrong by {err:.2e}"
+
+
+# ----------------------------------------------------------------------
+# A sharp shock between the probe points (issue #100)
+# ----------------------------------------------------------------------
+
+_SHOCK_TH = 0.3
+
+
+def _shock_H(S, W):
+    """The profile of issue #100, in units where the vacuum splitting is 1: an envelope that
+    crosses the resonance slowly, a tanh shock of width ``W`` at ``1500*S``, and a second slow
+    decline.  ``S`` stretches the envelope but not the shock, so at ``S = 100`` the shock is far
+    narrower than the probe spacing."""
+    c2, s2 = np.cos(2*_SHOCK_TH), np.sin(2*_SHOCK_TH)
+
+    def v(x):
+        xs = 1500.0*S
+        up = 0.5*(1 + np.tanh((x - xs)/W))
+        return 3.0*np.exp(-x/(500.0*S)) + 2.0*up*np.exp(-(x - xs).clip(0)/(400.0*S))
+
+    def H(l):
+        x = np.asarray(l, dtype=float)
+        out = np.empty(x.shape + (2, 2), dtype=complex)
+        out[..., 0, 0], out[..., 1, 1] = 0.5*(2*v(x) - c2), 0.5*c2
+        out[..., 0, 1] = out[..., 1, 0] = 0.5*s2
+        return out
+    return H, 3000.0*S
+
+
+# P_ee from two independent references that agree to 7 digits: the issue's exponential midpoint
+# rule with closed-form 2x2 steps (0.492214), and solve_ivp (DOP853, rtol 1e-12).
+_SHOCK_REFERENCE = {(100, 0.8): 0.49221404, (100, 0.3): 0.59707240, (30, 0.3): 0.55905128}
+
+
+@pytest.mark.parametrize('S, W', sorted(_SHOCK_REFERENCE))
+def test_a_sharp_shock_between_the_probe_points_is_never_certified_wrong(S, W):
+    """No probe point lands on a shock this narrow and it is not a gap extremum, so no candidate
+    lands on it either: every refinement agreed on adiabatic transport across it, and the hybrid
+    certified P_ee = 0.153 against a correct 0.492 (issue #100).  The look between the probe
+    points before certifying finds it, and the refinement restarts with it examined.
+
+    At S = 100 the hybrid certified wrongly before, and now certifies the right answer.  At
+    S = 30, W = 0.3 it never reached certification, before or now (its window grows over the
+    whole path and the patch declines), so the dispatcher hands the request to the ladder; what
+    matters there is only that nothing wrong is certified."""
+    H, l1 = _shock_H(S, W)
+    U, windows, certified = ad.hybrid_propagator(H, 0.0, l1)
+    P = abs(U[0, 0])**2
+    if S == 100:
+        assert certified
+        assert any(a <= 1500.0*S <= b for a, b in windows), \
+            "no window covers the shock: %r" % windows
+    if certified:
+        assert abs(P - _SHOCK_REFERENCE[(S, W)]) < 1e-3, \
+            "certified P_ee = %.6f against %.6f" % (P, _SHOCK_REFERENCE[(S, W)])
+
+
+def test_the_look_between_probe_points_finds_the_shock_where_it_is():
+    """It returns a position on the steep part of the front, where gamma is evaluated."""
+    H, l1 = _shock_H(100, 0.8)
+    probe = {}
+    ad.find_resonance_candidates(H, 0.0, l1, n_probe=6400, info=probe)
+    points = ad._sharp_feature_points(H, probe, 2e-3)
+    assert len(points) == 1 and abs(points[0] - 150000.0) < 0.8, points
+
+
+@pytest.mark.parametrize('n_probe', [200, 6400])
+def test_the_look_between_probe_points_finds_nothing_on_a_smooth_profile(n_probe):
+    """On a profile with no feature between the probe points it flags nothing, so the result the
+    hybrid certifies is the one it certified before the look was added."""
+    H, l1 = _shock_H(1, 200.0)                       # the front as wide as the envelope
+    probe = {}
+    ad.find_resonance_candidates(H, 0.0, l1, n_probe=n_probe, info=probe)
+    assert ad._sharp_feature_points(H, probe, 2e-3) == []
 
 
 # ----------------------------------------------------------------------
