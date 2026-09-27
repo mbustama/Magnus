@@ -471,7 +471,10 @@ indistinguishable from an audited one.
 All four are **cost ceilings rather than calibrations**: they bound work, and reaching one is
 reported by :class:`magnus.oscprob.ToleranceNotAchievedWarning` rather than absorbed. So
 "unmeasured" means something milder for them than for a threshold that silently decides an
-outcome. Every constant that *does* silently decide an outcome now appears in the table above.
+outcome. The constants that *do* silently decide an outcome appear in the table above, or,
+for the refinement and routing gates (:data:`magnus.oscprob.MIN_EFFECTIVE_REFINEMENT`,
+:data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE`, :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE`),
+with their measurements in their own documentation.
 
 
 Reproducing any of this

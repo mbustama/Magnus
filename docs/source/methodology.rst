@@ -63,12 +63,12 @@ The series converges absolutely whenever
 in question.  Magνs partitions the trajectory into a chain of slabs and
 evaluates the expansion independently in each one; a large accumulated
 phase (a long baseline, a strong potential, or both) is handled by adding
-more, narrower slabs rather than by raising the expansion order.  Since
-:math:`\lVert\Omega_1\rVert_2` is a necessary (if not sufficient) proxy for
-this criterion, and its value is obtained for free from the eigenvalues
-already computed for the matrix exponential (see below), Magνs checks it
-automatically and emits ``MagnusConvergenceWarning`` if a slab is
-comfortably outside the guaranteed regime.
+more, narrower slabs rather than by raising the expansion order.  Magνs
+checks :math:`\lVert\Omega\rVert_2` on every slab, from the spectrum
+already computed for the matrix exponential (see below), and emits
+``MagnusConvergenceWarning`` when it reaches :math:`\pi` on some slab: the
+sufficient condition for convergence is then not met, which says nothing
+yet about the error.
 
 Two integration methods
 --------------------------
@@ -120,7 +120,7 @@ rule keeps its order.  One left *inside* a slab degrades every method.  The quad
 the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows
 accordingly.
 
-Exact unitarity from the eigendecomposition
+Unitarity from the spectral decomposition
 ------------------------------------------------
 
 Since :math:`\Omega` is anti-Hermitian, Magνs computes
@@ -132,9 +132,11 @@ Since :math:`\Omega` is anti-Hermitian, Magνs computes
    \exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger ,
    \qquad K = V\, \mathrm{diag}(\lambda)\, V^\dagger .
 
-This is both faster than a general (Padé-based) matrix exponential for
-stacks of small matrices, and exactly unitary by construction — no residual
-non-unitarity to track.  A general (non-anti-Hermitian) fallback based on
+This is faster than a general (Padé-based) matrix exponential for stacks of
+small matrices, and unitary to round-off (:math:`U^\dagger U - I` of order
+1e-15; see :doc:`performance`).  By default (``EXPM_BACKEND = 'auto'``) the
+spectrum comes from compiled kernels -- Cayley-Hamilton for 2×2 and 3×3,
+batched Jacobi for 4×4 and 5×5 -- and from ``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
 ``scipy.linalg.expm`` remains available for exotic, non-physical uses of
 the underlying :func:`magnus.magnus.magnus_expansion` engine.
 
@@ -528,8 +530,9 @@ ordinary-looking probability.
 Mixing parameters
 ~~~~~~~~~~~~~~~~~
 
-Angles are given as **sines** -- not as angles, and not as
-:math:`\sin^2\theta`: ``s12`` is
+Angles are given as **sines** by default (``angles='sin'``) -- not as angles,
+and not as :math:`\sin^2\theta`; ``angles=`` also accepts ``'sin2'``,
+``'rad'`` and ``'deg'``.  By default ``s12`` is
 :math:`\sin\theta_{12}`. Quoted fits usually give :math:`\sin^2\theta`, so
 take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.

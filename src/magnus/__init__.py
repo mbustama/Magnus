@@ -9,9 +9,10 @@ adiabatic, avgprob, earth, expansionterms, expmkernels, globaldefs,
 hamiltonians, magnus, matter, oscprob, oscprobstd, plotting, and solarmodels. See
 :doc:`/architecture` for how they fit together.
 
-:mod:`magnus.expmkernels` is listed because ``expmkernels.HAVE_NUMBA`` is the
+:mod:`magnus.expmkernels` is imported because ``expmkernels.HAVE_NUMBA`` is the
 documented way to ask whether the compiled matrix-exponential backend is
-available; the switch that selects it is ``magnus.magnus.EXPM_BACKEND``.
+available; the switch that selects it is ``magnus.magnus.EXPM_BACKEND``.  The
+other twelve are listed in ``submodules``/``__all__``.
 
 :mod:`magnus.plotting` needs Matplotlib, which ships with Magnus, so it is
 available in any installation.  It is still imported lazily, inside the calls

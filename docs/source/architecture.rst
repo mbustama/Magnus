@@ -43,7 +43,7 @@ anything above it:
      - Responsibility
    * - ``magnus``
      - The Magnus expansion itself: Gauss--Legendre integrators, slab
-       composition, the exactly-unitary matrix exponential
+       composition, the matrix exponential (unitary to round-off)
    * - ``expmkernels``
      - Compiled kernels for the matrix exponential: Cayley--Hamilton at 2x2 and
        3x3, a batched Jacobi eigensolver at 4x4 and 5x5
@@ -72,7 +72,8 @@ anything above it:
    * - ``oscprob``
      - The public API, and the only module that imports every other
    * - ``plotting``
-     - Pre-packaged figures; imports only ``globaldefs``
+     - Pre-packaged figures; imports ``globaldefs``, and ``earth`` and
+       ``oscprob`` lazily, to compute through the Earth wrappers
    * - ``cli``
      - The ``magnus`` console script
 
@@ -124,9 +125,10 @@ re-exports each one's public names (no ``from .module import *``).
 wildcard imports) so that ``import magnus`` alone makes ``magnus.earth``,
 ``magnus.oscprob``, etc. immediately accessible.
 
-``plotting.py`` is the one module outside this dependency picture: it
-imports nothing from the rest of the package except
-``globaldefs`` (for the flavor constants), and nothing imports it. It is
+``plotting.py`` is the one module outside this dependency picture: at import
+it takes nothing from the rest of the package except ``globaldefs`` (for the
+flavor constants); the functions that compute through the Earth wrappers
+import ``earth`` and ``oscprob`` when called; and nothing imports it. It is
 also the only module needing a dependency beyond NumPy/SciPy/joblib --
 Matplotlib, which ships with Magnus and is imported lazily inside the
 drawing calls, so ``import magnus`` does not pay for it. See
@@ -139,13 +141,13 @@ closed-form validation counterpart to the wrapper API), so both
 The three-layer structure of ``magnus.oscprob``
 ----------------------------------------------------
 
-``magnus.oscprob`` is the largest module (~22,000 lines) because it exposes a
+``magnus.oscprob`` is the largest module (~23,600 lines) because it exposes a
 dedicated, explicitly-named function for every combination of
 (flavor count) :math:`\times` (environment) :math:`\times` (BSM
-scenario) — roughly 60 combinations. To keep that size from turning into
-60 independent copies of the same logic (which is exactly what caused
+scenario) — 56 ``osc_prob_{N}nu_*`` wrappers. To keep that size from turning into
+56 independent copies of the same logic (which is exactly what caused
 several of the bugs this package's test suite now guards against — see
-:ref:`layer-contract` below), every one of those 60 functions is a thin
+:ref:`layer-contract` below), every one of those 56 functions is a thin
 call into a much smaller set of shared functions. There are three layers:
 
 .. figure:: _static/api_layers.svg
@@ -246,7 +248,7 @@ are working at the wrong layer: forward it through ``**kwargs`` instead.
 
 ``return_evolution_operator`` and ``average`` follow the same rule, and show
 why the rule pays: declared by ``osc_prob_energy_baseline`` and the generic
-entry points (the operator keyword by the core as well), every one of the sixty
+entry points (the operator keyword by the core as well), every one of the 56
 ``osc_prob_{N}nu_*`` wrappers got them for free through ``**kwargs``. One
 consequence to know about: the passthrough guard reads its accepted keywords
 off those signatures, so a keyword that only the batching layer declares would

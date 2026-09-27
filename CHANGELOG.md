@@ -495,6 +495,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
   magnitudes, so `(-88, 15, 26)` and `(-88, -15, -26)` both read as
   -88.257 degrees.  Regression tests added.
 
+- **Documentation brought in line with the code**, from a read of every docstring and of the
+  README and the documentation pages against the code they describe.  The notable corrections:
+  a recipe that raised (`d13=` for `dCP=`) and `abs(U)**2.T`, which does not parse; the
+  dispatch order under `strategy='auto'`, which is not silent when the hybrid declines an
+  undeclared jump, and does not try the interaction picture first; `average=True` described
+  as the decohered limit where it has returned a phase average since 1.1.1; the runtime
+  dependencies (five, not three: matplotlib and numba were missing, as in
+  `src/requirements.txt`); the location format of the Earth wrappers; the matrix-exponential
+  backends, unitary to round-off rather than by construction; stale counts, `Returns`/`Raises`
+  sections and cross-references; two docstrings that contradicted the provenance notes beside
+  them; `versionadded:: 1.0.5`, a release that does not exist (1.0.11); and `CITATION.cff`,
+  which still named 1.0.0.
+
 ## [1.1.0] - 2026-09-06
 
 ### Changed

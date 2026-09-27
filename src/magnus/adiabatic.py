@@ -365,7 +365,7 @@ refinement will reach?
 N_HIDDEN_FEATURE_SUBDIVISION = 8
 r"""int: Module-level constant
 
-Sub-steps per reference interval in :func:`find_hidden_features`, so 51 192 samples of the
+Sub-steps per reference interval in :func:`find_hidden_features`, so 51 193 samples of the
 profile in total.  Chosen on cost, because this runs on ordinary calls: the statistic is nearly
 independent of it (the separation is 4.7x at 2 sub-steps and 4.6x at 32), while the cost is not.
 
@@ -1737,13 +1737,10 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
           at all, so a low threshold opens one that is not needed: 0.21 s becomes 0.95 s at
           d = 3, buying an accuracy improvement (2.67e-03 to 1.44e-09) nobody asked for.
 
-        So the brief's hypothesis is confirmed: **the right value is a rule, not a constant** --
-        low when the requested tolerance is tight, high when it is loose.  0.1 is not the
-        optimum at the default ``rtol = 1e-3``, where 0.01 is 2-3x cheaper at identical
-        accuracy.  **It is deliberately left unchanged**: three profiles at one energy is
-        precisely the size of population that made :data:`GAMMA_TO_ERROR` wrong twice, and
-        retuning a default on it would repeat that mistake rather than learn from it.  The
-        measurement is recorded here so the next person starts from evidence.
+        So the right value looked like a rule rather than a constant -- low when the requested
+        tolerance is tight, high when it is loose -- and one was built, then rejected: on an
+        energy scan it was 20x worse than 0.1.  See :data:`THRESHOLD0_PROVENANCE` for the
+        measurement; 0.1 stays.
     min_threshold : float, optional
         Floor below which the threshold is not tightened further. Default: 1e-6.
 

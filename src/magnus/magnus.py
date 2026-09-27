@@ -207,11 +207,10 @@ class MagnusConvergenceWarning(UserWarning):
     refinement level exceeded :math:`\pi` in 46 -- but the level whose answer was actually
     returned did so in only **7**.  So **39 of 46 firings, 85 %, describe an intermediate grid
     that nobody receives**: the ladder started coarse, said so, then refined and never retracted
-    it.  Keying the warning to the returned level alone would cut false alarms from 31 to 5 at a
-    similar rate (67 % against 71 %).  That change is *mechanical* -- capture the norm per level
-    and emit once the loop has decided -- and is **deliberately not made here**, because it
-    touches the refinement loop and the warning plumbing several tests depend on.  It is written
-    down with its numbers so it can be made deliberately rather than rediscovered.
+    it.  Keying the warning to the returned level alone was implemented and then reverted for
+    :func:`magnus.oscprob.osc_prob`: measured, it removed most true positives with the noise
+    (see ``_deferred_slab_norm``).  The mechanism is kept there, and the averaged-probability
+    ladders of :mod:`magnus.avgprob` use it.
 
     .. versionadded:: 1.0.0
     """
@@ -1212,7 +1211,7 @@ def _cgroup_headroom_bytes():
     it reports the *host's* memory, so a guard built on it alone sees far more headroom
     than the process can use.  Measured inside a 3 GiB scope on an 8 GiB machine, the
     host figure read 8.27 GiB and a 2.2 GiB allocation was waved through and then killed
-    by the cgroup -- which is the exact outcome :func:`_check_output_fits` exists to
+    by the cgroup -- which is the exact outcome :func:`magnus.oscprob._check_output_fits` exists to
     prevent.  Docker, Kubernetes, SLURM and HPC schedulers all impose limits this way.
 
     Both cgroup versions are read, and in both the effective limit is the **minimum over

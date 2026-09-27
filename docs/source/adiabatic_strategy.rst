@@ -287,9 +287,10 @@ point:
 
 ``'auto'`` (default)
    Try ``'hybrid'`` first, under the same conditions, but fall back
-   silently to the ``'magnus'`` strategies above -- no warning about the
-   hybrid attempt itself -- for any point where it does not apply or
-   fails to self-certify.
+   to the ``'magnus'`` strategies above for any point where it does not
+   apply or fails to self-certify -- without a warning, except when the
+   hybrid declines because of an undeclared density jump, which raises
+   ``UnmarkedDiscontinuityWarning``.
 
    It also stands aside for a **baseline scan at a single energy** with at
    least ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points. The hybrid
