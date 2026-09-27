@@ -18,7 +18,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the mu
 ```
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
-AAC stereo audio, 2:00 long (192 beats at 96 bpm).  The first run needs internet access
+AAC stereo audio, 1:55 long (184 beats at 96 bpm).  The first run needs internet access
 once, to download the two fonts (see "Fonts").
 
 Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
@@ -30,7 +30,7 @@ Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 | `trailer.json` | The script and timeline: one entry per shot, in beats at 96 bpm, with its words (shown in the title band), what moves, the scene that draws it, and where its numbers come from.  Also the decisions still open. |
 | `common.py` | Paths, the look (colors, fonts, easing), the physics setups of the new scenes, and an independent reference integrator (no Magnus code) that checks the adiabatic scene. |
 | `data.py` | Computes every number the scenes show, with Magnus, and prints the checks. |
-| `scenes.py` | The scenes made for the trailer: the first slide (neutrinos changing flavor), the two journeys, the burden, the Hamiltonian, how `strategy='auto'` picks a solver, the adiabatic switch, the flavors, the slab ladder, many energies in one call. |
+| `scenes.py` | The scenes made for the trailer: the two journeys, the burden, the Hamiltonian, how `strategy='auto'` picks a solver, the adiabatic switch, the flavors, the slab ladder, many energies in one call. |
 | `paper_scenes.py` | The paper's figures remade as trailer scenes: the Earth oscillogram and its sterile-neutrino versions, Fermilab to four sites, CP violation, new physics, the flavor triangle, the Sun imaged, a buried body, geoneutrinos, a stellar jet, a long-range force. |
 | `render.py` | Renders any scene alone, as a still, as PNG frames and as a clip.  Also finds ffmpeg for the other scripts. |
 | `cut.py` | Assembles the whole trailer, shot by shot, as 1920×1080 frames, writes the music and muxes both into the MP4. |
@@ -63,7 +63,7 @@ nice -n 19 python tools/trailer/data.py paper adiabatic   # or only some
 
 | Step | Writes | What it computes |
 |---|---|---|
-| `opening` | `build/opening.npz` | The first slide, the chance of each flavor for a 1 GeV νμ over 0–3000 km in vacuum; and P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum and through an illustrative varying density |
+| `opening` | `build/opening.npz` | P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum and through an illustrative varying density |
 | `code` | nothing | Checks that the code moment's user Hamiltonian runs without a warning and matches the shipped wrapper |
 | `adiabatic` | `build/adiabatic.npz` | The adiabatic scene: 240 calls under `strategy='auto'` (about a minute), the levels, the resonances and the window Magnus patches, checked against the independent reference |
 | `diagrams` | `build/diagrams.json` | The slab ladder at one point, a 2000-energy Earth spectrum, the mixing matrices for 2 to 5 flavors |
@@ -89,7 +89,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4 --width 1280    # a smaller, fas
 
 `cut.py` works in three stages:
 
-1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3600
+1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3450
    frames at 30 fps), into `build/cut/f00000.png ...`, on as many processes as `--jobs`.  A run
    that is interrupted resumes where it stopped, since frames already drawn are skipped:
    **delete `build/cut/` after changing a scene or the script**, or old frames stay.
@@ -156,7 +156,7 @@ and their lengths from `trailer.json`.
 ### 7. Clean up
 
 Delete `tools/trailer/build/` to start over.  The frames of the full cut are the bulk of it:
-3600 frames at 1920×1080.
+3450 frames at 1920×1080.
 
 ## The music
 
@@ -187,8 +187,6 @@ the Greek letters Plex Mono lacks.
 
 ## What the scenes rest on
 
-- **The first slide**: the chance of each flavor for a 1 GeV νμ in vacuum over 0–3000 km
-  (`osc_prob_3nu_vacuum`, NuFIT 6.1).
 - **The two journeys**: P(νμ→νe) at 3 GeV over 0–10,000 km, in vacuum (`osc_prob_3nu_vacuum`) and
   through an illustrative density profile (`osc_prob_matter_std_potential`); NuFIT 6.1.
 - **The code moment**: the user Hamiltonian shown on screen runs through

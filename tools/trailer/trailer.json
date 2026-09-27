@@ -8,24 +8,11 @@
  "bpm": 96,
  "shots": [
   {
-   "id": "flavor",
-   "act": 1,
-   "beats": 10,
-   "words": [
-    "Neutrinos change flavor as they travel",
-    "The chance of each flavor oscillates with distance"
-   ],
-   "kind": "schematic",
-   "scene": "flavor",
-   "visual": "a muon neutrino travels, its color the mix of flavors it carries; behind it the chance of each flavor stacks up, three flavors in vacuum at 1 GeV",
-   "source": "new: tools/trailer/data.py (step opening), osc_prob_3nu_vacuum"
-  },
-  {
    "id": "open_tracks",
    "act": 1,
-   "beats": 12,
+   "beats": 14,
    "words": [
-    "One neutrino, two journeys",
+    "Neutrinos oscillate in flavor as they propagate",
     "Through vacuum, and through matter",
     "Matter changes how it oscillates"
    ],
@@ -40,7 +27,7 @@
    "beats": 12,
    "words": [
     "Every neutrino experiment needs oscillation probabilities",
-    "Every new idea in physics changes the calculation",
+    "New-physics models change the calculation",
     "So each case gets its own solver"
    ],
    "kind": "schematic",

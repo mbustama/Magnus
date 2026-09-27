@@ -36,11 +36,8 @@ def opening():
     Pv = op.osc_prob_3nu_vacuum(E, L, **{k: P3[k] for k in ANGLES}, nu_i=gd.NUMU, nu_f=gd.NUE)
     Pm = op.osc_prob_matter_std_potential(3, opening_rho, E, L, P3, nu_i=gd.NUMU, nu_f=gd.NUE,
                                           density_matter_is_in_g_per_cm3=True, rtol=1e-4, atol=1e-4)
-    # the first slide: a nu_mu at 1 GeV in vacuum, the chance of each flavor over 0-3000 km
-    Lf = np.linspace(0.0, 3000.0, 601)
-    Pf = np.asarray(op.osc_prob_3nu_vacuum(1.0 * gd.UNIT_GEV, Lf * gd.UNIT_KM, **{k: P3[k] for k in ANGLES}))
     np.savez(BUILD / 'opening.npz', L=OPENING_L_KM, rho=opening_rho(L), Pv=np.ravel(Pv),
-             Pm=np.ravel(Pm), E=OPENING_E_GEV, flavor_L=Lf, flavor_P=Pf[:, gd.NUMU, :])
+             Pm=np.ravel(Pm), E=OPENING_E_GEV)
     print('opening: max P vacuum %.3f, matter %.3f' % (np.max(Pv), np.max(Pm)))
 
 
