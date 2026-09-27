@@ -98,6 +98,17 @@ nice -n 19 python tools/trailer/cut.py --jobs 4 --frames-only   # frames only
 nice -n 19 python tools/trailer/cut.py --jobs 4 --width 1280    # a smaller, faster review cut
 ```
 
+After changing one or a few shots, `--redo` draws only their frames again (by their `id` in
+`trailer.json`) and keeps the rest, then writes the music and the MP4 as usual:
+
+```bash
+nice -n 19 python tools/trailer/cut.py --jobs 4 --redo cta          # only the closing card
+nice -n 19 python tools/trailer/cut.py --jobs 4 --redo reveal,cta   # several shots
+```
+
+This is safe only when the shots' lengths (`beats`) are unchanged; otherwise every later frame
+moves, so delete `build/cut/` and draw everything.
+
 `cut.py` works in three stages:
 
 1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3712
@@ -164,7 +175,19 @@ capital), its `beats` (its length at 96 bpm), or its `scene`.  Then delete `buil
 `cut.py` again; the music follows the new timeline on its own, since `music.py` reads the acts
 and their lengths from `trailer.json`.
 
-### 7. Clean up
+### 7. Fill in the arXiv number
+
+The closing card reserves a line for the paper, `"Paper: arXiv:2609.XXXXX"`, in the `cta`
+shot's `words` in `trailer.json`.  Once the paper has its number, replace `2609.XXXXX` with it
+and run
+
+```bash
+nice -n 19 python tools/trailer/cut.py --jobs 4 --redo cta
+```
+
+which redraws only that card (about 250 frames) and writes the MP4 again.
+
+### 8. Clean up
 
 Delete `tools/trailer/build/` to start over.  The frames of the full cut are the bulk of it:
 3712 frames at 1920×1080.

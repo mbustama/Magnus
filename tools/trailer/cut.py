@@ -107,8 +107,8 @@ def card(fig, ax, s, u, n):
     elif sid == 'cta':
         typed = words[0][:int(len(words[0]) * seg(u * beats, 0.3, 3))]
         text(ax, 8, 6.9, '$ ' + typed, 40, TEAL, MONO, ha='center', va='center')
-        for i, w in enumerate(words[1:6]):
-            text(ax, 8, 5.75 - 0.58 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
+        for i, w in enumerate(words[1:7]):
+            text(ax, 8, 5.9 - 0.52 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.0 * i), ha='center', va='center')
         logotype(fig, ax, 8, 2.35, 70, alpha=at(9))
         text(ax, 8, 1.25, 'Accurate  ·  Fast  ·  Flexible', 24, AMBER, DISP, alpha=at(10),
              ha='center', va='center')
@@ -302,6 +302,15 @@ if __name__ == '__main__':
     out = BUILD / 'cut'
     out.mkdir(parents=True, exist_ok=True)
     total = TL[-1][1] + TL[-1][2]
+    if '--redo' in args:                                   # draw these shots again, e.g. --redo cta,reveal
+        redo = args[args.index('--redo') + 1].split(',')
+        unknown = set(redo) - {s['id'] for s, _, _ in TL}
+        if unknown:
+            sys.exit('unknown shot ids: %s' % ', '.join(sorted(unknown)))
+        for s, f0, n in TL:
+            if s['id'] in redo:
+                for i in range(f0, f0 + n):
+                    (out / ('f%05d.png' % i)).unlink(missing_ok=True)
     todo = [(i, str(out / ('f%05d.png' % i))) for i in range(total) if not (out / ('f%05d.png' % i)).exists()]
     print('%d frames (%.2f s), %d to draw on %d processes' % (total, total / FPS, len(todo), jobs), flush=True)
     with mp.get_context('fork').Pool(jobs) as pool:
