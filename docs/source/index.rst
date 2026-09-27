@@ -415,8 +415,9 @@ Salient Features
   term-by-term against the literature, and three integration methods.  The
   default, **Gauss-Legendre collocation integrators**, reaches orders
   2/4/6/8 from only 1/2/3/4 Hamiltonian evaluations per slab.  Cumulative
-  trapezoid and Simpson quadrature reach order 10 and serve Hamiltonians that
-  are not smooth within a slab.
+  trapezoid and Simpson quadrature reach order 10.  A density jump or kink is
+  declared with ``t_breakpoints`` and becomes a slab edge, where every method
+  keeps its order.
 * **Exact unitarity**, adaptive refinement to a requested tolerance with
   physics-informed starting slab counts and warm starts across scans, slab
   edges aligned with density discontinuities, and an energy-batched scan

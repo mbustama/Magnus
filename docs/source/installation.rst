@@ -394,6 +394,7 @@ File Tree
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
+       ├── test_one_sided_breakpoints.py  # 'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values
        ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
        ├── test_palindrome.py          # The palindromic-profile optimization and its gate
        ├── test_plotting.py            # Pre-packaged plotting tools: house-style defaults, layouts

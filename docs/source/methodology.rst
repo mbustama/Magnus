@@ -101,16 +101,21 @@ common case even across the Earth.
 Because ``'gl'`` uses a fixed 1, 2, 3, or 4 nodes per slab, ``n_tpts_per_slab``
 plays no role for it: accuracy is controlled by the slab count alone, and the
 adaptive refinement below grows only ``n_slabs``.  The physics-informed
-starting slab count is likewise applied only for ``'gl'``, since for the
-quadrature methods accuracy is governed jointly by ``n_slabs`` and
-``n_tpts_per_slab``, and seeding only the slab count unbalances that ladder.
+starting slab count is applied for ``'gl'`` everywhere.  For the quadrature
+methods, whose accuracy is governed jointly by ``n_slabs`` and
+``n_tpts_per_slab``, the per-point ladder does not seed, and the
+energy-batched engine seeds only when the seed is at least
+:data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS` (4): measured, a smaller
+seed could send the ladder through an extra level, and a larger one never did.
 
 **Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).**
 Sample :math:`A` on a uniform grid of ``n_tpts_per_slab`` points and
 integrate with cumulative trapezoid or Simpson's rule.  Slower for the same
-accuracy on a smooth profile, but fully general, and so the safer choice if
-:math:`A(l)` has a kink or a discontinuity *inside* a slab, where
-Gauss-Legendre loses its order advantage.  The quadrature error
+accuracy on a smooth profile, but fully general, and they reach order 10.  A
+kink or a discontinuity belongs on a slab edge, declared with
+``t_breakpoints``: there each slab takes its endpoint sample just inside
+itself, so both sides of a jump are integrated with their own values and the
+rule keeps its order.  One left *inside* a slab degrades every method.  The quadrature error
 (:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate
 the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows
 accordingly.

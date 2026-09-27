@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`magnus.magnus_expansion_multislab` takes `t_breakpoints`**, with the meaning it
+  has everywhere else: positions where the Hamiltonian is not smooth.  The slabs are
+  given here, so the breakpoints are not inserted; they mark which edges are jumps (see
+  Fixed).  A breakpoint strictly inside a slab raises `UnmarkedDiscontinuityWarning`;
+  breakpoints outside the chain are ignored.  `osc_prob` and the cumulative scan pass
+  their own breakpoints down; nothing changes for callers of the wrappers.
+
 - **`plotting.plot_oscillogram` computes the oscillogram when not given one**
   (issue #95).  Without a `probability` array it calls the Earth wrapper
   (`osc_prob_{2,3,4,5}nu_earth`) once per zenith angle over the whole energy
@@ -178,6 +185,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **The energy-batched engine seeds its starting slab count for `'trapezoid'` and
+  `'simpson'` too**, when the phase-based seed is at least `QUADRATURE_SEED_MIN_SLABS`
+  (4); below it they start from `min_n_slabs` as before, and `'gl'` is unchanged.  The
+  threshold is measured: over 212 scans (2 to 40 energies, smooth and breakpoint
+  profiles, both rules, `rtol = atol` = 1e-3 and 1e-4), a seed of 2 or 3 could cost up
+  to 2.14x the work, and a seed of 4 or more never cost any (at 4 the worst case did
+  0.87x the work; at 5 and above, 0.36x or less).  On a core-crossing chord at 50
+  energies, `'simpson'` at 1e-4 went from 1016 ms to 40 ms.  The per-point ladder keeps
+  its `'gl'`-only seed.
+
 - **Notebook corrections from a read of all twenty-nine notebooks** (notebook 28 left for
   its own rerun).  Wrong numbers: 05's vacuum biprobability used 810 km and 2 MeV under a
   T2K label (now 295 km, 0.6 GeV); 01 compared a neutrino vacuum curve with antineutrino
@@ -334,6 +351,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
   and gains with them (issue #64).
 
 ### Fixed
+
+- **`'trapezoid'` and `'simpson'` now keep their order at declared breakpoints** (part
+  of #71).  Both sample each slab at its two ends, and a declared breakpoint is a slab
+  edge; at a density jump the profile returns one side's value there, so the slab on the
+  other side integrated a sample from the wrong layer, an error falling only as
+  `1/n_tpts_per_slab` whatever the rule.  That sample is now taken just inside its own
+  slab (by `min(max(1e-8 w, 8 ulp), w/2)`, `w` the slab width), in the per-point
+  ladder, the cumulative scan and the energy-batched engine.  `'gl'` samples no
+  endpoints and is bit-identical.  Measured on PREM chords and the Earth wrappers at
+  `rtol = atol` = 1e-3 and 1e-4: silent misses of the tolerance fell from 122 to 19 in
+  the energy-batched engine (those left were accepted at a slab norm of pi or more, a
+  separate stopping-rule question) and from 19 to 0 in the per-point ladder, with the
+  remaining quadrature error falling at the rule's own order; the cumulative scan at its
+  default 100 points per slab went from 4.9e-5 to 1.6e-12 (`'simpson'`) and from
+  1.8e-5 to 1.5e-9 (`'trapezoid'`) on a core-crossing chord.
 
 - The energy-batched engine could stop on two nearly identical grids and
   return, without a warning, an answer outside the requested tolerance, on

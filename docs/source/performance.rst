@@ -396,6 +396,12 @@ Measured
      - Cost/accuracy crossover measured over scan sizes and re-measured over 42 workloads,
        which moved it from 25; the cumulative scan is cheaper on median at every size and
        three to six orders more accurate on the ones it serves.
+   * - :data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS`
+     - 4
+     - 212 energy-batched scans, 2 to 40 energies, smooth and breakpoint profiles,
+       ``'trapezoid'`` and ``'simpson'``, ``rtol = atol`` = 1e-3 and 1e-4, work with the
+       phase-based starting slab count against without it: a seed of 2 cost up to 2.14× the
+       work and of 3 up to 1.24×; from 4 up it never cost any (worst 0.87× at 4, 0.36× at 5).
    * - :data:`magnus.oscprob.CUMULATIVE_N_ACC_SAFETY`
      - 4
      - The longest baseline sets the grid; shorter ones in the same scan would have chosen a
