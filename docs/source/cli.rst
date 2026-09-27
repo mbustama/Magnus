@@ -512,8 +512,9 @@ configures):
                            only the Magnus-expansion machinery; 'hybrid' also tries
                            adiabatic transport with a Magnus patch at each non-adiabatic
                            window, warning if it cannot certify the result; 'auto' tries
-                           hybrid and falls back to magnus silently. Ignored for vacuum and
-                           constant-density environments. Default: auto.
+                           hybrid and falls back to magnus without a warning, except for an
+                           undeclared density jump. Ignored for vacuum and constant-density
+                           environments. Default: auto.
      --verbose {0,1,2}     Verbosity level. Default: 0.
 
    Output:

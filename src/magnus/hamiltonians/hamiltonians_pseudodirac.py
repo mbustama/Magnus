@@ -21,11 +21,11 @@ which the naive sum over eigenstates is wrong.  See
 :func:`magnus.avgprob.coherence_blocks` and
 :func:`magnus.avgprob.coherence_report`.
 
-**No partial averaging is provided here, deliberately.**  This package's
-contract is that a fully coherent pair is handled by the block form, a fully
-decohered pair by the ordinary sum, and anything in between is refused rather
-than approximated.  These routines build the Hamiltonian; the existing engines
-propagate it.
+**No partial averaging is provided here, deliberately.**  A fully coherent
+pair is handled by the block form and a fully decohered pair by the ordinary
+sum; the regime in between is the phase average of :mod:`magnus.avgprob`,
+which ``average=True`` returns since 1.1.1.  These routines build the
+Hamiltonian; the existing engines propagate it.
 
 Routine listings
 ----------------
@@ -72,7 +72,7 @@ class PseudoDiracSplittingWarning(UserWarning):
 
     The calculation still proceeds; nothing is clamped.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
     """
 
 
@@ -140,7 +140,7 @@ def pseudo_dirac_mixing_matrix(
 
     The result is unitary whenever the input is, for any pairing pattern.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
 
     Parameters
     ----------
@@ -215,7 +215,7 @@ def pseudo_dirac_mass_squared(
     :math:`m_j^2` alone.  The ordering matches
     :func:`pseudo_dirac_mixing_matrix` column for column.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
 
     Parameters
     ----------
@@ -290,7 +290,7 @@ def hamiltonian_pseudo_dirac_vacuum_energy_independent(
     Because the energy factors out, this is what the energy-batched engine
     reuses across a scan; see :func:`hamiltonian_pseudo_dirac_vacuum`.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
 
     Parameters
     ----------
@@ -346,7 +346,7 @@ def hamiltonian_pseudo_dirac_vacuum(
 
     :math:`H_{\rm vac} = W M^2 W^\dagger / (2E)`.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
 
     Parameters
     ----------
@@ -405,7 +405,7 @@ def hamiltonian_pseudo_dirac_matter(
     vacuum part carries all of the energy dependence and the matter part all of
     the position dependence -- so the energy-batched engine applies unchanged.
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
 
     Parameters
     ----------

@@ -117,7 +117,8 @@ through:
 
 Every NuFIT release from v1.0 to v6.1 is available, along with the
 release-specific secondary category where one exists (``'with_SK'`` /
-``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1); omitting
+``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1,
+``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3); omitting
 ``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
 lists what is available.
 
@@ -292,6 +293,6 @@ internally.  It accepts any square, Hermitian-valued function of position
                          magnus_exp_order=4,
                          rtol=1e-4, atol=1e-4)
 
-Find a full worked example of using :func:`~magnus.oscprob.osc_prob` directly for a
-time-dependent matrix exponential (not necessarily a physical Hamiltonian)
-in notebook 11; see :doc:`tutorials`.
+Find a full worked example of a time-dependent matrix exponential (not
+necessarily a physical Hamiltonian), computed with
+:func:`~magnus.magnus.magnus_expansion`, in notebook 11; see :doc:`tutorials`.

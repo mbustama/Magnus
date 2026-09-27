@@ -6,11 +6,15 @@ Requirements
 
 Magνs requires **Python 3.10+**.  Dependencies:
 
-* ``numpy``
-* ``scipy >= 1.9`` (needed for stacked-input ``scipy.linalg.expm`` and
-  ``scipy.integrate.cumulative_trapezoid``/``cumulative_simpson``)
-* ``joblib`` (used to parallelize probability scans over energy/baseline
+* ``numpy >= 1.22``
+* ``scipy >= 1.9`` (stacked-input ``scipy.linalg.expm`` and
+  ``scipy.integrate.cumulative_trapezoid``; ``cumulative_simpson`` is used
+  when available, from SciPy 1.12)
+* ``joblib >= 1.2`` (used to parallelize probability scans over energy/baseline
   points; a single-core install works fine with ``n_jobs=1``, the default)
+* ``matplotlib >= 3.5`` (for :mod:`magnus.plotting`, imported lazily)
+* ``numba >= 0.59`` (the compiled matrix-exponential kernels of
+  :mod:`magnus.expmkernels`)
 
 See :download:`src/requirements.txt <../../src/requirements.txt>`.
 
@@ -56,7 +60,7 @@ Either way, one command confirms it worked:
        --baseline 1300 --baseline-unit km
 
 If you would rather not install the package at all, put ``src/`` on your Python
-path instead.  You still need its three runtime dependencies:
+path instead.  You still need its five runtime dependencies:
 
 .. code-block:: bash
 
@@ -340,7 +344,7 @@ File Tree
    │   │   ├── __main__.py             # Entry point for `python -m magnus`
    │   │   ├── adiabatic.py            # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
    │   │   ├── authors.py              # Package author string (internal; not part of the public API)
-   │   │   ├── avgprob.py              # Phase-averaged (decohered) probabilities
+   │   │   ├── avgprob.py              # The phase average over an energy spread, and the decohered limit
    │   │   ├── cli.py                  # `magnus` command-line calculator (also `python -m magnus`)
    │   │   ├── data/                   # Package data, installed with the code
    │   │   │   └── solar_models/       # Twelve standard solar models: three columns each, with provenance
@@ -364,7 +368,7 @@ File Tree
    │   │   ├── py.typed                # PEP 561 marker: tells type checkers the annotations are real
    │   │   ├── solarmodels.py          # Tabulated standard solar models, as profiles for the Sun wrappers
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
-   │   └── requirements.txt            # The three runtime dependencies: numpy, scipy, joblib
+   │   └── requirements.txt            # The five runtime dependencies: numpy, scipy, joblib, matplotlib, numba
    └── tests/                          # Test suite (pytest; runs in CI)
        ├── test_paper_cache_only.py    # MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing
        ├── test_paper_cache_key_is_portable.py  # The figure cache's key survives a change of machine: a ULP must not move it

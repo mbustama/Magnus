@@ -169,7 +169,8 @@ Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 ``subplots_kw``, and, per curve, any
 :class:`~matplotlib.lines.Line2D` keyword.
 
-There is deliberately no bare ``**kwargs`` on any of them.  A catch-all
+There is deliberately no bare ``**kwargs`` on any of them (``plot_probability_with_average``
+passes its extras on to ``plot_probability_vs_baseline``, which is strict).  A catch-all
 signature accepts a misspelled keyword in silence, and this project has
 already paid for that: ``oscprob``'s keyword chain used to forward unknown
 names down several layers before failing somewhere unrecognizable.  Here

@@ -72,7 +72,7 @@ operator itself, phases included.
     print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])
 
 ``P`` is what the same call returns without the keyword; ``U`` is complex and
-unitary, indexed ``U[final, initial]``, so ``abs(U)**2.T`` is ``P``. See
+unitary, indexed ``U[final, initial]``, so ``(abs(U)**2).T`` is ``P``. See
 :doc:`functions` for what the keyword does to the engine dispatch and the two
 combinations it refuses.
 
@@ -272,7 +272,8 @@ Choosing a strategy, and seeing which engine answered
 -----------------------------------------------------
 
 ``strategy='auto'`` (the default) tries an adiabatic-transport-plus-Magnus-patch
-propagator first and falls back silently. ``'magnus'`` reproduces the behavior
+propagator first and falls back without a warning (except that an undeclared density jump
+raises ``UnmarkedDiscontinuityWarning``). ``'magnus'`` reproduces the behavior
 of releases before that propagator existed. The difference is not only speed: on
 the NSI configurations notebook 12 measures, the fallback is the faster route
 and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
@@ -335,7 +336,7 @@ calculation with a different Hamiltonian.
 
     # 3+1 sterile: the same machinery at one dimension higher
     P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L,
-                                   s12=s12, s23=s23, s13=s13, d13=d13,
+                                   s12=s12, s23=s23, s13=s13, dCP=dCP,
                                    s14=0.1, s24=0.1, s34=0.0,
                                    D21=D21, D31=D31, D41=1.0)
 

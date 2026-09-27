@@ -6,7 +6,9 @@ r"""__init__.py
 Subpackage initializer for magnus.hamiltonians. Explicitly imports and
 re-exports the public names of hamiltonians2nu.py, hamiltonians3nu.py,
 hamiltonians4nu.py, and hamiltonians5nu.py: the mixing matrices and
-vacuum/matter/NSI/LIV Hamiltonians for 2, 3, 4, and 5 neutrino flavors.
+vacuum/matter/NSI/LIV Hamiltonians for 2, 3, 4, and 5 neutrino flavors; and
+of hamiltonians_pseudodirac.py: the pseudo-Dirac mixing matrix, mass
+splittings and Hamiltonians, and PseudoDiracSplittingWarning.
 
 It also re-exports two names defined in magnus.globaldefs and used throughout
 this subpackage: ANGLE_CONVENTIONS, the values the ``angles`` keyword accepts,
@@ -17,9 +19,9 @@ name a caller is told to filter on has to be documented somewhere public.
 Routine listings
 ----------------
 
-    (none; only re-exports the four hamiltonians{2,3,4,5}nu.py modules'
-    public names, plus the two globaldefs names above -- see __all__ below for
-    the exact list)
+    (none; only re-exports the four hamiltonians{2,3,4,5}nu.py modules' and
+    hamiltonians_pseudodirac.py's public names, plus the two globaldefs names
+    above -- see __all__ below for the exact list)
 """
 
 __author__ = "Mauricio Bustamante"

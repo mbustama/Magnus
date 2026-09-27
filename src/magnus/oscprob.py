@@ -112,8 +112,9 @@ Neutrino oscillations in the **Sun**:
    <https://academic.oup.com/book/3490>`_ by Carlo Giunti and Chung 
    Wook Kim.
 
-   To use a different density profile, use the primordial function 
-   :func:`osc_prob` instead.
+   A standard solar model can be used instead through the ``density_profile``
+   argument of the Sun routines (see :mod:`magnus.solarmodels`); for any other
+   profile, use the primordial function :func:`osc_prob`.
 
 Functions designed for specific **beyond-the-Standard-Model** proposals:
 
@@ -1108,8 +1109,9 @@ class ToleranceNotAchievedWarning(UserWarning):
     ``max_n_slabs`` rather than from a converged probe.  That instance is worth its own message
     because the consequence is larger than one point: the whole scan inherits the capped grid.
 
-    Two subclasses narrow the diagnosis: :class:`HybridCertificationWarning` and
-    :class:`UnmarkedDiscontinuityWarning`.  Code filtering on this class catches both.
+    Three subclasses narrow the diagnosis: :class:`HybridCertificationWarning`,
+    :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
+    on this class catches all three.
 
     **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations):
     fired 37 times, **16 true positives and 21 false positives -- a 57 % false-positive rate**.
@@ -1133,12 +1135,14 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     the requested ``rtol``/``atol`` is not certified. This subclasses
     :class:`ToleranceNotAchievedWarning` so existing code that filters on
     the parent class also catches this warning; it is issued regardless
-    of the verbosity setting. With the default ``strategy='auto'``, this
-    situation instead falls back silently to the general slab-refinement
-    method (which raises :class:`ToleranceNotAchievedWarning` itself if
-    *it* also fails to converge), so this warning fires only when
-    ``strategy='hybrid'`` was explicitly requested. See
-    :doc:`/adiabatic_strategy`.
+    of the verbosity setting. With the default ``strategy='auto'``, an
+    uncertified point instead goes to another engine (the general
+    slab-refinement method raises :class:`ToleranceNotAchievedWarning`
+    itself if *it* also fails to converge), so for a probability this
+    warning fires only when ``strategy='hybrid'`` was explicitly requested.
+    With ``average=True`` it fires under any strategy, when the
+    level-crossing probabilities of the averaged route could not be
+    certified. See :doc:`/adiabatic_strategy`.
 
     **Uncertified means unverified, not wrong.**  The message says so, and names three things
     to change rather than leaving the reader with a disclaimer:
@@ -1453,8 +1457,8 @@ def print_run_parameters(
 ):
     r"""Prints the banner (once per session) and the parameters passed to :func:`osc_prob`.
 
-    Diagnostic/logging helper called from :func:`osc_prob` when ``verbose >= 1`` or ``save_log``
-    is True.  Prints (to stdout, and additionally to ``file_log`` if ``save_log`` is True) the
+    Diagnostic/logging helper called from :func:`osc_prob` when ``verbose >= 2``.  Prints (to
+    stdout, and additionally to ``file_log`` if ``save_log`` is True) the
     values of every refinement/logging parameter for the current call, to help reproduce or debug
     a specific run.
 
@@ -1632,6 +1636,11 @@ def validate_input_battery(
     ValueError
         If any requested check fails.  The message names the offending argument and the calling
         function.
+
+    Warns
+    -----
+    magnus.globaldefs.BaselineUnitWarning
+        When a baseline looks like a number of kilometers rather than a length in eV^-1.
     """
     if validate_energy_and_L:
 
@@ -3090,8 +3099,10 @@ def osc_prob(
         whichever happens first.  The refinement never runs coarser than
         what was asked for, so a caller who knows the feature scale of
         their profile can state it here and have it respected.  With the
-        default, ``n_slabs = 1``, the floor is inactive and refinement
-        starts at ``min_n_slabs`` as before.
+        default, ``n_slabs = 1``, the floor is inactive: ``'gl'`` starts from
+        the phase-based estimate (:func:`magnus.magnus.suggest_n_slabs`),
+        never below ``min_n_slabs``, and ``'trapezoid'``/``'simpson'``
+        start at ``min_n_slabs``.
     n_tpts_per_slab : int, optional
         Number of time-points inside the slab at which to evaluate 
         H_func in order to numerically compute the integrals over time 
@@ -3163,7 +3174,9 @@ def osc_prob(
     max_num_loops : int, optional
         Maximum number of refinement loops.
     min_n_slabs : int, optional
-        Number of slabs used in the first refinement loop.
+        Least number of slabs of the first refinement loop: the starting count for
+        ``'trapezoid'``/``'simpson'``, and a floor under the phase-based estimate ``'gl'``
+        starts from.
     max_n_slabs : int, optional
         Maximum allowed number of slabs.  If None (default), a cap appropriate to
         ``integration_method`` is used: 20000 for 'gl', 2000 for the cumulative-quadrature
@@ -4457,8 +4470,9 @@ families fail for different reasons.
   eigenbasis, with Magnus patches only inside non-adiabatic windows.  Its blind spots are the
   detector's (a feature narrower than the probe grid, a profile the resolution test rejects).
 * ``'magnus-ladder'`` -- the general per-point path, the cumulative baseline scan, and the
-  energy-batched separable scan.  All three walk slabs with
-  :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative scan additionally *sizes*
+  energy-batched separable scan.  All three use the same Magnus slab kernel
+  (:func:`magnus.magnus.evolution_operators_from_samples`; the first two through
+  :func:`magnus.magnus.magnus_expansion_multislab`), and the cumulative scan additionally *sizes*
   its grid from an ordinary adaptive :func:`osc_prob` probe, so it inherits that path's stopping
   rule as well.  Grouping them is deliberate: the accuracy step at
   :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` shows they are not interchangeable, but a
@@ -4466,8 +4480,9 @@ families fail for different reasons.
 * ``'interaction-picture'`` -- the 2-flavor exponential-profile fast path.  It uses the same
   Magnus core, but factors the fast vacuum phase out analytically first, so what it must resolve
   is a different function; it is kept separate for that reason and not because the core differs.
-* ``'exact'`` -- ``scipy.linalg.expm``, used only where it is the exact answer rather than an
-  approximation (see :func:`cross_check_strategies`).
+* ``'exact'`` -- ``scipy.linalg.expm`` (label ``'expm'``) and the constant-Hamiltonian engine
+  (``'constant'``, ``magnus.magnus._expm_stack``), used only where a single exponential is
+  the exact answer rather than an approximation (see :func:`cross_check_strategies`).
 * ``'phase-average'`` -- :mod:`magnus.avgprob`'s closed form, which answers a different question
   and is never compared against the others.
 
@@ -5173,10 +5188,14 @@ def _osc_prob_scan_separable_dispatch(
 ):
     r"""Decide whether the energy-batched scan engine applies; run it if so.
 
-    Returns NotImplemented when the request does not fit the engine (single
-    point, per-point baselines, user-provided slab edges, parallel or logged
-    runs, iteration over the expansion order, or unknown extra arguments), in
-    which case the caller falls back to the generic per-point path.
+    Returns NotImplemented when the request does not fit the engine, in which case the
+    caller falls back to the generic per-point path.  It declines ``cumulative=True``;
+    unknown extra arguments; user-provided slab edges; parallel or logged runs;
+    ``verbose >= 1``; a baseline below ``L0`` (or NaN); an order or quadrature, or
+    refinement bounds, the ladder would reject; a callable ``h_matt`` over a constant
+    potential; and, for a position-dependent potential, fewer than two energies or unequal
+    baselines.  A constant potential is served by its own exact engine
+    (:func:`_osc_prob_scan_constant_h`), single points and per-point baselines included.
 
     .. versionadded:: 1.0.0
 
@@ -5185,8 +5204,8 @@ def _osc_prob_scan_separable_dispatch(
     h_vac_energy_indep : np.ndarray
         Energy-independent part of the vacuum Hamiltonian.
     VCC_func : Callable or float
-        Matter potential, as a function of position (required for the batched engine to apply;
-        a constant potential falls back to the generic path).
+        Matter potential, as a function of position (served by the energy-batched engine), or a
+        constant (served by the exact constant-Hamiltonian engine).
     h_matt : np.ndarray or Callable
         Constant matrix multiplying ``VCC_func(l)``, or a callable of position returning that
         matrix (the position-resolved sterile projector).  The callable form is served by the
@@ -5423,13 +5442,13 @@ def _osc_prob_ip_exp_core(
         Target relative/absolute tolerance between successive refinement levels. If both None, run
         once with the given fixed ``n_slabs``.
     growth_factor_n_slabs : float
-        Factor by which ``n_slabs`` is multiplied on each refinement loop.
+        Accepted for a uniform signature and ignored: the slab count doubles on each loop.
     max_num_loops : int
-        Maximum number of refinement loops.
+        Accepted and ignored: loops are capped at :data:`IP_EXP_LOOP_CAP`.
     min_n_slabs, max_n_slabs : int
-        Bounds on the number of slabs.  ``max_n_slabs=None`` selects the 'gl' entry of
-        :data:`MAX_N_SLABS_DEFAULT`, this integrator being closed-form per slab and so
-        comparably cheap.
+        ``min_n_slabs`` is a floor on the starting count.  ``max_n_slabs`` is accepted and
+        ignored: the slab budget is :data:`IP_EXP_N_SLABS_CAP`, decoupled from the caps that
+        suit the quadrature-based ladders (see the note in the body).
     n_slabs : int
         Starting number of slabs (or fixed count, if no tolerance is requested).
 
@@ -5666,14 +5685,16 @@ def _osc_prob_ip_exp_dispatch(
 ):
     r"""Decide whether the fast interaction-picture integrator applies; run it if so.
 
-    Returns ``NotImplemented`` when the request does not fit the fast method (``VCC_func`` is not a
-    genuine exponential profile built via :func:`magnus.matter.exp_density_profile`, user-provided
-    slab edges or breakpoints, iteration over the expansion order, or logging requested) or when it
+    Returns ``NotImplemented`` when the request does not fit the fast method (a Hamiltonian that
+    is not two-level, ``VCC_func`` not a genuine exponential profile built via
+    :func:`magnus.matter.exp_density_profile`, user-provided slab edges or breakpoints, unequal
+    baselines, ``cumulative=True``, unknown extra arguments, or logging requested) or when it
     fails to converge within the requested tolerance (signaling that the matter term is not a small
     perturbation on the vacuum splitting somewhere along the trajectory, e.g., an MSW resonance); the
     caller falls back to the general per-point path in either case. Unlike
     ``_osc_prob_scan_separable_dispatch``, this applies equally to a single (energy, L) point (the
-    common case for :func:`osc_prob_sun`-family calls) and to a multi-energy scan at a shared baseline.
+    common case for two-flavor :func:`osc_prob_sun`-family calls) and to a multi-energy scan at a
+    shared baseline.
 
     .. versionadded:: 1.0.0
 
@@ -6071,10 +6092,12 @@ def _osc_prob_hybrid_dispatch(
 
     Returns
     -------
-    np.ndarray or NotImplemented
+    np.ndarray, NotImplemented or _PreferLadder
         The oscillation probability (or single channel), computed via the hybrid strategy; or the
         ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
-        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
+        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point; or,
+        only with ``strategy == 'auto'``, a :class:`_PreferLadder` asking the caller to answer on
+        the slab ladder instead.
     """
     if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
         return NotImplemented
@@ -6412,10 +6435,12 @@ def _osc_prob_hybrid_dispatch_generic(
 
     Returns
     -------
-    np.ndarray or NotImplemented
+    np.ndarray, NotImplemented or _PreferLadder
         The oscillation probability (or single channel), computed via the hybrid strategy; or the
         ``NotImplemented`` singleton if the request does not fit it, ``strategy == 'magnus'``, or
-        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point.
+        (only with ``strategy == 'auto'``) it failed to self-certify for at least one point; or,
+        only with ``strategy == 'auto'``, a :class:`_PreferLadder` asking the caller to answer on
+        the slab ladder instead.
     """
     if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
         return NotImplemented
@@ -6731,7 +6756,8 @@ def osc_prob_energy_baseline(
           exactly on a single slab, leaving no traversal to share.
         * ``True`` -- require it, and **raise** if the request does not fit.  Use this when
           the cumulative scan is what you want and silently getting the per-point path
-          instead would be a problem.
+          instead would be a problem.  The one exception is ``return_evolution_operator=True``,
+          which the cumulative scan cannot serve: every point then takes the per-point path.
         * ``False`` -- never use it.
 
         Applies to a **baseline scan at a single energy**.  The nesting it exploits belongs to
@@ -7398,8 +7424,10 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
     \*args
         Positional arguments for ``entry_point``, exactly as in an ordinary call.
     engines : sequence of str, optional
-        Restrict the check to these engines; see :data:`ENGINE_FAMILIES` for the labels.  Default:
-        every engine that applies.
+        Restrict the check to these engines: any of ``'hybrid'``, ``'ip_exp'``, ``'separable'``,
+        ``'constant'``, ``'cumulative'``, ``'magnus'`` and ``'expm'`` (the labels of
+        :data:`ENGINE_FAMILIES` except ``'average'``, which answers a different question).
+        Default: every engine that applies.
     \**kwargs
         Keyword arguments for ``entry_point``, exactly as in an ordinary call.
 
@@ -7689,12 +7717,11 @@ def osc_prob_vacuum(
     save_log : bool
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     filename_log : str
-        Accepted and **ignored**; this route logs through ``save_log`` and ``file_log`` only,
-        so pass an already-open file object rather than a name.
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     file_log : TextIOWrapper, optional
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     close_file_log_upon_exit : bool
-        Accepted and **ignored**; see ``filename_log``.
+        Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     verbose : int
         Forwarded to :func:`osc_prob_energy_baseline`/:func:`osc_prob`; see their docstrings.
     \**kwargs
@@ -7750,9 +7777,9 @@ def osc_prob_vacuum(
 
     Returns
     -------
-    float or np.ndarray
+    float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+        each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -7996,8 +8023,10 @@ def osc_prob_matter_std_potential(
           one point, the best-effort result is still returned, together with
           :class:`HybridCertificationWarning`.
         * ``'auto'`` tries the hybrid strategy first, under the same conditions, but falls back
-          silently to the ``'magnus'`` strategies above (no warning about the hybrid attempt
-          itself) for any point where it does not apply or fails to self-certify.  It also
+          to the ``'magnus'`` strategies above for any point where it does not apply or fails to
+          self-certify -- without a warning, except when the hybrid declines because the profile
+          is not resolved at its probe scale (an undeclared jump), which raises
+          :class:`UnmarkedDiscontinuityWarning`.  It also
           stands aside for a **baseline scan at a single energy** of at least
           ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points, which the cumulative scan
           (see ``cumulative`` in :func:`osc_prob_energy_baseline`) answers from one traversal
@@ -8059,9 +8088,10 @@ def osc_prob_matter_std_potential(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the same
         out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
-        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
-        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
-        is how to see them without turning the fallbacks into warnings.  Keys:
+        ``strategy='auto'`` the fallbacks are silent by design (except the hybrid's decline of an
+        unresolved profile, which raises :class:`UnmarkedDiscontinuityWarning`) -- that is right
+        for ordinary calls, and wrong for anyone asking why a result moved or why a call got
+        slow -- so this is how to see them without turning the fallbacks into warnings.  Keys:
 
         * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
           ``'cumulative'``, ``'magnus'`` or ``'average'``.
@@ -8169,9 +8199,9 @@ def osc_prob_matter_std_potential(
 
     Returns
     -------
-    float or np.ndarray
+    float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+        each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     if return_evolution_operator:
@@ -8584,9 +8614,10 @@ def osc_prob_matter_nsi(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the same
         out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
-        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
-        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
-        is how to see them without turning the fallbacks into warnings.  Keys:
+        ``strategy='auto'`` the fallbacks are silent by design (except the hybrid's decline of an
+        unresolved profile, which raises :class:`UnmarkedDiscontinuityWarning`) -- that is right
+        for ordinary calls, and wrong for anyone asking why a result moved or why a call got
+        slow -- so this is how to see them without turning the fallbacks into warnings.  Keys:
 
         * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
           ``'cumulative'``, ``'magnus'`` or ``'average'``.
@@ -8694,9 +8725,9 @@ def osc_prob_matter_nsi(
 
     Returns
     -------
-    float or np.ndarray
+    float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+        each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     if return_evolution_operator:
@@ -9104,9 +9135,10 @@ def osc_prob_liv(
     strategy_info : dict, optional
         If given, filled in place with which engine actually answered, following the same
         out-parameter convention as ``convergence_info`` in :func:`osc_prob`.  Under
-        ``strategy='auto'`` the fallbacks are silent by design -- that is right for ordinary
-        calls, and wrong for anyone asking why a result moved or why a call got slow -- so this
-        is how to see them without turning the fallbacks into warnings.  Keys:
+        ``strategy='auto'`` the fallbacks are silent by design (except the hybrid's decline of an
+        unresolved profile, which raises :class:`UnmarkedDiscontinuityWarning`) -- that is right
+        for ordinary calls, and wrong for anyone asking why a result moved or why a call got
+        slow -- so this is how to see them without turning the fallbacks into warnings.  Keys:
 
         * ``'engine'`` -- ``'hybrid'``, ``'ip_exp'``, ``'separable'``, ``'constant'``,
           ``'cumulative'``, ``'magnus'`` or ``'average'``.
@@ -9214,9 +9246,9 @@ def osc_prob_liv(
 
     Returns
     -------
-    float or np.ndarray
+    float, np.ndarray, or tuple
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for
-        each (energy, L) point.
+        each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
     if return_evolution_operator:
@@ -10989,13 +11021,14 @@ def osc_prob_2nu_matter_exp_density(
     .. versionadded:: 1.0.0
 
     .. note::
-        Dispatches to a fast, closed-form interaction-picture Magnus
-        integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
-        results in a fraction of a second across the realistic solar-neutrino
-        energy range for baselines up to a few e-folds of ``l_scale``. Longer
-        baselines fall back transparently to the general slab-refinement
-        method.
+        Can use a fast, closed-form interaction-picture Magnus integrator
+        (two flavors, see ``_osc_prob_ip_exp_dispatch``) when the accumulated
+        matter phase stays small enough to certify.  Under the default
+        ``strategy='auto'`` the adiabatic hybrid is tried first, and the
+        interaction-picture integrator only where the hybrid declines without
+        preferring the slab ladder; with ``strategy='magnus'`` it is tried
+        directly.  Requests it cannot certify go to the general
+        slab-refinement method.
 
     Parameters
     ----------
@@ -11656,8 +11689,9 @@ def osc_prob_2nu_earth(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -11672,7 +11706,7 @@ def osc_prob_2nu_earth(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -11996,8 +12030,9 @@ def osc_prob_3nu_earth(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -12012,7 +12047,7 @@ def osc_prob_3nu_earth(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -12348,8 +12383,9 @@ def osc_prob_4nu_earth(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -12364,7 +12400,7 @@ def osc_prob_4nu_earth(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -12722,8 +12758,9 @@ def osc_prob_5nu_earth(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -12738,7 +12775,7 @@ def osc_prob_5nu_earth(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -13469,15 +13506,11 @@ def _osc_prob_with_potential(
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
-        **The engine keywords travel this way and so appear in no signature above.**  The
-        ones worth knowing are listed in :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; three of
-        them decide whether an answer on a hard profile is right at all:
+        The engine keywords travel this way (``t_breakpoints`` excepted, which this function
+        takes explicitly).  The ones worth knowing are listed in
+        :data:`magnus.oscprob.PASSTHROUGH_KWARGS_DOCUMENTED`; two of them decide whether an
+        answer on a hard profile is right at all:
 
-        ``t_breakpoints``
-            Positions at which to place slab edges, filling in between.  **This is the
-            parameter for a density jump, a kink or a shock front** -- no number of slabs
-            fixes a slab that straddles one.  Not to be confused with ``t_slab_edges``
-            above, which is the *complete* set of edges and is rarely what is wanted.
         ``n_slabs``
             An explicit slab count.  On a single request over a large accumulated phase,
             ``rtol`` is not the dial that moves the answer; the refinement ladder can run
@@ -13750,20 +13783,20 @@ def osc_prob_2nu_sun(
        exponential fit, and ``stop_at_table_edge``.
 
     .. note::
-        Dispatches to a fast, closed-form interaction-picture Magnus
-        integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
-        results in a fraction of a second across the realistic solar-neutrino
-        energy range for baselines up to a few e-folds of ``l_scale``. Longer
-        baselines fall back transparently to the general slab-refinement
-        method.
+        Can use a fast, closed-form interaction-picture Magnus integrator
+        (two flavors, see ``_osc_prob_ip_exp_dispatch``) when the accumulated
+        matter phase stays small enough to certify.  Under the default
+        ``strategy='auto'`` the adiabatic hybrid is tried first, and the
+        interaction-picture integrator only where the hybrid declines without
+        preferring the slab ladder; with ``strategy='magnus'`` it is tried
+        directly.  Requests it cannot certify go to the general
+        slab-refinement method.
 
     .. note::
         With the default ``strategy='auto'``, this also tries the more general
         adiabatic-transport-plus-Magnus-patch hybrid strategy (see
-        :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) for baselines
-        beyond the interaction-picture integrator's reach (e.g., low-energy neutrinos over most
-        of the Sun's radius), before falling back to the general slab-refinement method.
+        :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) first, before
+        the interaction-picture integrator and the general slab-refinement method.
 
     Parameters
     ----------
@@ -15468,13 +15501,14 @@ def osc_prob_2nu_matter_nsi_exp_density(
     .. versionadded:: 1.0.0
 
     .. note::
-        Dispatches to a fast, closed-form interaction-picture Magnus
-        integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
-        results in a fraction of a second across the realistic solar-neutrino
-        energy range for baselines up to a few e-folds of ``l_scale`` (the NSI
-        couplings are folded into the same fast path). Longer baselines fall
-        back transparently to the general slab-refinement method.
+        Can use a fast, closed-form interaction-picture Magnus integrator
+        (two flavors, see ``_osc_prob_ip_exp_dispatch``; the NSI couplings are
+        folded into the same fast path) when the accumulated matter phase
+        stays small enough to certify.  Under the default ``strategy='auto'``
+        the adiabatic hybrid is tried first, and the interaction-picture
+        integrator only where the hybrid declines without preferring the slab
+        ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
+        cannot certify go to the general slab-refinement method.
 
     Parameters
     ----------
@@ -16244,8 +16278,9 @@ def osc_prob_2nu_earth_nsi(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -16260,7 +16295,7 @@ def osc_prob_2nu_earth_nsi(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -16592,8 +16627,9 @@ def osc_prob_3nu_earth_nsi(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -16608,7 +16644,7 @@ def osc_prob_3nu_earth_nsi(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -16967,8 +17003,9 @@ def osc_prob_4nu_earth_nsi(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -16983,7 +17020,7 @@ def osc_prob_4nu_earth_nsi(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -17377,8 +17414,9 @@ def osc_prob_5nu_earth_nsi(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -17393,7 +17431,7 @@ def osc_prob_5nu_earth_nsi(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -17804,13 +17842,14 @@ def osc_prob_2nu_sun_nsi(
        exponential fit, and ``stop_at_table_edge``.
 
     .. note::
-        Dispatches to a fast, closed-form interaction-picture Magnus
-        integrator whenever the accumulated matter phase stays small enough
-        to certify (see ``_osc_prob_ip_exp_dispatch``), giving warning-free
-        results in a fraction of a second across the realistic solar-neutrino
-        energy range for baselines up to a few e-folds of ``l_scale`` (the NSI
-        couplings are folded into the same fast path). Longer baselines fall
-        back transparently to the general slab-refinement method.
+        Can use a fast, closed-form interaction-picture Magnus integrator
+        (two flavors, see ``_osc_prob_ip_exp_dispatch``; the NSI couplings are
+        folded into the same fast path) when the accumulated matter phase
+        stays small enough to certify.  Under the default ``strategy='auto'``
+        the adiabatic hybrid is tried first, and the interaction-picture
+        integrator only where the hybrid declines without preferring the slab
+        ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
+        cannot certify go to the general slab-refinement method.
 
     Parameters
     ----------
@@ -20909,8 +20948,9 @@ def osc_prob_2nu_earth_liv(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -20925,7 +20965,7 @@ def osc_prob_2nu_earth_liv(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -21266,8 +21306,9 @@ def osc_prob_3nu_earth_liv(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -21282,7 +21323,7 @@ def osc_prob_3nu_earth_liv(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -21654,8 +21695,9 @@ def osc_prob_4nu_earth_liv(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -21670,7 +21712,7 @@ def osc_prob_4nu_earth_liv(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]
@@ -22080,8 +22122,9 @@ def osc_prob_5nu_earth_liv(
     leaves the depths alone.  A buried detector fixes where the
     trajectory ends, so ``L`` is then computed rather than given.
 
-    The initial and final location can be given as a three-entry tuple
-    of coordinates in the (degree, minute, second) format.  Alternatively,
+    The initial and final location can each be given as a (latitude,
+    longitude) pair, each coordinate a (degree, minute, second) triple --
+    e.g. ``loc_ini=((41, 49, 55), (-88, 15, 26))``.  Alternatively,
     any of the two locations can be given as a predefined named 
     location.  The predefined locations are in the earth.loc_coords_dms
     dictionary:
@@ -22096,7 +22139,7 @@ def osc_prob_5nu_earth_liv(
 
         print(earth.loc_coords_dms['fermilab'])
 
-    See the example below.
+    A named location is passed by name, e.g. ``loc_ini='fermilab'``.
 
     [If only a single location is given (i.e., if either ``loc_ini`` or
     ``loc_fin`` are ``None``), the function throws an exception.]

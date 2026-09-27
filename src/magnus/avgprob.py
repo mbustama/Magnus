@@ -74,8 +74,9 @@ that return the limit are unchanged.
 This module stands apart from :mod:`magnus.oscprob`, so it can be applied to any
 Hermitian Hamiltonian of any dimension independently of the rest of the API.  It
 depends on ``numpy`` and on :mod:`magnus.adiabatic`; everything except
-:func:`level_crossing_matrix` and :func:`averaged_probabilities_adiabatic` needs
-``numpy`` alone.
+:func:`level_crossing_matrix`, :func:`averaged_probabilities_adiabatic`,
+:func:`adiabatic_phase_differences` and :func:`phase_averaged_probabilities_adiabatic`
+needs ``numpy`` alone.
 
 Routine listings
 ----------------
@@ -1279,6 +1280,8 @@ def phase_averaged_probabilities_adiabatic(
 
     Raises
     ------
+    ValueError
+        If ``spread`` is None or negative.
     RuntimeError
         If the number of terms would exceed an internal bound (``_MAX_TERMS``): many windows
         with many flavors whose phases never decohere.

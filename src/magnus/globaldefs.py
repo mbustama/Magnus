@@ -180,7 +180,7 @@ class BaselineUnitWarning(UserWarning):
 
         warnings.filterwarnings('ignore', category=gd.BaselineUnitWarning)
 
-    .. versionadded:: 1.0.5
+    .. versionadded:: 1.0.11
     """
 
 

@@ -193,7 +193,8 @@ default tolerance of 1e-3, where the hybrid took 8 s.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.
-Measured against ``solve_ivp``:
+Measured against ``solve_ivp`` when the seam was at 25 baselines, so that 24 went to the hybrid
+and 26 to the cumulative scan (it is now 8, and the same step sits between 7 and 8):
 
 .. list-table::
    :header-rows: 1

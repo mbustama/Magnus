@@ -46,7 +46,8 @@ defaults below cover only what the notebooks were overriding per figure.
 
 All functions return ``(fig, ax)`` so that the caller can keep customizing:
 ``fig`` for figure-level work and saving, ``ax`` for anything Matplotlib
-exposes on an axes.
+exposes on an axes.  With ``return_probability=True``, the functions that
+compute through the Earth wrappers also return what they drew.
 
 Requirements
 ------------
@@ -1217,8 +1218,10 @@ def plot_probability_with_profile(
         argument without ``trajectories``; if a trajectory names neither or
         both of ``costhz`` and the two locations; if ``x_axis`` is unknown,
         ``energy`` is missing on the baseline axis or given on the energy axis,
-        or ``show_profile=True`` on the energy axis; and for the channel,
-        flavor-count and duplicate-keyword checks of :func:`plot_oscillogram`.
+        or ``show_profile=True`` on the energy axis; if ``trajectories`` is
+        empty, or ``wrapper_kw`` holds ``source_depth`` or ``detector_depth``;
+        and for the channel, flavor-count and duplicate-keyword checks of
+        :func:`plot_oscillogram`.
 
     Examples
     --------
@@ -1522,9 +1525,9 @@ def plot_probability_with_average(
     r"""Overlay phase-averaged probabilities on the oscillating ones.
 
     The figure of the averaged-probability notebook: rapidly oscillating
-    curves, each with its decohered limit drawn through it as a dashed line of
-    the same color -- the value :func:`magnus.oscprob.osc_prob` returns with
-    ``average=True``.
+    curves, each with its phase-averaged value drawn through it as a dashed line of
+    the same color -- for instance what :func:`magnus.oscprob.osc_prob` returns with
+    ``average=True`` (the average over ``average_spread``).
 
     Several channels are usually shown at once, so the legend carries one
     entry per channel plus a single entry explaining the dashed style, rather
@@ -2130,8 +2133,10 @@ def plot_oscillogram(
     wrapper_kw : dict, optional
         Any other keyword the Earth wrapper accepts (``rtol``, ``atol``,
         ``nubar``, ``integration_method``, ``magnus_exp_order``, ...).  The
-        channel, the geometry and the composition keywords above cannot be
-        given here too.
+        channel, ``energy``, ``costhz``, ``L`` and the composition keywords
+        above cannot be given here too.  ``loc_ini``, ``loc_fin`` and the
+        depths are not refused but do not belong here: each column of the
+        oscillogram is one zenith angle, from surface to surface.
     return_probability : bool, optional
         If True, also return the probability drawn.  Default is False.
     levels : int, optional

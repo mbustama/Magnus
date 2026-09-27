@@ -343,7 +343,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="How to propagate a position-dependent Hamiltonian: 'magnus' uses only the "
              "Magnus-expansion machinery; 'hybrid' also tries adiabatic transport with a "
              "Magnus patch at each non-adiabatic window, warning if it cannot certify the "
-             "result; 'auto' tries hybrid and falls back to magnus silently. Ignored for "
+             "result; 'auto' tries hybrid and falls back to magnus without a warning, except "
+             "for an undeclared density jump. Ignored for "
              "vacuum and constant-density environments. Default: auto.")
     g_num.add_argument('--verbose', type=int, default=0, choices=[0, 1, 2],
         help='Verbosity level. Default: 0.')
@@ -625,7 +626,7 @@ def _wrapper_name(flavors: int, environment: str, scenario: str, density_profile
 
 def _call(fn, candidate_kwargs: dict):
     r"""Calls fn with only the keys it actually accepts explicitly (plus the
-    universally-forwarded refinement/logging/numerics kwargs)."""
+    universally-forwarded refinement/numerics kwargs)."""
     sig = inspect.signature(fn)
     explicit_names = {n for n, par in sig.parameters.items()
                        if par.kind != inspect.Parameter.VAR_KEYWORD}

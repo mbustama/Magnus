@@ -238,7 +238,8 @@ functions, and the call returns the pair ``(P, U)`` instead of ``P`` alone:
 and the batching over arrays keep their meaning. ``U`` is the evolution operator
 over the same interval, in the flavor basis, complex and unitary, with
 ``U[final, initial]`` the amplitude from the initial to the final flavor, so that
-``P == abs(U)**2.T``; for arrays of points it has shape ``(n, d, d)``.
+``P == (abs(U)**2).T``; for arrays of points it has shape ``(n, d, d)``, and
+``P == np.swapaxes(abs(U)**2, -1, -2)``.
 
 The operator comes from the general Magnus ladder, the one engine that forms it.
 With the keyword set, the ladder compares the operator itself between refinement
