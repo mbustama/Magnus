@@ -47,7 +47,7 @@ def logotype(fig, ax, x, y, size, alpha=1.0, ha='center'):
     if alpha <= 0:
         return
     r = fig.canvas.get_renderer()
-    fam = [DISP, 'DejaVu Sans']
+    fam = DISP
     pieces = [('Mag', INK), ('ν', AMBER), ('s', INK)]
     arts = [ax.text(0, y, p, fontsize=size, color=c, fontfamily=fam, weight=700, alpha=alpha, va='center')
             for p, c in pieces]
@@ -74,7 +74,7 @@ def caption(ax, phrases, u, n_frames, act):
     fade_in = 0.3 / max(n_frames / FPS / k, 0.3)            # 0.3 s per phrase
     a = seg(u * k - j, 0, fade_in)
     ax.add_patch(Rectangle((0.8, 9 - BAND / 2 - 0.3), 0.08, 0.6, fc=ACT_COLOR[act], ec='none', zorder=21))
-    text(ax, 1.1, 9 - BAND / 2, phrases[j], 28, INK, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center',
+    text(ax, 1.1, 9 - BAND / 2, phrases[j], 28, INK, DISP, alpha=a, weight=700, va='center',
          zorder=21)
 
 
@@ -102,7 +102,7 @@ def card(fig, ax, s, u, n):
         logotype(fig, ax, 8, 5.9, 100, alpha=at(0))      # a fade only: a growing logotype jitters
         for i, w in enumerate(words[1:]):
             last = i == len(words) - 2
-            text(ax, 8, 4.3 - 0.75 * i, w, 30 if last else 24, TEAL if last else INK, [DISP, 'DejaVu Sans'],
+            text(ax, 8, 4.3 - 0.75 * i, w, 25 if last else 24, TEAL if last else INK, DISP,
                  alpha=at(3 + 2 * i), ha='center', va='center', weight=700 if last else 500)
     elif sid == 'cta':
         typed = words[0][:int(len(words[0]) * seg(u * beats, 0.3, 3))]
@@ -110,18 +110,15 @@ def card(fig, ax, s, u, n):
         for i, w in enumerate(words[1:5]):
             text(ax, 8, 5.6 - 0.62 * i, w, 21, INK, MONO, alpha=at(3.5 + 1.2 * i), ha='center', va='center')
         logotype(fig, ax, 8, 2.35, 70, alpha=at(9))
-        text(ax, 8, 1.25, 'Accurate  ·  Fast  ·  Flexible', 24, AMBER, [DISP, 'DejaVu Sans'], alpha=at(10),
+        text(ax, 8, 1.25, 'Accurate  ·  Fast  ·  Flexible', 24, AMBER, DISP, alpha=at(10),
              ha='center', va='center')
     else:
         for i, w in enumerate(words):
             text(ax, 8, 5.4 - 1.15 * i + 0.575 * (len(words) - 1), w, 46,
-                 INK, [DISP, 'DejaVu Sans'], alpha=at(2 * i), ha='center', va='center', weight=700)
+                 INK, DISP, alpha=at(2 * i), ha='center', va='center', weight=700)
 
 
-# The code moment is drawn in the content box (0.85 of the frame), so its units are 0.85 as wide as
-# the frame's: a monospace character (0.6 em) of CODE_PT points spans CHAR_W of them.
-CODE_PT = 14.5
-CHAR_W = 0.6 * CODE_PT / 72 / CONTENT_FRAC
+CODE_PT = 16
 
 
 def code_moment(fig, ax, s, u, n):
@@ -139,9 +136,10 @@ def code_moment(fig, ax, s, u, n):
         if i in s.get('highlight', []) and u > 0.52:
             ax.add_patch(FancyBboxPatch((0.75, y - 0.26), 8.1, 0.52, boxstyle='round,pad=0,rounding_size=0.05',
                                         fc=AMBER, ec='none', alpha=0.18 * seg(u, 0.52, 0.6)))
-        text(ax, 0.95, y, vis, CODE_PT, '#cfd6e4', MONO, va='center')
+        t = text(ax, 0.95, y, vis if vis else ' ', CODE_PT, '#cfd6e4', MONO, va='center')
         if 0 < left + len(ln) <= len(ln) and u < 0.5 and int(u * 60) % 2 == 0:
-            text(ax, 0.95 + CHAR_W * len(vis), y, '▌', CODE_PT, TEAL, MONO, va='center')
+            x1 = ax.transData.inverted().transform(t.get_window_extent(fig.canvas.get_renderer()))[1, 0]
+            text(ax, x1 + 0.05, y, '|', CODE_PT, TEAL, MONO, va='center', weight=700)
     d = scenes.load('opening.npz')
     L, Pm = d['L'], d['Pm']
     g = seg(u, 0.55, 0.95)
@@ -179,7 +177,7 @@ def flexible(fig, ax, s, u, n):
 
 def pillar(fig, ax, s, u, n):
     a = seg(u, 0, 0.18)
-    text(ax, 0.8, 9 - BAND / 2, s['words'][0], 44, TEAL, [DISP, 'DejaVu Sans'], alpha=a, weight=700, va='center')
+    text(ax, 0.8, 9 - BAND / 2, s['words'][0], 44, TEAL, DISP, alpha=a, weight=700, va='center')
     import textwrap
     text(ax, 5.2 if len(s['words'][0]) < 10 else 6.4, 9 - BAND / 2, textwrap.fill(s['sub'], 52), 18, INK, MONO,
          alpha=seg(u, 0.1, 0.3), va='center', linespacing=1.5)

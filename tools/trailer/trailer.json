@@ -52,7 +52,7 @@
    "beats": 13,
    "words": [
     "Magνs",
-    "Oscillation probabilities from the Magnus expansion",
+    "Neutrino oscillation probabilities",
     "Any number of flavors",
     "Any matter density profile",
     "Standard oscillations and new physics",
@@ -76,7 +76,7 @@
   {
    "id": "code_moment",
    "act": 4,
-   "beats": 10,
+   "beats": 12,
    "words": [
     "Define H(E, x), then make a single call"
    ],
@@ -87,11 +87,10 @@
    "code": [
     "import magnus.oscprob as oscprob",
     "",
-    "def H(E, x):                      # your Hamiltonian",
+    "def H(E, x):  # your Hamiltonian",
     "    return H_vac/E + np.multiply.outer(V(x), P_e)",
     "",
-    "P = oscprob.osc_prob_energy_baseline(H, energy, L,",
-    "                                     nu_i=1, nu_f=0)"
+    "P = oscprob.osc_prob_energy_baseline(H, energy, L, nu_i=1, nu_f=0)"
    ],
    "highlight": [
     2,
@@ -101,7 +100,7 @@
   {
    "id": "auto_picks",
    "act": 4,
-   "beats": 6,
+   "beats": 8,
    "words": [
     "Magνs chooses the integration strategy for each calculation"
    ],
@@ -126,9 +125,9 @@
   {
    "id": "m_flavors",
    "act": 5,
-   "beats": 4,
+   "beats": 6,
    "words": [
-    "Two to five flavors, ready to use"
+    "Ready-shipped for two to five flavors"
    ],
    "kind": "schematic",
    "scene": "flavors",
@@ -283,7 +282,7 @@
   {
    "id": "t_accurate",
    "act": 7,
-   "beats": 4,
+   "beats": 6,
    "kind": "pillar",
    "words": [
     "Accurate"
@@ -296,7 +295,7 @@
   {
    "id": "t_fast",
    "act": 7,
-   "beats": 4,
+   "beats": 6,
    "kind": "pillar",
    "words": [
     "Fast"
@@ -309,7 +308,7 @@
   {
    "id": "t_flexible",
    "act": 7,
-   "beats": 4,
+   "beats": 6,
    "kind": "pillar",
    "words": [
     "Flexible"

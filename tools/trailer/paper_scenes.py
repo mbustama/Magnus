@@ -109,8 +109,11 @@ def earth_disc(a, cut=(270, 360), alpha=1.0, labels=True, detector=(42.5, 13.6))
         th = np.radians(0.5 * (cut[0] + cut[1]))
         for r0, r1, col, name in PREM[1:3]:             # outer core and mantle; the inner core is too small
             rm = 0.5 * (r0 + r1) / R_E
+            rot = (np.degrees(th) + 90) % 360
+            if 90 < rot < 270:                            # never upside down
+                rot -= 180
             a.text(rm * np.cos(th) + 0.02, rm * np.sin(th), name, fontsize=11, color=BG, fontfamily=MONO,
-                   ha='center', va='center', rotation=np.degrees(th) + 90, alpha=alpha, zorder=5)
+                   ha='center', va='center', rotation=rot, alpha=alpha, zorder=5)
     a.set_xlim(-1.15, 1.15)
     a.set_ylim(-1.15, 1.15)
     a.set_aspect('equal')
@@ -184,7 +187,7 @@ def earth_more(fig, ax, u):
         if v <= 0:
             continue
         k = len(cz) if i == 0 else int(seg(u, a0, a0 + 0.35) * len(cz))
-        a = dark(fig.add_axes([0.05 + 0.315 * i, 0.16, 0.27, 0.62]))
+        a = dark(fig.add_axes([0.07 + 0.325 * i, 0.16, 0.245, 0.62]))   # gaps wide enough for the tick labels
         _oscillogram(a, cz, E, grid, k)
         a.set_yticks(ticks)
         a.set_yticklabels(['%g' % x for x in ticks[:-1]] + ['%g %s' % (ticks[-1], unit)])
@@ -387,7 +390,7 @@ def sun(fig, ax, u):
     a.set_ylim(-1.08, 1.08)
     e = E[min(len(E) - 1, int(round(t)))]
     txt = '%g MeV' % (e * 1e3) if e < 1 else ('%g GeV' % e if e < 1000 else '%g TeV' % (e / 1000))
-    ax.text(12.3, 6.0, txt, fontsize=40, color=INK, fontfamily=[DISP, 'DejaVu Sans'], weight=700, va='center')
+    ax.text(12.3, 6.0, txt, fontsize=40, color=INK, fontfamily=DISP, weight=700, va='center')
     ax.text(12.3, 5.0, r'$P(\nu_e \to \nu_e)$ of a diffuse', fontsize=15, color=MUT, fontfamily=MONO, va='center')
     ax.text(12.3, 4.5, 'flux crossing the Sun,', fontsize=15, color=MUT, fontfamily=MONO, va='center')
     ax.text(12.3, 4.0, 'one line of sight per pixel', fontsize=15, color=MUT, fontfamily=MONO, va='center')

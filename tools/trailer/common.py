@@ -25,28 +25,38 @@ SPB = 60.0 / BPM                        # seconds per beat
 # The look: one dark theme, three accents (nu_e blue, nu_mu amber, nu_tau teal) and two more.
 BG, PANEL, LINE, INK, MUT = '#06080d', '#0f1626', '#232c3f', '#e9edf5', '#a3acbf'   # MUT: labels and ticks
 BLUE, AMBER, TEAL, ROSE, VIOLET = '#5aa9ff', '#f0a33c', '#3fd0a4', '#ff6b8b', '#b48cff'
-MONO = ['IBM Plex Mono', 'DejaVu Sans Mono']     # DejaVu covers the Greek letters Plex lacks
-DISP = 'Unbounded'
+# One typeface throughout, titles to tick labels to mathematics: Inter, a lean sans-serif with Greek.
+# MONO and DISP are kept as names for the two roles, and both are Inter.
+MONO = DISP = 'Inter'
 
-# Both fonts are under the SIL Open Font License; they are fetched on first use, not tracked.
-FONTS = {'IBMPlexMono-Regular.ttf': 'ofl/ibmplexmono/IBMPlexMono-Regular.ttf',
-         'Unbounded-VF.ttf': 'ofl/unbounded/Unbounded%5Bwght%5D.ttf'}
+# Inter is under the SIL Open Font License.  Its static files come from the official release,
+# downloaded once on first use; Matplotlib renders only the default instance of a variable font,
+# so the static weights are needed for bold and italic.
+INTER_ZIP = 'https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip'
+INTER_FILES = ('Regular', 'Italic', 'Medium', 'SemiBold', 'Bold', 'BoldItalic')
 
 
 def setup_matplotlib():
-    """Agg backend, the trailer's fonts registered, mathtext in DejaVu Sans."""
+    """Agg backend, Inter registered and used for everything, the mathematics included."""
+    import io
+    import zipfile
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib import font_manager as fm
     fonts = BUILD / 'fonts'
     fonts.mkdir(parents=True, exist_ok=True)
-    for name, path in FONTS.items():
-        dest = fonts / name
-        if not dest.exists():
-            urllib.request.urlretrieve('https://raw.githubusercontent.com/google/fonts/main/' + path, dest)
-        fm.fontManager.addfont(str(dest))
-    plt.rcParams['mathtext.fontset'] = 'dejavusans'
+    wanted = [fonts / ('Inter-%s.ttf' % w) for w in INTER_FILES]
+    if not all(f.exists() for f in wanted):
+        z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(INTER_ZIP).read()))
+        for f in wanted:
+            f.write_bytes(z.read('extras/ttf/' + f.name))
+        (fonts / 'Inter-LICENSE.txt').write_bytes(z.read('LICENSE.txt'))
+    for f in wanted:
+        fm.fontManager.addfont(str(f))
+    plt.rcParams.update({'font.family': 'Inter', 'mathtext.fontset': 'custom', 'mathtext.rm': 'Inter',
+                         'mathtext.it': 'Inter:italic', 'mathtext.bf': 'Inter:bold', 'mathtext.sf': 'Inter',
+                         'axes.unicode_minus': True})
     return plt
 
 

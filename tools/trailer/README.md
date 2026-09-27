@@ -18,8 +18,8 @@ nice -n 19 python tools/trailer/cut.py --jobs 4         # 2. every frame, the mu
 ```
 
 The result is `tools/trailer/build/magnus_trailer.mp4`: 1920×1080, 30 fps, H.264 video with
-AAC stereo audio, 1:55 long (184 beats at 96 bpm).  The first run needs internet access
-once, to download the two fonts (see "Fonts").
+AAC stereo audio, 2:02.5 long (196 beats at 96 bpm).  The first run needs internet access
+once, to download the font (see "Fonts").
 
 Everything the scripts write goes to `tools/trailer/build/`, which git ignores.
 
@@ -89,7 +89,7 @@ nice -n 19 python tools/trailer/cut.py --jobs 4 --width 1280    # a smaller, fas
 
 `cut.py` works in three stages:
 
-1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3450
+1. **Frames.** It draws every frame of every shot in `trailer.json` fresh, at 1920×1080 (3675
    frames at 30 fps), into `build/cut/f00000.png ...`, on as many processes as `--jobs`.  A run
    that is interrupted resumes where it stopped, since frames already drawn are skipped:
    **delete `build/cut/` after changing a scene or the script**, or old frames stay.
@@ -156,7 +156,7 @@ and their lengths from `trailer.json`.
 ### 7. Clean up
 
 Delete `tools/trailer/build/` to start over.  The frames of the full cut are the bulk of it:
-3450 frames at 1920×1080.
+3675 frames at 1920×1080.
 
 ## The music
 
@@ -180,10 +180,11 @@ It is mastered to −2 dBFS, leaving room for the AAC encoder, whose peaks can o
 
 ## Fonts
 
-The trailer uses IBM Plex Mono and Unbounded, both under the SIL Open Font License.  On the
-first run, `common.setup_matplotlib()` downloads them from the Google Fonts repository into
-`build/fonts/`; after that nothing is fetched.  DejaVu, which ships with Matplotlib, fills in
-the Greek letters Plex Mono lacks.
+The trailer uses a single font, Inter 4.1 (SIL Open Font License), for text, numbers, math and
+code alike; it has the Greek letters (ν, μ, τ, Δ), the arrow → and superscripts that the scenes
+need.  On the first run, `common.setup_matplotlib()` downloads the release zip from
+github.com/rsms/inter once and extracts the TTFs and the license into `build/fonts/`; after that
+nothing is fetched.
 
 ## What the scenes rest on
 
