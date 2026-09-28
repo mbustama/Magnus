@@ -1075,7 +1075,7 @@ One keyword, {\tt strategy}, controls the adiabatic engine only; it selects no o
 \textit{The engines.---}Figure~\ref{fig:strategies} and \tabl{engines} show the seven engines in the order in which \magnus\ tries them.
 \begin{enumerate}
 %%%%
-\item \emph{Averaged probability.} This engine answers every request made with {\tt average=True}, by one of three routes chosen by $\mathbb{H}$. When $\mathbb{H}$ does not depend on position, it returns \equ{phase_average}, the probability with each interference term damped by the spread of its phase across the energy resolution. That is the quantity a solar or an astrophysical experiment measures. Where every phase has decohered, it is the limit \equ{averaged}. The engine diagonalizes $\mathbb{H}$ once at each energy and does not divide the path into slabs. When $\mathbb{H}$ varies smoothly along the path, the engine transports along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. Without such a crossing, the result is \equ{averaged_varying}, for the initial state of Sec.~\ref{sec:average_keyword}. 
+\item \emph{Averaged probability.} This engine answers every request made with {\tt average=True}, by one of three routes chosen by $\mathbb{H}$. When $\mathbb{H}$ does not depend on position, it returns \equ{phase_average}, the probability with each interference term damped by the spread of its phase across the energy resolution. That is the quantity a solar or an astrophysical experiment measures. Where every phase has decohered, it is the limit \equ{averaged}. The engine diagonalizes $\mathbb{H}$ once at each energy and does not divide the path into slabs. When $\mathbb{H}$ varies smoothly along the path, the engine transports along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. Without such a crossing, the result is \equ{phase_average_nocross} for a neutrino that starts in a flavor state, and \equ{averaged_varying} for one that starts decohered (Sec.~\ref{sec:average_keyword}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 {\def\arraystretch{1.2}
@@ -1871,7 +1871,7 @@ P = oscprob.osc_prob_3nu_vacuum(
 # familiar sum_i |U_ei|^2 |U_mi|^2, from the
 # eigenvectors alone
 \end{pysnip}
-At the $1\,000$~km of Listing~\ref{lst:constant}, the phases have not decohered. The same call then returns the average over the spread, with a warning that the result depends on the spread:
+A third keyword, {\tt average\_initial\_state}, sets the state the average starts from: {\tt 'flavor'}, the default, or {\tt 'decohered'}, for a neutrino that reaches the path with every pair of eigenstates already decohered, as one from a distant source does. At the $1\,000$~km of Listing~\ref{lst:constant}, the phases have not decohered. The same call then returns the average over the spread, with a warning that the result depends on the spread:
 \begin{pysnip}
 P = oscprob.osc_prob_3nu_vacuum(
     E, L, average=True, **osc)   # 1000 km
@@ -1884,9 +1884,21 @@ P = oscprob.osc_prob_3nu_vacuum(
 
 The keyword applies the damping that an energy resolution produces on each interference term. It is not a mean over an energy window: such a mean is an estimator that does not converge on a varying profile (Sec.~\ref{sec:averaging_is_not_estimating}). 
 
-For a Hamiltonian that varies along the path, {\tt average=True} returns the phase average of Sec.~\ref{sec:averaged}. The neutrino starts decohered in the eigenbasis at production. It is transported along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. It is read out in the flavor basis at detection. Without such a crossing, the result is \equ{averaged_varying}. On such a profile, {\tt rtol} and {\tt atol} set the tolerance of the phase average, as they do for any other call. The Magnus patches and the phases of the adiabatic stretches converge to the tighter of {\tt rtol} and {\tt atol}, $10^{-3}$ by default. The limit is kept only where the phase average agrees with it within that tolerance, or within $10^{-4}$ if that is tighter. Over twenty chords through the solar core, from 30~GeV to 3~TeV, the default moves the probability by at most $5 \times 10^{-6}$ from its value at a tolerance of $10^{-5}$. That route needs an instantaneous eigenbasis, so it applies to a profile without discontinuities. Where the profile declares them, through {\tt t\_breakpoints} or {\tt t\_slab\_edges}, there is no such basis. (An undeclared discontinuity that could move the probability is reported with {\tt UnmarkedDiscontinuityWarning} rather than treated as smooth.) \magnus\ then propagates for real across a window in energy and averages, warning that this is a different quantity: an average of the probability over that window. A chord through the Earth is that case: the PREM layer boundaries are breakpoints.
+For a Hamiltonian that varies along the path, {\tt average=True} returns the phase average of Sec.~\ref{sec:averaged}. The neutrino starts in the state set by {\tt average\_initial\_state}: in a flavor state by default, or decohered in the eigenbasis at production with {\tt 'decohered'}. It is transported along the instantaneous eigenstates, keeping each phase with its weight, with the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic. It is read out in the flavor basis at detection. Without such a crossing, the result is \equ{phase_average_nocross} for a flavor start and \equ{averaged_varying} for a decohered one. On such a profile, {\tt rtol} and {\tt atol} set the tolerance of the phase average, as they do for any other call. The Magnus patches and the phases of the adiabatic stretches converge to the tighter of {\tt rtol} and {\tt atol}, $10^{-3}$ by default. The limit is kept only where the phase average agrees with it within that tolerance, or within $10^{-4}$ if that is tighter. Over twenty chords through the solar core, from 30~GeV to 3~TeV, the default moves the probability by at most $5 \times 10^{-6}$ from its value at a tolerance of $10^{-5}$. That route needs an instantaneous eigenbasis, so it applies to a profile without discontinuities. Where the profile declares them, through {\tt t\_breakpoints} or {\tt t\_slab\_edges}, there is no such basis. (An undeclared discontinuity that could move the probability is reported with {\tt UnmarkedDiscontinuityWarning} rather than treated as smooth.) \magnus\ then propagates for real across a window in energy and averages, warning that this is a different quantity: an average of the probability over that window. A chord through the Earth is that case: the PREM layer boundaries are breakpoints.
 
-The keyword lives on every wrapper and scenario function, as well as on the direct route of Sec.~\ref{sec:wrapper_vs_direct}, {\tt osc\_prob\_energy\_baseline}, {\tt osc\_prob\_earth}, and {\tt osc\_prob\_sun}, so a custom Hamiltonian is averaged the same way as a shipped Hamiltonian, \ie,
+The keyword {\tt average\_initial\_state} chooses between two physical situations. A neutrino produced in the medium, \eg, in a beam, in the atmosphere, in the Earth, or in the Sun, starts as a flavor state, a coherent superposition of the eigenstates at production. With {\tt 'flavor'}, the default, the interference between them is kept, each term damped by the spread of its phase from there on. A neutrino that reaches the start of the path from a distant source has already lost that coherence (Sec.~\ref{sec:averaged}). It arrives as an incoherent mixture of eigenstates, and {\tt 'decohered'} starts it that way. The two differ only by the initial interference, so they agree wherever its phases are large, as for a neutrino made in the solar core:
+\begin{pysnip}
+for start in ('flavor', 'decohered'):
+    P = oscprob.osc_prob_3nu_sun(
+        10.0*gd.UNIT_MEV, R, 0.0, 
+        nu_i=gd.NUE, nu_f=gd.NUE, 
+        average=True,
+        average_initial_state=start)
+    print(start, P)    # 0.297082 both times
+\end{pysnip}
+Where those phases are not large, the two differ, by 0.24 on the chord of Sec.~\ref{sec:solar_tomography}. On a profile with declared discontinuities, the average is over an energy window started in flavor, and {\tt 'decohered'} raises an error.
+
+The {\tt average }keyword lives on every wrapper and scenario function, as well as on the direct route of Sec.~\ref{sec:wrapper_vs_direct}, {\tt osc\_prob\_energy\_baseline}, {\tt osc\_prob\_earth}, and {\tt osc\_prob\_sun}, so a custom Hamiltonian is averaged the same way as a shipped Hamiltonian, \ie,
 \begin{pysnip}
 H = H_vac/E + gd.VCC_EARTH_CRUST*proj
 P = oscprob.osc_prob_energy_baseline(
@@ -3718,12 +3730,25 @@ import magnus.oscprob as oscprob
 # The chord above: b = 0.3 R_sun
 P = oscprob.osc_prob_matter_std_potential(
     3, ne, E, 2*half, average=True,
+    average_initial_state='decohered',
     osc_params=osc, L0=0.0, nu_i=gd.NUE,
     nu_f=gd.NUE,
     density_is_of_number_of_electrons=True)
 P                        # 0.304987
 \end{pysnip}
-Here, {\tt average=True} returns the phase average along the chord, without sampling energies. Section~\ref{sec:averaging_is_not_estimating} shows why averaging a scan of probabilities does not necessarily reproduce this.  (The phase average keeps the matter phase $\int V_{\rm CC}\,dl$, $8676$~rad across the diameter. That phase does not depend on the energy, so no energy spread averages it. It draws rings in the core of the disk, $1.8\times10^{-4}\,R_\odot$ apart at $b = 0.11\,R_\odot$ and $5.1\times10^{-4}\,R_\odot$ apart at $b = 0.3\,R_\odot$. At 1~TeV, they move $P$ by up to about $\pm 0.03$. The value printed above sits on one of them: within one ring spacing of $b = 0.3\,R_\odot$, $P$ ranges from 0.282 to 0.308. Each pixel of \figu{solar_tomography} is therefore averaged over its area. The panels from 30~GeV to 3~TeV sample $7\,773$ impact parameters each, $6\,772$ of them inside $b = 0.5\,R_\odot$.)
+Here, {\tt average=True} returns the phase average along the chord, without sampling energies, for a neutrino that reaches the Sun decohered (\ie, as $\nu_1$, $\nu_2$, or $\nu_3$). The choice of initial state (Sec.~\ref{sec:average_keyword}) matters on this chord:
+\begin{pysnip}
+kw = dict(
+    osc_params=osc, L0=0.0, nu_i=gd.NUE,
+    nu_f=gd.NUE, average=True,
+    density_is_of_number_of_electrons=True)
+f = oscprob.osc_prob_matter_std_potential
+for start in ('flavor', 'decohered'):
+    P = f(3, ne, E, 2*half, **kw,
+          average_initial_state=start)
+    print(start, P)  # 0.541694, 0.304987
+\end{pysnip}
+A $\nu_e$ produced at the edge of the Sun would keep the interference between $\nu_1$ and $\nu_2$, whose phase across the Sun is only about 1~rad at 100~GeV. A neutrino from a distant source arrives without it, which is why \figu{solar_tomography} uses {\tt 'decohered'}. Section~\ref{sec:averaging_is_not_estimating} shows why averaging a scan of probabilities does not necessarily reproduce this.  (The phase average keeps the matter phase $\int V_{\rm CC}\,dl$, $8676$~rad across the diameter. That phase does not depend on the energy, so no energy spread averages it. It draws rings in the core of the disk, $1.8\times10^{-4}\,R_\odot$ apart at $b = 0.11\,R_\odot$ and $5.1\times10^{-4}\,R_\odot$ apart at $b = 0.3\,R_\odot$. At 1~TeV, they move $P$ by up to about $\pm 0.03$. The value printed above sits on one of them: within one ring spacing of $b = 0.3\,R_\odot$, $P$ ranges from 0.282 to 0.308. Each pixel of \figu{solar_tomography} is therefore averaged over its area. The panels from 30~GeV to 3~TeV sample $7\,773$ impact parameters each, $6\,772$ of them inside $b = 0.5\,R_\odot$.)
 
 At $10$~MeV, the disk is uniform at about $\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55$: the Sun is transparent, exactly as $P^{\rm cross} = \mathbb{1}$ requires. At intermediate energies, rings appear, within the non-adiabatic region of \figu{solar_adiabaticity}. They are drawn by the crossings: where the passage is not adiabatic, the level-crossing probabilities depart from the identity. The phase average also keeps part of the interference that \equ{averaged_varying} discards. That interference changes the depth of the rings: at 300~GeV, the deepest one reaches $P = 0.03$ at $b = 0.81\,R_\odot$, against $0.20$ in \equ{averaged_varying}. From 300~GeV up, the deepest ring moves outward, to $b = 0.89\,R_\odot$ at 1~TeV and $0.91\,R_\odot$ at 10 and 50~TeV. At 50~TeV, the disk is uniform again, but for a different reason than at 10~MeV: a $\nu_e$ that enters the Sun leaves it as a $\nu_e$, at every impact parameter. The Sun only adds a phase to it; the survival probability does not depend on that phase.
 
