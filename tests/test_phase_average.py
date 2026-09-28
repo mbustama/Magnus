@@ -147,8 +147,16 @@ def decohered_start_probability(H, U, l0):
     return W0 @ (np.abs(U @ V0)**2).T
 
 
-def brute_force(H, D, l0, l1, sigma, n_nodes=301):
-    """The definition, by quadrature over u of the exact evolution under H + u D_diag."""
+def decohered_rho0(H, l0):
+    """The decohered start, diag |V0[a, :]|^2, in the eigenbasis of H(l0) (issue #73)."""
+    V0 = np.linalg.eigh(np.asarray(H(l0), dtype=complex))[1]
+    W0 = V0.real**2 + V0.imag**2
+    return np.array([np.diag(W0[a]) for a in range(W0.shape[0])], dtype=complex)
+
+
+def brute_force(H, D, l0, l1, sigma, n_nodes=301, start='decohered'):
+    """The definition, by quadrature over u of the exact evolution under H + u D_diag, from a
+    decohered start or from the flavor state."""
     def Hu(u):
         def f(l):
             Hl = np.asarray(H(l), dtype=complex)
@@ -165,7 +173,8 @@ def brute_force(H, D, l0, l1, sigma, n_nodes=301):
             continue
         U, ok = ad._local_evolution_operator(Hu(sigma*xk), l0, l1, 6, 'gl')
         assert ok
-        P = P + wk*decohered_start_probability(H, U, l0)
+        P = P + wk*(decohered_start_probability(H, U, l0) if start == 'decohered'
+                    else np.abs(U).T**2)
     return P
 
 
@@ -173,7 +182,8 @@ def test_a_profile_without_windows_returns_the_decohered_limit():
     """No window: adiabatic transport of a decohered start carries no interference, and the
     result is what averaged_probabilities_adiabatic returns."""
     H, D, l0, _ = crossing_H(g=2.0, l_scale=30.0)     # strongly coupled and slow: no hop
-    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, 150.0)
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, 150.0,
+                                                          rho0=decohered_rho0(H, l0))
     P_old, old = ap.averaged_probabilities_adiabatic(H, l0, 150.0)
     assert report['windows'] == [] and old['windows'] == []
     assert report['method'] == 'none'
@@ -182,7 +192,8 @@ def test_a_profile_without_windows_returns_the_decohered_limit():
 
 def test_at_zero_spread_it_is_the_probability_from_a_decohered_start():
     H, D, l0, l1 = crossing_H()
-    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1, spread=0.0, threshold=0.01)
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1, spread=0.0, threshold=0.01,
+                                                          rho0=decohered_rho0(H, l0))
     assert report['windows']
     U, ok = ad._local_evolution_operator(H, l0, l1, 6, 'gl')
     assert ok
@@ -191,9 +202,20 @@ def test_at_zero_spread_it_is_the_probability_from_a_decohered_start():
 
 def test_it_is_the_definition_computed_by_brute_force():
     H, D, l0, l1 = crossing_H()
-    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1)
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1, rho0=decohered_rho0(H, l0))
     assert report['sigma_sensitivity'] > 1e-2           # the spread matters here: a real test
     assert maxabs(P - brute_force(H, D, l0, l1, ap.AVG_PHASE_SPREAD)) < 1e-4
+
+
+def test_from_the_flavor_state_it_is_the_definition_computed_by_brute_force():
+    """Issue #73: the default start is the flavor state.  Its coherence is carried from l0 to the
+    first window, through it, and on to detection; the brute force starts in flavor too."""
+    H, D, l0, l1 = crossing_H()
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1)
+    assert report['windows']
+    assert maxabs(P - brute_force(H, D, l0, l1, ap.AVG_PHASE_SPREAD, start='flavor')) < 1e-4
+    # and it is a different answer from the decohered start's, on this path
+    assert maxabs(P - brute_force(H, D, l0, l1, ap.AVG_PHASE_SPREAD)) > 1e-3
 
 
 def test_it_does_not_depend_on_where_the_windows_are_drawn():
@@ -349,7 +371,8 @@ def test_a_profile_with_a_window_is_recomputed_and_reported():
 
     info = {}
     nufit = gd.load_nufit_params('NuFIT 6.1')          # the parameters of the reference below
-    kw = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0)
+    kw = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0,
+              average_initial_state='decohered')     # a neutrino crossing the Sun (issue #73)
     P, warned = call(op.osc_prob_matter_std_potential, 3, ne_chord, 1.0e4*gd.UNIT_GEV, 2*hl,
                      nufit, average=True, strategy_info=info, **kw)
     assert info['trace'][-1]['recomputed'] == 1
@@ -372,7 +395,9 @@ def solar_chord(br):
     return ne_chord, 2*hl
 
 
-CHORD_KW = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0)
+# Chords through the Sun: neutrinos from a distant source, which arrive decohered (issue #73).
+CHORD_KW = dict(nu_i=0, nu_f=0, density_is_of_number_of_electrons=True, L0=0.0,
+                average_initial_state='decohered')
 
 
 def test_rtol_and_atol_are_the_tolerance_of_the_phase_average(monkeypatch):
@@ -503,3 +528,80 @@ def test_a_hamiltonian_without_energy_dependence_keeps_the_decohered_limit():
     P, _ = call(op.osc_prob_energy_baseline, H, 1.0*gd.UNIT_GEV, 1.0e8*gd.UNIT_KM, 0.0,
                 average=True)
     assert np.array_equal(P, ap.averaged_probabilities_constant_hamiltonian(H, 1.0e8*gd.UNIT_KM))
+
+
+# ----------------------------------------------------------------------------------------------
+# The initial state of average=True (issue #73)
+# ----------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize('start, expected', [('flavor', 0.36263161), ('decohered', 0.45279506)])
+def test_the_initial_state_means_the_same_on_every_route(start, expected):
+    """The reproduction of issue #73: one medium through the constant route and, as an
+    exponential profile of scale height 1e9 km, through the smooth route.  They used to give
+    0.3626 (a flavor start) and 0.4528 (a decohered start); each start now gives one answer on
+    both routes, the hand-computed closed forms of the issue."""
+    nufit = gd.load_nufit_params('NuFIT 6.1')
+    kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU, density_matter_is_in_g_per_cm3=True, average=True,
+              average_initial_state=start, **nufit)
+    E, L = np.array([1.0*gd.UNIT_GEV]), 300.0*gd.UNIT_KM
+    P_const = float(np.ravel(op.osc_prob_3nu_matter_constant_density(E, L=L, rho=3.0, **kw))[0])
+    P_flat = float(np.ravel(op.osc_prob_3nu_matter_exp_density(E, L=L, L0=0.0, rho_central=3.0,
+                                                                l_scale=1e9*gd.UNIT_KM, **kw))[0])
+    assert abs(P_const - expected) < 1e-7
+    assert abs(P_flat - expected) < 1e-7
+
+
+def test_a_decohered_start_on_a_constant_hamiltonian_is_the_limit_exactly():
+    """Whatever the phases, even where none has averaged away (a short vacuum baseline), an
+    incoherent mixture of eigenstates never interferes: the limit, sum_i |U_ai|^2 |U_bi|^2."""
+    P = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 10.0*gd.UNIT_KM, **OSC, average=True,
+                               average_initial_state='decohered')
+    U = np.asarray(hams.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP']))
+    W = np.abs(U)**2
+    assert maxabs(np.asarray(P) - W @ W.T) < 1e-14
+
+
+def test_for_neutrinos_made_in_the_solar_core_both_starts_agree_bit_for_bit():
+    """Produced in the core, every interference term is damped from production on, so the
+    default start in flavor changes nothing on the solar curves: the value is the decohered
+    start's, bit for bit, and no transport is paid for."""
+    R = gd.SUN_RADIUS*gd.UNIT_KM
+    E = np.geomspace(0.1e6, 20e6, 40)
+    kw = dict(nu_i=0, nu_f=0, density_profile='BS05-AGS-OP', average=True)
+    P_flavor = op.osc_prob_3nu_sun(E, R, 0.0, **kw)
+    P_decoh = op.osc_prob_3nu_sun(E, R, 0.0, average_initial_state='decohered', **kw)
+    assert np.array_equal(np.asarray(P_flavor), np.asarray(P_decoh))
+
+
+def test_the_flavor_start_on_a_path_with_no_crossing_is_the_definition():
+    """No window: the closed form of the paper's Eq. (phase_average_nocross), against the brute
+    force started in flavor.  The bound is the adiabatic transport's own error on this path,
+    which no tolerance moves: 4.9e-6 from a flavor start, 8.2e-7 from a decohered one, since a
+    coherent start feels the weak non-adiabaticity no window was opened for at first order."""
+    H, D, l0, _ = crossing_H(g=2.0, l_scale=30.0)     # strongly coupled and slow: no hop
+    l1 = 8.0
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1)
+    assert report['windows'] == [] and report['method'] == 'closed_form'
+    assert maxabs(P - brute_force(H, D, l0, l1, ap.AVG_PHASE_SPREAD, start='flavor')) < 1e-5
+
+
+def test_a_decohered_start_is_refused_on_declared_discontinuities():
+    """That route averages over an energy window from the flavor state (paper Route 2); there is
+    no eigenbasis to decohere in at a jump."""
+    with pytest.raises(ValueError, match='average_initial_state'):
+        op.osc_prob_3nu_earth(3.0*gd.UNIT_GEV, loc_ini='fermilab', loc_fin='homestake', nu_i=1,
+                              nu_f=0, average=True, average_initial_state='decohered')
+
+
+@pytest.mark.parametrize('bad', ['coherent', 'Flavor', 1, True])
+def test_an_unknown_initial_state_raises(bad):
+    with pytest.raises(ValueError, match='average_initial_state'):
+        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC, average=True,
+                               average_initial_state=bad)
+
+
+def test_the_initial_state_is_ignored_without_average():
+    P = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC,
+                               average_initial_state='bogus')
+    assert np.array_equal(np.asarray(P), np.asarray(op.osc_prob_3nu_vacuum(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC)))

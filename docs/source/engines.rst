@@ -59,7 +59,8 @@ table necessary.
    * - **Phase average**
        (:mod:`magnus.avgprob`)
      - The observable averages over the energy resolution; every interference term keeps
-       its phase, weighted by the spread of that phase across ``average_spread``.
+       its phase, weighted by the spread of that phase across ``average_spread``, from
+       the flavor state or, with ``average_initial_state='decohered'``, a decohered start.
      - ``average=True``, on every entry point that takes the keyword.
      - Nothing -- but it warns where the result depends on the spread, and where the
        profile has a feature narrower than its 200-probe grid that could move

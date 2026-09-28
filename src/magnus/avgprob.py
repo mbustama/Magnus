@@ -715,7 +715,8 @@ def averaged_probabilities_adiabatic(
     n_probe: Optional[int] = 200,
     fd_step_frac: Optional[float] = 1.0e-6,
     magnus_exp_order: Optional[int] = 6,
-    integration_method: Optional[str] = 'gl'
+    integration_method: Optional[str] = 'gl',
+    _coherence: bool = True
 ) -> Tuple[np.ndarray, dict]:
     r"""Phase-averaged probabilities for a position-dependent Hamiltonian.
 
@@ -821,6 +822,21 @@ def averaged_probabilities_adiabatic(
     W1 = V1.real**2 + V1.imag**2
     P = W0 @ crossing @ W1.T
 
+    report = {
+        'windows': windows,
+        'patches_converged': bool(converged),
+        'undecided': None,
+        'undecided_between_crossings': None,
+        'escalated': escalated,
+        'resolved': resolved,
+        'certified': certified,
+    }
+    if not _coherence:
+        # The coherence report below is for callers that return this limit as it stands; one
+        # that goes on to the phase average never reads it, and its phase integrals cost more
+        # than the rest of an ordinary call (issue #73).  None there means "not computed".
+        return P, report
+
     # Has everything decohered by detection?
     dphi = adiabatic_phase_differences(H_func, l0, l1, n_points=n_points)
     undecided = []
@@ -843,16 +859,7 @@ def averaged_probabilities_adiabatic(
                     undecided_between.append((float(l_end_prev), float(l_start_next), i, j,
                                               float(phase)))
 
-    report = {
-        'windows': windows,
-        'patches_converged': bool(converged),
-        'undecided': undecided,
-        'undecided_between_crossings': undecided_between,
-        'escalated': escalated,
-        'resolved': resolved,
-        'certified': certified,
-    }
-
+    report.update(undecided=undecided, undecided_between_crossings=undecided_between)
     return P, report
 
 
@@ -952,6 +959,7 @@ _SLOPE_FLOOR = 10.0
 _PRUNE_Z = 9.0
 _HERMITE_MAX = 31
 _MAX_TERMS = 200_000
+_MAX_TERM_BYTES = 2**32       # the terms' arrays at once; about twice that at the peak of a step
 
 
 def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
@@ -967,6 +975,52 @@ def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
     """
     floor = _SLOPE_FLOOR*np.finfo(float).eps*scale/(dH_dlnE_step if dH_dlnE_step else 1.0)
     return np.where(np.abs(slope_diff) < floor, -phase_diff, slope_diff)
+
+
+_GUARD_POINTS = 17
+_GUARD_W = np.array([1.0] + [4.0, 2.0]*((_GUARD_POINTS - 3)//2) + [4.0, 1.0])     # Simpson, 17
+_GUARD_W2 = np.array([1.0] + [4.0, 2.0]*((_GUARD_POINTS//2 - 2)//2) + [4.0, 1.0])  # Simpson, 9
+_GUARD_T = np.linspace(0.0, 1.0, _GUARD_POINTS)
+_GUARD_PAIRS = {}                                  # d -> the index pairs i < j, built once
+
+
+def _interference_damped(H_func: Callable, D_func: Callable, a: float, b: float, spread: float,
+                         reach: float = 0.0, dH_dlnE_step: Optional[float] = None) -> bool:
+    r"""Whether every interference term between levels is damped away over ``[a, b]`` (issue #73).
+
+    A term between levels :math:`i` and :math:`j` is damped by
+    :math:`e^{-\sigma^2 \Phi_{ij}'^2/2}`, with :math:`\Phi'_{ij}` its phase slope in
+    :math:`\ln E` accumulated over the stretch.  When :math:`\sigma(|\Phi'_{ij}| - \text{reach})`
+    exceeds ``_PRUNE_Z`` for every pair, no later stretch can bring any term back within reach
+    (``reach``, as in :func:`phase_averaged_probabilities_adiabatic`), and the terms are dropped:
+    the same rule the phase average prunes by, applied before paying for the transport.  For a
+    neutrino produced in the solar core the slopes are of order :math:`10^4`, so a start in flavor
+    gives, bit for bit, the decohered start's result.
+
+    The slopes are Hellmann-Feynman derivatives on :data:`_GUARD_POINTS` points, integrated by
+    Simpson's rule and checked against the same rule on every other point: the answer is True only
+    if the bound holds with twice that difference taken off.  A pair whose slope is at the
+    round-off floor of :func:`_pair_slopes` never counts as damped.  Cost: 17 evaluations of the
+    Hamiltonian and of its derivative and one batched ``eigh``, about 50 us at three flavors;
+    written for that, since it runs at every energy of an ``average=True`` call on a profile.
+    """
+    if not (spread > 0.0) or not (b > a):
+        return False
+    g = a + (b - a)*_GUARD_T
+    lam, V = np.linalg.eigh(adiabatic._H_on_grid(H_func, g))
+    sl = (V.conj()*(adiabatic._H_on_grid(D_func, g) @ V)).real.sum(axis=1)   # <v_i|D|v_i>
+    h = (b - a)/(_GUARD_POINTS - 1)
+    fine = (h/3.0)*(_GUARD_W @ sl)
+    err = fine - (2.0*h/3.0)*(_GUARD_W2 @ sl[::2])
+    d = lam.shape[1]
+    if d not in _GUARD_PAIRS:
+        _GUARD_PAIRS[d] = np.triu_indices(d, 1)
+    i, j = _GUARD_PAIRS[d]
+    s_pair = np.abs(fine[i] - fine[j])
+    lower = s_pair - 2.0*np.abs(err[i] - err[j])
+    floor = (_SLOPE_FLOOR*np.finfo(float).eps*np.abs(lam).max()*(b - a)
+             / (dH_dlnE_step if dH_dlnE_step else 1.0))
+    return bool(s_pair.min() >= floor and spread*(lower.min() - reach) > _PRUNE_Z)
 
 
 def phase_averaged_probabilities_constant_hamiltonian(
@@ -1209,12 +1263,14 @@ def phase_averaged_probabilities_adiabatic(
     integration_method: Optional[str] = 'gl',
     dH_dlnE_step: Optional[float] = None,
     patch_atol: Optional[float] = None,
-    phase_tol: Optional[float] = None
+    phase_tol: Optional[float] = None,
+    rho0: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, dict]:
     r"""Phase-averaged probabilities on a smooth position-dependent Hamiltonian.
 
-    The neutrino starts decohered in the eigenbasis at :math:`l_0`, as in
-    :func:`averaged_probabilities_adiabatic`, and is read out in the flavor basis at :math:`l_1`.
+    The neutrino starts in the state ``rho0`` -- by default the flavor state, a coherent
+    superposition of the eigenstates at :math:`l_0` -- and is read out in the flavor basis at
+    :math:`l_1`.
     In between, every interference term is kept with its phase and weighted by the spread of
     that phase across a relative energy spread :math:`\sigma` (see :data:`AVG_PHASE_SPREAD`):
     formally, the Gaussian average over :math:`u = \delta\ln E` of the evolution under
@@ -1231,11 +1287,18 @@ def phase_averaged_probabilities_adiabatic(
     where the windows are drawn: one window over a stretch or two windows with the stretch between
     them give the same number.
 
-    Where there is no window the evolution is adiabatic, a decohered start carries no
+    Where there is no window the evolution is adiabatic.  A decohered start then carries no
     interference, and the result is the decohered expression of
-    :func:`averaged_probabilities_adiabatic`.
+    :func:`averaged_probabilities_adiabatic`, exactly; a flavor start gives the closed form of the
+    paper's Eq. (phase_average_nocross), from one transport along the whole path.  Before paying
+    for that transport, or for the stretch from :math:`l_0` to the first window, the phase slopes
+    are estimated on a few points: where every interference term would be pruned anyway, as for a
+    neutrino produced in the solar core, the result is the decohered start's, bit for bit.
 
     .. versionadded:: 1.1.1
+
+    .. versionchanged:: 1.1.1
+       Takes ``rho0``; the default start is the flavor state, where it was decohered (issue #73).
 
     Parameters
     ----------
@@ -1267,6 +1330,12 @@ def phase_averaged_probabilities_adiabatic(
     phase_tol : float, optional
         Tolerance on the pair phases of each adiabatic stretch [rad].  Default: None, which
         means :data:`PHASE_AVERAGE_PHASE_TOL`.
+    rho0 : np.ndarray, optional
+        Shape (d, d, d).  The initial density matrix of each initial flavor :math:`\alpha`, in the eigenbasis of
+        :math:`H(l_0)` as ``np.linalg.eigh`` returns it: ``rho0[a]`` is a :math:`d\times d`
+        matrix.  The flavor state is ``conj(V0[a, i])*V0[a, j]``, the decohered start
+        ``diag(|V0[a, :]|**2)``, with ``V0`` the eigenvectors at :math:`l_0`.  Default: None, the
+        flavor state.
 
     Returns
     -------
@@ -1274,16 +1343,18 @@ def phase_averaged_probabilities_adiabatic(
         The probability matrix, initial flavor as the row index; and a report with keys
         ``'windows'``, ``'escalated'``, ``'resolved'``, ``'certified'`` (as in
         :func:`averaged_probabilities_adiabatic`), ``'patches_converged'``,
-        ``'phases_converged'``, ``'n_nodes'`` and ``'method'`` (``'hermite'``, ``'grid'``, or
-        ``'none'`` without windows), ``'n_terms'``, and ``'sigma_sensitivity'``, the largest
+        ``'phases_converged'``, ``'n_nodes'`` and ``'method'`` (``'hermite'`` or ``'grid'``;
+        without windows, ``'closed_form'``, or ``'none'`` where no interference survives),
+        ``'n_terms'``, and ``'sigma_sensitivity'``, the largest
         :math:`|\sigma\, \partial P/\partial\sigma|`.
 
     Raises
     ------
     ValueError
-        If ``spread`` is None or negative.
+        If ``spread`` is None or negative, or ``rho0`` is not of shape (d, d, d).
     RuntimeError
-        If the number of terms would exceed an internal bound (``_MAX_TERMS``): many windows
+        If the number of terms would exceed an internal bound (``_MAX_TERMS``, or
+        ``_MAX_TERM_BYTES`` of memory): many windows
         with many flavors whose phases never decohere.
     """
     if spread is None or spread < 0.0:
@@ -1295,6 +1366,17 @@ def phase_averaged_probabilities_adiabatic(
     d = V0.shape[0]
     W0 = V0.real**2 + V0.imag**2
     W1 = V1.real**2 + V1.imag**2
+    if rho0 is None:
+        rho0 = V0.conj()[:, :, None]*V0[:, None, :]
+    else:
+        rho0 = np.asarray(rho0, dtype=complex)
+        if rho0.shape != (d, d, d):
+            raise ValueError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_adiabatic: "
+                "rho0 must have shape " + repr((d, d, d)) + ", not " + repr(rho0.shape) + ".")
+    # A start with no coherence between levels is carried exactly as it always was: the stretch
+    # before the first window only multiplies its populations by |e^{-i phi}|^2, which is 1 but
+    # not always 1.0 in floating point, so it is skipped rather than applied.
+    coherent = bool(np.any(rho0[:, ~np.eye(d, dtype=bool)] != 0.0))
     report = dict(escalated=False, resolved=None, certified=None)
 
     if windows is None:
@@ -1314,9 +1396,28 @@ def phase_averaged_probabilities_adiabatic(
     report['windows'] = windows
 
     if not windows:
-        report.update(patches_converged=True, phases_converged=True, n_nodes=0, method='none',
-                      n_terms=1, sigma_sensitivity=0.0)
-        return W0 @ W1.T, report
+        if not coherent or _interference_damped(H_func, dH_dlnE_func, l0, l1, spread,
+                                                dH_dlnE_step=dH_dlnE_step):
+            report.update(patches_converged=True, phases_converged=True, n_nodes=0,
+                          method='none', n_terms=1, sigma_sensitivity=0.0)
+            return W0 @ W1.T, report
+        # No crossing, a coherent start: the closed form, paper Eq. (phase_average_nocross).
+        # One transport from l0 to l1, its phases matched to the eigenbases at both ends; each
+        # term keeps its phase and is damped by the spread of its slope.
+        st = _stretch(H_func, dH_dlnE_func, l0, l1, V0, V1, spread, phase_tol=phase_tol)
+        ph = np.exp(-1j*st['phase'])
+        rot = ph[:, None]*ph.conj()[None, :]
+        dsl = _pair_slopes(st['slope'][:, None] - st['slope'][None, :],
+                           st['phase'][:, None] - st['phase'][None, :], st['scale'], dH_dlnE_step)
+        t2 = (spread*dsl)**2
+        damp = np.exp(-0.5*t2)
+        R = rho0*(rot*damp)[None]
+        P = np.einsum('bi,aij,bj->ab', V1, R, V1.conj()).real
+        dP = np.einsum('bi,aij,bj->ab', V1, R*(-t2)[None], V1.conj()).real
+        report.update(patches_converged=True, phases_converged=bool(st['converged']), n_nodes=0,
+                      method='closed_form', n_terms=int(np.count_nonzero(damp > 0.0)),
+                      sigma_sensitivity=float(np.max(np.abs(dP))))
+        return P, report
 
     # Eigenbases at every window edge: the windows' amplitudes and the stretches' transport
     # are both expressed in these, so they compose whatever phase eigh gave each vector.
@@ -1363,10 +1464,49 @@ def phase_averaged_probabilities_adiabatic(
     span = [float(np.max(s['slope']) - np.min(s['slope'])) for s in stretches]
     reach_after = [D_W + sum(span[j] for j in range(i + 1, len(windows)))
                    for i in range(len(windows))]
-    R0 = np.zeros((len(u), d, d, d), dtype=complex)
-    for a in range(d):
-        R0[:, a] = np.diag(W0[a])[None]
-    terms = {0: (0.0, R0)}
+    reach_all = D_W + sum(span)
+    # Terms are arrays of (nodes, d, d, d); count them by memory as well as by number.  At five
+    # flavors on a uniform grid of 1635 nodes one term is 3.1 MB, and a three-window profile at
+    # 100 MeV exhausted 12 GB before reaching _MAX_TERMS -- with a decohered start, as on main.
+    max_terms = int(min(_MAX_TERMS, max(1, _MAX_TERM_BYTES // (len(u)*d**3*16))))
+
+    def too_many(n_terms: int):
+        if n_terms >= max_terms:
+            raise RuntimeError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_"
+                "adiabatic: more than " + str(max_terms) + " interference terms survive across "
+                + str(len(windows)) + " windows at " + str(d) + " flavors (at most "
+                + str(_MAX_TERMS) + ", and " + format(_MAX_TERM_BYTES/2**30, 'g')
+                + " GiB of them).")
+    lead = None
+    if coherent and not _interference_damped(H_func, dH_dlnE_func, l0, windows[0][0], spread,
+                                             reach=reach_all, dH_dlnE_step=dH_dlnE_step):
+        lead = _stretch(H_func, dH_dlnE_func, l0, windows[0][0], V0, V_b[0], spread,
+                        phase_tol=phase_tol)
+        report['phases_converged'] = report['phases_converged'] and lead['converged']
+    if lead is None:
+        R0 = np.zeros((len(u), d, d, d), dtype=complex)
+        for a in range(d):
+            R0[:, a] = np.diag(W0[a])[None]
+        terms = {0: (0.0, R0)}
+    else:
+        # The coherent start, carried from l0 to the first window: each pair picks up its phase
+        # and its slope, and is dropped if no later stretch can bring it back within reach.
+        ph = np.exp(-1j*lead['phase'])
+        rot = ph[:, None]*ph.conj()[None, :]
+        dsl = _pair_slopes(lead['slope'][:, None] - lead['slope'][None, :],
+                           lead['phase'][:, None] - lead['phase'][None, :], lead['scale'],
+                           dH_dlnE_step)
+        terms = {}
+        for p in range(d):
+            for q in range(d):
+                s0 = 0.0 if p == q else float(dsl[p, q])
+                if spread*(abs(s0) - reach_all) > _PRUNE_Z:
+                    continue
+                kk = int(round(s0*spread*1.0e9)) if spread > 0.0 else 0
+                if kk not in terms:
+                    too_many(len(terms))
+                    terms[kk] = (s0, np.zeros((len(u), d, d, d), dtype=complex))
+                terms[kk][1][:, :, p, q] += (rho0[:, p, q]*rot[p, q])[None]
     for i in range(len(windows)):
         M = Ms[i]
         terms = {key: (s, np.einsum('kij,kajm,klm->kail', M, R, M.conj()))
@@ -1386,11 +1526,7 @@ def phase_averaged_probabilities_adiabatic(
                         continue
                     kk = int(round(snew*spread*1.0e9)) if spread > 0.0 else 0
                     if kk not in new:
-                        if len(new) >= _MAX_TERMS:
-                            raise RuntimeError("Error in magnus: magnus.avgprob."
-                                "phase_averaged_probabilities_adiabatic: more than "
-                                + str(_MAX_TERMS) + " interference terms survive across "
-                                + str(len(windows)) + " windows at " + str(d) + " flavors.")
+                        too_many(len(new))
                         new[kk] = (snew, np.zeros_like(R))
                     new[kk][1][:, :, p, q] += Rr[:, :, p, q]
         terms = new

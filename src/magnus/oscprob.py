@@ -3989,6 +3989,7 @@ def _avg_prob_dispatch(
     smooth_profile: Optional[bool] = True,
     engine_kwargs: Optional[dict] = None,
     average_spread: Optional[float] = None,
+    average_initial_state: Optional[str] = None,
     energy_dependent: Optional[bool] = True
 ):
     r"""Phase-averaged probabilities: in closed form, by adiabatic transport, or over an energy window.
@@ -4070,8 +4071,20 @@ def _avg_prob_dispatch(
             "number, not " + repr(average_spread) + ".")
     spread = float(spread)
     phase_average = bool(energy_dependent)
+    initial = 'flavor' if average_initial_state is None else average_initial_state
+    if not isinstance(initial, str) or initial not in ('flavor', 'decohered'):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "average_initial_state is the state the neutrino starts in and must be 'flavor' or "
+            "'decohered', not " + repr(average_initial_state) + ".")
+    decohered_start = (initial == 'decohered')
 
     sample_numerically = (not htot_is_function_only_of_energy) and (not smooth_profile)
+    if sample_numerically and decohered_start:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "average_initial_state='decohered' is not available on a profile with declared "
+            "discontinuities: there is no instantaneous eigenbasis to decohere in at a jump, and "
+            "this route averages the probability over an energy window starting from the flavor "
+            "state.  Leave average_initial_state at 'flavor' there.")
     if sample_numerically and (engine_kwargs is None):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "needs a Hamiltonian that is either constant along the trajectory or smooth enough "
@@ -4127,7 +4140,12 @@ def _avg_prob_dispatch(
                 * np.abs(np.asarray(L_arr, dtype=float))[:, None, None])
         decohered = np.all(gaps[:, ~np.eye(d, dtype=bool)] > avgprob.DECOHERENCE_PHASE_THRESHOLD,
                            axis=1)
-        if np.any(decohered):
+        if decohered_start:
+            # An incoherent mixture of the eigenstates never interferes: the limit, exactly,
+            # whatever the phases (paper Sec. 4.10.4), with no phase average to compute.
+            P_out[:] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors)
+            decohered[:] = True
+        elif np.any(decohered):
             P_out[decohered] = avgprob.averaged_probabilities_from_eigenbasis(
                 eigenvectors[decohered])
         for i in np.flatnonzero(~decohered):
@@ -4135,7 +4153,7 @@ def _avg_prob_dispatch(
             if undecided and not phase_average: undecided_points += 1
             P_out[i] = avgprob.averaged_probabilities_from_eigenbasis(eigenvectors[i],
                 blocks=blocks)
-        if phase_average:
+        if phase_average and not decohered_start:
             # The derivative in ln E by a central difference: two more Hamiltonians per energy
             # and no eigendecomposition, the slopes coming from Hellmann-Feynman.
             D = np.array([(np.asarray(htot(float(enu)*np.exp(h)), dtype=complex)
@@ -4198,30 +4216,45 @@ def _avg_prob_dispatch(
             def H_of_l(l, enu=enu):
                 return htot(enu, l)
 
+            # With the phase average, the coherence report of the limit is never read: skip its
+            # phase integrals, about 0.2 ms an energy, which is what the guard below costs.
             P_out[i], report = avgprob.averaged_probabilities_adiabatic(H_of_l, float(L0),
-                float(L_arr[i]))
+                float(L_arr[i]), _coherence=not phase_average)
             if (report['undecided'] or report['undecided_between_crossings']) and not phase_average:
                 undecided_points += 1
             if report.get('resolved') is False:
                 unresolved_points += 1
             elif (not report['patches_converged']) or report.get('certified') is False:
                 uncertified_points += 1
-            if phase_average and report['windows']:
-                # Without a window a decohered start, carried adiabatically, has no interference
-                # to keep: the value above is already the phase average.  With one, recompute.
-                def D_of_l(l, enu=enu):
-                    return (np.asarray(htot(enu*np.exp(h), l), dtype=complex)
-                            - np.asarray(htot(enu*np.exp(-h), l), dtype=complex))/(2.0*h)
-                try:
-                    P_new, pa_report = avgprob.phase_averaged_probabilities_adiabatic(H_of_l, D_of_l,
-                        float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h,
-                        patch_atol=tol, phase_tol=tol)
-                except RuntimeError:
-                    unaveraged_points += 1
-                    continue
-                keep_or_replace(i, P_new, pa_report['sigma_sensitivity'])
-                if not (pa_report['patches_converged'] and pa_report['phases_converged']):
-                    uncertified_points += 1
+            if not phase_average:
+                continue
+
+            def D_of_l(l, enu=enu):
+                return (np.asarray(htot(enu*np.exp(h), l), dtype=complex)
+                        - np.asarray(htot(enu*np.exp(-h), l), dtype=complex))/(2.0*h)
+            # Without a window, a decohered start carried adiabatically has no interference to
+            # keep: the value above is already the phase average.  A start in flavor has, unless
+            # every term is damped from production on, as for a neutrino produced in the solar
+            # core; that is checked on a few points before paying for the transport (issue #73).
+            if not report['windows'] and (decohered_start or avgprob._interference_damped(
+                    H_of_l, D_of_l, float(L0), float(L_arr[i]), spread, dH_dlnE_step=h)):
+                continue
+            rho0 = None
+            if decohered_start:
+                _, V0 = np.linalg.eigh(np.asarray(H_of_l(float(L0)), dtype=complex))
+                W0 = V0.real**2 + V0.imag**2
+                rho0 = np.zeros((d, d, d), dtype=complex)
+                rho0[:, np.arange(d), np.arange(d)] = W0
+            try:
+                P_new, pa_report = avgprob.phase_averaged_probabilities_adiabatic(H_of_l, D_of_l,
+                    float(L0), float(L_arr[i]), spread=spread, dH_dlnE_step=h,
+                    patch_atol=tol, phase_tol=tol, rho0=rho0)
+            except RuntimeError:
+                unaveraged_points += 1
+                continue
+            keep_or_replace(i, P_new, pa_report['sigma_sensitivity'])
+            if not (pa_report['patches_converged'] and pa_report['phases_converged']):
+                uncertified_points += 1
 
     if unresolved_points > 0:
         # Issue #60.  The profile has a feature narrower than the averaging engine's probe
@@ -6734,6 +6767,7 @@ def osc_prob_energy_baseline(
     return_evolution_operator: Optional[bool]=False,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     **kwargs
 ) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -6922,6 +6956,18 @@ def osc_prob_energy_baseline(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -7061,7 +7107,8 @@ def osc_prob_energy_baseline(
         engine.pop('return_evolution_operator', None)
         return _avg_prob_dispatch(htot, only_energy, energy_in, L_in, L0, nu_i, nu_f, True,
             'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine,
-            average_spread=average_spread, energy_dependent=energy_dependent)
+            average_spread=average_spread,
+            average_initial_state=average_initial_state, energy_dependent=energy_dependent)
 
     if callable(H_first):
         osc_prob_kwargs['A_eval_mode'] = magnus.probe_eval_mode(
@@ -7702,6 +7749,7 @@ def osc_prob_vacuum(
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     strategy_info: Optional[Dict]=None,
     nubar: Optional[bool]=False, 
     nu_i: Optional[int]=None, 
@@ -7765,6 +7813,18 @@ def osc_prob_vacuum(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -7950,7 +8010,8 @@ def osc_prob_vacuum(
                 verbose=verbose, return_evolution_operator=True, **kwargs)
 
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0,
-            nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread)
+            nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread,
+            average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -7994,6 +8055,7 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -8095,6 +8157,18 @@ def osc_prob_matter_std_potential(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'.
@@ -8464,7 +8538,8 @@ def osc_prob_matter_std_potential(
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
-            average_spread=average_spread)
+            average_spread=average_spread,
+            average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -8590,6 +8665,7 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -8698,6 +8774,18 @@ def osc_prob_matter_nsi(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -9038,7 +9126,8 @@ def osc_prob_matter_nsi(
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
-            average_spread=average_spread)
+            average_spread=average_spread,
+            average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -9111,6 +9200,7 @@ def osc_prob_liv(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
     return_evolution_operator: Optional[bool]=False,
@@ -9217,6 +9307,18 @@ def osc_prob_liv(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -9558,7 +9660,8 @@ def osc_prob_liv(
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
-            average_spread=average_spread)
+            average_spread=average_spread,
+            average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -13203,6 +13306,7 @@ def osc_prob_earth(
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
     r"""Compute and return the neutrino oscillation probability inside
@@ -13370,6 +13474,18 @@ def osc_prob_earth(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -13476,6 +13592,7 @@ def osc_prob_earth(
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info, average=average,
         average_spread=average_spread,
+            average_initial_state=average_initial_state,
         symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
 
@@ -13502,6 +13619,7 @@ def _osc_prob_with_potential(
     return_evolution_operator: Optional[bool] = False,
     average: Optional[bool] = False,
     average_spread: Optional[float] = None,
+    average_initial_state: Optional[str] = None,
     **kwargs
 ) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Common machinery of :func:`osc_prob_earth` and
@@ -13598,6 +13716,18 @@ def _osc_prob_with_potential(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -13687,7 +13817,8 @@ def _osc_prob_with_potential(
                 n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
                 validate_input=validate_input, verbose=verbose, cumulative=cumulative,
                 symmetric_over=symmetric_over, kwargs=kwargs),
-            average_spread=average_spread)
+            average_spread=average_spread,
+            average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
 
@@ -14702,6 +14833,7 @@ def osc_prob_sun(
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_initial_state: Optional[str]=None,
     density_profile: Optional[str]='exp',
     stop_at_table_edge: Optional[bool]=False,
     **kwargs
@@ -14807,6 +14939,18 @@ def osc_prob_sun(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
+        :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
+        incoherent mixture of the eigenstates at the start of the path, with weights
+        :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
+        e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
+        from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
+        available on a profile with declared discontinuities, whose average starts in flavor.
+        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+
+        .. versionadded:: 1.1.1
     density_profile : str, optional
         The Sun's electron density, which sets the ``VCC`` passed to ``H_func``.  ``'exp'``,
         the default, is the exponential fit described above.  The name of a standard solar
@@ -14887,7 +15031,8 @@ def osc_prob_sun(
     P = _osc_prob_with_potential(source_func_name, H_func, VCC_func, energy, L, L0, nu_i,
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
-        average=average, average_spread=average_spread, **kwargs)
+        average=average, average_spread=average_spread,
+            average_initial_state=average_initial_state, **kwargs)
     return _refuse_past_table_edge(P, _beyond)
 
 
