@@ -295,8 +295,7 @@ import numpy as np
 import sys
 import warnings
 import weakref
-import contextlib
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
 from io import TextIOWrapper
@@ -493,40 +492,10 @@ Here an energy is refused only for its own norm, which ``magnus._expm_stack`` al
 for :class:`magnus.magnus.MagnusConvergenceWarning`, which is unchanged.
 
 **Why only** ``'gl'``. On ``'trapezoid'`` and ``'simpson'`` the same test flags far more correct
-energies than wrong ones; their chance agreements on breakpoint grids are warned about instead
-(``BATCHED_JUMP_WARN_RATIO``).
+energies than wrong ones, so they are left as they were.
 
 **Why not at the slab cap.** There the ladder can no longer add slabs, so a refusal would only
 repeat the level; the engine keeps its previous behavior at the cap and on its last level.
-
-.. versionadded:: 1.1.1
-"""
-
-
-BATCHED_JUMP_WARN_RATIO = 50.0
-r"""float: Module-level constant
-
-On a grid with breakpoints, ``'trapezoid'`` and ``'simpson'`` in the energy-batched engine warn
-(:class:`ToleranceNotAchievedWarning`) about an energy accepted on two levels that agree when
-the two before them differed by more than this many times the tolerance, and the accepted pair
-still differs by more than ``BATCHED_JUMP_WARN_AGREE`` of it.  A ladder that jumps from far off
-to barely inside the tolerance in one level has more likely met a chance agreement than
-converged (issue #71).
-
-Over the #71 measurement pool, of the 33 energies these rules returned outside the tolerance on
-breakpoint grids without a warning, it flags 20, against 15 energies within tolerance (7 scans
-of 427 warned without a miss).  It changes no level, work or probability.  On smooth profiles
-the same test caught 1 of 10 and is not applied there.
-
-.. versionadded:: 1.1.1
-"""
-
-
-BATCHED_JUMP_WARN_AGREE = 0.3
-r"""float: Module-level constant
-
-Fraction of the tolerance that the accepted pair must still differ by for
-``BATCHED_JUMP_WARN_RATIO`` to warn.
 
 .. versionadded:: 1.1.1
 """
@@ -5074,11 +5043,6 @@ def _osc_prob_scan_separable(
     # ladder can still add slabs (BATCHED_GL_MAX_SLAB_NORM); the norms come from the
     # exponentials this level computes anyway (magnus._row_slab_norms).
     gl_gate = tol_requested and (integration_method == 'gl') and (growth_factor_n_slabs > 1.0)
-    # The quadrature rules on breakpoint grids warn about an agreement reached in one jump
-    # from far off (BATCHED_JUMP_WARN_RATIO); per energy, whether its last gap was such a jump.
-    jump_warn = tol_requested and (integration_method != 'gl') and bool(bp_in.size)
-    jumped = np.zeros(nE, bool) if jump_warn else None
-    warned_jump = False
 
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
@@ -5127,7 +5091,7 @@ def _osc_prob_scan_separable(
         # see its own definition for what it was tuned against.
         chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
-        with (magnus._row_slab_norms() if gl_gate else contextlib.nullcontext()) as row_norms:
+        with (magnus._row_slab_norms() if gl_gate else nullcontext()) as row_norms:
             for i0 in range(0, len(active), chunk):
                 sel = active[i0:i0+chunk]
                 At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
@@ -5143,9 +5107,8 @@ def _osc_prob_scan_separable(
 
         prev = P_prev[active]
         have_prev = ~np.isnan(prev[:, 0, 0])
-        gap = np.abs(P_new - prev)
-        lim = atol + rtol*np.abs(prev)
-        conv = have_prev & np.all(gap <= lim, axis=(-1, -2))
+        conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
+                                  axis=(-1, -2))
         if bp_in.size:
             # As in osc_prob: two grids that differ by a few breakpoint-dominated percent agree
             # without having converged, so their agreement does not count.
@@ -5159,18 +5122,6 @@ def _osc_prob_scan_separable(
             norms = row_norms[0] if len(row_norms) == 1 else np.concatenate(row_norms)
             if norms.shape == conv.shape:
                 conv &= norms < BATCHED_GL_MAX_SLAB_NORM
-        if jump_warn and not warned_jump:
-            hit = conv & jumped[active]
-            if hit.any() and np.any(
-                    gap[hit] > BATCHED_JUMP_WARN_AGREE*lim[hit]):
-                warnings.warn("osc_prob (energy-batched scan): some energies were accepted on "
-                    "two levels that agreed right after the ladder was still far from "
-                    "converged, which on a grid with breakpoints is more often a chance "
-                    "agreement than convergence; the returned probabilities may be outside "
-                    "the tolerance. Tighten rtol/atol, or use integration_method='gl'.",
-                    ToleranceNotAchievedWarning, stacklevel=2)
-                warned_jump = True
-            jumped[active] = np.any(gap > BATCHED_JUMP_WARN_RATIO*lim, axis=(-1, -2))
         if (conv.any() and (growth_factor_n_slabs > 1.0) and (n_slabs >= max_n_slabs)
                 and (n_slabs_prev_level == n_slabs) and not warned_at_slab_cap):
             # Pinned at the slab cap, this level refined only the points per slab.  Agreeing with
