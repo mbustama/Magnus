@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Energy scans accept a density function that returns a single number, or that takes
+  one position at a time** (issue #113).  The scenario functions (e.g.
+  `osc_prob_matter_std_potential`) crashed on an array of energies when given
+  `rho_func = lambda l: 3.0*UNIT_G_PER_CM3` (IndexError) or a function using `float(l)`
+  (TypeError), though both worked energy by energy.  The batched engine now broadcasts
+  the first kind, which stays batched, and declines the second to the per-point path.
+  The check reuses the samples the engine already takes, so vectorized densities pay
+  nothing.
+
 - **Energy-batched scans with eV-scale sterile splittings no longer lose to one call
   per energy** (issue #111).  The batched engine sized its one shared slab grid for the
   fastest-oscillating energy, so with ~1e4 rad of phase varying as 1/E across a scan it

@@ -386,6 +386,8 @@ TREE = [
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
     ('tests/test_phase_average.py', 'The phase average over an energy spread (issue #64)'),
     ('tests/test_phase_groups.py', 'Batched scans split into groups of similar phase (issue #111)'),
+    ('tests/test_scan_potential_forms.py',
+     'Energy scans with scalar-valued or scalar-only density functions (issue #113)'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
     ('tests/test_pseudodirac.py',
      'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),

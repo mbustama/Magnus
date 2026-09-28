@@ -5130,14 +5130,24 @@ def _osc_prob_scan_separable(
 
     Returns
     -------
-    np.ndarray
-        Stacked probability matrices, shape (nE, d, d).
+    np.ndarray or None
+        Stacked probability matrices, shape (nE, d, d); None when ``VCC_func`` cannot be
+        evaluated on an array of positions, for the caller to decline to the per-point path.
     """
     # None means 'use the cap appropriate to this integration method'
     # (see MAX_N_SLABS_DEFAULT); an explicit value always wins.
     max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     nE, dim = H_E.shape[0], H_E.shape[-1]
     tol_requested = ((rtol is not None) and (atol is not None))
+    if not tol_requested:
+        # The seed's samples below check VCC_func under a tolerance; without one, the ladder
+        # samples it directly, so it is checked here on two positions (issue #113).
+        try:
+            v = np.asarray(VCC_func(np.array([L0, L_val])))
+        except Exception:
+            return None
+        if v.ndim == 0:
+            VCC_func = _vectorized_potential(VCC_func)
 
     s_nodes = None
     if integration_method == 'gl':
@@ -5156,7 +5166,15 @@ def _osc_prob_scan_separable(
         # over the energies of the scan.  The quadrature rules take it only when it is at least
         # QUADRATURE_SEED_MIN_SLABS (see there); n_tpts_per_slab still starts at its minimum.
         ts = np.linspace(L0, L_val, 17)
-        V17 = np.asarray(VCC_func(ts))
+        # These samples double as the check that VCC_func takes an array of positions
+        # (issue #113); see _vectorized_potential.
+        try:
+            V17 = np.asarray(VCC_func(ts))
+        except Exception:
+            return None
+        if V17.ndim == 0:
+            VCC_func = _vectorized_potential(VCC_func)
+            V17 = np.broadcast_to(V17, ts.shape)
         if callable(h_matt):
             # Same trapezoid, on samples of the full matter matrix M(l) = VCC(l)*P(l):
             # with a position-resolved projector the integral no longer factorizes into
@@ -5411,6 +5429,21 @@ def _osc_prob_scan_separable_ladder(
                        (_n_grid_points(L0, L_val, n_slabs, bp_in) < target)):
                     n_slabs += 1
         loop_count += 1
+
+
+def _vectorized_potential(VCC_func: Callable) -> Callable:
+    r"""``VCC_func`` broadcast to the shape of the positions it is given.
+
+    A potential written as ``lambda l: 3.0*UNIT_G_PER_CM3`` returns one number for an
+    array of positions.  The per-point path accepts it, but the energy-batched engine
+    indexes its samples, and crashed on it (issue #113).  Wrapped only when the engine's
+    own samples come back 0-dimensional, so a vectorized potential pays nothing.
+
+    .. versionadded:: 1.1.1
+    """
+    def vcc(l):
+        return np.broadcast_to(np.asarray(VCC_func(l)), np.shape(l))
+    return vcc
 
 
 def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol: float):
@@ -5834,6 +5867,10 @@ def _osc_prob_scan_separable_dispatch(
             scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
             scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
             scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
+        if P is None:
+            # The potential takes one position at a time; the per-point path evaluates it
+            # that way (issue #113).
+            return NotImplemented
 
     _note_engine(engine)
     if (nu_i is not None) and (nu_f is not None):
