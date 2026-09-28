@@ -291,6 +291,7 @@ __author__ = 'Mauricio Bustamante'
 
 
 import functools
+import math
 import numpy as np
 import sys
 import warnings
@@ -633,9 +634,12 @@ any grid: groups below the cap would only add levels to a call that cannot conve
 
 **Its own cost.**  The dynamic program is quadratic in the number of distinct seeds:
 0.05 ms at 4 energies, 0.23 ms at 40, 2.3 ms at 200 -- at most about 2 % of a scan it can
-fire on -- and is skipped by a one-line lower bound (every energy on its own seed at no
-overhead) when even that would not reach the margin.  Scans the model leaves alone pay
-that bound only: a few array operations over the seeds.
+fire on -- and is skipped by two lower bounds when even they would not reach the margin.
+The first is in scalars (one grid at the largest seed's levels against the fixed cost of
+the four levels a split runs at least) and stops most two- and three-flavor scans in about
+2 us; the second (every energy on its own seed, plus those four levels) takes some 25 us
+over the seeds.  Before the first was added, a 100-energy two-flavor Earth scan paid
+0.18 ms for the dynamic program, 10 % of its 1.9 ms.
 
 .. versionadded:: 1.1.1
 """
@@ -5420,10 +5424,23 @@ def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol
     margin = cost['margin']
     g = growth_factor_n_slabs
     B, p, q = cost['resolution']
+    if not (g > 1.0):
+        # Without growth the ladder never refines the slab count, so no grid is cheaper.
+        return None
+    log_g = math.log(g)
+    # A bound in scalars first: every energy is accepted by the level the largest seed needs,
+    # so one grid costs at most this, and a split at least the fixed cost of four levels.
+    # Scans the model leaves alone, most of all at two and three flavors, where the fixed
+    # cost dominates, stop here without touching the seeds.
+    smax = float(seeds.max())
+    lev_top = max(1.0, math.ceil(math.log(max(g*smax, B*smax**p*(1.0e-8/tol)**q)/smax)/log_g
+                                 - 1.0e-9))
+    if (smax*(seeds.shape[0] + k)*(g**(lev_top + 1.0) - 1.0)/(g - 1.0)
+            + F*(lev_top + 1.0)) < 4.0*F*margin:
+        return None
     # The slab count each energy is expected to be accepted at: the ladder's second level
     # at least, and what the profile needs at this tolerance.
     R = np.maximum(g*seeds, B*seeds**p*(1.0e-8/tol)**q)
-    log_g = np.log(g)
 
     def levels(S, R_):
         # Levels beyond the first that a grid seeded at S runs until it reaches R_ (>= 1).
@@ -5433,13 +5450,13 @@ def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol
         # Slabs of all levels up to lev, in units of the first level's.
         return (g**(lev + 1.0) - 1.0)/(g - 1.0)
 
-    smax = seeds.max()
     lev = levels(smax, R)
     one = smax*(geom(lev).sum() + k*geom(lev.max())) + F*(lev.max() + 1.0)
-    # No split can beat every energy on its own seed with no overhead at all, so when even
-    # that is not worth the margin, nothing below is run: this is all a scan the model
-    # leaves alone pays.
-    if (seeds*geom(levels(seeds, R))).sum()*margin > one:
+    # No split can beat every energy on its own seed plus the fixed cost of the fewest levels
+    # a split can run -- two groups of at least two levels each, since a split returned below
+    # always has two groups or more -- so when even that is not worth the margin, nothing
+    # below is run: this is all a scan the model leaves alone pays.
+    if ((seeds*geom(levels(seeds, R))).sum() + 4.0*F)*margin > one:
         return None
     S, counts = np.unique(seeds, return_counts=True)             # ascending
     M = S.shape[0]
