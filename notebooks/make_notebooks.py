@@ -6286,7 +6286,7 @@ procedure) behind everything demonstrated in this notebook.'''),
 # ------------------------------------------- 13_magnus_tabulated_solar_model
 books['13_magnus_tabulated_solar_model.ipynb'] = notebook(
     'Tabulated solar models: are you computing the observable?',
-    "Mag$\\nu$s ships twelve standard solar models, from BP2000 to the B23 series, and the Sun\nwrappers take any of them by name through `density_profile`; the default is an exponential\nfit. This notebook works with one of them, **BS2005-AGS,OP** (Bahcall, Serenelli & Basu,\nApJ 621, L85), and uses it to separate two quantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer sits several $10^{-3}$ from the averaged limit and\ndrifts by $2\\times10^{-3}$ depending on how wide a window you pick, because widening the window\nalso averages over a changing density. The estimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase average -- on this ray, which\nhas no non-adiabatic window, the decohered limit -- with no scan, and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.\n\n**Section 7 compares all twelve models** on the averaged observable. Its numbers are stored in\n`solar_models_cache.json` and read back on every rebuild, so continuous integration does not\nrecompute them.",
+    "Mag$\\nu$s ships twelve standard solar models, from BP2000 to the B23 series, and the Sun\nwrappers take any of them by name through `density_profile`; the default is an exponential\nfit. This notebook works with one of them, **BS2005-AGS,OP** (Bahcall, Serenelli & Basu,\nApJ 621, L85), and uses it to separate two quantities that are easy to confuse:\n\n* the **instantaneous** probability at one baseline, which is what `osc_prob_*` returns;\n* the **phase-averaged** probability, which is what a solar-neutrino experiment measures.\n\nThey are different quantities, not two estimates of one quantity, and the notebook's\nheadline is about how you get the second.\n\n**The tempting route does not work.** Averaging a scan of instantaneous probabilities over a\nwindow of several oscillation lengths looks like the obvious way to reach the observable. On\na solar trajectory it is not: the answer sits several $10^{-3}$ from the averaged limit and\ndrifts by $2\\times10^{-3}$ depending on how wide a window you pick, because widening the window\nalso averages over a changing density. The estimator has no converged value to offer.\n\n**The direct route is exact.** `average=True` evaluates the phase average with no scan. Started\ndecohered, `average_initial_state='decohered'`, on this ray, which has no non-adiabatic window, it is\nthe decohered limit, and it reproduces the textbook adiabatic MSW\nexpression to **machine precision, 3e-16, across 1--20 MeV**, checked against a formula that\nowes nothing to Mag$\\nu$s. From the default flavor start it keeps the interference present at\nproduction, which on this short ray from the centre survives at the top of that range.\n\nThe notebook also shows the diagnostics: `strategy_info['sampling']` for how coarsely a scan\nresolves the oscillation it is sampling, and `avgprob.coherence_report` for whether the\naveraged limit applies at all.\n\n**Section 7 compares all twelve models** on the averaged observable. Its numbers are stored in\n`solar_models_cache.json` and read back on every rebuild, so continuous integration does not\nrecompute them.",
     [
     code(r'''import os
 import time
@@ -6544,8 +6544,9 @@ statistical.
 
 ### The averaged probability, computed rather than estimated
 
-`average=True` evaluates the phase average -- on this ray, which has no non-adiabatic window,
-the decohered limit -- with no scan and no window. And it can be checked against something
+`average=True` evaluates the phase average with no scan and no window. Started decohered
+(`average_initial_state='decohered'`), on this ray, which has no non-adiabatic window, it is the
+decohered limit. And that can be checked against something
 outside Mag$\nu$s entirely: for two
 flavors on an adiabatic trajectory the averaged survival probability is the textbook MSW
 expression
@@ -6577,7 +6578,8 @@ for E_mev in (1.0, 2.0, 5.0, 8.0, 10.0, 15.0, 20.0):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         got = np.asarray(oscprob.osc_prob_2nu_sun(
-            E_here, L1, L0, **params2, density_profile=MODEL, average=True))[0][0]
+            E_here, L1, L0, **params2, density_profile=MODEL, average=True,
+            average_initial_state='decohered'))[0][0]   # the textbook formula is this limit
     want = adiabatic_averaged(E_here)
     worst = max(worst, abs(got - want))
     print('%-10.1f %-16.8f %-16.8f %.2e' % (E_mev, got, want, abs(got - want)))
