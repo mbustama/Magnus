@@ -30,6 +30,20 @@
    "numexpr_num_threads": null,
    "omp_num_threads": null,
    "openblas_num_threads": null
+  },
+  "retimed_tolerance_series": {
+   "date": "2026-09-28",
+   "why": "the breakpoint-grid fix of the batched engine (#71: fe385c9, #94, #105) moved these points; re-timed on the paper's laptop",
+   "magnus_commit": "bd9f9d7",
+   "driver": "notebooks/gen_prem_plane_magnus.py, which reproduces all 16 stored errors of the tolerance series at 6751a8c",
+   "protocol": "manifest.json AMORTIZED (25-step delta_CP scan), 0.25 s blocks, 30 to 100 blocks",
+   "worst_block_cv": 0.0172,
+   "load_average_at_start": [
+    0.7802734375,
+    0.69921875,
+    0.72216796875
+   ],
+   "untouched": "the slab-count series, which the fix cannot move, as measured on 2026-09-02"
   }
  },
  "_note": "Speed-accuracy comparison through the Earth on the PREM profile at cos(theta_z) = -0.9, channel P(nu_mu -> nu_mu). Accuracy is max |P - P_ref| over twelve energies against a second-order Richardson extrapolation, (4*P(256)-P(128))/3, of a 30-digit mpmath slab product; that referee is itself checked against an adaptive DOP853 integration of the continuous profile. The y-axis is therefore error against a CONVERGED PREM solution, not an exact one, and each code sits where its treatment of the profile puts it rather than where the accuracy of its probability formula would. Every code is judged in its own conventions; for nuCraft at 3+1 that means a referee built with its own sterile-to-CC potential ratio, 0.5016059 (reference_nucraft), so its curve measures its solver and the 0.32% inconsistency of that ratio is reported in the caption instead. See the module docstring of tests/prem_scan.py for every convention matched.",
@@ -599,98 +613,98 @@
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0288,
+      "block_cv": 0.0141,
       "knob": -1,
       "label": "1e-01",
-      "max_abs_error": 0.0031683,
+      "max_abs_error": 0.00036824,
       "n_slabs": null,
       "rtol": 0.1,
-      "us_per_probability": 282.7356,
-      "us_sd": 8.1518
+      "us_per_probability": 173.3793,
+      "us_sd": 2.4404
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0205,
+      "block_cv": 0.0134,
       "knob": -2,
       "label": "1e-02",
-      "max_abs_error": 0.0031683,
+      "max_abs_error": 7.3973e-05,
       "n_slabs": null,
       "rtol": 0.01,
-      "us_per_probability": 319.9022,
-      "us_sd": 6.5535
+      "us_per_probability": 208.8844,
+      "us_sd": 2.8008
      },
      {
       "at_reference_floor": false,
-      "best_at_this_accuracy": true,
-      "block_cv": 0.0045,
+      "best_at_this_accuracy": false,
+      "block_cv": 0.0109,
       "knob": -3,
       "label": "1e-03",
       "max_abs_error": 7.3973e-05,
       "n_slabs": null,
       "rtol": 0.001,
-      "us_per_probability": 415.7631,
-      "us_sd": 1.8876
+      "us_per_probability": 223.4563,
+      "us_sd": 2.4258
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0174,
+      "block_cv": 0.0087,
       "knob": -4,
       "label": "1e-04",
       "max_abs_error": 1.8792e-06,
       "n_slabs": null,
       "rtol": 0.0001,
-      "us_per_probability": 611.2884,
-      "us_sd": 10.6215
+      "us_per_probability": 320.5249,
+      "us_sd": 2.7862
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0123,
+      "block_cv": 0.009,
       "knob": -6,
       "label": "1e-06",
       "max_abs_error": 6.5389e-08,
       "n_slabs": null,
       "rtol": 1e-06,
-      "us_per_probability": 1520.4258,
-      "us_sd": 18.6759
+      "us_per_probability": 666.6215,
+      "us_sd": 6.0159
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0379,
+      "block_cv": 0.0104,
       "knob": -8,
       "label": "1e-08",
-      "max_abs_error": 4.1696e-10,
+      "max_abs_error": 4.1704e-10,
       "n_slabs": null,
       "rtol": 1e-08,
-      "us_per_probability": 4350.623,
-      "us_sd": 164.9143
+      "us_per_probability": 1836.9915,
+      "us_sd": 19.121
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0253,
+      "block_cv": 0.0076,
       "knob": -10,
       "label": "1e-10",
-      "max_abs_error": 7.9367e-12,
+      "max_abs_error": 8.3477e-12,
       "n_slabs": null,
       "rtol": 1e-10,
-      "us_per_probability": 14002.6316,
-      "us_sd": 353.6156
+      "us_per_probability": 5086.2825,
+      "us_sd": 38.5955
      },
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
-      "block_cv": 0.0481,
+      "block_cv": 0.0035,
       "knob": -12,
       "label": "1e-12",
-      "max_abs_error": 8.1471e-12,
+      "max_abs_error": 5.7294e-12,
       "n_slabs": null,
       "rtol": 1e-12,
-      "us_per_probability": 65162.606,
-      "us_sd": 3131.6388
+      "us_per_probability": 15359.9493,
+      "us_sd": 53.2361
      }
     ]
    }

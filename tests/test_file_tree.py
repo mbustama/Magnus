@@ -261,6 +261,8 @@ TREE = [
      'GENERATES external_prem_chord_benchmarks.json -- the Earth analogue of Fig. 11'),
     ('notebooks/external_prem_chord_benchmarks.json',
      'That file: both codes on one requested tolerance, Earth chord, 2-5 flavors'),
+    ('notebooks/gen_prem_plane_magnus.py',
+     'RE-TIMES the Magnus series of the two Earth speed-accuracy planes through the harness'),
     ('notebooks/append_npe_rtol_series.py',
      'ADDS a tolerance-dialled NuOscProbExact series to the smooth-profile file'),
     ('notebooks/append_npe_rtol_prem.py',

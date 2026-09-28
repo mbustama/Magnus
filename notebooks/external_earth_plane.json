@@ -30,6 +30,20 @@
    "numexpr_num_threads": null,
    "omp_num_threads": null,
    "openblas_num_threads": null
+  },
+  "retimed_tolerance_series": {
+   "date": "2026-09-28",
+   "why": "the breakpoint-grid fix of the batched engine (#71: fe385c9, #94, #105) moved these points; re-timed on the paper's laptop",
+   "magnus_commit": "bd9f9d7",
+   "driver": "notebooks/gen_prem_plane_magnus.py, which reproduces all 16 stored errors of the tolerance series at 6751a8c",
+   "protocol": "manifest.json AMORTIZED (25-step delta_CP scan), 0.25 s blocks, 30 to 100 blocks",
+   "worst_block_cv": 0.0172,
+   "load_average_at_start": [
+    0.7802734375,
+    0.69921875,
+    0.72216796875
+   ],
+   "untouched": "the slab-count series, which the fix cannot move, as measured on 2026-09-02"
   }
  },
  "_note": "PREM, cos(theta_z) = -0.9, E = 3-40 GeV, three flavors, nu_mu row. Regenerated from measured artifacts by tests/bench/emit_figures.py. Every point pairs a timed measurement with the accuracy the SAME setting reached against that code's own 50-digit reference, in that code's own conventions, on the continuous PREM.",
@@ -1122,98 +1136,98 @@
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0213,
+     "block_cv": 0.0098,
      "knob": -1,
      "label": "1e-01",
-     "max_abs_error": 0.0013104,
+     "max_abs_error": 3.8154e-05,
      "n_slabs": null,
      "rtol": 0.1,
-     "us_per_probability": 113.8224,
-     "us_sd": 2.4287
+     "us_per_probability": 72.2145,
+     "us_sd": 0.7083
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0761,
+     "block_cv": 0.014,
      "knob": -2,
      "label": "1e-02",
-     "max_abs_error": 0.0012113,
+     "max_abs_error": 2.0472e-06,
      "n_slabs": null,
      "rtol": 0.01,
-     "us_per_probability": 155.5218,
-     "us_sd": 11.8394
+     "us_per_probability": 96.1225,
+     "us_sd": 1.3456
     },
     {
      "at_reference_floor": false,
-     "best_at_this_accuracy": true,
-     "block_cv": 0.0349,
+     "best_at_this_accuracy": false,
+     "block_cv": 0.0117,
      "knob": -3,
      "label": "1e-03",
-     "max_abs_error": 3.1107e-05,
+     "max_abs_error": 2.0472e-06,
      "n_slabs": null,
      "rtol": 0.001,
-     "us_per_probability": 225.5716,
-     "us_sd": 7.8771
+     "us_per_probability": 99.4946,
+     "us_sd": 1.1644
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0057,
+     "block_cv": 0.0134,
      "knob": -4,
      "label": "1e-04",
-     "max_abs_error": 5.8532e-06,
+     "max_abs_error": 1.6677e-06,
      "n_slabs": null,
      "rtol": 0.0001,
-     "us_per_probability": 315.6043,
-     "us_sd": 1.8039
+     "us_per_probability": 117.1202,
+     "us_sd": 1.5716
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0081,
+     "block_cv": 0.0116,
      "knob": -6,
      "label": "1e-06",
-     "max_abs_error": 4.0065e-08,
+     "max_abs_error": 6.5691e-08,
      "n_slabs": null,
      "rtol": 1e-06,
-     "us_per_probability": 556.5267,
-     "us_sd": 4.5111
+     "us_per_probability": 175.5008,
+     "us_sd": 2.0435
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0371,
+     "block_cv": 0.0126,
      "knob": -8,
      "label": "1e-08",
-     "max_abs_error": 3.1825e-10,
+     "max_abs_error": 5.4523e-10,
      "n_slabs": null,
      "rtol": 1e-08,
-     "us_per_probability": 1205.0396,
-     "us_sd": 44.6621
+     "us_per_probability": 332.4569,
+     "us_sd": 4.1951
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0262,
+     "block_cv": 0.0172,
      "knob": -10,
      "label": "1e-10",
-     "max_abs_error": 3.6153e-12,
+     "max_abs_error": 4.3011e-12,
      "n_slabs": null,
      "rtol": 1e-10,
-     "us_per_probability": 2950.4121,
-     "us_sd": 77.225
+     "us_per_probability": 892.7608,
+     "us_sd": 15.3367
     },
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
-     "block_cv": 0.0087,
+     "block_cv": 0.0107,
      "knob": -12,
      "label": "1e-12",
-     "max_abs_error": 3.8913e-14,
+     "max_abs_error": 3.3307e-14,
      "n_slabs": null,
      "rtol": 1e-12,
-     "us_per_probability": 10121.0825,
-     "us_sd": 87.9522
+     "us_per_probability": 2118.337,
+     "us_sd": 22.7508
     }
    ]
   }

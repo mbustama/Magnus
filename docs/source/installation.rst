@@ -299,6 +299,7 @@ File Tree
    │   ├── prem_chord_reference.json   # That reference; PARTIAL, 4nu stops at 6 of 12 energies and 5nu is unstarted
    │   ├── gen_prem_benchmarks.py      # GENERATES external_prem_chord_benchmarks.json -- the Earth analogue of Fig. 11
    │   ├── external_prem_chord_benchmarks.json  # That file: both codes on one requested tolerance, Earth chord, 2-5 flavors
+   │   ├── gen_prem_plane_magnus.py    # RE-TIMES the Magnus series of the two Earth speed-accuracy planes through the harness
    │   ├── append_npe_rtol_series.py   # ADDS a tolerance-dialled NuOscProbExact series to the smooth-profile file
    │   ├── append_npe_rtol_prem.py     # The same for the Earth chord, via earth_slabs and the librarys own refinement
    │   ├── gen_shock_benchmarks.py     # GENERATES external_shock_benchmarks.json -- runs notebook 14s own cells
