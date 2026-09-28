@@ -410,6 +410,8 @@ TREE = [
      "Each module's Routine listings names every public function it defines"),
     ('tests/test_separable_breakpoints.py',
      'The energy-batched engine on grids with breakpoints: real refinement only (issue #71)'),
+    ('tests/test_separable_gl_gate.py',
+     "The energy-batched 'gl' ladder refuses an agreement while an energy's slabs are wide (issue #71)"),
     ('tests/test_separable_slab_cap.py',
      'The energy-batched engine at its slab cap: an agreement there warns (issue #71)'),
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),

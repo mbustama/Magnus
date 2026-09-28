@@ -483,7 +483,24 @@ tolerance, 78 had.  Refusing those acceptances took the 27 to zero, added none, 
 of the total work of the 159 ``'gl'`` scans.  Twelve scans do more work; five of them had been
 within tolerance, and those take 1.03x to 1.23x the time (at most 0.7 ms more, on 2- and
 4-energy scans of 2-3 ms).  The worst case, a 40-energy scan that had been returning two
-energies outside the tolerance, takes 2.3x.
+energies outside the tolerance, takes 1.9x to 2.3x (two measurements).
+
+Adding antineutrino and ``magnus_exp_order`` 2 and 6 variants of the smooth scans (191 ``'gl'``
+scans in all), the silent misses before the gate are 72, up to 102 times outside the
+tolerance; after it, 2, with none added, for 3.1 % more total work.
+
+**What it costs where the phase is concentrated.** The seed puts about :math:`2\pi` of phase
+in the *average* slab, so where the phase piles up in part of the path the widest slab stays
+above :math:`2\pi` for several levels, and until then every energy is refused, whether its
+agreement was real or not.  On that set, 9 scans that had been within tolerance (at 0.10 to
+0.99 of it) do more work; the worst is the 40-energy antineutrino scan on the 2500 km
+exponential profile at rtol = atol = 1e-3, within 0.54 of the tolerance before: 5.2x the
+work, 3.2x to 3.6x the time (6 ms to 20-23 ms).  The alternatives measured to avoid it were
+all worse: other statistics of the slab norms (mean, median, 90th percentile, fractions above
+:math:`\pi` or :math:`2\pi`), a cap on the refusals, requiring one more agreement, sizing
+the next level from the norm, a grid that follows the phase, an error indicator from the
+samples' commutator terms, and splitting only the wide slabs each left more misses, created
+new ones, or cost more.
 
 **Why per energy.** A gate on the batch's largest norm was measured first and rejected: it
 refused every energy of a scan for the sake of one, and slowed smooth profiles by up to 15x.

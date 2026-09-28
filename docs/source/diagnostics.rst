@@ -35,6 +35,18 @@ levels can agree by coincidence while both are far from the truth: measured on a
 density, the 3- and 4-slab levels agreed and the returned answer was wrong by **0.855** in
 probability.  ``strict_convergence`` requires two *consecutive* agreements for that reason.
 
+**The energy-batched scan** (``strategy='magnus'`` scans, and ``'auto'`` where the hybrid
+declines) meets the same coincidence on smooth profiles, where two coarse levels agree while
+each slab still spans several radians of phase.  On ``'gl'``, the default, it refuses such an
+agreement for any energy whose own slabs still span :math:`2\pi` or more
+(:data:`magnus.oscprob.BATCHED_GL_MAX_SLAB_NORM`, issue #71), and over the 477 scans of the
+issue's measurement pool it returns no silent miss.  ``'trapezoid'`` and ``'simpson'`` carry
+no such refusal, because the same test flags far more correct answers than wrong ones there.
+On the same pool they return 43 of 2580 energies outside the tolerance without a warning:
+33 on grids with breakpoints, the worst **163 times** outside it (``'simpson'``, a PREM chord
+at two flavors, ``rtol = atol = 1e-3``), and 10 on smooth profiles, the worst 11 times.
+Where that matters, keep ``'gl'``.
+
 It is fair to ask why the gap is not converted into an error estimate by Richardson
 extrapolation -- for refinement ratio :math:`r` and order :math:`p`, the finer level's
 error is :math:`\text{gap}/(r^p - 1)` -- which is what the sibling NuOscProbExact does.
