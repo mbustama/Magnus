@@ -521,7 +521,7 @@ repeat the level; the engine keeps its previous behavior at the cap and on its l
 
 BATCHED_PHASE_GROUPING = dict(slab_energy_us={2: 0.17, 3: 0.44, 4: 1.8, 5: 3.2},
                               sample_us=0.15, level_us=250.0, resolution=(22.0, 0.71, 0.18),
-                              margin=1.2, min_tol=1.0e-4)
+                              margin=1.2, min_tol=1.0e-4, min_dim=4)
 r"""dict: Module-level constant
 
 Cost model by which the energy-batched engine (``_osc_prob_scan_separable``) splits a
@@ -632,14 +632,25 @@ them, and a scan whose largest seed sits at the cap ends on its first level, war
 any grid: groups below the cap would only add levels to a call that cannot converge
 (measured 1.1x to 1.4x slower), so such a scan is left as it was.
 
+Nor is it applied below ``min_dim`` = 4 flavors, where two- and three-flavor scans stay
+bit for bit as they were.  There the shared grid is cheap, and the gain is modest: 17 to
+30 % on 3nu Earth scans spanning two or three decades of energy, none on narrower ones.
+It would also cost accuracy that users of those scans have come to rely on.  The shared
+grid resolves the low-phase energies far beyond the tolerance, and a group converges only
+to it.  Against rtol = atol = 1e-9 references, the largest error of a 3nu scan at 0.1-100
+GeV across the core rose from 5.5e-5 to 1.0e-3, inside the default tolerance at that
+point (1.4e-3), but some twenty times the error it used to have.
+
+* ``min_dim`` -- 4: the fewest flavors at which a scan is split.
+
 **Its own cost.**  The dynamic program is quadratic in the number of distinct seeds:
 0.05 ms at 4 energies, 0.23 ms at 40, 2.3 ms at 200 -- at most about 2 % of a scan it can
 fire on -- and is skipped by two lower bounds when even they would not reach the margin.
 The first is in scalars (one grid at the largest seed's levels against the fixed cost of
-the four levels a split runs at least) and stops most two- and three-flavor scans in about
-2 us; the second (every energy on its own seed, plus those four levels) takes some 25 us
-over the seeds.  Before the first was added, a 100-energy two-flavor Earth scan paid
-0.18 ms for the dynamic program, 10 % of its 1.9 ms.
+the four levels a split runs at least), about 2 us; the second (every energy on its own
+seed, plus those four levels) takes some 25 us over the seeds.  Below ``min_dim`` the
+function returns before either.  Without the first bound and the flavor floor, a
+100-energy two-flavor Earth scan paid 0.18 ms for the dynamic program, 10 % of its 1.9 ms.
 
 .. versionadded:: 1.1.1
 """
@@ -5416,7 +5427,7 @@ def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol
     .. versionadded:: 1.1.1
     """
     cost = BATCHED_PHASE_GROUPING
-    if not (tol >= cost['min_tol']):
+    if (dim < cost['min_dim']) or not (tol >= cost['min_tol']):
         return None
     c = cost['slab_energy_us'].get(dim, cost['slab_energy_us'][max(cost['slab_energy_us'])])
     k = cost['sample_us']/c

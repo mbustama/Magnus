@@ -23,10 +23,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
   910 ms -> 130 ms.  The split is applied at tolerances of 1e-4 and looser
   (`atol + 0.01*rtol`), where the ladders stop on their second level: tighter than that,
   a group's coarse first levels could agree by chance (issue #71) where the shared grid
-  had not, and at 1e-8 the shared grid is no more work anyway.  A scan the model does
-  not split is computed exactly as before, bit for bit, and pays nothing: the per-energy
-  phases are the singular values the seed always took the maximum of.  Warnings stay
-  once per call, and the #71 slab-norm gate applies within each group.
+  had not, and at 1e-8 the shared grid is no more work anyway.  Two- and three-flavor
+  scans are never split, and stay bit for bit as they were: there the gain is modest
+  (17-30 % on 3nu scans spanning two to three decades of energy), and a split would give
+  up accuracy those scans have always had beyond the tolerance.  A scan the model does
+  not split is computed exactly as before, bit for bit, for at most some 25 us of cost
+  model: the per-energy phases are the singular values the seed always took the maximum
+  of.  Warnings stay once per call, and the #71 slab-norm gate applies within each group.
 
 - **`magnus.magnus_expansion_multislab` takes `t_breakpoints`**, with the meaning it
   has everywhere else: positions where the Hamiltonian is not smooth.  The slabs are
