@@ -413,6 +413,22 @@ and the project uses [Semantic Versioning](https://semver.org/).
   - It still cannot see a bump that rises and falls between two probe points (see
     `docs/source/adiabatic_strategy.rst`); a step, however narrow, is no longer in that class.
 
+- **The energy-batched `'gl'` scan no longer accepts an energy whose own slabs are still wide**
+  (part of #71).  On smooth profiles two coarse levels could agree by chance while each slab
+  still spanned several radians of phase, and the scan returned that agreement silently: over
+  the 477 scans of the #71 pool, 27 energies up to 19 times outside the tolerance; with
+  antineutrino and `magnus_exp_order` 2 and 6 variants added (191 `'gl'` scans), 72, up to 102
+  times outside it.  The scan now refuses the agreement of every energy whose largest slab norm
+  is `BATCHED_GL_MAX_SLAB_NORM` (2 pi) or more, while it can still add slabs, and that energy
+  goes one level further.  The 27 go to 0 and the 72 to 2, with none added, for 0.9 % and 3.1 %
+  more total work.  The norms are the eigenvalues `_expm_stack` already computes
+  (`magnus._row_slab_norms`), and `MagnusConvergenceWarning` is unchanged.  Every scan the gate
+  leaves alone is bit-for-bit what it was, and so is every other path, at no measurable cost.
+  Where the phase is concentrated, the gate can refuse correct agreements for several levels:
+  9 of the 191 scans that had been within tolerance do more work, the worst a 40-energy
+  antineutrino scan at `rtol = atol = 1e-3` (3.2x to 3.6x the time, 6 ms to 20-23 ms).  The
+  alternatives measured to avoid that cost all left more misses or cost more (see the
+  constant's docstring).
 - **The energy-batched scan now warns when it accepts an energy at the slab cap** (part of
   #71).  Once `'trapezoid'` or `'simpson'` reach `max_n_slabs` (2000 by default), each
   further level refines only the points per slab; two such levels agreeing verifies the

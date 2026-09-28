@@ -295,7 +295,7 @@ import numpy as np
 import sys
 import warnings
 import weakref
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
 from io import TextIOWrapper
@@ -460,6 +460,59 @@ breakpoint profiles, 2 to 40 energies, both rules, rtol = atol = 1e-3 and 1e-4),
 the seed against without it, by seed: at 2, worst 2.14x (median 0.81x); at 3, worst 1.24x
 (0.67x); at 4, worst 0.87x (0.54x); at 5 and above, never more than 0.36x.  So 4 is the smallest
 seed that never cost work.
+
+.. versionadded:: 1.1.1
+"""
+
+
+BATCHED_GL_MAX_SLAB_NORM = 2.0*np.pi
+r"""float: Module-level constant
+
+Largest slab norm :math:`\lVert\Omega\rVert_2` at which the energy-batched engine lets an
+energy's agreement between two levels count as convergence on ``'gl'``, while the ladder can
+still add slabs.  Above it, that energy goes one level further; the others are accepted as
+before.
+
+**Why (issue #71).** On smooth profiles, two coarse ``'gl'`` levels can agree by chance: each
+slab spans several radians of phase, where the Magnus series has not yet reached the regime in
+which its error falls at its order, and the two answers happen to coincide.  Over the 477 scans
+of the #71 measurement pool, all 27 energies that ``'gl'`` returned outside the tolerance
+without a warning (up to 19 times outside it) had been accepted at a level where their *own*
+slab norm was at least :math:`2\pi` (7.4 to 17.3); of the 1263 energies it returned within
+tolerance, 78 had.  Refusing those acceptances took the 27 to zero, added none, and cost 0.9 %
+of the total work of the 159 ``'gl'`` scans.  Twelve scans do more work; five of them had been
+within tolerance, and those take 1.03x to 1.23x the time (at most 0.7 ms more, on 2- and
+4-energy scans of 2-3 ms).  The worst case, a 40-energy scan that had been returning two
+energies outside the tolerance, takes 1.9x to 2.3x (two measurements).
+
+Adding antineutrino and ``magnus_exp_order`` 2 and 6 variants of the smooth scans (191 ``'gl'``
+scans in all), the silent misses before the gate are 72, up to 102 times outside the
+tolerance; after it, 2, with none added, for 3.1 % more total work.
+
+**What it costs where the phase is concentrated.** The seed puts about :math:`2\pi` of phase
+in the *average* slab, so where the phase piles up in part of the path the widest slab stays
+above :math:`2\pi` for several levels, and until then every energy is refused, whether its
+agreement was real or not.  On that set, 9 scans that had been within tolerance (at 0.10 to
+0.99 of it) do more work; the worst is the 40-energy antineutrino scan on the 2500 km
+exponential profile at rtol = atol = 1e-3, within 0.54 of the tolerance before: 5.2x the
+work, 3.2x to 3.6x the time (6 ms to 20-23 ms).  The alternatives measured to avoid it were
+all worse: other statistics of the slab norms (mean, median, 90th percentile, fractions above
+:math:`\pi` or :math:`2\pi`), a cap on the refusals, requiring one more agreement, sizing
+the next level from the norm, a grid that follows the phase, an error indicator from the
+samples' commutator terms, and splitting only the wide slabs each left more misses, created
+new ones, or cost more.
+
+**Why per energy.** A gate on the batch's largest norm was measured first and rejected: it
+refused every energy of a scan for the sake of one, and slowed smooth profiles by up to 15x.
+Here an energy is refused only for its own norm, which ``magnus._expm_stack`` already has
+(see ``magnus._row_slab_norms``): the per-energy maximum replaces the stack maximum it takes
+for :class:`magnus.magnus.MagnusConvergenceWarning`, which is unchanged.
+
+**Why only** ``'gl'``. On ``'trapezoid'`` and ``'simpson'`` the same test flags far more correct
+energies than wrong ones, so they are left as they were.
+
+**Why not at the slab cap.** There the ladder can no longer add slabs, so a refusal would only
+repeat the level; the engine keeps its previous behavior at the cap and on its last level.
 
 .. versionadded:: 1.1.1
 """
@@ -5003,6 +5056,10 @@ def _osc_prob_scan_separable(
     # The previous level's slab count, to tell a level that refined only the points per slab.
     n_slabs_prev_level = None
     warned_at_slab_cap = False
+    # 'gl' refuses an energy's agreement while its own slab norm is large, as long as the
+    # ladder can still add slabs (BATCHED_GL_MAX_SLAB_NORM); the norms come from the
+    # exponentials this level computes anyway (magnus._row_slab_norms).
+    gl_gate = tol_requested and (integration_method == 'gl') and (growth_factor_n_slabs > 1.0)
 
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
@@ -5051,14 +5108,15 @@ def _osc_prob_scan_separable(
         # see its own definition for what it was tuned against.
         chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
-        for i0 in range(0, len(active), chunk):
-            sel = active[i0:i0+chunk]
-            At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
-            U = magnus.evolution_operators_from_samples(At, widths,
-                magnus_exp_order, integration_method, validate_input=False)
-            Utot = magnus._ordered_product_batched(U)
-            P_new[i0:i0+chunk] = np.swapaxes(
-                Utot.real**2 + Utot.imag**2, -1, -2)
+        with (magnus._row_slab_norms() if gl_gate else nullcontext()) as row_norms:
+            for i0 in range(0, len(active), chunk):
+                sel = active[i0:i0+chunk]
+                At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
+                U = magnus.evolution_operators_from_samples(At, widths,
+                    magnus_exp_order, integration_method, validate_input=False)
+                Utot = magnus._ordered_product_batched(U)
+                P_new[i0:i0+chunk] = np.swapaxes(
+                    Utot.real**2 + Utot.imag**2, -1, -2)
 
         if not tol_requested:
             P_out[active] = P_new
@@ -5075,6 +5133,12 @@ def _osc_prob_scan_separable(
             if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
                 conv[:] = False
             r_prev = r_level
+        if gl_gate and conv.any() and (n_slabs < max_n_slabs) and (loop_count < max_num_loops):
+            # A chance agreement between two coarse grids (issue #71): refused for the energies
+            # whose own slabs are still wide, which go one level further.
+            norms = row_norms[0] if len(row_norms) == 1 else np.concatenate(row_norms)
+            if norms.shape == conv.shape:
+                conv &= norms < BATCHED_GL_MAX_SLAB_NORM
         if (conv.any() and (growth_factor_n_slabs > 1.0) and (n_slabs >= max_n_slabs)
                 and (n_slabs_prev_level == n_slabs) and not warned_at_slab_cap):
             # Pinned at the slab cap, this level refined only the points per slab.  Agreeing with
@@ -23795,6 +23859,7 @@ __all__ = [
     'IP_EXP_N_SLABS_CAP',
     'MIN_EFFECTIVE_REFINEMENT',
     'QUADRATURE_SEED_MIN_SLABS',
+    'BATCHED_GL_MAX_SLAB_NORM',
     'BATCH_WORKING_ENTRIES',
     'CUMULATIVE_AUTO_MIN_POINTS',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
