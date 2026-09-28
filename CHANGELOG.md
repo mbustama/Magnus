@@ -9,6 +9,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Keywords that were accepted and then ignored now work or raise.**
+  - `default_osc_params_set_name` on a two-flavor call (issue #110), where no parameter set
+    applies since `sth` and `Dm2` are required, now raises a `ValueError`; so does a set name
+    on a scenario function above five flavors, where the vacuum Hamiltonian is given whole.
+    A misspelled keyword on the same call already raised; this one changed nothing in silence.
+  - `density_matter_is_in_g_per_cm3=True` together with `density_is_of_number_of_electrons=True`
+    (issue #112) now raises a `ValueError` on all 27 functions that take them.  The two give
+    `rho` different units, and the electron flag used to win: `rho=3.0` meant for g cm^-3 was
+    read as 3 eV^3 of electrons, which is vacuum.
+  - `osc_prob_energy_baseline` takes `strategy_info` (issue #114) and reports the engine on
+    every route, as the wrappers do.  It used to reject the keyword as unknown on every
+    route but `average=True`, which ignored it and, with it, any misspelled keyword; that
+    route now checks its keywords too.
+  Each check is a comparison on a valid call; results are unchanged.
+
 - **Energy scans accept a density function that returns a single number, or that takes
   one position at a time** (issue #113).  The scenario functions (e.g.
   `osc_prob_matter_std_potential`) crashed on an array of energies when given
