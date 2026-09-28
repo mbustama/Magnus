@@ -123,7 +123,7 @@
   \lstset{numbers=none, frame=none, backgroundcolor={},
           basicstyle=\small\ttfamily,
           xleftmargin=0pt, framexleftmargin=0pt,
-          aboveskip=5pt, belowskip=-8pt, #1}}{}
+          aboveskip=5pt, belowskip=-12pt, #1}}{}
 
 \renewcommand{\topfraction}{0.9}
 \renewcommand{\bottomfraction}{0.8}
@@ -1890,8 +1890,9 @@ The keyword {\tt average\_initial\_state} chooses between two physical situation
 \begin{pysnip}
 for start in ('flavor', 'decohered'):
     P = oscprob.osc_prob_3nu_sun(
-        10.0*gd.UNIT_MEV, R, 0.0, 
-        nu_i=gd.NUE, nu_f=gd.NUE, 
+        10.0*gd.UNIT_MEV,
+        gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+        nu_i=gd.NUE, nu_f=gd.NUE,
         average=True,
         average_initial_state=start)
     print(start, P)    # 0.297082 both times
