@@ -518,6 +518,129 @@ repeat the level; the engine keeps its previous behavior at the cap and on its l
 """
 
 
+BATCHED_PHASE_GROUPING = dict(slab_energy_us={2: 0.17, 3: 0.44, 4: 1.8, 5: 3.2},
+                              sample_us=0.15, level_us=250.0, resolution=(22.0, 0.71, 0.18),
+                              margin=1.2, min_tol=1.0e-4)
+r"""dict: Module-level constant
+
+Cost model by which the energy-batched engine (``_osc_prob_scan_separable``) splits a
+scan into groups of energies of similar phase, each refined on its own slab grid, instead
+of refining every energy on one grid sized for the fastest (issue #111).
+
+**Why (issue #111).**  The engine's shared grid starts from the phase of the
+fastest-oscillating energy, and the phase across an Earth chord varies as :math:`1/E`.
+With an eV-scale sterile splitting it is about :math:`10^4` rad, so on a 0.5-5 GeV scan
+the slowest energies were refined on ten times the slabs they needed: 3.8 times the
+slab-work of one ladder per energy.  At four and five flavors each slab's exponential
+dominates, and batching lost to one call per energy -- on a chord at costhz = -0.5 with
+40 energies, 4nu with :math:`\Delta m^2_{41}` = 1 eV², 640 ms against 370 ms; 5nu with
+:math:`\Delta m^2_{41}` = 1 and :math:`\Delta m^2_{51}` = 1.7 eV², 1720 against 745 ms
+-- while without steriles batching wins 20-80x.
+
+**What it does.**  The seed's SVD already yields each energy's own phase (the engine used
+to take only the maximum), so each energy's own starting slab count is free.  The energies
+are sorted by it, and a dynamic program over the distinct seed values chooses the split
+that minimizes the modeled cost of the ladders.  An energy of seed ``S_e`` is expected to
+be accepted at
+
+    R_e = max(g*S_e,  B * S_e**p * (1e-8/tol)**q),    tol = atol + 0.01*rtol,
+
+the ladder's second level at least (``g`` is ``growth_factor_n_slabs``), or the resolution
+the profile needs at this tolerance.  On a grid seeded at ``S`` it then runs the levels
+``S, g*S, ...`` until one reaches ``R_e``, and a group of energies on the grid of its
+largest seed costs, in slab-energies,
+
+    sum over its energies of the slabs of their levels
+    + k * (the slabs of the group's levels)  +  F * (their number),
+
+``k`` being the sampling of the potential and projector shared by the group's energies
+and ``F`` the fixed cost of a level.  The scan is split when the least such total is
+below the one-grid cost by at least the factor ``margin``; otherwise it is computed
+exactly as before, bit for bit.  Each group then runs the unchanged ladder from its own
+largest seed, with the #71 slab-norm gate inside it and the warnings once per call.
+
+**Why the tolerance is in it.**  At a loose tolerance every energy is accepted on its
+second level, so on the shared grid the slow ones pay ``S_max/S_e`` times their own
+first level for nothing, and the split wins by that ratio.  At a tight one the slab
+count an energy needs is set by the profile rather than by its phase, and the shared
+grid's second level already meets it for the slow energies, which drop out there; their
+own ladders would climb from a lower seed through more levels to the same place.  So
+the gain fades as the tolerance tightens, and turns into a loss: measured on 87 energies
+at 1-40 GeV, 4nu with :math:`\Delta m^2_{41}` = 1 eV², rtol = 1e-8 and atol = 1e-10,
+the split cost 1.37x (2.9 to 4.0 s; 5nu 1.32x), while at rtol = atol = 1e-6 on 0.5-5 GeV
+it still gained 3.2x.  The resolution law is fitted to the levels the per-energy ladders
+actually ran: 183 energies of 4nu and 5nu Earth scans (:math:`\Delta m^2_{41}` = 0.1 and
+1 eV², two chords, 0.5-40 GeV) at rtol = 1e-4, 1e-6 and 1e-8 with atol = 0.01*rtol give
+``B, p, q`` = 22, 0.71, 0.18 with an rms residual factor of 1.32.  ``atol`` leads the
+proxy because the ladder tests every channel: at rtol = 1e-8 the same scan takes two
+levels with atol = 1e-8 and four with atol = 1e-10.  A 3nu chord needs about a fifth of
+the law's slabs, which only makes the model refuse splits it might have afforded.
+
+**The measured costs behind the keys** (one core, Earth chord with its 14 layer
+boundaries, ``'gl'`` at order 4):
+
+* ``slab_energy_us`` -- the cost of one slab of one energy (exponential, sample sum and
+  slab product): 0.17, 0.44, 1.8 and 3.2 us at 2, 3, 4 and 5 flavors, from the slope of
+  the level time in ``nE*n_slabs`` between 1 and 4 energies at 1 to 4096 slabs.  It is
+  flat in the number of energies from 1 to 40 at three flavors and above, which is what
+  makes small groups affordable: the batched kernel gains nothing per slab from stacking
+  energies there (at two flavors and 100 slabs it does, 0.66 to 0.09 us, which the larger
+  ``F`` and ``k`` in those units keep the split away from).  Dimensions above 5 take
+  the 5-flavor value.
+* ``sample_us`` -- the per-slab cost of sampling the potential and projector on a level,
+  shared by the group's energies: 0.1 to 0.3 us per slab (0.5 ms at 4000 slabs).
+* ``level_us`` -- the fixed cost of one ladder level (grid, samples, chunking, the
+  convergence test): 100 to 240 us measured, the largest at five flavors and nearly all
+  of it at one energy and one slab.  Set at the upper end, so that at the margin it is
+  the splits with the least to gain that are refused.
+* ``resolution`` -- ``(B, p, q)`` of the law above.
+* ``min_tol`` -- 1e-4: the split is applied only when ``atol + 0.01*rtol`` is at least
+  this.  A group's ladder starts at its own coarse seed, where two successive levels can
+  agree by chance (issue #71), and the shared grid, ten to forty times finer than the slow
+  energies' seeds, had been protecting them from that: scored against per-point
+  references at rtol = atol = 1e-9 over 174 Earth scans (3nu to 5nu, sterile splittings
+  0.01 to 10 eV², three chords, 4 to 100 energies, ``'gl'`` and ``'simpson'``), the split
+  at rtol = atol = 1e-6 returned one energy of each of five scans outside the tolerance
+  without a warning (1.2 to 4.0 times outside) where one grid returned none, while at
+  1e-3 and 1e-4 (88 scans) neither route missed.  Below the floor the scan is computed
+  as before, and the gain given up is real (3.2x on the issue's 4nu scan at 1e-6) but
+  smaller than at the default tolerance, where the ladders stop on their second level.
+* ``margin`` -- 1.2: the model's constants are good to some 30 %, and a split predicted
+  to gain less than that is as likely to lose as to win.
+
+**Alternatives measured** (4nu, :math:`\Delta m^2_{41}` = 1 eV², 40 energies at 0.5-5
+GeV, interleaved best of five; one grid takes 650 ms):
+
+* grouping by a fixed phase ratio ``b`` within a group, the first prototype: 204, 223,
+  247 and 295 ms at ``b`` = 1.25, 1.5, 2 and 3, against 214-218 ms for the dynamic
+  program with three settings of its constants, which also holds at 200 energies (987,
+  1011, 1165, 1495 ms against 920-980) and at 10 (where ``b`` = 3 costs 1.25x);
+* one ladder per energy: 242 ms here, and 49 against 32 ms at
+  :math:`\Delta m^2_{41}` = 0.1 eV², where the seeds are a few hundred slabs and ``F``
+  is what decides;
+* sending the whole scan to the per-point route: 370 ms.  The per-point wrapper stack
+  costs about 3 ms per energy (a 3nu scan takes 128 ms per point against 2.7 ms batched),
+  so a group of one energy inside the engine is always cheaper than a per-point call, and
+  that route is never the best one;
+* the per-point Earth path's palindrome halving: it halves the sampling of the profile,
+  which this engine already shares across the energies of a group (``k``), so it could
+  save at most a few percent here and was not added.
+
+**Where it is not applied.**  Seeds are clipped to ``max_n_slabs`` before the model sees
+them, and a scan whose largest seed sits at the cap ends on its first level, warned, on
+any grid: groups below the cap would only add levels to a call that cannot converge
+(measured 1.1x to 1.4x slower), so such a scan is left as it was.
+
+**Its own cost.**  The dynamic program is quadratic in the number of distinct seeds:
+0.05 ms at 4 energies, 0.23 ms at 40, 2.3 ms at 200 -- at most about 2 % of a scan it can
+fire on -- and is skipped by a one-line lower bound (every energy on its own seed at no
+overhead) when even that would not reach the margin.  Scans the model leaves alone pay
+that bound only: a few array operations over the seeds.
+
+.. versionadded:: 1.1.1
+"""
+
+
 BATCH_WORKING_ENTRIES = 65_536
 r"""int: Module-level constant
 
@@ -5001,6 +5124,7 @@ def _osc_prob_scan_separable(
     nE, dim = H_E.shape[0], H_E.shape[-1]
     tol_requested = ((rtol is not None) and (atol is not None))
 
+    s_nodes = None
     if integration_method == 'gl':
         # The accuracy of the GL method is controlled by n_slabs only
         growth_factor_n_tpts_per_slab = 1.0
@@ -5030,6 +5154,9 @@ def _osc_prob_scan_separable(
             I_V = (np.sum(V17) - 0.5*(V17[0] + V17[-1]))*(L_val - L0)/16.0
             M = (L_val - L0)*H_E + I_V*h_matt
         M = M - (np.trace(M, axis1=-2, axis2=-1)/dim)[:, None, None]*np.eye(dim)
+        # The seed of each energy on its own, kept for the grouping below; None when the SVD
+        # was skipped or failed.
+        seeds = None
         if ((integration_method != 'gl') and not (np.ceil(np.max(np.sqrt(np.sum(
                 np.abs(M)**2, axis=(-2, -1))))/(2.0*np.pi)) >= QUADRATURE_SEED_MIN_SLABS)):
             # The Frobenius norm bounds the spectral one from above, so the seed is already
@@ -5037,13 +5164,84 @@ def _osc_prob_scan_separable(
             phase = 0.0
         else:
             try:
-                phase = np.max(np.linalg.svd(M, compute_uv=False))
+                # Singular values come sorted, largest first: column 0 is each energy's own
+                # phase, and its maximum is the batch's, the number this always took.
+                phases = np.linalg.svd(M, compute_uv=False)[:, 0]
+                phase = np.max(phases)
+                seeds = np.ceil(phases/(2.0*np.pi))
             except np.linalg.LinAlgError:
                 phase = 0.0
         seed = np.ceil(phase/(2.0*np.pi))
         if (integration_method != 'gl') and not (seed >= QUADRATURE_SEED_MIN_SLABS):
             seed = 0.0
         n_slabs = int(np.clip(max(min_n_slabs, seed), 1, max_n_slabs))
+        if seeds is not None:
+            # Each energy's own starting slab count, exactly as the line above would set it
+            # for a scan holding that energy alone (the quadrature rules' minimum seed
+            # included).
+            if integration_method != 'gl':
+                seeds[~(seeds >= QUADRATURE_SEED_MIN_SLABS)] = 0.0
+            seeds = np.clip(np.maximum(min_n_slabs, seeds), 1, max_n_slabs)
+            # A scan whose largest seed sits at the slab cap ends on its first level
+            # (nothing to refine to), warned; groups below the cap would only add levels
+            # to a call that cannot converge, so it is left as it was.
+            groups = (_phase_groups(seeds, dim, growth_factor_n_slabs, atol + 0.01*rtol)
+                      if n_slabs < max_n_slabs else None)
+            if groups is not None:
+                # Several ladders, one per group of energies of similar phase (issue #111).
+                # Each is the ladder above run on that group alone, starting from the
+                # group's own largest seed; the warnings stay once per call.
+                P_out = np.empty((nE, dim, dim))
+                warned = {}
+                for g in groups:
+                    P_out[g] = _osc_prob_scan_separable_ladder(
+                        H_E[g], VCC_func, h_matt, L0, L_val, t_breakpoints,
+                        magnus_exp_order, integration_method, rtol, atol,
+                        growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
+                        max_num_loops, max_n_slabs, max_n_tpts_per_slab,
+                        int(seeds[g].max()), n_tpts_per_slab, tol_requested, s_nodes, warned)
+                return P_out
+
+    return _osc_prob_scan_separable_ladder(
+        H_E, VCC_func, h_matt, L0, L_val, t_breakpoints, magnus_exp_order,
+        integration_method, rtol, atol, growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
+        max_num_loops, max_n_slabs, max_n_tpts_per_slab, n_slabs, n_tpts_per_slab,
+        tol_requested, s_nodes, {})
+
+
+def _osc_prob_scan_separable_ladder(
+    H_E: np.ndarray,
+    VCC_func: Callable,
+    h_matt: np.ndarray,
+    L0: float,
+    L_val: float,
+    t_breakpoints: Optional[np.ndarray],
+    magnus_exp_order: int,
+    integration_method: str,
+    rtol: Optional[float],
+    atol: Optional[float],
+    growth_factor_n_slabs: float,
+    growth_factor_n_tpts_per_slab: float,
+    max_num_loops: int,
+    max_n_slabs: int,
+    max_n_tpts_per_slab: int,
+    n_slabs: int,
+    n_tpts_per_slab: int,
+    tol_requested: bool,
+    s_nodes: Optional[np.ndarray],
+    warned: Dict
+) -> np.ndarray:
+    r"""The refinement ladder of :func:`_osc_prob_scan_separable`, on one shared slab grid.
+
+    Runs from the starting ``n_slabs``/``n_tpts_per_slab`` the caller has already resolved
+    (seed, floor and cap applied; ``max_n_slabs`` already the method's cap when None was
+    given).  ``warned`` is the caller's record of the warnings this call has emitted, so
+    that a scan split into several groups of energies (see :func:`_phase_groups`) still
+    warns once per call.
+
+    .. versionadded:: 1.1.1
+    """
+    nE, dim = H_E.shape[0], H_E.shape[-1]
 
     # Breakpoints strictly inside the path, sorted and without duplicates: the same set every
     # level's grid gets, and what _n_grid_points counts.
@@ -5055,7 +5253,6 @@ def _osc_prob_scan_separable(
     r_prev = None
     # The previous level's slab count, to tell a level that refined only the points per slab.
     n_slabs_prev_level = None
-    warned_at_slab_cap = False
     # 'gl' refuses an energy's agreement while its own slab norm is large, as long as the
     # ladder can still add slabs (BATCHED_GL_MAX_SLAB_NORM); the norms come from the
     # exponentials this level computes anyway (magnus._row_slab_norms).
@@ -5140,7 +5337,7 @@ def _osc_prob_scan_separable(
             if norms.shape == conv.shape:
                 conv &= norms < BATCHED_GL_MAX_SLAB_NORM
         if (conv.any() and (growth_factor_n_slabs > 1.0) and (n_slabs >= max_n_slabs)
-                and (n_slabs_prev_level == n_slabs) and not warned_at_slab_cap):
+                and (n_slabs_prev_level == n_slabs) and not warned.get('slab_cap')):
             # Pinned at the slab cap, this level refined only the points per slab.  Agreeing with
             # the last one verifies the quadrature inside each slab, not the slab count, so an
             # energy accepted here can sit well outside the tolerance (issue #71).
@@ -5150,8 +5347,8 @@ def _osc_prob_scan_separable(
                 "slab but not the number of slabs, so the returned probabilities may be "
                 "inaccurate. Raise max_n_slabs, or use integration_method='gl' (default cap " +
                 str(MAX_N_SLABS_DEFAULT['gl']) + "). Shown once per session.",
-                ToleranceNotAchievedWarning, stacklevel=2)
-            warned_at_slab_cap = True
+                ToleranceNotAchievedWarning, stacklevel=3)
+            warned['slab_cap'] = True
         n_slabs_prev_level = n_slabs
         P_out[active[conv]] = P_new[conv]
         P_prev[active] = P_new
@@ -5162,11 +5359,13 @@ def _osc_prob_scan_separable(
         at_caps = ((n_slabs >= max_n_slabs) and
                    (n_tpts_per_slab >= max_n_tpts_per_slab))
         if (loop_count >= max_num_loops) or at_caps:
-            warnings.warn("osc_prob (energy-batched scan): requested tolerance "
-                "not achieved for some energies (refinement caps reached); the "
-                "returned probabilities may be inaccurate. Try increasing "
-                "max_n_slabs, max_n_tpts_per_slab, or max_num_loops. Shown "
-                "once per session.", ToleranceNotAchievedWarning, stacklevel=2)
+            if not warned.get('caps'):
+                warnings.warn("osc_prob (energy-batched scan): requested tolerance "
+                    "not achieved for some energies (refinement caps reached); the "
+                    "returned probabilities may be inaccurate. Try increasing "
+                    "max_n_slabs, max_n_tpts_per_slab, or max_num_loops. Shown "
+                    "once per session.", ToleranceNotAchievedWarning, stacklevel=3)
+                warned['caps'] = True
             P_out[active] = P_new[~conv]
             return P_out
 
@@ -5197,6 +5396,81 @@ def _osc_prob_scan_separable(
                        (_n_grid_points(L0, L_val, n_slabs, bp_in) < target)):
                     n_slabs += 1
         loop_count += 1
+
+
+def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol: float):
+    r"""Split the energies of a batched scan into groups of similar phase, or not.
+
+    ``seeds`` holds each energy's own starting slab count (floor and cap applied) and ``tol``
+    the tolerance that binds the ladder's convergence test (``atol + 0.01*rtol``, see
+    :data:`BATCHED_PHASE_GROUPING`).  Returns a list of index arrays,
+    one per group in order of increasing seed, or None when one shared grid is best.  The
+    choice minimizes the cost model of :data:`BATCHED_PHASE_GROUPING`, found by dynamic
+    programming over the distinct seed values in increasing order (energies with the same
+    seed never gain from being split).
+
+    .. versionadded:: 1.1.1
+    """
+    cost = BATCHED_PHASE_GROUPING
+    if not (tol >= cost['min_tol']):
+        return None
+    c = cost['slab_energy_us'].get(dim, cost['slab_energy_us'][max(cost['slab_energy_us'])])
+    k = cost['sample_us']/c
+    F = cost['level_us']/c
+    margin = cost['margin']
+    g = growth_factor_n_slabs
+    B, p, q = cost['resolution']
+    # The slab count each energy is expected to be accepted at: the ladder's second level
+    # at least, and what the profile needs at this tolerance.
+    R = np.maximum(g*seeds, B*seeds**p*(1.0e-8/tol)**q)
+    log_g = np.log(g)
+
+    def levels(S, R_):
+        # Levels beyond the first that a grid seeded at S runs until it reaches R_ (>= 1).
+        return np.maximum(1.0, np.ceil(np.log(R_/S)/log_g - 1.0e-9))
+
+    def geom(lev):
+        # Slabs of all levels up to lev, in units of the first level's.
+        return (g**(lev + 1.0) - 1.0)/(g - 1.0)
+
+    smax = seeds.max()
+    lev = levels(smax, R)
+    one = smax*(geom(lev).sum() + k*geom(lev.max())) + F*(lev.max() + 1.0)
+    # No split can beat every energy on its own seed with no overhead at all, so when even
+    # that is not worth the margin, nothing below is run: this is all a scan the model
+    # leaves alone pays.
+    if (seeds*geom(levels(seeds, R))).sum()*margin > one:
+        return None
+    S, counts = np.unique(seeds, return_counts=True)             # ascending
+    M = S.shape[0]
+    if M < 2:
+        return None
+    R_S = np.maximum(g*S, B*S**p*(1.0e-8/tol)**q)
+    cum = np.concatenate([[0], np.cumsum(counts)])
+    best = np.empty(M + 1)
+    best[0] = 0.0
+    cut = np.empty(M, dtype=int)
+    for j in range(1, M + 1):
+        # best[j]: least cost of the j smallest seed values; the last group holds the values
+        # i..j-1 on a grid seeded at S[j-1], for the i that minimizes this.  Its levels grow
+        # with the seed, so the group's are its largest member's.
+        lev_j = levels(S[j - 1], R_S[:j])
+        per = np.cumsum(counts[:j]*geom(lev_j))*S[j - 1]
+        shared = S[j - 1]*k*geom(lev_j[-1]) + F*(lev_j[-1] + 1.0)
+        c_ = best[:j] + (per[-1] - np.concatenate([[0.0], per[:-1]])) + shared
+        m = int(np.argmin(c_))
+        best[j] = c_[m]
+        cut[j - 1] = m
+    if best[M]*margin > one:
+        return None
+    order = np.argsort(seeds, kind='stable')
+    groups = []
+    j = M
+    while j > 0:
+        i = cut[j - 1]
+        groups.append(order[cum[i]:cum[j]])
+        j = i
+    return groups[::-1]
 
 
 def _n_grid_points(L0: float, L_val: float, n_slabs: int, bp_in: np.ndarray) -> int:
@@ -23860,6 +24134,7 @@ __all__ = [
     'MIN_EFFECTIVE_REFINEMENT',
     'QUADRATURE_SEED_MIN_SLABS',
     'BATCHED_GL_MAX_SLAB_NORM',
+    'BATCHED_PHASE_GROUPING',
     'BATCH_WORKING_ENTRIES',
     'CUMULATIVE_AUTO_MIN_POINTS',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',

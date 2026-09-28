@@ -7,7 +7,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
+### Fixed
+
+- **Energy-batched scans with eV-scale sterile splittings no longer lose to one call
+  per energy** (issue #111).  The batched engine sized its one shared slab grid for the
+  fastest-oscillating energy, so with ~1e4 rad of phase varying as 1/E across a scan it
+  did several times the slab-work of the per-point ladders, and at four or five flavors,
+  where each slab's exponential dominates, batching came out 2-3x slower than one call
+  per energy.  The engine now splits such a scan into groups of energies of similar phase,
+  each on its own grid, choosing the split by a measured cost model
+  (`BATCHED_PHASE_GROUPING`) from the per-energy phases its seed already computes.
+  Measured on an Earth chord (costhz = -0.5, 40 energies): 4nu with Δm²₄₁ = 1 eV²,
+  0.5-5 GeV, 640 ms -> 220 ms (one call per energy: 370 ms); 5nu with Δm²₄₁ = 1 and
+  Δm²₅₁ = 1.7 eV², 1720 ms -> 570 ms (745 ms); 1-40 GeV, 4nu 320 ms -> 56 ms and 5nu
+  910 ms -> 130 ms.  The split is applied at tolerances of 1e-4 and looser
+  (`atol + 0.01*rtol`), where the ladders stop on their second level: tighter than that,
+  a group's coarse first levels could agree by chance (issue #71) where the shared grid
+  had not, and at 1e-8 the shared grid is no more work anyway.  A scan the model does
+  not split is computed exactly as before, bit for bit, and pays nothing: the per-energy
+  phases are the singular values the seed always took the maximum of.  Warnings stay
+  once per call, and the #71 slab-norm gate applies within each group.
 
 - **`magnus.magnus_expansion_multislab` takes `t_breakpoints`**, with the meaning it
   has everywhere else: positions where the Hamiltonian is not smooth.  The slabs are
