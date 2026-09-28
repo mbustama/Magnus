@@ -1330,8 +1330,8 @@ def phase_averaged_probabilities_adiabatic(
     phase_tol : float, optional
         Tolerance on the pair phases of each adiabatic stretch [rad].  Default: None, which
         means :data:`PHASE_AVERAGE_PHASE_TOL`.
-    rho0 : np.ndarray, shape (d, d, d), optional
-        The initial density matrix of each initial flavor :math:`\alpha`, in the eigenbasis of
+    rho0 : np.ndarray, optional
+        Shape (d, d, d).  The initial density matrix of each initial flavor :math:`\alpha`, in the eigenbasis of
         :math:`H(l_0)` as ``np.linalg.eigh`` returns it: ``rho0[a]`` is a :math:`d\times d`
         matrix.  The flavor state is ``conj(V0[a, i])*V0[a, j]``, the decohered start
         ``diag(|V0[a, :]|**2)``, with ``V0`` the eigenvectors at :math:`l_0`.  Default: None, the

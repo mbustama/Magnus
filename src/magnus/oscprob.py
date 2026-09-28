@@ -6956,8 +6956,9 @@ def osc_prob_energy_baseline(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -7812,8 +7813,9 @@ def osc_prob_vacuum(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -8155,8 +8157,9 @@ def osc_prob_matter_std_potential(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -8771,8 +8774,9 @@ def osc_prob_matter_nsi(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -9303,8 +9307,9 @@ def osc_prob_liv(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -13469,8 +13474,9 @@ def osc_prob_earth(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -13710,8 +13716,9 @@ def _osc_prob_with_potential(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
@@ -14932,8 +14939,9 @@ def osc_prob_sun(
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
         None, meaning 0.1.
-    average_initial_state : {'flavor', 'decohered'}, optional
-        The state the neutrino starts in, for ``average=True``.  ``'flavor'``: the flavor state
+    average_initial_state : str, optional
+        The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
+        ``'decohered'``.  ``'flavor'``: the flavor state
         :math:`\nu_\alpha`, as for a neutrino produced in the medium.  ``'decohered'``: an
         incoherent mixture of the eigenstates at the start of the path, with weights
         :math:`|V_{\alpha i}|^2`, as for a neutrino that lost its coherence before reaching it,
