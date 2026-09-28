@@ -1,8 +1,9 @@
 Phase-Averaged Probabilities
 ============================
 
-This page documents the ``average`` keyword, and the ``average_spread`` keyword that sets its
-width, accepted by
+This page documents the ``average`` keyword, the ``average_spread`` keyword that sets its
+width, and the ``average_initial_state`` keyword that sets the state the neutrino starts in
+(see `The initial state`_), accepted by
 :func:`magnus.oscprob.osc_prob_vacuum`,
 :func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi` and
@@ -196,14 +197,52 @@ tolerance.  The number is then the average over the spread asked for.  Asking
 for the average at a 1000 km beamline does exactly this: at 1 GeV,
 :math:`P_{\mu\mu}` is 0.91 at a 10% spread and 0.97 at 5%.
 
+The initial state
+-----------------
+
+The phase average depends on the state the neutrino starts in, which ``average_initial_state``
+sets (issue #73; Sec. 4.10.4 of the paper):
+
+* ``'flavor'``, the default: the flavor state :math:`\nu_\alpha`, a coherent superposition of
+  the eigenstates at the start of the path, as for a neutrino produced in the medium -- a beam,
+  an atmospheric neutrino, a neutrino made in the Earth or in the Sun.
+* ``'decohered'``: an incoherent mixture of those eigenstates, with weights
+  :math:`|V_{\alpha i}(l_0)|^2`, as for a neutrino that lost its coherence before reaching the
+  start of the path -- one from a distant source crossing the Sun, as in the paper's solar
+  tomography.
+
+The two differ only by the interference between eigenstates present at the start, each term
+damped by the spread of its phase from there on, so they agree wherever those phases are large.
+On a constant Hamiltonian the flavor start gives the phase average above and the decohered start
+gives the limit exactly, whatever the phases.  On a smooth profile, a flavor start on a path with
+no non-adiabatic window has a closed form; before paying for the transport it needs,
+:mod:`magnus.avgprob` estimates the phase slopes on 17 points, and where every interference term
+would be damped anyway it returns the decohered start's value, bit for bit.  On a profile with
+declared discontinuities the average is over an energy window started in flavor, and
+``'decohered'`` raises ``ValueError`` there.
+
+.. code-block:: python
+
+   import numpy as np
+   import magnus.oscprob as oscprob
+   import magnus.globaldefs as gd
+
+   osc = gd.load_nufit_params('NuFIT 6.1')
+   E, L = np.array([1.0*gd.UNIT_GEV]), 300.0*gd.UNIT_KM
+   for start in ('flavor', 'decohered'):
+       P = oscprob.osc_prob_3nu_matter_constant_density(E, L=L, rho=3.0,
+           density_matter_is_in_g_per_cm3=True, nu_i=gd.NUMU, nu_f=gd.NUMU, average=True,
+           average_initial_state=start, **osc)
+       print(start, float(np.ravel(P)[0]))      # 0.3626 and 0.4528
+
 Position-dependent Hamiltonians
 -----------------------------------
 
 When the Hamiltonian varies along the trajectory there is no single
-eigenbasis to decohere in.  A neutrino produced at :math:`l_0` decoheres
-in the eigenbasis *there*, is carried along the levels of the
-instantaneous Hamiltonian, and is detected in the eigenbasis at
-:math:`l_1`:
+eigenbasis to decohere in.  Where every phase along the path has averaged
+away, the neutrino is carried along the levels of the instantaneous
+Hamiltonian from the eigenbasis at :math:`l_0` to the eigenbasis at
+:math:`l_1`, and whatever state it started in, the result is
 
 .. math::
 
@@ -294,8 +333,11 @@ later stretch can bring its slope back.
 Because the definition reaches inside the windows, the answer does not depend on where they are
 drawn: one window over a stretch, and two windows with the stretch between them, return the same
 number.  Where there is no window, a decohered start carried adiabatically has no interference
-to keep, and ``average=True`` returns the expression above, bit for bit; every solar MSW curve
-is of that kind.  Transfer between levels outside the windows is neglected, as in any adiabatic
+to keep, and ``average=True`` returns the expression above, bit for bit.  A start in flavor, the
+default, keeps the interference between the eigenstates present at production, damped by the
+spread of its phase from there on, in closed form (see `The initial state`_).  For a neutrino
+produced in the solar core that interference is damped away entirely, and every solar MSW curve
+is again the expression above, bit for bit.  Transfer between levels outside the windows is neglected, as in any adiabatic
 calculation; the limit drops the interference such a transfer carries and the phase average
 keeps it, so the windows are searched at an adiabaticity threshold of 0.01
 (:data:`magnus.avgprob.PHASE_AVERAGE_WINDOW_THRESHOLD`) rather than 0.1.  Against a brute-force

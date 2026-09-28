@@ -528,3 +528,80 @@ def test_a_hamiltonian_without_energy_dependence_keeps_the_decohered_limit():
     P, _ = call(op.osc_prob_energy_baseline, H, 1.0*gd.UNIT_GEV, 1.0e8*gd.UNIT_KM, 0.0,
                 average=True)
     assert np.array_equal(P, ap.averaged_probabilities_constant_hamiltonian(H, 1.0e8*gd.UNIT_KM))
+
+
+# ----------------------------------------------------------------------------------------------
+# The initial state of average=True (issue #73)
+# ----------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize('start, expected', [('flavor', 0.36263161), ('decohered', 0.45279506)])
+def test_the_initial_state_means_the_same_on_every_route(start, expected):
+    """The reproduction of issue #73: one medium through the constant route and, as an
+    exponential profile of scale height 1e9 km, through the smooth route.  They used to give
+    0.3626 (a flavor start) and 0.4528 (a decohered start); each start now gives one answer on
+    both routes, the hand-computed closed forms of the issue."""
+    nufit = gd.load_nufit_params('NuFIT 6.1')
+    kw = dict(nu_i=gd.NUMU, nu_f=gd.NUMU, density_matter_is_in_g_per_cm3=True, average=True,
+              average_initial_state=start, **nufit)
+    E, L = np.array([1.0*gd.UNIT_GEV]), 300.0*gd.UNIT_KM
+    P_const = float(np.ravel(op.osc_prob_3nu_matter_constant_density(E, L=L, rho=3.0, **kw))[0])
+    P_flat = float(np.ravel(op.osc_prob_3nu_matter_exp_density(E, L=L, L0=0.0, rho_central=3.0,
+                                                                l_scale=1e9*gd.UNIT_KM, **kw))[0])
+    assert abs(P_const - expected) < 1e-7
+    assert abs(P_flat - expected) < 1e-7
+
+
+def test_a_decohered_start_on_a_constant_hamiltonian_is_the_limit_exactly():
+    """Whatever the phases, even where none has averaged away (a short vacuum baseline), an
+    incoherent mixture of eigenstates never interferes: the limit, sum_i |U_ai|^2 |U_bi|^2."""
+    P = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 10.0*gd.UNIT_KM, **OSC, average=True,
+                               average_initial_state='decohered')
+    U = np.asarray(hams.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP']))
+    W = np.abs(U)**2
+    assert maxabs(np.asarray(P) - W @ W.T) < 1e-14
+
+
+def test_for_neutrinos_made_in_the_solar_core_both_starts_agree_bit_for_bit():
+    """Produced in the core, every interference term is damped from production on, so the
+    default start in flavor changes nothing on the solar curves: the value is the decohered
+    start's, bit for bit, and no transport is paid for."""
+    R = gd.SUN_RADIUS*gd.UNIT_KM
+    E = np.geomspace(0.1e6, 20e6, 40)
+    kw = dict(nu_i=0, nu_f=0, density_profile='BS05-AGS-OP', average=True)
+    P_flavor = op.osc_prob_3nu_sun(E, R, 0.0, **kw)
+    P_decoh = op.osc_prob_3nu_sun(E, R, 0.0, average_initial_state='decohered', **kw)
+    assert np.array_equal(np.asarray(P_flavor), np.asarray(P_decoh))
+
+
+def test_the_flavor_start_on_a_path_with_no_crossing_is_the_definition():
+    """No window: the closed form of the paper's Eq. (phase_average_nocross), against the brute
+    force started in flavor.  The bound is the adiabatic transport's own error on this path,
+    which no tolerance moves: 4.9e-6 from a flavor start, 8.2e-7 from a decohered one, since a
+    coherent start feels the weak non-adiabaticity no window was opened for at first order."""
+    H, D, l0, _ = crossing_H(g=2.0, l_scale=30.0)     # strongly coupled and slow: no hop
+    l1 = 8.0
+    P, report = ap.phase_averaged_probabilities_adiabatic(H, D, l0, l1)
+    assert report['windows'] == [] and report['method'] == 'closed_form'
+    assert maxabs(P - brute_force(H, D, l0, l1, ap.AVG_PHASE_SPREAD, start='flavor')) < 1e-5
+
+
+def test_a_decohered_start_is_refused_on_declared_discontinuities():
+    """That route averages over an energy window from the flavor state (paper Route 2); there is
+    no eigenbasis to decohere in at a jump."""
+    with pytest.raises(ValueError, match='average_initial_state'):
+        op.osc_prob_3nu_earth(3.0*gd.UNIT_GEV, loc_ini='fermilab', loc_fin='homestake', nu_i=1,
+                              nu_f=0, average=True, average_initial_state='decohered')
+
+
+@pytest.mark.parametrize('bad', ['coherent', 'Flavor', 1, True])
+def test_an_unknown_initial_state_raises(bad):
+    with pytest.raises(ValueError, match='average_initial_state'):
+        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC, average=True,
+                               average_initial_state=bad)
+
+
+def test_the_initial_state_is_ignored_without_average():
+    P = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC,
+                               average_initial_state='bogus')
+    assert np.array_equal(np.asarray(P), np.asarray(op.osc_prob_3nu_vacuum(
+        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC)))

@@ -959,6 +959,7 @@ _SLOPE_FLOOR = 10.0
 _PRUNE_Z = 9.0
 _HERMITE_MAX = 31
 _MAX_TERMS = 200_000
+_MAX_TERM_BYTES = 2**32       # the terms' arrays at once; about twice that at the peak of a step
 
 
 def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
@@ -977,6 +978,10 @@ def _pair_slopes(slope_diff: np.ndarray, phase_diff: np.ndarray, scale: float,
 
 
 _GUARD_POINTS = 17
+_GUARD_W = np.array([1.0] + [4.0, 2.0]*((_GUARD_POINTS - 3)//2) + [4.0, 1.0])     # Simpson, 17
+_GUARD_W2 = np.array([1.0] + [4.0, 2.0]*((_GUARD_POINTS//2 - 2)//2) + [4.0, 1.0])  # Simpson, 9
+_GUARD_T = np.linspace(0.0, 1.0, _GUARD_POINTS)
+_GUARD_PAIRS = {}                                  # d -> the index pairs i < j, built once
 
 
 def _interference_damped(H_func: Callable, D_func: Callable, a: float, b: float, spread: float,
@@ -996,31 +1001,26 @@ def _interference_damped(H_func: Callable, D_func: Callable, a: float, b: float,
     Simpson's rule and checked against the same rule on every other point: the answer is True only
     if the bound holds with twice that difference taken off.  A pair whose slope is at the
     round-off floor of :func:`_pair_slopes` never counts as damped.  Cost: 17 evaluations of the
-    Hamiltonian and of its derivative and one batched ``eigh``, about 40 us at three flavors.
+    Hamiltonian and of its derivative and one batched ``eigh``, about 50 us at three flavors;
+    written for that, since it runs at every energy of an ``average=True`` call on a profile.
     """
     if not (spread > 0.0) or not (b > a):
         return False
-    g = np.linspace(a, b, _GUARD_POINTS)
-    Hs = adiabatic._H_on_grid(H_func, g)
-    Ds = adiabatic._H_on_grid(D_func, g)
-    lam, V = np.linalg.eigh(Hs)
-    sl = np.real(np.einsum('nai,nab,nbi->ni', V.conj(), Ds, V))
-    w = np.ones(_GUARD_POINTS)
-    w[1:-1:2], w[2:-1:2] = 4.0, 2.0
+    g = a + (b - a)*_GUARD_T
+    lam, V = np.linalg.eigh(adiabatic._H_on_grid(H_func, g))
+    sl = (V.conj()*(adiabatic._H_on_grid(D_func, g) @ V)).real.sum(axis=1)   # <v_i|D|v_i>
     h = (b - a)/(_GUARD_POINTS - 1)
-    fine = (h/3.0)*(w @ sl)
-    w2 = np.ones(_GUARD_POINTS//2 + 1)
-    w2[1:-1:2], w2[2:-1:2] = 4.0, 2.0
-    coarse = (2.0*h/3.0)*(w2 @ sl[::2])
+    fine = (h/3.0)*(_GUARD_W @ sl)
+    err = fine - (2.0*h/3.0)*(_GUARD_W2 @ sl[::2])
     d = lam.shape[1]
-    off = ~np.eye(d, dtype=bool)
-    s_fine = np.abs(fine[:, None] - fine[None, :])[off]
-    err = np.abs((fine - coarse)[:, None] - (fine - coarse)[None, :])[off]
-    scale = float(np.max(np.abs(lam)))*(b - a)
-    floor = _SLOPE_FLOOR*np.finfo(float).eps*scale/(dH_dlnE_step if dH_dlnE_step else 1.0)
-    if np.any(s_fine < floor):
-        return False
-    return bool(np.all(spread*(s_fine - 2.0*err - reach) > _PRUNE_Z))
+    if d not in _GUARD_PAIRS:
+        _GUARD_PAIRS[d] = np.triu_indices(d, 1)
+    i, j = _GUARD_PAIRS[d]
+    s_pair = np.abs(fine[i] - fine[j])
+    lower = s_pair - 2.0*np.abs(err[i] - err[j])
+    floor = (_SLOPE_FLOOR*np.finfo(float).eps*np.abs(lam).max()*(b - a)
+             / (dH_dlnE_step if dH_dlnE_step else 1.0))
+    return bool(s_pair.min() >= floor and spread*(lower.min() - reach) > _PRUNE_Z)
 
 
 def phase_averaged_probabilities_constant_hamiltonian(
@@ -1353,7 +1353,8 @@ def phase_averaged_probabilities_adiabatic(
     ValueError
         If ``spread`` is None or negative, or ``rho0`` is not of shape (d, d, d).
     RuntimeError
-        If the number of terms would exceed an internal bound (``_MAX_TERMS``): many windows
+        If the number of terms would exceed an internal bound (``_MAX_TERMS``, or
+        ``_MAX_TERM_BYTES`` of memory): many windows
         with many flavors whose phases never decohere.
     """
     if spread is None or spread < 0.0:
@@ -1464,6 +1465,18 @@ def phase_averaged_probabilities_adiabatic(
     reach_after = [D_W + sum(span[j] for j in range(i + 1, len(windows)))
                    for i in range(len(windows))]
     reach_all = D_W + sum(span)
+    # Terms are arrays of (nodes, d, d, d); count them by memory as well as by number.  At five
+    # flavors on a uniform grid of 1635 nodes one term is 3.1 MB, and a three-window profile at
+    # 100 MeV exhausted 12 GB before reaching _MAX_TERMS -- with a decohered start, as on main.
+    max_terms = int(min(_MAX_TERMS, max(1, _MAX_TERM_BYTES // (len(u)*d**3*16))))
+
+    def too_many(n_terms: int):
+        if n_terms >= max_terms:
+            raise RuntimeError("Error in magnus: magnus.avgprob.phase_averaged_probabilities_"
+                "adiabatic: more than " + str(max_terms) + " interference terms survive across "
+                + str(len(windows)) + " windows at " + str(d) + " flavors (at most "
+                + str(_MAX_TERMS) + ", and " + format(_MAX_TERM_BYTES/2**30, 'g')
+                + " GiB of them).")
     lead = None
     if coherent and not _interference_damped(H_func, dH_dlnE_func, l0, windows[0][0], spread,
                                              reach=reach_all, dH_dlnE_step=dH_dlnE_step):
@@ -1491,6 +1504,7 @@ def phase_averaged_probabilities_adiabatic(
                     continue
                 kk = int(round(s0*spread*1.0e9)) if spread > 0.0 else 0
                 if kk not in terms:
+                    too_many(len(terms))
                     terms[kk] = (s0, np.zeros((len(u), d, d, d), dtype=complex))
                 terms[kk][1][:, :, p, q] += (rho0[:, p, q]*rot[p, q])[None]
     for i in range(len(windows)):
@@ -1512,11 +1526,7 @@ def phase_averaged_probabilities_adiabatic(
                         continue
                     kk = int(round(snew*spread*1.0e9)) if spread > 0.0 else 0
                     if kk not in new:
-                        if len(new) >= _MAX_TERMS:
-                            raise RuntimeError("Error in magnus: magnus.avgprob."
-                                "phase_averaged_probabilities_adiabatic: more than "
-                                + str(_MAX_TERMS) + " interference terms survive across "
-                                + str(len(windows)) + " windows at " + str(d) + " flavors.")
+                        too_many(len(new))
                         new[kk] = (snew, np.zeros_like(R))
                     new[kk][1][:, :, p, q] += Rr[:, :, p, q]
         terms = new

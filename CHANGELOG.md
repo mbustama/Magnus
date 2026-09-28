@@ -185,6 +185,37 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`average=True` states the neutrino's initial state, the flavor state by default**
+  (issue #73).  A new keyword, `average_initial_state` (`'flavor'` or `'decohered'`), on every
+  function that takes `average`.  The initial state used to depend on the route: the constant
+  route started in flavor, the smooth route decohered.  The same medium therefore gave two
+  answers: `P_mumu` = 0.3626 at 1 GeV, 300 km and 3 g/cm^3 on the constant route, and 0.4528 as a
+  flat exponential profile.  Now both give 0.3626 by default, and 0.4528 with
+  `average_initial_state='decohered'`, on both routes.
+  - **What changes:** on a smooth profile, a neutrino produced in the medium keeps the
+    interference between eigenstates present at production, damped by the spread of its phase
+    from there on (the paper's Eq. (flavor_vs_decohered)).  With no non-adiabatic window this is
+    a closed form, Eq. (phase_average_nocross).  With windows, the coherence is carried from
+    the start of the path into the first window.  `avgprob.phase_averaged_probabilities_adiabatic`
+    takes the initial density matrix as `rho0`, and its default is now the flavor state.
+  - **What does not:** a neutrino produced in the solar core has every such term damped from
+    production on, and the solar MSW curves are unchanged, bit for bit (tested on BS05-AGS-OP
+    at 40 energies).  So are the paper's geoneutrino averages and its supernova curve, at 59 of
+    60 energies.  Neutrinos that enter a medium from outside, as in solar tomography, need
+    `average_initial_state='decohered'` to reproduce the previous numbers; with it they do, bit
+    for bit.  Notebook 28's solar-disk chords now pass it.
+  - **Declared discontinuities:** that route averages over an energy window from the flavor
+    state, as before; `'decohered'` raises `ValueError` there.
+  - **Speed:** before transporting a flavor start, the phase slopes are estimated on 17 points,
+    about 80 us an energy.  Where every interference term would be damped anyway, the decohered
+    start's value is returned.  With the phase average on, the smooth route also stops
+    computing the coherence report it never reads, about 0.2 ms an energy.  The net effect: the
+    40-energy solar curves are 2-9 % faster, and nothing measured is slower beyond noise.
+  - **Memory:** the phase average now bounds its interference terms by memory (4 GiB) as well
+    as by number, and falls back to the limit with `PhaseAveragingWarning` where the bound is
+    reached.  At five flavors on a three-window profile, the decohered start used to exhaust
+    12 GB before reaching the count bound, on main as well.
+
 - **The energy-batched engine seeds its starting slab count for `'trapezoid'` and
   `'simpson'` too**, when the phase-based seed is at least `QUADRATURE_SEED_MIN_SLABS`
   (4); below it they start from `min_n_slabs` as before, and `'gl'` is unchanged.  The

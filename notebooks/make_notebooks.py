@@ -17605,10 +17605,11 @@ def solar_point(args):
     ne_b, hl = solar_chord_ne(br)
     if hl <= 0.0:
         return np.nan
+    # A neutrino from a distant source reaches the Sun decohered (Sec. 4.10.4 of the paper).
     return float(quiet(
         oscprob.osc_prob_matter_std_potential, 3, ne_b, energy_gev*gd.UNIT_GEV, 2*hl,
-        average=True, osc_params=OSC, L0=0.0, nu_i=gd.NUE, nu_f=gd.NUE,
-        density_is_of_number_of_electrons=True))
+        average=True, average_initial_state='decohered', osc_params=OSC, L0=0.0,
+        nu_i=gd.NUE, nu_f=gd.NUE, density_is_of_number_of_electrons=True))
 
 
 def solar_disk(energy_gev):
