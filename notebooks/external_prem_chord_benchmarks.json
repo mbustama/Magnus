@@ -145,32 +145,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 86.94275387218416,
-       "max_abs_error": 7.317887999880313e-05
+       "us_per_probability": 57.10666209779447,
+       "max_abs_error": 3.6199731664465773e-06
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 110.77619660682103,
-       "max_abs_error": 4.491725146049674e-06
+       "us_per_probability": 72.7045065408068,
+       "max_abs_error": 1.0323183553540005e-06
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 147.9085287125296,
-       "max_abs_error": 1.249037826500654e-07
+       "us_per_probability": 115.39504430402303,
+       "max_abs_error": 2.2223946688493257e-07
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 216.78749468871197,
-       "max_abs_error": 1.1486778750402493e-09
+       "us_per_probability": 172.98477056707875,
+       "max_abs_error": 2.137950705360936e-09
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 393.3554738371943,
-       "max_abs_error": 1.0013878615211524e-11
+       "us_per_probability": 393.84123374475166,
+       "max_abs_error": 3.058664432842306e-11
       }
      ]
     },
@@ -182,32 +182,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 94.25122266293329,
-       "max_abs_error": 1.7302077165493035e-05
+       "us_per_probability": 61.54556634404192,
+       "max_abs_error": 6.362144575056128e-08
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 97.52637765814143,
-       "max_abs_error": 4.023480997317197e-06
+       "us_per_probability": 75.9298242580068,
+       "max_abs_error": 3.733086462176516e-08
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 127.48216916709983,
-       "max_abs_error": 1.3790277031411335e-08
+       "us_per_probability": 83.42894519349404,
+       "max_abs_error": 1.2621842182536369e-08
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 168.19879435085264,
-       "max_abs_error": 2.533948051386403e-10
+       "us_per_probability": 123.40823832346359,
+       "max_abs_error": 5.624922749802863e-11
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 219.65764578150507,
-       "max_abs_error": 5.188183216375819e-12
+       "us_per_probability": 177.74842429692703,
+       "max_abs_error": 7.289779890840009e-12
       }
      ]
     },
@@ -219,32 +219,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 105.82358724301837,
-       "max_abs_error": 0.00032127549409532996
+       "us_per_probability": 75.52715881805246,
+       "max_abs_error": 1.041148994795904e-08
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 111.3923645637745,
-       "max_abs_error": 1.2800276474322914e-06
+       "us_per_probability": 75.28842039998078,
+       "max_abs_error": 1.041148994795904e-08
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 140.58305987418862,
-       "max_abs_error": 6.977101008054376e-09
+       "us_per_probability": 97.41428008661994,
+       "max_abs_error": 5.112437140297743e-10
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 186.46728904059273,
-       "max_abs_error": 1.91848203989764e-11
+       "us_per_probability": 117.8756926189332,
+       "max_abs_error": 6.810307873195143e-11
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 224.7575183294733,
-       "max_abs_error": 5.028200078527334e-13
+       "us_per_probability": 165.42560661036987,
+       "max_abs_error": 8.629208458899029e-13
       }
      ]
     }
@@ -387,32 +387,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 113.7018124760895,
-       "max_abs_error": 2.438240007163195e-05
+       "us_per_probability": 92.76550918002613,
+       "max_abs_error": 1.1750553791101126e-06
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 137.8656041500411,
-       "max_abs_error": 5.391504222962418e-06
+       "us_per_probability": 94.30058071302483,
+       "max_abs_error": 1.1750553791101126e-06
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 227.27708331634253,
-       "max_abs_error": 4.0673638901367326e-08
+       "us_per_probability": 170.6051801496263,
+       "max_abs_error": 4.858549246256061e-08
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 399.24994265068864,
-       "max_abs_error": 3.122005431954733e-10
+       "us_per_probability": 375.2107865390523,
+       "max_abs_error": 3.6072866915759505e-10
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 844.6253644554721,
-       "max_abs_error": 3.15591996979947e-12
+       "us_per_probability": 841.2971025488029,
+       "max_abs_error": 3.504474488380538e-12
       }
      ]
     },
@@ -424,32 +424,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 84.1741029186475,
-       "max_abs_error": 8.439136560156602e-05
+       "us_per_probability": 85.89248439723936,
+       "max_abs_error": 1.3620661812319135e-07
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 118.08581378621359,
-       "max_abs_error": 5.840548182867167e-07
+       "us_per_probability": 95.79639057240759,
+       "max_abs_error": 3.0290430275137226e-08
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 174.54138545266082,
-       "max_abs_error": 1.6988839723897087e-08
+       "us_per_probability": 126.45744269927188,
+       "max_abs_error": 2.75022338236397e-09
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 250.60638790819212,
-       "max_abs_error": 1.0992401433540522e-10
+       "us_per_probability": 189.03094314737245,
+       "max_abs_error": 1.31511967982334e-10
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 391.59211974038044,
-       "max_abs_error": 1.2443379659998755e-12
+       "us_per_probability": 318.53054800497677,
+       "max_abs_error": 9.146849944130508e-13
       }
      ]
     },
@@ -461,32 +461,32 @@
       {
        "label": "1e-03",
        "rtol": 0.001,
-       "us_per_probability": 100.45049217903095,
-       "max_abs_error": 3.196669088778581e-05
+       "us_per_probability": 96.79660676435257,
+       "max_abs_error": 7.692725234598186e-09
       },
       {
        "label": "1e-04",
        "rtol": 0.0001,
-       "us_per_probability": 139.00911714396594,
-       "max_abs_error": 1.0014505634398096e-05
+       "us_per_probability": 129.4366860141357,
+       "max_abs_error": 4.822456878272874e-10
       },
       {
        "label": "1e-06",
        "rtol": 1e-06,
-       "us_per_probability": 194.7766875976716,
-       "max_abs_error": 6.179509126624794e-10
+       "us_per_probability": 146.9710132369073,
+       "max_abs_error": 2.069600046894493e-11
       },
       {
        "label": "1e-08",
        "rtol": 1e-08,
-       "us_per_probability": 240.82486455275406,
-       "max_abs_error": 1.9102941450910293e-11
+       "us_per_probability": 188.47751319602443,
+       "max_abs_error": 2.069600046894493e-11
       },
       {
        "label": "1e-10",
        "rtol": 1e-10,
-       "us_per_probability": 352.83433317090385,
-       "max_abs_error": 3.4716673980028645e-13
+       "us_per_probability": 254.51097341525988,
+       "max_abs_error": 3.5782488083668795e-13
       }
      ]
     }
@@ -910,5 +910,13 @@
   "control_ratio_this_run": 0.9653765436068477,
   "magnus_version": "1.0.12",
   "machine": "Linux-7.0.0-30-generic-x86_64-with-glibc2.39"
+ },
+ "magnus_rerun_71": {
+  "date": "2026-09-28",
+  "why": "the breakpoint-grid fix of the batched engine (#71: fe385c9, #94, #105) moved these points; re-timed on the paper's laptop; at four and five flavors no point moves, so those series stay as measured on 2026-09-05",
+  "series": "Magnus, orders 4, 6 and 8, at 2 and 3 flavors",
+  "control_ratio_this_run": 0.995,
+  "magnus_commit": "bd9f9d7",
+  "how": "notebooks/gen_prem_benchmarks.py, unmodified, run against a copy without these series"
  }
 }
