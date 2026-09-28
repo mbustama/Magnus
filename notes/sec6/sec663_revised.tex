@@ -1,0 +1,34 @@
+\subsubsection{Through a direct call}
+
+Handing {\tt osc\_prob} a matrix is the only route on which the user has to assemble the Hamiltonian themselves; the wrappers and the scenario functions build it from the parameters they are given. At the same time, it is the cheapest route per probability, 0.013~ms, because the parameter resolution, the input validation and the assembly have already been paid for by the user.
+
+The wrapper and the scenario function above both reach the probability from named parameters, building the Hamiltonian on the way. At the base layer, the user must perform that construction themselves. For the same case of NSI at three flavors in constant-density matter, this means computing and summing three matrices, \ie,
+\begin{pysnip}
+H_vac = hamiltonians.hamiltonian_3nu_vacuum(
+    E,
+    s12=osc['s12'], s23=osc['s23'],
+    s13=osc['s13'], dCP=osc['dCP'],
+    D21=osc['D21'], D31=osc['D31'])
+
+# proj for three flavors is diag(1, 0, 0)
+proj = matter.matter_potential_projector(3)
+
+V = gd.VCC_EARTH_CRUST # About 1.14e-13 eV
+H_nsi = hamiltonians.hamiltonian_3nu_nsi(
+    V, 0.0, 0.05, 0.0, 0.0, 0.0, 0.0)
+
+# 1. mixing, 2. matter, 3. new physics
+H = H_vac + V*proj + H_nsi
+
+P = oscprob.osc_prob(H, 0.0, L)   # 4. path
+# Pme = 0.016972 again
+\end{pysnip}
+{\tt hamiltonian\_3nu\_nsi} returns the non-standard term alone, $V_{\rm CC}$ times the matrix of couplings, \equ{h_nsi_3nu}, without the standard charged-current term. (Sec.~\ref{sec:hamiltonians} and \tabl{hamiltonians} list all the Hamiltonians that ship with \magnus.) The standard term is a separate summand, which means that leaving {\tt V*proj} out of the sum does not raise an error: it returns a converged, unitary probability of 0.005942 for a medium with no ordinary matter effect in it. However, this would represent a physically impossible scenario. It is the responsibility of the user to prevent this from happening.
+
+Assembling the Hamiltonian rarely means writing a matrix from scratch. \magnus\ ships forty-two Hamiltonian builders: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, in position-dependent and position-independent forms, and three for a pseudo-Dirac spectrum. Listing~\ref{lst:constant} uses one of them for the vacuum term and takes the projector from {\tt matter}. Section~\ref{sec:hamiltonians} lists them all, so a direct call is usually a shipped Hamiltonian with something added to it by the user, \eg, a new non-standard contribution.
+
+This route does not batch: {\tt osc\_prob} takes one Hamiltonian at one energy and one baseline, and returns one matrix of probabilities. To scan energies with a Hamiltonian built by hand, the user passes it to {\tt osc\_prob\_energy\_baseline}, the third layer of \figu{layers}, which calls {\tt osc\_prob} once per energy. For the 200 energies of Listing~\ref{lst:constant}, that takes 3.6~ms. The wrapper computes the same 200 energies in 0.123~ms, about thirty times faster, because it hands them to the constant-Hamiltonian engine as one batch.
+
+Calling {\tt osc\_prob} is the most general route: replacing the scalar {\tt V} by a function of position gives a varying profile, as in Sec.~\ref{sec:hamiltonians}; replacing the whole Hamiltonian matrix is illustrated in Secs.~\ref{sec:building_new_hamiltonian} and~\ref{sec:lri_sun}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

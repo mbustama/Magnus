@@ -1,0 +1,185 @@
+\subsection{Choosing the oscillation parameters}
+\label{sec:params}
+
+\tabl{parameters} lists every parameter that the shipped wrappers take, at two to five flavors, together with its default. The subsections below show how they are set.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{table*}[t!]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{l l l l l}
+ & \textbf{Two flavors} & \textbf{Three flavors} & \textbf{Four flavors (3+1)} & \textbf{Five flavors (3+2)} \\
+\hline
+\multicolumn{5}{l}{\emph{Standard oscillations, in every wrapper}} \\
+Mixing angles & {\tt sth} & {\tt s12}, {\tt s23}, {\tt s13} & as 3$\nu$, $+$ {\tt s14}, {\tt s24}, {\tt s34} & as 3$\nu$, $+$ {\tt s14}, {\tt s15}, {\tt s24}, \\
+ & & & & {\tt s25}, {\tt s34}, {\tt s35} \\
+CP phases & --- & {\tt dCP} & as 3$\nu$, $+$ {\tt d14}, {\tt d24} & as 3$\nu$, $+$ {\tt d14}, {\tt d15}, {\tt d24}, {\tt d35} \\
+Mass splittings [eV$^2$] & {\tt Dm2} & {\tt D21}, {\tt D31} & as 3$\nu$, $+$ {\tt D41} & as 3$\nu$, $+$ {\tt D41}, {\tt D51} \\
+Default & required & named set & 3$\nu$: named set; sterile: 0 & 3$\nu$: named set; sterile: 0 \\
+\hline
+\multicolumn{5}{l}{\emph{Non-standard interactions, in the {\tt \_nsi} wrappers; default 0}} \\
+Couplings $\varepsilon_{\alpha\beta}$ & {\tt eps\_aa}, {\tt eps\_ab} & {\tt eps\_ee}, {\tt eps\_em}, {\tt eps\_et}, & as 3$\nu$, $+$ {\tt eps\_es}, {\tt eps\_ms}, & as 3$\nu$, $+$ {\tt eps\_es1}, {\tt eps\_es2}, {\tt eps\_ms1}, \\
+ & & {\tt eps\_mm}, {\tt eps\_mt}, {\tt eps\_tt} & {\tt eps\_ts}, {\tt eps\_ss} & {\tt eps\_ms2}, {\tt eps\_ts1}, {\tt eps\_ts2}, {\tt eps\_s1s1}, \\
+ & & & & {\tt eps\_s1s2}, {\tt eps\_s2s2} \\
+\hline
+\multicolumn{5}{l}{\emph{Lorentz-invariance violation, in the {\tt \_liv} wrappers; default 0, except $\Lambda = 1$}} \\
+Mixing angles $\xi_{ij}$ & {\tt sxi} & {\tt sxi12}, {\tt sxi23}, {\tt sxi13} & as 3$\nu$, $+$ {\tt sxi14}, {\tt sxi24}, {\tt sxi34} & as 3$\nu$, $+$ {\tt sxi14}, {\tt sxi15}, {\tt sxi24}, \\
+ & & & & {\tt sxi25}, {\tt sxi34}, {\tt sxi35} \\
+CP phases & --- & {\tt dxiCP} & {\tt dxi13}, {\tt dxi14}, {\tt dxi24} & {\tt dxi13}, {\tt dxi14}, {\tt dxi15}, \\
+ & & & & {\tt dxi24}, {\tt dxi35} \\
+Eigenvalues [eV] & {\tt b1}, {\tt b2} & {\tt b1}--{\tt b3} & {\tt b1}--{\tt b4} & {\tt b1}--{\tt b5} \\
+Scale, power & {\tt Lambda}, {\tt n\_liv} & {\tt Lambda}, {\tt n\_liv} & {\tt Lambda}, {\tt n\_liv} & {\tt Lambda}, {\tt n\_liv} \\
+\hline
+\end{tabular}
+\caption{\label{tab:parameters}\textbf{The parameters of the wrapper functions.} Every parameter the wrappers of \tabl{wrappers} take, by flavor count, beyond the energy, the baseline, and the description of the medium. The angles are read in the convention set by {\tt angles} (Sec.~\ref{sec:angle_conventions}); the phases in radians, or in degrees under {\tt angles='deg'}. The standard three-flavor parameters left unset are read from the named set {\tt OSC\_PARAMS\_DEFAULT}, or from another set named through {\tt default\_osc\_params\_set\_name}; the active-sterile ones default to zero, so that a four- or five-flavor call without them returns the three-flavor probabilities. At two flavors, {\tt sth} and {\tt Dm2} are required. The non-standard parameters default to zero, so a {\tt \_nsi} or {\tt \_liv} wrapper called without them returns the standard result; with $n_{\rm LIV} = 0$, a term switched on through the eigenvalues is energy-independent. See Sec.~\ref{sec:params} for details.}
+\end{table*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Three flavors}
+
+Every {\tt osc\_prob\_3nu\_*} wrapper leaves its six standard parameters unset by default. An unset parameter is read from a named set, {\tt OSC\_PARAMS\_DEFAULT}, which is the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering\ \cite{Esteban:2024eli}. Naming a different set changes all six at once.
+
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_vacuum(E, L,
+ default_osc_params_set_name=
+  'OSC_PARAMS_NU_FIT_5_2_SK_IO')
+# Pme = 0.05166, against 0.03127 by default
+\end{pysnip}
+
+Fifty-two sets are predefined in {\tt globaldefs}, together with {\tt OSC\_PARAMS\_DEFAULT}. Their names in {\tt globaldefs} follow the releases. From 4.0 onward, a release splits its fits by whether Super-Kamiokande atmospheric data is included; both are included, \eg, {\tt OSC\_PARAMS\_NU\_FIT\_5\_2\_SK\_IO} and {\tt OSC\_PARAMS\_NU\_FIT\_5\_2\_NOSK\_IO}. Earlier releases carry no such split, so their names drop that infix, as in {\tt OSC\_PARAMS\_NU\_FIT\_3\_0\_NO}. Every set can also be loaded by release, ordering, and category through {\tt load\_nufit\_params}, \eg,
+\begin{pysnip}
+osc = gd.load_nufit_params('NuFIT 5.2',
+ ordering='IO', category='without_SK')
+P = oscprob.osc_prob_3nu_vacuum(E, L, **osc)
+\end{pysnip}
+Earlier releases divide their fits in other ways, by reactor-flux treatment before 2.0 and by MINOS event selection in 2.1. The named sets hold one category of each release; passing {\tt category} to the loader reaches the others, \eg,
+\begin{pysnip}
+# Additional set categories
+osc = gd.load_nufit_params('NuFIT 2.1',
+ category='LID')   # MINOS event selection
+P = oscprob.osc_prob_3nu_vacuum(E, L,
+ **osc)
+# Pme = 0.05579; 'LEM' gives 0.05558
+
+osc = gd.load_nufit_params('NuFIT 1.3',
+ category='huber_fluxes_no_rsbl')
+P = oscprob.osc_prob_3nu_vacuum(E, L,
+ **osc)
+# Pme = 0.04998; 'free_fluxes_rsbl'
+# gives 0.04552
+\end{pysnip}
+\ref{app:params} shows the list of parameter sets in \magnus\ v1.1.1. Both lists can also be printed from Python, which keeps them current with the installed version:
+\begin{pysnip}
+# Every predefined set, with its description
+sets = gd.OSC_PARAMS_PREDEFINED
+for name in sorted(sets):
+    desc = sets[name]['description']
+    print(name, '|', desc)
+# 53 lines, e.g.,
+# OSC_PARAMS_NU_FIT_1_0_IO | NuFIT 1.0, IO
+
+# The releases the loader reads, and the
+# categories of each
+fits = gd.NUFIT_GLOBAL_FITS
+for v in fits:
+    print(v, list(fits[v]['categories']))
+# 18 lines, e.g., NuFIT 2.1 ['LEM', 'LID']
+\end{pysnip}
+
+Individual values are passed by name. Anything left unset still comes from the default set, so one parameter can be moved without restating the other five:
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_vacuum(E, L,
+ dCP=0.0)
+# Pme = 0.05098; the other five stay at
+# their defaults
+\end{pysnip}
+The two mechanisms combine. A named set chooses the base, and a parameter passed alongside it replaces that one entry:
+\begin{pysnip}
+# A named set, with one value moved
+P = oscprob.osc_prob_3nu_vacuum(E, L,
+ default_osc_params_set_name=
+  'OSC_PARAMS_NU_FIT_6_1_SK_IO', dCP=0.0)
+# The other five stay at their 6.1 IO
+# values.  Pme = 0.01800, against
+# 0.05241 with the set's own dCP
+\end{pysnip}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Specifying angle conventions}
+\label{sec:angle_conventions}
+
+The mixing angles can be stated four ways, which the keyword {\tt angles} selects: {\tt 'sin'} by default, {\tt 'sin2'} for the sines squared that global fits report, {\tt 'rad'} for the angles themselves, or {\tt 'deg'}. Under {\tt 'deg'} the CP phases are read as degrees as well. {\tt angles} has to be given the same value in two places, on {\tt load\_nufit\_params} and on the probability call, since a set loaded under one convention and read under another usually returns a plausible, wrong answer:
+\begin{pysnip}
+# The convention travels with the numbers
+for conv in ('sin', 'sin2', 'rad', 'deg'):
+    osc = gd.load_nufit_params('NuFIT 6.1',
+     angles=conv)
+    P = oscprob.osc_prob_3nu_vacuum(E, L,
+     angles=conv, **osc)
+# s12 reads 0.5557, 0.3088, 0.5892, 33.759
+# and Pme = 0.03127 in all four cases
+\end{pysnip}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Two flavors}
+\label{sec:two_flavors}
+
+Two flavors take a different route. A two-flavor system has one mixing angle and one splitting, which no global fit reports as such, so {\tt osc\_prob\_2nu\_*} has no parameter set to fall back on. It does not accept {\tt default\_osc\_params\_set\_name}. Both {\tt sth} and {\tt Dm2} are required arguments; omitting either raises an error. The {\tt angles} keyword applies as it does at three flavors, so {\tt sth} is read as a sine unless another convention is named:
+\begin{pysnip}
+# Two flavors: both values are required
+P = oscprob.osc_prob_2nu_vacuum(E, L,
+ sth=0.5557, Dm2=7.537e-5)
+# P[0][1] = 0.013089
+
+# The same point, angles in degrees
+P = oscprob.osc_prob_2nu_vacuum(E, L,
+ sth=33.759, Dm2=7.537e-5, angles='deg')
+\end{pysnip}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Four flavors}
+\label{sec:four_flavors}
+
+A fourth, sterile flavor adds three mixing angles, two CP phases, and one mass splitting to the six three-flavor parameters, in the parametrization of Ref.~\cite{Kopp:2011qd}. The six three-flavor parameters behave as at three flavors: left unset, they are read from the named set. The six new ones default to zero, so a four-flavor call without them returns the three-flavor probabilities in its upper $3 \times 3$ block. All twelve can be given at once:
+\begin{pysnip}
+# Four flavors (3+1): twelve parameters
+P = oscprob.osc_prob_4nu_vacuum(E, L,
+ s12=0.3088, s23=0.4700, s13=0.02248,
+ dCP=3.700, D21=7.537e-5, D31=2.511e-3,
+ s14=0.10, s24=0.10, s34=0.0,
+ d14=0.0, d24=0.0, D41=1.0,
+ angles='sin2')
+# Pme = 0.02801, Pmm = 0.39958
+\end{pysnip}
+Here, the angles are given as their sines squared, as global fits report them; the first six values are the NuFIT 6.1 best fit of the default set, rounded. The call returns a $4 \times 4$ matrix, indexed by {\tt NUE}, {\tt NUMU}, {\tt NUTAU}, and {\tt NUS} for the sterile flavor; at five flavors, the two sterile flavors are {\tt NUS1} and {\tt NUS2}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Five flavors}
+\label{sec:five_flavors}
+
+A fifth flavor adds three further mixing angles, two further CP phases, and a second splitting, for eighteen parameters in all:
+\begin{pysnip}
+# Five flavors (3+2): eighteen parameters
+P = oscprob.osc_prob_5nu_vacuum(E, L,
+ s12=0.3088, s23=0.4700, s13=0.02248,
+ dCP=3.700, D21=7.537e-5, D31=2.511e-3,
+ s14=0.10, s24=0.10, s34=0.0,
+ s15=0.06, s25=0.06, s35=0.0,
+ d14=0.0, d15=0.0, d24=0.0, d35=0.0,
+ D41=1.0, D51=1.7, angles='sin2')
+# Pme = 0.03984, Pmm = 0.40684
+\end{pysnip}
+As at four flavors, every active-sterile parameter defaults to zero. The mixing matrix has nine angles and five CP phases, {\tt dCP}, {\tt d14}, {\tt d15}, {\tt d24}, and {\tt d35}, where a general $5 \times 5$ unitary matrix has ten angles and six phases. The missing angle and phase belong to a rotation between the two sterile flavors. Since the two sterile states are indistinguishable, that rotation changes no probability among the active flavors, so it is left out.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsubsection{Default non-standard parameters}
+
+Non-standard parameters are zero by default (\tabl{parameters}). The couplings of the {\tt \_nsi} wrappers and the Lorentz-violation parameters of the {\tt \_liv} wrappers all default to 0, so a non-standard wrapper called without them returns the standard result, which makes it the control for any new-physics scan. The LIV energy scale {\tt Lambda} defaults to 1 and the power {\tt n\_liv} to 0, so a term switched on through the eigenvalues {\tt b1}, {\tt b2}, \ldots\ is energy-independent unless that power is changed.

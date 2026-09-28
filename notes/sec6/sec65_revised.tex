@@ -1,0 +1,54 @@
+\subsection{Constant density}
+\label{sec:constant_density}
+
+In matter of constant density, the Hamiltonian does not depend on position. Every commutator in \equ{recursion} vanishes, the Magnus series stops at its first term, and the evolution operator is a single matrix exponential. Like for vacuum, \magnus\ computes this without exercising any of the method of Sec.~\ref{sec:method}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{lstlisting}[language=Python, caption={\textbf{Constant density at three and two flavors.} The density is swept from vacuum to about the value at the center of the Earth. The last call returns two hundred energies at one density, which the constant-Hamiltonian engine of Sec.~\ref{sec:engines} answers as a single stack of matrix exponentials. See Sec.~\ref{sec:constant_density} for details.}, label={lst:const_density}, float=tbp]
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.oscprob as oscprob
+
+# 'NuFIT 6.1' is the default; re-loaded for clarity only
+osc = gd.load_nufit_params('NuFIT 6.1')
+E, L = 1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM
+
+# Three flavors, one energy and one baseline
+for rho in (0.0, 3.0, 8.0, 13.0):
+    P = oscprob.osc_prob_3nu_matter_constant_density(
+        E, L, rho=rho,
+        density_matter_is_in_g_per_cm3=True, **osc)
+    print('%5.1f g/cm3  Pme = %.6f'
+          % (rho, P[gd.NUMU][gd.NUE]))
+#   0.0 g/cm3  Pme = 0.003773
+#   3.0 g/cm3  Pme = 0.013475
+#   8.0 g/cm3  Pme = 0.049843
+#  13.0 g/cm3  Pme = 0.111807
+
+# Two flavors: one angle and one splitting
+P = oscprob.osc_prob_2nu_matter_constant_density(
+    E, L, rho=3.0, sth=osc['s13'], Dm2=osc['D31'],
+    density_matter_is_in_g_per_cm3=True)
+# P[0][1] = 0.005651
+
+# Two hundred energies in one call
+Es = np.logspace(-1, 1, 200)*gd.UNIT_GEV
+P = oscprob.osc_prob_3nu_matter_constant_density(
+    Es, L, rho=3.0,
+    density_matter_is_in_g_per_cm3=True, **osc)
+# P.shape = (200, 3, 3)
+\end{lstlisting}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Listing~\ref{lst:const_density} shows the constant-density wrapper at three flavors and at two, over a range of densities, and also the whole calculation again as one batched call. The number passed as {\tt rho} is read in one of three ways, set by two keywords, both off by default:
+\begin{itemize}
+\item With neither, it is a mass density in natural units, eV$^4$.
+\item With {\tt density\_matter\_is\_in\_g\_per\_cm3=True}, which Listing~\ref{lst:const_density} sets throughout, it is a mass density in g~cm$^{-3}$.
+\item With {\tt density\_is\_of\_number\_of\_electrons=True}, it is the electron number density itself, in eV$^3$.
+\end{itemize}
+
+A mass density and an electron number density differ by the composition of the medium, which enters through a third keyword, {\tt electron\_fraction}, the number of electrons per nucleon, $Y_e = n_e/(n_p + n_n)$, with $n_e$, $n_p$, and $n_n$ the number densities of electrons, protons, and neutrons. It defaults to 1/2 in the constant-density wrappers. (Inside the Earth, the wrappers instead take $Y_e$ layer by layer from the PREM, as a function of the distance from the center; see Sec.~\ref{sec:prem} and \figu{prem}.) Lowering it to 0.2 at 3~g~cm$^{-3}$ takes $P_{\nu_\mu \to \nu_e}$ from 0.013475 to 0.006697, so its effect is not insignificant. It is read only when {\tt rho} is a mass density; a call that supplies the electron number density directly ignores it, since the conversion it governs has already been done by the user.
+
+Four and five flavors take the same form, with the active-sterile parameters added as further keywords. The call {\tt osc\_prob\_4nu\_matter\_constant\_density} with {\tt s14} and {\tt D41} returns a $4 \times 4$ matrix where the three-flavor call returns a $3 \times 3$ one; nothing else about the call changes.
+
+One further keyword, {\tt ratio\_number\_neutrons\_to\_protons}, is the ratio $r = n_n/n_p$ that enters the projector of \equ{h_matter}; since $n_p = n_e$, it is also the number of neutrons per electron, $Y_n$. It defaults to 1, the isoscalar value, which is the medium the default $Y_e = 1/2$ already describes. In neutral matter, $Y_e = 1/(1 + r)$. Setting one of the two keywords does not change the other, so both should be set together. The ratio has two effects. First, it sets the sterile entry of the matter projector of \equ{h_matter}: with $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.1$ and $\Delta m^2_{41} = 1$~eV$^2$, at the energy, baseline, and density of Listing~\ref{lst:const_density}, raising it to 1.5 moves $P_{\nu_\mu \to \nu_\mu}$ from 0.7768 to 0.7592, by 2.3\%. Second, it enters the average nucleon mass that converts a mass density into an electron number density, so it shifts the potential at every flavor count, there only in the fourth significant figure. A call that supplies {\tt rho} as the electron number density directly bypasses this second effect of {\tt ratio\_number\_neutrons\_to\_protons}.

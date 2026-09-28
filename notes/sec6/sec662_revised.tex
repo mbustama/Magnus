@@ -1,0 +1,44 @@
+\subsubsection{Through a scenario function}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\def\arraystretch{1.2}
+\begin{table*}[t!]
+{\footnotesize
+\begin{tabular}{@{}p{5.0cm}p{4.4cm}p{7.4cm}@{}}
+ Scenario function & Covers & Arguments after {\tt num\_flavors} \\
+ \hline
+ {\tt osc\_prob\_vacuum} & Vacuum & {\tt energy}, {\tt L}, {\tt osc\_params} \\
+ {\tt osc\_prob\_matter\_std\_potential} & Standard oscillations in matter & {\tt rho\_func}, {\tt energy}, {\tt L}, {\tt osc\_params} \\
+ {\tt osc\_prob\_matter\_nsi} & Non-standard interactions & {\tt rho\_func}, {\tt energy}, {\tt L}, {\tt osc\_params}, {\tt nsi\_params} \\
+ {\tt osc\_prob\_liv} & Lorentz violation, in vacuum or matter & {\tt energy}, {\tt L}, {\tt osc\_params}, {\tt liv\_params}; {\tt rho\_func} optional \\
+ \hline
+ {\tt osc\_prob\_earth} & A chord through PREM & {\tt H\_func}, {\tt energy}, and {\tt costhz} with {\tt L}, or two named locations \\
+ {\tt osc\_prob\_sun} & A ray out of the Sun & {\tt H\_func}, {\tt energy}, {\tt L} \\
+\end{tabular}}
+\caption{\label{tab:scenarios}\textbf{The probability scenario functions.} The scenario functions of \magnus, one per physics scenario. Each takes the flavor count as its first argument, so one function serves every flavor count where \tabl{wrappers} needs four wrappers. \magnus\ ships vacuum Hamiltonians for two through five flavors; past that the user supplies one through {\tt h\_vac\_energy\_indep}, which the same functions then use. Each of the matter functions takes the density as {\tt rho\_func}, a function of position, which is what makes this the layer for a profile that varies. The optional {\tt rho\_func} of {\tt osc\_prob\_liv} is why Lorentz violation is the one non-standard scenario that also exists in vacuum. The refinement keywords of Sec.~\ref{sec:architecture} reach all of them through {\tt **kwargs}. The two functions below the rule are not scenario functions: they take a Hamiltonian the user supplies and apply a geometry to it, so they pair either with a scenario function or with a Hamiltonian built by hand.}
+\end{table*}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\tabl{scenarios} lists the four scenario functions shipped with \magnus\ (plus two other functions at the same level that handle geometry in the Earth and the Sun). The scenario functions sit one layer below the wrappers, one per physics scenario and each applicable at any flavor count. They take the density as a \emph{function of position}, which is what makes them the entry point for a profile that varies; Sec.~\ref{sec:smooth_comparison} calls \magnus\ this way.
+
+Every scenario function takes its arguments in the same groups, with the flavor count first and the physics handed over as dictionaries rather than as keywords. For instance, for NSI at three flavors in constant density,
+\begin{pysnip}
+rho_func = lambda l: 3.0*gd.UNIT_G_PER_CM3
+nsi = dict(eps_ee=0.0, eps_em=0.05,
+           eps_et=0.0, eps_mm=0.0,
+           eps_mt=0.0, eps_tt=0.0)
+
+P = oscprob.osc_prob_matter_nsi(
+    3,               # 1. flavor count
+    rho_func,        # 2. the medium
+    E, L,            # 3. energy, baseline
+    osc_params=osc,  # 4. mixing
+    nsi_params=nsi)  # 5. new physics
+# Pme = 0.016972, the same number the
+# wrapper of Sec. 6.6.1 returns
+\end{pysnip}
+Two features differ from the wrapper. First, the flavor count is an argument, not part of the function's name, which is why one scenario function covers what \tabl{wrappers} needs four wrappers for. Second, the dictionaries have no defaults: every coupling has to be present, so the six entries of {\tt nsi\_params} are all written out even though five of them are zero. A wrapper fills those in.
+
+In constant density, scenario functions are the wrong tool. A callable {\tt rho\_func} that returns the same number everywhere is not detected as constant by the scenario function, so the constant-Hamiltonian engine is never reached: a single probability falls through to the general machinery in {\tt osc\_prob}, and a scan to the energy-batched engine. The answer is the same as the wrapper's to round-off, at a far higher cost.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

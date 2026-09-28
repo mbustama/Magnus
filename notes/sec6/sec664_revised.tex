@@ -1,0 +1,8 @@
+\subsubsection{Which to use}
+
+In brief, a user should use:
+\begin{itemize}
+\item \textbf{A wrapper}, for any scenario \magnus\ already implements (vacuum, constant density, exponential density, the Earth, and the Sun, each at two to five flavors, with standard oscillations, non-standard interactions, or Lorentz violation). It is the shortest call and the one with the most safeguards: it fills in the parameters left unset, converts the density, and builds the Hamiltonian in the form the fastest applicable engine of Sec.~\ref{sec:engines} expects, \eg, a constant density as a number.
+\item \textbf{A scenario function}, for a density profile that no wrapper provides, given as any function of position, or for more than five flavors, with a vacuum Hamiltonian supplied through {\tt h\_vac\_energy\_indep}. Given the same inputs, it reaches the same engines as a wrapper.
+\item \textbf{A direct call} to {\tt osc\_prob}, for a Hamiltonian that no shipped builder produces: a term from new physics beyond non-standard interactions and Lorentz violation, or a matrix that comes from somewhere else entirely.
+\end{itemize}

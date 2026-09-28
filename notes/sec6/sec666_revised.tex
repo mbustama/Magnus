@@ -1,0 +1,67 @@
+\subsubsection{Asking for the averaged probability}
+\label{sec:average_keyword}
+
+Every wrapper and scenario function, and {\tt osc\_prob\_energy\_baseline}, returns the phase average of Sec.~\ref{sec:averaged} when called with {\tt average=True}. Two more keywords configure it: {\tt average\_spread} sets the relative energy spread, $\sigma$, which is 10\% by default, and {\tt average\_initial\_state} sets the state the neutrino starts in. {\tt osc\_prob} itself, which computes a single point, does not accept {\tt average}. Nor can {\tt average=True} be combined with {\tt return\_evolution\_operator} (Sec.~\ref{sec:evolution_operator}), since the averaged routes never form an evolution operator. On the wrappers and the scenario functions, {\tt strategy\_info['engine']} reports {\tt 'average'} when the averaged route answered (Sec.~\ref{sec:which_engine}).
+
+The phase average is not the mean of the probability over a range of energies: it damps each interference term by the spread of its phase, but keeps the eigenvectors at the central energy (Sec.~\ref{sec:averaged}). Wherever the limit, \equ{averaged} or \equ{averaged_varying}, agrees with the phase average within $10^{-4}$, \magnus\ returns the limit. How the phase average is computed follows the cases of Sec.~\ref{sec:averaged}.
+
+\smallskip
+
+\textit{A constant Hamiltonian.---}For a Hamiltonian that does not depend on position, the phase average is \equ{phase_average}. It needs only the eigenvectors of $\mathbb{H}$: one diagonalization per energy, and no propagation. Over an astrophysical baseline, every interference term is damped away, and the result is \equ{averaged}. In the context of Listing~\ref{lst:constant},
+\begin{pysnip}
+FAR = 1.0e8*gd.UNIT_KM   # Astrophysical L
+P = oscprob.osc_prob_3nu_vacuum(
+    E, FAR, average=True, **osc)
+# P[0, 0] = 0.5481, P[1, 0] = 0.2155: the
+# familiar sum_i |U_ei|^2 |U_mi|^2, from the
+# eigenvectors alone
+\end{pysnip}
+At the 1\,000~km of Listing~\ref{lst:constant}, the atmospheric phase is only about 6~rad, and a 10\% spread damps its interference only partly. The result then depends on $\sigma$, and \magnus\ warns about it:
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_vacuum(
+    E, L, average=True, **osc)   # 1000 km
+# PhaseAveragingWarning: the phase-averaged
+# probability depends on the energy spread
+# at 1 of 1 (energy, L) point(s) ...
+# P[0, 0] = 0.9844, P[1, 1] = 0.9088;
+# without the keyword: 0.9924, 0.9955
+\end{pysnip}
+A pair of eigenstates whose phase stays small over the baseline, as in the coherent blocks of \equ{averaged_blocks}, keeps its interference almost undamped, because a small phase also changes little across the spread.
+
+\smallskip
+
+\textit{The initial state.---}For a Hamiltonian that varies along the path, the result depends on the state the neutrino starts in, \equ{flavor_vs_decohered}. With {\tt average\_initial\_state='flavor'}, the default, the neutrino starts as a flavor state, as one produced in the medium does, \eg, in a beam, in the atmosphere, in the Earth, or in the Sun. With {\tt 'decohered'}, it starts as an incoherent mixture of the eigenstates at production, as one arriving from a distant source does. The two differ only by the interference present at production, so they agree wherever that interference is damped away, as it is for a neutrino made in the solar core:
+\begin{pysnip}
+for start in ('flavor', 'decohered'):
+    P = oscprob.osc_prob_3nu_sun(
+        10.0*gd.UNIT_MEV,
+        gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+        nu_i=gd.NUE, nu_f=gd.NUE,
+        average=True,
+        average_initial_state=start)
+    print(start, P)    # 0.297082 both times
+\end{pysnip}
+Where it is not damped away, the two differ; on the chord of Sec.~\ref{sec:solar_tomography}, they differ by 0.24. For a constant Hamiltonian, {\tt 'decohered'} returns \equ{averaged}.
+
+\smallskip
+
+\textit{Route 1: a smoothly varying Hamiltonian.---}This is the case of the Sun. \magnus\ carries the initial state along the instantaneous eigenstates of the Hamiltonian, applies the Magnus patch of Sec.~\ref{sec:hybrid} across every crossing that is not adiabatic, and reads the result out in the flavor basis at detection, as in \equ{evolution_offset}. On a path without such a crossing, the result is \equ{phase_average_nocross} for a flavor start and \equ{averaged_varying} for a decohered start. As in any other call, {\tt rtol} and {\tt atol} set the tolerance: the patches, and the propagation along the adiabatic stretches between them, converge to the tighter of the two, $10^{-3}$ by default; if it is tighter than $10^{-4}$, it also replaces $10^{-4}$ in the choice between the limit and the phase average. Over twenty chords through the solar core, from 30~GeV to 3~TeV, the probability at the default tolerance differs from its value at a tolerance of $10^{-5}$ by at most $5 \times 10^{-6}$. A discontinuity that is not declared, but could change the probability, is reported with {\tt UnmarkedDiscontinuityWarning} rather than treated as smooth.
+
+\smallskip
+
+\textit{Route 2: a profile with declared discontinuities.---}This is the case of the Earth, whose PREM layer boundaries are breakpoints, or of any profile with discontinuities declared through {\tt t\_breakpoints} or {\tt t\_slab\_edges}. Across a jump in the density, the eigenstates change abruptly, so there are none to carry the state along. \magnus\ instead propagates at energies across a window, averages the resulting probabilities, and warns that the result is the mean of the probability over that window, not the phase average. This route starts from a flavor state only; {\tt 'decohered'} raises an error.
+
+\smallskip
+
+\textit{A Hamiltonian built by hand.---}Because {\tt osc\_prob\_energy\_baseline} accepts {\tt average}, a Hamiltonian built by hand is averaged in the same way as a shipped one:
+\begin{pysnip}
+H = H_vac/E + gd.VCC_EARTH_CRUST*proj
+P = oscprob.osc_prob_energy_baseline(
+    H, E, FAR, average=True)
+# P[0, 0] = 0.8926: the decohered limit,
+# now from the eigenvectors in matter
+\end{pysnip}
+
+\smallskip
+
+\textit{Where it is used.---}Three later sections use {\tt average=True}. In the Sun (Sec.~\ref{sec:sun} and Listing~\ref{lst:sun}), a ray from the center to the surface holds about $1.4 \times 10^{5}$ oscillation cycles at 5~MeV (Sec.~\ref{sec:averaging_is_not_estimating}), far too many to resolve. For the flavor composition of TeV--PeV astrophysical fluxes (Sec.~\ref{sec:astro}), \equ{averaged} is the whole observable. For a long-range force in the Sun (Sec.~\ref{sec:lri_sun}), the Hamiltonian is built by hand. Section~\ref{sec:jet} does not use {\tt average=True}. There, the neutrino crosses the star coherently and decoheres only on its way to Earth, so the average is taken after it leaves the star, from the evolution operator across the star.
