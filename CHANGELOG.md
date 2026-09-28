@@ -383,6 +383,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The 3+1 and 3+2 mixing-matrix docstrings now describe the matrices correctly.**
+  `mixing_matrix_5x5` said it carried three active-sterile CP phases (δ14, δ15, δ35), but it
+  carries four (δ14, δ15, δ24, δ35). It now also explains why it has nine angles and five
+  phases: the missing pair belongs to the rotation between the two sterile flavors, which
+  changes no probability among the active flavors. Both docstrings credited arXiv:1103.4570 to
+  Kopp, Machado, Maltoni & Schwetz; its authors are Kopp, Maltoni & Schwetz. The companion
+  reference arXiv:1105.3911 now names its authors, Barry, Rodejohann & Zhang. The matrices
+  themselves are unchanged.
 - **The hybrid strategy no longer certifies a wrong answer across a sharp step between its
   probe points** (issue #100).  A density step narrower than the probe spacing, away from any
   resonance, is neither a gap extremum nor a probe point, so no adiabaticity check ever landed

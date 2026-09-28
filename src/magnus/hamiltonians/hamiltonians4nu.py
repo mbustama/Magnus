@@ -53,7 +53,7 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     (:math:`\delta_{13}`), plus three additional mixing angles (:math:`\theta_{14}`, :math:`\theta_{24}`, :math:`\theta_{34}`) and two
     additional CP phases (:math:`\delta_{14}`, :math:`\delta_{24}`) coupling the sterile state.  Follows the
     parametrization :math:`U = R_{34} \tilde R_{24} \tilde R_{14} R_{23} \tilde R_{13} R_{12}` of
-    Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also arXiv:1105.3911).
+    Kopp, Maltoni & Schwetz, arXiv:1103.4570 (see also Barry, Rodejohann & Zhang, arXiv:1105.3911).
 
     .. versionadded:: 1.0.0
 
