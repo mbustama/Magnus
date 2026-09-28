@@ -295,6 +295,7 @@ import numpy as np
 import sys
 import warnings
 import weakref
+import contextlib
 from contextlib import contextmanager
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
@@ -460,6 +461,72 @@ breakpoint profiles, 2 to 40 energies, both rules, rtol = atol = 1e-3 and 1e-4),
 the seed against without it, by seed: at 2, worst 2.14x (median 0.81x); at 3, worst 1.24x
 (0.67x); at 4, worst 0.87x (0.54x); at 5 and above, never more than 0.36x.  So 4 is the smallest
 seed that never cost work.
+
+.. versionadded:: 1.1.1
+"""
+
+
+BATCHED_GL_MAX_SLAB_NORM = 2.0*np.pi
+r"""float: Module-level constant
+
+Largest slab norm :math:`\lVert\Omega\rVert_2` at which the energy-batched engine lets an
+energy's agreement between two levels count as convergence on ``'gl'``, while the ladder can
+still add slabs.  Above it, that energy goes one level further; the others are accepted as
+before.
+
+**Why (issue #71).** On smooth profiles, two coarse ``'gl'`` levels can agree by chance: each
+slab spans several radians of phase, where the Magnus series has not yet reached the regime in
+which its error falls at its order, and the two answers happen to coincide.  Over the 477 scans
+of the #71 measurement pool, all 27 energies that ``'gl'`` returned outside the tolerance
+without a warning (up to 19 times outside it) had been accepted at a level where their *own*
+slab norm was at least :math:`2\pi` (7.4 to 17.3); of the 1263 energies it returned within
+tolerance, 78 had.  Refusing those acceptances took the 27 to zero, added none, and cost 0.9 %
+of the total work of the 159 ``'gl'`` scans.  Twelve scans do more work; five of them had been
+within tolerance, and those take 1.03x to 1.23x the time (at most 0.7 ms more, on 2- and
+4-energy scans of 2-3 ms).  The worst case, a 40-energy scan that had been returning two
+energies outside the tolerance, takes 2.3x.
+
+**Why per energy.** A gate on the batch's largest norm was measured first and rejected: it
+refused every energy of a scan for the sake of one, and slowed smooth profiles by up to 15x.
+Here an energy is refused only for its own norm, which ``magnus._expm_stack`` already has
+(see ``magnus._row_slab_norms``): the per-energy maximum replaces the stack maximum it takes
+for :class:`magnus.magnus.MagnusConvergenceWarning`, which is unchanged.
+
+**Why only** ``'gl'``. On ``'trapezoid'`` and ``'simpson'`` the same test flags far more correct
+energies than wrong ones; their chance agreements on breakpoint grids are warned about instead
+(``BATCHED_JUMP_WARN_RATIO``).
+
+**Why not at the slab cap.** There the ladder can no longer add slabs, so a refusal would only
+repeat the level; the engine keeps its previous behavior at the cap and on its last level.
+
+.. versionadded:: 1.1.1
+"""
+
+
+BATCHED_JUMP_WARN_RATIO = 50.0
+r"""float: Module-level constant
+
+On a grid with breakpoints, ``'trapezoid'`` and ``'simpson'`` in the energy-batched engine warn
+(:class:`ToleranceNotAchievedWarning`) about an energy accepted on two levels that agree when
+the two before them differed by more than this many times the tolerance, and the accepted pair
+still differs by more than ``BATCHED_JUMP_WARN_AGREE`` of it.  A ladder that jumps from far off
+to barely inside the tolerance in one level has more likely met a chance agreement than
+converged (issue #71).
+
+Over the #71 measurement pool, of the 33 energies these rules returned outside the tolerance on
+breakpoint grids without a warning, it flags 20, against 15 energies within tolerance (7 scans
+of 427 warned without a miss).  It changes no level, work or probability.  On smooth profiles
+the same test caught 1 of 10 and is not applied there.
+
+.. versionadded:: 1.1.1
+"""
+
+
+BATCHED_JUMP_WARN_AGREE = 0.3
+r"""float: Module-level constant
+
+Fraction of the tolerance that the accepted pair must still differ by for
+``BATCHED_JUMP_WARN_RATIO`` to warn.
 
 .. versionadded:: 1.1.1
 """
@@ -5003,6 +5070,15 @@ def _osc_prob_scan_separable(
     # The previous level's slab count, to tell a level that refined only the points per slab.
     n_slabs_prev_level = None
     warned_at_slab_cap = False
+    # 'gl' refuses an energy's agreement while its own slab norm is large, as long as the
+    # ladder can still add slabs (BATCHED_GL_MAX_SLAB_NORM); the norms come from the
+    # exponentials this level computes anyway (magnus._row_slab_norms).
+    gl_gate = tol_requested and (integration_method == 'gl') and (growth_factor_n_slabs > 1.0)
+    # The quadrature rules on breakpoint grids warn about an agreement reached in one jump
+    # from far off (BATCHED_JUMP_WARN_RATIO); per energy, whether its last gap was such a jump.
+    jump_warn = tol_requested and (integration_method != 'gl') and bool(bp_in.size)
+    jumped = np.zeros(nE, bool) if jump_warn else None
+    warned_jump = False
 
     P_prev = np.full((nE, dim, dim), np.nan)
     P_out = np.empty((nE, dim, dim))
@@ -5051,14 +5127,15 @@ def _osc_prob_scan_separable(
         # see its own definition for what it was tuned against.
         chunk, _ = _tile_for_working_set(len(active), 1, tgrid.size*dim*dim)
         P_new = np.empty((len(active), dim, dim))
-        for i0 in range(0, len(active), chunk):
-            sel = active[i0:i0+chunk]
-            At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
-            U = magnus.evolution_operators_from_samples(At, widths,
-                magnus_exp_order, integration_method, validate_input=False)
-            Utot = magnus._ordered_product_batched(U)
-            P_new[i0:i0+chunk] = np.swapaxes(
-                Utot.real**2 + Utot.imag**2, -1, -2)
+        with (magnus._row_slab_norms() if gl_gate else contextlib.nullcontext()) as row_norms:
+            for i0 in range(0, len(active), chunk):
+                sel = active[i0:i0+chunk]
+                At = HE_c[sel][:, None, None, :, :] + Vmat[None, :, :, :, :]
+                U = magnus.evolution_operators_from_samples(At, widths,
+                    magnus_exp_order, integration_method, validate_input=False)
+                Utot = magnus._ordered_product_batched(U)
+                P_new[i0:i0+chunk] = np.swapaxes(
+                    Utot.real**2 + Utot.imag**2, -1, -2)
 
         if not tol_requested:
             P_out[active] = P_new
@@ -5066,8 +5143,9 @@ def _osc_prob_scan_separable(
 
         prev = P_prev[active]
         have_prev = ~np.isnan(prev[:, 0, 0])
-        conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
-                                  axis=(-1, -2))
+        gap = np.abs(P_new - prev)
+        lim = atol + rtol*np.abs(prev)
+        conv = have_prev & np.all(gap <= lim, axis=(-1, -2))
         if bp_in.size:
             # As in osc_prob: two grids that differ by a few breakpoint-dominated percent agree
             # without having converged, so their agreement does not count.
@@ -5075,6 +5153,24 @@ def _osc_prob_scan_separable(
             if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
                 conv[:] = False
             r_prev = r_level
+        if gl_gate and conv.any() and (n_slabs < max_n_slabs) and (loop_count < max_num_loops):
+            # A chance agreement between two coarse grids (issue #71): refused for the energies
+            # whose own slabs are still wide, which go one level further.
+            norms = row_norms[0] if len(row_norms) == 1 else np.concatenate(row_norms)
+            if norms.shape == conv.shape:
+                conv &= norms < BATCHED_GL_MAX_SLAB_NORM
+        if jump_warn and not warned_jump:
+            hit = conv & jumped[active]
+            if hit.any() and np.any(
+                    gap[hit] > BATCHED_JUMP_WARN_AGREE*lim[hit]):
+                warnings.warn("osc_prob (energy-batched scan): some energies were accepted on "
+                    "two levels that agreed right after the ladder was still far from "
+                    "converged, which on a grid with breakpoints is more often a chance "
+                    "agreement than convergence; the returned probabilities may be outside "
+                    "the tolerance. Tighten rtol/atol, or use integration_method='gl'.",
+                    ToleranceNotAchievedWarning, stacklevel=2)
+                warned_jump = True
+            jumped[active] = np.any(gap > BATCHED_JUMP_WARN_RATIO*lim, axis=(-1, -2))
         if (conv.any() and (growth_factor_n_slabs > 1.0) and (n_slabs >= max_n_slabs)
                 and (n_slabs_prev_level == n_slabs) and not warned_at_slab_cap):
             # Pinned at the slab cap, this level refined only the points per slab.  Agreeing with

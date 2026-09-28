@@ -1783,6 +1783,42 @@ def _deferred_slab_norm():
         _SLAB_NORM_SINK = prev
 
 
+_ROW_NORM_SINK = None
+r"""list or None: when a caller has opened ``_row_slab_norms``, each call of ``_expm_stack``
+on a stack of shape ``(n, ..., d, d)`` appends here the largest ``||Omega||_2`` of each of its
+``n`` leading rows.  ``None`` (and therefore free) otherwise."""
+
+
+@contextmanager
+def _row_slab_norms():
+    r"""Collect the slab norm of each leading row of every stack exponentiated in the block.
+
+    The energy-batched scan (:func:`magnus.oscprob._osc_prob_scan_separable`) stacks its
+    energies in front of the slab axis, so a row is one energy, and its norm is the largest
+    :math:`\lVert\Omega\rVert_2` over that energy's slabs.  The engine uses it to refuse an
+    agreement a coarse grid reached by chance (``BATCHED_GL_MAX_SLAB_NORM``, issue #71).
+
+    The per-row maximum replaces the stack maximum that ``_expm_stack`` takes anyway, and
+    :class:`MagnusConvergenceWarning` still receives the stack maximum, so the warning is
+    unchanged.  Not re-entrant; nothing inside the engine's level opens it again.
+
+    .. versionadded:: 1.1.1
+
+    Yields
+    ------
+    list of np.ndarray
+        One array of row norms per ``_expm_stack`` call, in call order.
+    """
+    global _ROW_NORM_SINK
+    prev = _ROW_NORM_SINK
+    sink = []
+    _ROW_NORM_SINK = sink
+    try:
+        yield sink
+    finally:
+        _ROW_NORM_SINK = prev
+
+
 def _warn_slab_norm(nmax: float):
     r"""Warn if the slab norm proxy ``nmax`` :math:`= \max \lVert\Omega\rVert_2` is
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
@@ -2405,6 +2441,8 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         scale = np.max(np.abs(K))
         dev = np.max(np.abs(K - Kh))
     if scale == 0.0:
+        if (_ROW_NORM_SINK is not None) and warn_wide and not A_is_const:
+            _ROW_NORM_SINK.append(np.zeros(Om.shape[0]))
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
     if dev <= 1.e-12*scale:
@@ -2439,14 +2477,27 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
             Vh = np.conj(np.swapaxes(V, -1, -2))
             U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
         if warn_wide and not A_is_const:
-            _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
+            if _ROW_NORM_SINK is None:
+                _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
+            else:
+                # The same maximum, taken per leading row first (see _row_slab_norms).
+                rows = np.abs(lam).reshape(Om.shape[0], -1).max(axis=1)
+                _ROW_NORM_SINK.append(rows)
+                _warn_slab_norm(rows.max())
         return U
     # General (non-anti-Hermitian) fallback
     if warn_wide and not A_is_const:
         try:
-            _warn_slab_norm(np.max(np.linalg.svd(Om, compute_uv=False)))
+            sv = np.linalg.svd(Om, compute_uv=False)
+            if _ROW_NORM_SINK is None:
+                _warn_slab_norm(np.max(sv))
+            else:
+                rows = sv.reshape(Om.shape[0], -1).max(axis=1)
+                _ROW_NORM_SINK.append(rows)
+                _warn_slab_norm(rows.max())
         except np.linalg.LinAlgError:
-            pass
+            if _ROW_NORM_SINK is not None:
+                _ROW_NORM_SINK.append(np.zeros(Om.shape[0]))   # unknown: no gate, as before
     try:
         return np.asarray(sp.linalg.expm(Om))
     except Exception:
