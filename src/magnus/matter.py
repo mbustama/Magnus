@@ -676,7 +676,20 @@ def vcc_func_from_rho_func(
         Through :func:`num_density_e_func`, if the density does not look like the unit it
         was declared in.  A density that would trip the guard is deliberately not cached,
         so the warning fires on every call rather than only the first.
+
+    .. versionchanged:: 1.1.1
+       Raises ValueError when ``density_matter_is_in_g_per_cm3`` and
+       ``density_is_of_number_of_electrons`` are both True (issue #112).
     """
+    # The two flags name two different units for the same number, so both cannot hold (issue
+    # #112).  Every matter wrapper and scenario function comes through here, and with both set
+    # the electron flag silently won: rho = 3.0 with the g/cm^3 flag became n_e = 3 eV^3, which
+    # is vacuum.
+    if density_matter_is_in_g_per_cm3 and density_is_of_number_of_electrons:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " density_matter_is_in_g_per_cm3 and "
+            "density_is_of_number_of_electrons are both True, but they give rho two different "
+            "units: a mass density in g cm^-3, or an electron number density in eV^3.  Set at "
+            "most one of them; with neither, rho is a mass density in eV^4.")
     s = 1.0 if not nubar else -1.0
 
     # A constant density makes this a pure function of seven scalars returning one float, and a

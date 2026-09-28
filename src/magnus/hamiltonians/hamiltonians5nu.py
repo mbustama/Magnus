@@ -50,11 +50,17 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     Computes and returns the 5x5 complex mixing matrix for a 3+2 sterile-neutrino scenario,
     parametrized by the three standard mixing angles (:math:`\theta_{12}`, :math:`\theta_{23}`, :math:`\theta_{13}`) and CP phase
     (:math:`\delta_{13}`), plus six additional mixing angles (:math:`\theta_{14}`, :math:`\theta_{15}`, :math:`\theta_{24}`, :math:`\theta_{25}`,
-    :math:`\theta_{34}`, :math:`\theta_{35}`) and three additional CP phases (:math:`\delta_{14}`, :math:`\delta_{15}`, :math:`\delta_{35}`) coupling the
-    two sterile states.  Follows the parametrization
+    :math:`\theta_{34}`, :math:`\theta_{35}`) and four additional CP phases (:math:`\delta_{14}`, :math:`\delta_{15}`, :math:`\delta_{24}`,
+    :math:`\delta_{35}`) coupling the two sterile states.  Follows the parametrization
     :math:`U = \tilde R_{35} R_{34} R_{25} \tilde R_{24} R_{23} \tilde R_{15} \tilde R_{14}
-    \tilde R_{13} R_{12}` of Kopp, Machado, Maltoni & Schwetz, arXiv:1103.4570 (see also
-    arXiv:1105.3911).
+    \tilde R_{13} R_{12}` of Kopp, Maltoni & Schwetz, arXiv:1103.4570 (see also Barry,
+    Rodejohann & Zhang, arXiv:1105.3911).
+
+    That is nine angles and five phases, where a general :math:`5 \times 5` unitary matrix has ten
+    angles and six phases.  The missing pair belongs to a rotation :math:`R_{45}` between the two
+    sterile flavors.  The two sterile states are indistinguishable, so that rotation changes no
+    probability among the active flavors (measured: at most 5e-13, in vacuum and in matter); it
+    only relabels the sterile flavors, and is left out.
 
     .. versionadded:: 1.0.0
 

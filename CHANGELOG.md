@@ -9,6 +9,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Keywords that were accepted and then ignored now work or raise.**
+  - `default_osc_params_set_name` on a two-flavor call (issue #110), where no parameter set
+    applies since `sth` and `Dm2` are required, now raises a `ValueError`; so does a set name
+    on a scenario function above five flavors, where the vacuum Hamiltonian is given whole.
+    A misspelled keyword on the same call already raised; this one changed nothing in silence.
+  - `density_matter_is_in_g_per_cm3=True` together with `density_is_of_number_of_electrons=True`
+    (issue #112) now raises a `ValueError` on all 27 functions that take them.  The two give
+    `rho` different units, and the electron flag used to win: `rho=3.0` meant for g cm^-3 was
+    read as 3 eV^3 of electrons, which is vacuum.
+  - `osc_prob_energy_baseline` takes `strategy_info` (issue #114) and reports the engine on
+    every route, as the wrappers do.  It used to reject the keyword as unknown on every
+    route but `average=True`, which ignored it and, with it, any misspelled keyword; that
+    route now checks its keywords too.
+  Each check is a comparison on a valid call; results are unchanged.
+
 - **Arguments other than the energy and the baseline refuse arrays with a message that
   names them** (issue #116).  Only `energy` and `L` take arrays.  An array given for a
   mixing parameter, an NSI or LIV coefficient, `nu_i`/`nu_f`, `rho`, `rho_central`,
@@ -424,6 +439,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The 3+1 and 3+2 mixing-matrix docstrings now describe the matrices correctly.**
+  `mixing_matrix_5x5` said it carried three active-sterile CP phases (δ14, δ15, δ35), but it
+  carries four (δ14, δ15, δ24, δ35). It now also explains why it has nine angles and five
+  phases: the missing pair belongs to the rotation between the two sterile flavors, which
+  changes no probability among the active flavors. Both docstrings credited arXiv:1103.4570 to
+  Kopp, Machado, Maltoni & Schwetz; its authors are Kopp, Maltoni & Schwetz. The companion
+  reference arXiv:1105.3911 now names its authors, Barry, Rodejohann & Zhang. The matrices
+  themselves are unchanged.
 - **The hybrid strategy no longer certifies a wrong answer across a sharp step between its
   probe points** (issue #100).  A density step narrower than the probe spacing, away from any
   resonance, is neither a gap extremum nor a probe point, so no adiabaticity check ever landed

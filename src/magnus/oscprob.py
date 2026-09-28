@@ -2571,6 +2571,28 @@ def valid_flavor_indices_2nu(nu_i: int, nu_f: int) -> Tuple[int, int]:
     return nu_i, nu_f
 
 
+def _reject_parameter_set_name_without_set(num_flavors: int, default_osc_params_set_name: str,
+                                          source_func_name: str) -> None:
+    r"""Refuse ``default_osc_params_set_name`` where no parameter set applies (issue #110).
+
+    The shipped sets fill in the three-flavor parameters left unset, at three to five flavors.
+    At two flavors ``sth`` and ``Dm2`` are always required, and above five the vacuum
+    Hamiltonian is supplied whole, so a set name there changed nothing -- silently, while a
+    misspelled keyword on the same call raised.  One string comparison on a valid call.
+
+    .. versionadded:: 1.1.1
+    """
+    if (default_osc_params_set_name != 'OSC_PARAMS_DEFAULT') and \
+            not (2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "default_osc_params_set_name=" + repr(default_osc_params_set_name) + " was given, "
+            "but no parameter set applies at " + str(num_flavors) + " flavors: " +
+            ("sth and Dm2 are always required at two flavors." if num_flavors == 2 else
+             "above " + str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + " flavors the vacuum "
+             "Hamiltonian is given whole, through h_vac_energy_indep.") +
+            "  Remove the keyword.")
+
+
 def values_to_unspecified_osc_params(
     s12: Optional[Union[int, float]]=None, 
     s23: Optional[Union[int, float]]=None, 
@@ -7246,6 +7268,7 @@ def osc_prob_energy_baseline(
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
     average_initial_state: Optional[str]=None,
+    strategy_info: Optional[Dict]=None,
     **kwargs
 ) -> Union[int, float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     r"""Compute and return oscillation probabilities for given arrays of
@@ -7446,6 +7469,13 @@ def osc_prob_energy_baseline(
         Ignored without ``average``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
+    strategy_info : dict, optional
+        If given, filled on return with the engine that answered and the route the request
+        took, as on the wrappers: ``strategy_info['engine']`` is ``'average'``,
+        ``'constant'``, ``'magnus'``, ... (see :func:`osc_prob_matter_std_potential`).
+        Default: None.
+
+        .. versionadded:: 1.1.1
 
     Returns
     -------
@@ -7455,6 +7485,15 @@ def osc_prob_energy_baseline(
         With ``return_evolution_operator=True``, the pair ``(P, U)``: ``P`` as above and ``U``
         the operators, one ``(d, d)`` array per point, ``(n, d, d)`` for arrays of points.
     """
+    # strategy_info (issue #114): until 1.1.1 this entry point had no such keyword, so it fell
+    # into **kwargs and was rejected by osc_prob as unknown on every route but average=True,
+    # which returned before any keyword check and left the caller's dict empty.  When given,
+    # the call re-enters itself under the same probe the wrappers open; when not, this test is
+    # its whole cost.
+    if strategy_info is not None:
+        _args = {k: v for k, v in locals().items() if k not in ('kwargs', 'strategy_info')}
+        with _engine_probe(info=strategy_info):
+            return osc_prob_energy_baseline(**_args, **kwargs)
 
     if (callable(H_func) and (_n_required_params(H_func) > 2)):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
@@ -7553,6 +7592,9 @@ def osc_prob_energy_baseline(
     # the ordinary path runs further down is run here first, since this route allocates its
     # result the same way.
     if average:
+        # This route answers without reaching osc_prob, whose keyword check the per-point
+        # route relies on, so a typo here (rtoll=...) used to be ignored in silence (#114).
+        _check_passthrough_kwargs(kwargs, 'osc_prob_energy_baseline')
         if return_evolution_operator:
             _check_operator_request(True, None, 'osc_prob_energy_baseline')
         _check_output_fits(
@@ -8439,6 +8481,8 @@ def osc_prob_vacuum(
     # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
+    _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
+        sys._getframe().f_code.co_name)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -8887,6 +8931,8 @@ def osc_prob_matter_std_potential(
     # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
+    _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
+        sys._getframe().f_code.co_name)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -9435,6 +9481,8 @@ def osc_prob_matter_nsi(
     # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
+    _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
+        sys._getframe().f_code.co_name)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -9970,6 +10018,8 @@ def osc_prob_liv(
     # standard parameters to fill in -- the caller's h_vac_energy_indep is the Hamiltonian --
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
+    _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
+        sys._getframe().f_code.co_name)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
