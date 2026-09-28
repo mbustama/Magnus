@@ -24,6 +24,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
     route now checks its keywords too.
   Each check is a comparison on a valid call; results are unchanged.
 
+- **Arguments other than the energy and the baseline refuse arrays with a message that
+  names them** (issue #116).  Only `energy` and `L` take arrays.  An array given for a
+  mixing parameter, an NSI or LIV coefficient, `nu_i`/`nu_f`, `rho`, `rho_central`,
+  `l_scale`, `costhz` or `electron_fraction` used to fail deep in the call with a NumPy
+  message ("The truth value of an array ... is ambiguous", "setting an array element
+  with a sequence", "unhashable type").  It now raises a `ValueError` naming the
+  argument and saying that a scan over it takes one call per value.  The checks sit on
+  the path that was already failing, or are a single scalar test, so valid calls are
+  unchanged.
+
 - **Energy scans accept a density function that returns a single number, or that takes
   one position at a time** (issue #113).  The scenario functions (e.g.
   `osc_prob_matter_std_potential`) crashed on an array of energies when given

@@ -383,6 +383,7 @@ File Tree
        ├── test_diagnostics_documents_every_warning.py  # diagnostics.rst's catalogue covers every warning class the package defines
        ├── conftest.py                 # Path setup so magnus is importable without installation
        ├── test_adiabatic.py           # Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks
+       ├── test_array_arguments.py     # Arguments other than energy and L refuse arrays, naming them (issue #116)
        ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
        ├── test_phase_average.py       # The phase average over an energy spread (issue #64)

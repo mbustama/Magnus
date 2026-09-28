@@ -1772,6 +1772,36 @@ def print_run_parameters(
     return
 
 
+def _not_a_single_number(source_func_name: str, names: list) -> ValueError:
+    r"""The error for arguments given as arrays where only a single number is accepted (#116).
+
+    Only ``energy`` and ``L`` take arrays.  Without this, an array elsewhere failed deep in the
+    call with a NumPy message ("The truth value of an array ... is ambiguous", "setting an array
+    element with a sequence") that named neither the argument nor the rule.  Built only on the
+    failing path, so a valid call pays nothing for it.
+
+    .. versionadded:: 1.1.1
+    """
+    return ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+        ", ".join(names) + (" is not a single number" if len(names) == 1 else
+        " are not single numbers") + ".  Only energy and L take arrays; to scan another "
+        "parameter, make one call per value.")
+
+
+def _raise_if_array_params(source_func_name: str, params: dict) -> None:
+    r"""Raise :func:`_not_a_single_number` for the entries of ``params`` that are not scalars.
+
+    Called from the except clause of the parameter unpackers, so it runs only when building
+    their array has already failed; returns quietly when every entry is a scalar, and the
+    caller then re-raises the original error.
+
+    .. versionadded:: 1.1.1
+    """
+    bad = [k for k, v in params.items() if (v is not None) and (np.ndim(v) != 0)]
+    if bad:
+        raise _not_a_single_number(source_func_name, bad) from None
+
+
 def validate_input_battery(
     source_func_name: str, 
     energy: Optional[Union[int, float, list, np.ndarray]]=None, 
@@ -1944,7 +1974,11 @@ def validate_input_battery(
                     flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS])
                 elif (num_flavors == 5):
                     flavors = set([gd.NUE, gd.NUMU, gd.NUTAU, gd.NUS1, gd.NUS2])
-                if ((nu_i not in flavors) or (nu_f not in flavors)):
+                try:
+                    unknown = (nu_i not in flavors) or (nu_f not in flavors)
+                except TypeError:
+                    raise _not_a_single_number(source_func_name, ['nu_i or nu_f']) from None
+                if unknown:
                     if ((num_flavors == 2) or (num_flavors == 3)):
                         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                             ": if nu_i and nu_f are not None, they must be either gd.NUE (" + \
@@ -2004,6 +2038,10 @@ def validate_input_battery(
                 " the provided rho_func is a function of more than one parameter.")
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
+
+        if (not isinstance(rho_test, (int, float))) and (np.ndim(rho_test) != 0):
+            raise _not_a_single_number(source_func_name,
+                ['rho_func(L0)' if callable(rho_func) else 'rho'])
 
         if (rho_test < 0.0):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
@@ -2198,7 +2236,11 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
     for name, value in list(layered.items()) + [('electron_fraction', electron_fraction)]:
         if value is None:
             continue
-        if not (0.0 < float(value) <= 1.0):
+        try:
+            value = float(value)
+        except TypeError:
+            raise _not_a_single_number(source_func_name, [name]) from None
+        if not (0.0 < value <= 1.0):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
                 name + " is an electron fraction, Y_e = <Z/A>, so it must be in (0, 1]; "
                 "got " + str(value) + ".")
@@ -2390,6 +2432,9 @@ def validate_input_osc_prob_earth(
 
     else: # (loc_ini is None) and (loc_fin is None)
 
+        if (not isinstance(costhz, (int, float))) and (costhz is not None) and \
+                (np.ndim(costhz) != 0):
+            raise _not_a_single_number(source_func_name, ['costhz'])
         if costhz is None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": no" + \
                 " initial and final locations on the surface of the Earth given, and no " + \
@@ -2700,6 +2745,9 @@ def unpack_oscillation_params_from_dict(
             sth = osc_params['sth']
             Dm2 = osc_params['Dm2']
             return np.array([sth, Dm2])
+        except ValueError:
+            _raise_if_array_params(source_func_name, osc_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since "+ \
                     "num_flavors == 2, the dictionary of oscillation parameters " + \
@@ -2713,6 +2761,9 @@ def unpack_oscillation_params_from_dict(
             D21 = osc_params['D21']
             D31 = osc_params['D31']
             return np.array([s12, s23, s13, dCP, D21, D31])
+        except ValueError:
+            _raise_if_array_params(source_func_name, osc_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of oscillation parameters " + \
@@ -2733,6 +2784,9 @@ def unpack_oscillation_params_from_dict(
             D31 = osc_params['D31']
             D41 = osc_params['D41']
             return np.array([s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41])
+        except ValueError:
+            _raise_if_array_params(source_func_name, osc_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of oscillation parameters " + \
@@ -2761,6 +2815,9 @@ def unpack_oscillation_params_from_dict(
             D51 = osc_params['D51']
             return np.array([s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, \
                 D21, D31, D41, D51])
+        except ValueError:
+            _raise_if_array_params(source_func_name, osc_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of oscillation parameters " + \
@@ -2845,6 +2902,9 @@ def unpack_nsi_params_from_dict(
             eps_mt = nsi_params['eps_mt']
             eps_tt = nsi_params['eps_tt']
             return np.array([eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt])
+        except ValueError:
+            _raise_if_array_params(source_func_name, nsi_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of NSI parameters " + \
@@ -2864,6 +2924,9 @@ def unpack_nsi_params_from_dict(
             eps_ss = nsi_params['eps_ss']
             return np.array([eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms, eps_tt, eps_ts,
                 eps_ss])
+        except ValueError:
+            _raise_if_array_params(source_func_name, nsi_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of NSI parameters " + \
@@ -2888,6 +2951,9 @@ def unpack_nsi_params_from_dict(
             eps_s2s2 = nsi_params['eps_s2s2']
             return np.array([eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1,
                 eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2])
+        except ValueError:
+            _raise_if_array_params(source_func_name, nsi_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of NSI parameters " + \
@@ -2982,6 +3048,9 @@ def unpack_liv_params_from_dict(
             b3 = liv_params['b3']
             n_liv = liv_params['n_liv']
             return np.array([sxi12, sxi23, sxi13, dxiCP, b1, b2, b3, Lambda, n_liv])
+        except ValueError:
+            _raise_if_array_params(source_func_name, liv_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 3, the dictionary of LIV parameters " + \
@@ -3009,6 +3078,9 @@ def unpack_liv_params_from_dict(
             n_liv = liv_params['n_liv']
             return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2,
                 b3, b4, Lambda, n_liv])
+        except ValueError:
+            _raise_if_array_params(source_func_name, liv_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of LIV parameters " + \
@@ -3043,6 +3115,9 @@ def unpack_liv_params_from_dict(
             n_liv = liv_params['n_liv']
             return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, 
                 sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5, Lambda, n_liv])
+        except ValueError:
+            _raise_if_array_params(source_func_name, liv_params)
+            raise
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of LIV parameters " + \
@@ -11751,6 +11826,10 @@ def osc_prob_2nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_2nu_matter_exp_density: rho_central must be non-negative" + \
@@ -11900,6 +11979,10 @@ def osc_prob_3nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_3nu_matter_exp_density: rho_central must be non-negative" + \
@@ -12065,6 +12148,10 @@ def osc_prob_4nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_4nu_matter_exp_density: rho_central must be non-negative" + \
@@ -12249,6 +12336,10 @@ def osc_prob_5nu_matter_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_5nu_matter_exp_density: rho_central must be non-negative" + \
@@ -16277,6 +16368,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_2nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
@@ -16446,6 +16541,10 @@ def osc_prob_3nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_3nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
@@ -16644,6 +16743,10 @@ def osc_prob_4nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_4nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
@@ -16877,6 +16980,10 @@ def osc_prob_5nu_matter_nsi_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_5nu_matter_nsi_exp_density: rho_central and l_scale must be " + \
@@ -20914,6 +21021,10 @@ def osc_prob_2nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_2nu_matter_liv_exp_density: rho_central must be non-negative" + \
@@ -21089,6 +21200,10 @@ def osc_prob_3nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_3nu_matter_liv_exp_density: rho_central must be non-negative" + \
@@ -21298,6 +21413,10 @@ def osc_prob_4nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_4nu_matter_liv_exp_density: rho_central must be non-negative" + \
@@ -21545,6 +21664,10 @@ def osc_prob_5nu_matter_liv_exp_density(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    if not (isinstance(rho_central, (int, float)) and isinstance(l_scale, (int, float))) and \
+            ((np.ndim(rho_central) != 0) or (np.ndim(l_scale) != 0)):
+        raise _not_a_single_number(sys._getframe().f_code.co_name,
+            [n for n, v in (('rho_central', rho_central), ('l_scale', l_scale)) if np.ndim(v)])
     if (rho_central < 0.0 or l_scale <= 0.0):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + \
             " oscprob.osc_prob_5nu_matter_liv_exp_density: rho_central must be non-negative" + \

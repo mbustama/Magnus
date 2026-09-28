@@ -382,6 +382,8 @@ TREE = [
      "diagnostics.rst's catalogue covers every warning class the package defines"),
     ('tests/conftest.py', 'Path setup so magnus is importable without installation'),
     ('tests/test_adiabatic.py', 'Adiabatic + Magnus hybrid strategy: detection, merging, ODE cross-checks'),
+    ('tests/test_array_arguments.py',
+     'Arguments other than energy and L refuse arrays, naming them (issue #116)'),
     ('tests/test_angles.py', "The four `angles` conventions and the guards between them"),
     ('tests/test_avgprob.py', 'Phase-averaged probabilities'),
     ('tests/test_phase_average.py', 'The phase average over an energy spread (issue #64)'),
