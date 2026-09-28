@@ -402,6 +402,26 @@ Measured
        ``'trapezoid'`` and ``'simpson'``, ``rtol = atol`` = 1e-3 and 1e-4, work with the
        phase-based starting slab count against without it: a seed of 2 cost up to 2.14× the
        work and of 3 up to 1.24×; from 4 up it never cost any (worst 0.87× at 4, 0.36× at 5).
+   * - :data:`magnus.oscprob.BATCHED_PHASE_GROUPING`
+     - 0.17 / 0.44 / 1.8 / 3.2 us per slab-energy at d = 2…5; 0.15 us per shared slab;
+       250 us per level; resolution law 22 S^0.71 (1e-8/tol)^0.18; margin 1.2; floor
+       ``atol + 0.01 rtol`` >= 1e-4; four flavors or more
+     - The cost model by which an energy-batched scan is split into groups of energies of
+       similar phase, each on its own grid (issue #111).  Per-slab costs from the slope of
+       the level time at 1 to 4096 slabs and 1 to 4 energies on an Earth chord, flat in the
+       number of energies at three flavors and above; the fixed level cost from the
+       intercept (100-240 us, set at the upper end); the slab count an energy is accepted
+       at, fitted over 183 per-energy ladders of 4nu and 5nu sterile scans at rtol = 1e-4
+       to 1e-8 (rms factor 1.32).  The dynamic program it drives was measured against
+       phase-ratio grouping at ``b`` = 1.25…3, one ladder per energy, and the per-point
+       route: 4nu with :math:`\Delta m^2_{41}` = 1 eV², 40 energies at 0.5-5 GeV, **650 ms
+       -> 215 ms** (per-point 370 ms).  The floor comes from 174 scans scored against
+       1e-9 references: split at rtol = atol = 1e-6, five returned an energy silently
+       outside the tolerance where one grid returned none; at 1e-3 and 1e-4, neither did.
+       Scans it does not split are bit-identical, and two- and three-flavor scans are
+       never split: a 3nu split gained 17-30 % on scans spanning two to three decades of
+       energy, but raised the largest error of a scan across the core from 5.5e-5 to
+       1.0e-3 against 1e-9 references, inside the tolerance but twenty times what it was.
    * - :data:`magnus.oscprob.CUMULATIVE_N_ACC_SAFETY`
      - 4
      - The longest baseline sets the grid; shorter ones in the same scan would have chosen a
