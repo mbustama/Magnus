@@ -2066,6 +2066,20 @@ def _as_float(x):
     return float(x) if (type(x) is not float) and _v.is_real_scalar(x) else x
 
 
+def _minmax_1d(x):
+    r"""``(min, max)`` of a plain float or a non-empty 1-D real array (or list); else None.
+
+    None sends the caller to the detailed checks, which name what is wrong.
+    """
+    if type(x) is float:
+        return x, x
+    if isinstance(x, (list, np.ndarray)) and not isinstance(x, np.ma.MaskedArray):
+        a = np.asarray(x)
+        if a.ndim == 1 and a.size and a.dtype.kind in 'iuf':
+            return float(a.min()), float(a.max())
+    return None
+
+
 def validate_input_battery(
     source_func_name: str,
     energy: Optional[Union[int, float, list, np.ndarray]]=None, 
@@ -2152,11 +2166,15 @@ def validate_input_battery(
     if validate_energy_and_L:
 
         _where = "oscprob." + source_func_name
-        # The common case, a single point given as plain floats, is settled here in a few
-        # comparisons; everything else takes the general checks below.
-        _fast = (type(energy) is float and type(L) is float and
-                 (L0 is None or type(L0) is float) and 0.0 < energy < math.inf and
-                 (0.0 if L0 is None else L0) <= L < math.inf)
+        # The common cases -- plain floats, or clean 1-D real arrays -- are settled by one
+        # min/max pair per argument: a NaN makes the minimum NaN and fails every comparison,
+        # so the pair establishes finiteness, sign and L >= L0 at once.  Anything else, or a
+        # failure, takes the general checks below, which name the entry at fault.
+        _E_mm, _L_mm = _minmax_1d(energy), _minmax_1d(L)
+        _L0v = 0.0 if L0 is None else L0
+        _fast = (_E_mm is not None and _L_mm is not None and type(_L0v) in (float, int)
+                 and 0.0 < _E_mm[0] and _E_mm[1] < math.inf
+                 and _L0v <= _L_mm[0] and _L_mm[1] < math.inf)
     if validate_energy_and_L and not _fast:
         # Every entry is checked: finite, and of a real type (not bool, not complex).  A NaN
         # used to return a NaN row, an inf energy a probability of 0 (or 1 on the averaged
@@ -2191,6 +2209,8 @@ def validate_input_battery(
                     repr(float(_La.ravel()[_i])) + (" (entry " + str(_i) + ")" if _La.ndim
                     else "") + " and L0 = " + repr(float(_L0)) + ".")
 
+    if validate_energy_and_L:
+
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (isinstance(L, list) or isinstance(L, np.ndarray)) and \
             (len(energy) != len(L)) ):
@@ -2198,11 +2218,9 @@ def validate_input_battery(
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
                 "the same length.")
 
-    if validate_energy_and_L:
-
         # An energy that looks like MeV or GeV left unconverted (issue #160 §1); see
         # globaldefs.EnergyUnitWarning.
-        _smallest_E = energy if _fast else float(np.min(np.asarray(energy, dtype=float)))
+        _smallest_E = _E_mm[0] if _fast else float(np.min(np.asarray(energy, dtype=float)))
         if _smallest_E < gd.IMPLAUSIBLE_ENERGY_NATURAL_UNITS:
             warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
                 ": an energy of " + format(_smallest_E, '.4g') + " eV was given.  Energies "
@@ -2215,7 +2233,8 @@ def validate_input_battery(
         # returns a converged, unitary probability for a baseline a few meters long, which
         # is why it is worth a warning.  See globaldefs.BaselineUnitWarning.
         if L is not None:
-            _largest_L = abs(L) if _fast else float(np.max(np.abs(np.asarray(L, dtype=float))))
+            _largest_L = (max(abs(_L_mm[0]), abs(_L_mm[1])) if _fast else
+                          float(np.max(np.abs(np.asarray(L, dtype=float)))))
             if 0.0 < _largest_L < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
                 warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
                     ": a baseline of " + format(_largest_L, '.4g') + " was given. Every length "
@@ -2341,7 +2360,10 @@ def validate_input_battery(
         # Two more samples of a callable profile, at the middle and the far end of the path: a
         # profile that turns NaN partway used to surface as a raw LinAlgError from the
         # eigensolver (issue #160 §7).  Two evaluations per call, never per node.
-        if callable(rho_func) and L is not None and _v.is_real_scalar(L0):
+        # A wrapper builds its profile itself (PREM, exponential, solar table), so only a
+        # rho_func the user wrote is probed.
+        if callable(rho_func) and L is not None and _v.is_real_scalar(L0) and \
+                not _WRAPPER_NAME_PREFIX(source_func_name):
             _Lend = float(np.max(np.asarray(L, dtype=float)))
             for _pos in (0.5*(float(L0) + _Lend), _Lend):
                 _r = rho_func(_pos)

@@ -530,7 +530,6 @@ def _warn_if_density_was_probably_already_converted(
         "session.", DensityUnitWarning, stacklevel=3)
 
 
-@_v.validated(dict(density_matter_func=_v.r_callable, ratio_number_neutrons_to_protons=_ratio_rule, electron_fraction=_fraction_rule, density_matter_is_in_g_per_cm3=_v.r_bool))
 def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
@@ -545,6 +544,10 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     the Earth path passes both as arrays, one value per radius.
 
     .. versionadded:: 1.0.0
+
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
 
     Parameters
     ----------

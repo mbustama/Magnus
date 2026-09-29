@@ -1003,14 +1003,6 @@ def electron_fraction_func_prem(
 
 
 
-def _ye_rule(name, x, where, a):
-    _v.check_real_array(name, x, where, positive=True)
-    if np.any(np.asarray(x, dtype=float) > 1.0):
-        raise ValueError(_v._msg(where, name + " must be in (0, 1], being an electron "
-                                 "fraction; got " + repr(x) + "."))
-
-
-@_v.validated(dict(electron_fraction=_ye_rule))
 def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     r"""The neutron-to-proton ratio implied by an electron fraction.
 
@@ -1027,6 +1019,10 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     silently, since :math:`r` only shows up in the sterile sector.
 
     .. versionadded:: 1.0.0
+
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
 
     Parameters
     ----------
