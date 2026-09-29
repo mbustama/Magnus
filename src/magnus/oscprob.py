@@ -1973,7 +1973,7 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
     'close_file_log_upon_exit': _flag,
     'H_func_is_function_only_of_energy': _flag,
     'average_spread': lambda name, x, where: _v.check_real(
-        name, x, where, positive=True, allow_none=True),
+        name, x, where, nonnegative=True, allow_none=True),
     'average_n_samples': lambda name, x, where: _v.check_int(
         name, x, where, lo=2, allow_none=True),
     'average_initial_state': lambda name, x, where: _v.check_choice(
@@ -2031,9 +2031,10 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
         merged = dict(values, **kw)
     else:
         merged = values
-    for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'), ('n_slabs', 'max_n_slabs'),
-                           ('min_n_tpts_per_slab', 'max_n_tpts_per_slab'),
-                           ('n_tpts_per_slab', 'max_n_tpts_per_slab')):
+    # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
+    # clipped to the cap, with ToleranceNotAchievedWarning, by design.
+    for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
+                           ('min_n_tpts_per_slab', 'max_n_tpts_per_slab')):
         lo, hi = merged.get(lo_key), merged.get(hi_key)
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(_v._msg(where, lo_key + " (" + str(lo) + ") must be <= " +

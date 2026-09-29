@@ -338,6 +338,7 @@ TREE = [
     ('src/magnus/', 'Main Python package'),
     ('src/magnus/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
     ('src/magnus/__main__.py', 'Entry point for `python -m magnus`'),
+    ('src/magnus/_validate.py', 'The argument checks every public entry point applies once per call'),
     ('src/magnus/adiabatic.py', "Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')"),
     ('src/magnus/authors.py', 'Package author string (internal; not part of the public API)'),
     ('src/magnus/avgprob.py', 'The phase average over an energy spread, and the decohered limit'),
@@ -432,6 +433,7 @@ TREE = [
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
+    ('tests/test_validate_helpers.py', 'The shared argument checks: reals, integers, bools, slab edges, Hamiltonians'),
     ('tests/test_version.py', 'Version resolution from pyproject.toml / installed metadata'),
 ]
 

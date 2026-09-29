@@ -17,6 +17,31 @@ The rules, stated once:
 - **Slab and point counts** are strictly positive integers.
 
 .. versionadded:: 1.2.0
+
+Routine listings
+----------------
+
+    * is_real_scalar - Whether a value is a single real number (not bool, not complex)
+    * check_real - A finite real scalar, optionally signed or bounded
+    * check_int - An integer, not bool, optionally bounded
+    * check_bool - True or False only
+    * check_choice - One of a set of values, compared by type as well
+    * check_real_array - A real scalar or 1-D array, every entry finite
+    * check_dict - None or a dict
+    * check_slab_edges - A gap-free partition of the path into [start, end] pairs
+    * check_hamiltonian_sample - A finite, square, Hermitian matrix (or stack)
+    * check_refinement - The tolerance, slab and engine keywords, by one rule table
+    * validated - Decorator applying a rule table to calls from outside the package
+    * r_real - Rule factory: a real number
+    * r_int - Rule factory: an integer
+    * r_bool - Rule: a bool
+    * r_choice - Rule factory: one of a set
+    * r_dict - Rule: None or a dict
+    * r_callable - Rule: a callable
+    * r_end_after - Rule factory: a real no smaller than another argument
+    * r_hamiltonian_at - Rule factory: a callable Hamiltonian, sampled at another argument
+    * r_hamiltonian - Rule: a Hamiltonian matrix
+    * r_real_array - Rule factory: a real scalar or array
 """
 
 import numbers
@@ -380,10 +405,113 @@ def check_refinement(where: str, values: dict) -> None:
         rule = REFINEMENT_RULES.get(key)
         if rule is not None:
             rule(key, x, where)
-    for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'), ('n_slabs', 'max_n_slabs'),
-                           ('min_n_tpts_per_slab', 'max_n_tpts_per_slab'),
-                           ('n_tpts_per_slab', 'max_n_tpts_per_slab')):
+    # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
+    # clipped to the cap, with ToleranceNotAchievedWarning, by design.
+    for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
+                           ('min_n_tpts_per_slab', 'max_n_tpts_per_slab')):
         lo, hi = values.get(lo_key), values.get(hi_key)
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(_msg(where, lo_key + " (" + str(lo) + ") must be <= " + hi_key +
                                   " (" + str(hi) + ")."))
+
+
+# ---------------------------------------------------------------------------------------------
+# Rule-table checks for the public helper functions (avgprob, adiabatic, magnus, earth, ...).
+#
+# The engines call several of these helpers themselves, once per energy point, with arguments
+# they have already validated.  The checks below therefore run only when the caller is outside
+# the package: one frame lookup decides, so an engine pays about a microsecond per call and a
+# user gets every argument checked.
+# ---------------------------------------------------------------------------------------------
+
+import functools as _functools
+import inspect as _inspect
+import sys as _sys
+
+
+def _called_from_inside(depth: int) -> bool:
+    return _sys._getframe(depth).f_globals.get('__name__', '').startswith('magnus.')
+
+
+def validated(spec: dict):
+    r"""Decorate a public helper with argument rules, applied to calls from outside magnus.
+
+    ``spec`` maps an argument name to ``rule(name, value, where, args)``, where ``args`` holds
+    every argument of the call (defaults applied), so a rule can compare two of them.  A rule
+    returns nothing; it raises to refuse.
+    """
+    def deco(func):
+        sig = _inspect.signature(func)
+        where = func.__module__.replace('magnus.', '', 1) + '.' + func.__name__
+
+        @_functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not _called_from_inside(2):
+                try:
+                    bound = sig.bind(*args, **kwargs)
+                except TypeError:
+                    return func(*args, **kwargs)
+                bound.apply_defaults()
+                a = bound.arguments
+                for name, rule in spec.items():
+                    rule(name, a.get(name), where, a)
+            return func(*args, **kwargs)
+        return wrapper
+    return deco
+
+
+def r_real(**kw):
+    return lambda name, x, where, a: check_real(name, x, where, **kw)
+
+
+def r_int(**kw):
+    return lambda name, x, where, a: check_int(name, x, where, **kw)
+
+
+def r_bool(name, x, where, a):
+    check_bool(name, x, where)
+
+
+def r_choice(choices, allow_none=False):
+    return lambda name, x, where, a: check_choice(name, x, where, choices,
+                                                  allow_none=allow_none)
+
+
+def r_dict(name, x, where, a):
+    check_dict(name, x, where)
+
+
+def r_callable(name, x, where, a):
+    if not callable(x):
+        raise InputTypeError(_msg(where, name + " must be callable; got " + type(x).__name__ +
+                                  "."))
+
+
+def r_end_after(start: str):
+    r"""A finite real that is >= the argument named ``start``."""
+    def rule(name, x, where, a):
+        x = check_real(name, x, where)
+        s = check_real(start, a[start], where)
+        if x < s:
+            raise ValueError(_msg(where, name + " (" + repr(x) + ") must be >= " + start +
+                                  " (" + repr(s) + "); the interval runs from " + start +
+                                  " to " + name + "."))
+    return rule
+
+
+def r_hamiltonian_at(position: str):
+    r"""A callable Hamiltonian whose sample at the argument ``position`` is sound."""
+    def rule(name, x, where, a):
+        r_callable(name, x, where, a)
+        at = a[position]
+        check_hamiltonian_sample(name, x(at), where, at=position + ' = ' + format(at, '.6g'))
+    return rule
+
+
+def r_hamiltonian(name, x, where, a):
+    check_hamiltonian_sample(name, x, where)
+
+
+def r_real_array(**kw):
+    return lambda name, x, where, a: (None if x is None else
+                                      check_real_array(name, x, where, **kw))
