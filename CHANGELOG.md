@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Default axis labels in `magnus.plotting` no longer print a literal `~`** (issue #124).  The
+  probability ordinate (`'Probability,~'`, `'Three-neutrino probability,~'`), the default
+  `profile_ylabel` and the baseline and energy abscissae put a LaTeX non-breaking space between
+  text and math, which is a space only when `text.usetex` is on; under matplotlib's default
+  mathtext it rendered as a tilde.  They now use a plain space, which renders the same under
+  both.  A test checks that no label string in the module has a `~` outside math.
+
 - **An energy-batched `'gl'` scan no longer certifies a sliver of a step onto its slab cap**
   (issue #122).  The last refinement is clamped to `max_n_slabs`, so it can add only a sliver of
   slabs: on the paper's five-flavor Listing 1 scan at `rtol=5e-13`, ladders that had reached

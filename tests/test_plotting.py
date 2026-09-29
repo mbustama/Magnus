@@ -467,7 +467,7 @@ def test_vs_baseline_presets_log_axis_unit_range_and_label(sample):
     assert ax.get_ylim() == (0.0, 1.0)
     assert ax.get_xlabel() == r'Baseline, $L$ [km]'
     assert ax.get_ylabel() == \
-        r'Two-neutrino probability,~$P_{\nu_e \to \nu_e}$'
+        r'Two-neutrino probability, $P_{\nu_e \to \nu_e}$'
 
 
 def test_vs_energy_builds_its_abscissa_label_from_the_unit(sample):
@@ -494,7 +494,7 @@ def test_probability_ylabel_without_a_flavor_count_is_generic(sample):
     L, exact, _ = sample
     fig, ax = mp.plot_probability_vs_baseline(L, [exact], nu_i=gd.NUE,
                                               nu_f=gd.NUMU)
-    assert ax.get_ylabel() == r'Probability,~$P_{\nu_e \to \nu_\mu}$'
+    assert ax.get_ylabel() == r'Probability, $P_{\nu_e \to \nu_\mu}$'
 
 
 def test_vs_energy_builds_its_ylabel_from_the_flavor_pair(sample):
@@ -503,7 +503,27 @@ def test_vs_energy_builds_its_ylabel_from_the_flavor_pair(sample):
     fig, ax = mp.plot_probability_vs_energy(E, [exact], nu_i=gd.NUMU,
                                            nu_f=gd.NUTAU, num_flavors=3)
     assert ax.get_ylabel() == \
-        r'Three-neutrino probability,~$P_{\nu_\mu \to \nu_\tau}$'
+        r'Three-neutrino probability, $P_{\nu_\mu \to \nu_\tau}$'
+
+
+def test_no_default_label_has_a_tilde_outside_math():
+    """Issue #124: ``~`` is a space only under usetex; under mathtext it prints.
+
+    Every string literal in the module that is not a docstring is checked, with
+    its ``$...$`` segments removed, since inside math ``~`` is a space in both.
+    """
+    import ast
+    import inspect
+    import re
+    tree = ast.parse(inspect.getsource(mp))
+    docstrings = {id(n.value) for n in ast.walk(tree)
+                  if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant)
+                  and isinstance(n.value.value, str)}
+    offenders = [(n.lineno, n.value) for n in ast.walk(tree)
+                 if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                 and id(n) not in docstrings
+                 and '~' in re.sub(r'\$[^$]*\$', '', n.value)]
+    assert offenders == []
 
 
 def test_presets_forward_the_rest_to_plot_curves(sample):

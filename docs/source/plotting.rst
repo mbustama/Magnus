@@ -105,7 +105,7 @@ A first figure
         [dict(y=prob, label='Magnus expansion', color='C1')],
         nu_i=gd.NUMU, nu_f=gd.NUMU, num_flavors=3,
         xlim=(distances[0], distances[-1]),
-        title=r'$3\nu$~vacuum, $E_\nu = 1$~GeV',
+        title=r'$3\nu$ vacuum, $E_\nu = 1$ GeV',
         legend_title='Calculation method',
     )
     print(ax.get_ylabel())
@@ -145,7 +145,7 @@ so they read as a single figure:
         [dict(y=approx, label='Magnus expansion', color='C1'),
          dict(y=exact, label='Standard formula', color='k', ls='--')],
         xlabel=r'Baseline, $L$ [km]',
-        ylabel=r'Two-neutrino probability,~$P_{\nu_e \to \nu_e}$',
+        ylabel=r'Two-neutrino probability, $P_{\nu_e \to \nu_e}$',
         xlim=(L[0], L[-1]), ylim=(0.0, 1.0), xscale='log',
         ymajor=0.10, yminor=0.02,
         residual=(approx - exact) / np.maximum(exact, 1.0e-300) / 1.0e-12,

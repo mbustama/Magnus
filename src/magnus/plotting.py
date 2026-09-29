@@ -954,13 +954,13 @@ def _probability_ylabel(nu_i, nu_f, num_flavors):
     """
     label = prob_label(nu_i, nu_f)
     if num_flavors is None:
-        return 'Probability,~' + label
+        return 'Probability, ' + label
     if num_flavors not in _FLAVOR_WORD:
         raise ValueError(
             'Error in magnus: plotting: num_flavors must be one of '
             f'{sorted(_FLAVOR_WORD)}, not {num_flavors!r}'
         )
-    return f'{_FLAVOR_WORD[num_flavors]}-neutrino probability,~' + label
+    return f'{_FLAVOR_WORD[num_flavors]}-neutrino probability, ' + label
 
 
 def plot_probability_with_profile(
@@ -987,7 +987,7 @@ def plot_probability_with_profile(
     panel_per_trajectory: Optional[bool] = None,
     return_probability: bool = False,
     xlabel: Optional[str] = None,
-    profile_ylabel: str = r'$\frac{N_e}{N_{\rm Av}}$~[cm$^{-3}$]',
+    profile_ylabel: str = r'$\frac{N_e}{N_{\rm Av}}$ [cm$^{-3}$]',
     panel_ylabels: Optional[Sequence[Optional[str]]] = None,
     panel_annotations: Optional[Sequence[Optional[str]]] = None,
     panel_annotation_xy: Tuple[float, float] = (0.02, 0.88),
@@ -1117,7 +1117,7 @@ def plot_probability_with_profile(
         When computing, also return the probabilities drawn.  Default False.
     xlabel : str, optional
         Abscissa label, placed under the bottom panel.  Default
-        ``'Baseline, $L$~[km]'``, or, when computing on the energy axis, a
+        ``'Baseline, $L$ [km]'``, or, when computing on the energy axis, a
         neutrino-energy label in GeV or MeV (for those two ``x_unit`` values).
     profile_ylabel : str, optional
         Ordinate label of the density panel.
@@ -1293,7 +1293,7 @@ def plot_probability_with_profile(
             raise ValueError('Error in magnus: plotting.plot_probability_with_profile: give '
                              'panels to draw, or trajectories to compute them from.')
     if xlabel is None:
-        xlabel = r'Baseline, $L$~[km]'
+        xlabel = r'Baseline, $L$ [km]'
 
     _, plt = _mpl()
     n_panels = len(panels)
@@ -1467,9 +1467,9 @@ def _profile_through_earth_wrappers(x, trajectories, x_axis, x_unit, energy, nu_
     if x_unit is None:
         x_unit = gd.UNIT_KM if on_baseline else gd.UNIT_GEV
     if on_baseline:
-        xlabel = r'Baseline, $L$~[km]' if x_unit == gd.UNIT_KM else r'Baseline, $L$'
+        xlabel = r'Baseline, $L$ [km]' if x_unit == gd.UNIT_KM else r'Baseline, $L$'
     else:
-        unit = {gd.UNIT_GEV: '~[GeV]', gd.UNIT_MEV: '~[MeV]'}.get(x_unit, '')
+        unit = {gd.UNIT_GEV: ' [GeV]', gd.UNIT_MEV: ' [MeV]'}.get(x_unit, '')
         xlabel = r'Neutrino energy, $E_\nu$' + unit
     # n_e in units of N_Av per cm^3, which reads as rho*Y_e in g cm^-3
     per_n_av = gd.N_AV/gd.CONV_CM_TO_INV_EV**3
