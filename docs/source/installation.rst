@@ -210,6 +210,7 @@ File tree
    │       ├── conf.py                 # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
    │       ├── diagnostics.rst         # What rtol really controls, what each safeguard cannot do, every warning
    │       ├── engines.rst             # Which engine answers a call, and how the dispatch order is decided
+   │       ├── examples.rst            # Usage and examples: Sec. 6 of the paper, with snippets, figures and notebook links
    │       ├── expansion_terms.rst     # The Omega_k terms to any order, and how they are generated
    │       ├── conventions.rst         # Flavor order, signs, mass ordering, parameters and units, in one place
    │       ├── functions.rst           # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario

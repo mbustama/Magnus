@@ -258,6 +258,17 @@ higher order into fewer slabs on its own, so the order and the requested
 tolerance interact: raising the order pays only once the tolerance is tight
 enough to make the extra work per slab worthwhile.
 
+.. figure:: ../../img/paper/phase_vs_profile.png
+   :width: 100%
+   :alt: Cost and accuracy of a Magnus slab at three flavors
+
+   Cost and accuracy of a Magnus slab, at three flavors.  Top right: one slab against
+   an exact exponential of the same constant Hamiltonian; the deviation bottoms out
+   near machine epsilon and rises along :math:`\Phi\varepsilon`.  Bottom left: time per
+   probability for six Magnus configurations and for DOP853, all at a tolerance of
+   :math:`10^{-8}`.  Bottom right: deviation from an extended-precision reference
+   against the number of slabs.  From the Magνs paper.
+
 Measured wall time relative to order 4 on the same problem (greater than 1
 means order 6 is faster):
 

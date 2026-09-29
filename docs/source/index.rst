@@ -451,6 +451,7 @@ Salient features
    :caption: Using Magnus:
 
    recipes
+   examples
    tutorials
    functions
    conventions

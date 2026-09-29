@@ -175,13 +175,18 @@ baseline, and ``magnus.earth.loc_coords_dms`` lists the sites.
 
 .. jupyter-execute::
 
+    import warnings
+    from magnus.magnus import MagnusConvergenceWarning
+
     E_beam = np.logspace(np.log10(0.3), 1.0, 5)*gd.UNIT_GEV
 
     for site in ('homestake', 'snolab', 'cern'):
         a, b = earth.loc_coords_dms['fermilab'], earth.loc_coords_dms[site]
         L_km = earth.chord_length_inside_earth(a['lat'], a['lon'], b['lat'], b['lon'])
-        P_site = np.asarray(oscprob.osc_prob_3nu_earth(
-            E_beam, loc_ini='fermilab', loc_fin=site, nu_i=gd.NUMU, nu_f=gd.NUE))
+        with warnings.catch_warnings():      # expected on these chords; see diagnostics
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P_site = np.asarray(oscprob.osc_prob_3nu_earth(
+                E_beam, loc_ini='fermilab', loc_fin=site, nu_i=gd.NUMU, nu_f=gd.NUE))
         print('fermilab -> %-9s %6.0f km   P_mue:' % (site, L_km), np.round(P_site, 4))
 
 `Notebook 04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_
@@ -395,6 +400,15 @@ Telling it where the profile is not smooth
 High-order quadrature converges at its nominal order only inside a smooth slab.
 If your profile has a jump or a kink, pass its position as a mandatory slab edge;
 no number of slabs fixes one that straddles it.
+
+.. figure:: ../../img/paper/declaring_edges.png
+   :width: 90%
+   :alt: Declaring a density discontinuity
+
+   What a density jump does to a slab, and the two ways of declaring it.  Nothing
+   declared, one slab straddles the jump and the quadrature sees a straight line across
+   it (shaded).  ``t_breakpoints`` adds the jump to the refinement grid;
+   ``t_slab_edges`` replaces the grid.  From the Magνs paper.
 
 .. code-block:: python
 

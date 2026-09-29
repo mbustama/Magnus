@@ -106,6 +106,7 @@ TREE = [
      'What rtol really controls, what each safeguard cannot do, every warning'),
     ('docs/source/engines.rst',
      'Which engine answers a call, and how the dispatch order is decided'),
+    ('docs/source/examples.rst', 'Usage and examples: Sec. 6 of the paper, with snippets, figures and notebook links'),
     ('docs/source/expansion_terms.rst', 'The Omega_k terms to any order, and how they are generated'),
     ('docs/source/conventions.rst', 'Flavor order, signs, mass ordering, parameters and units, in one place'),
     ('docs/source/functions.rst', 'Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario'),

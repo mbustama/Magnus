@@ -12,6 +12,15 @@ for what to do when one warns.
 .. _the-engines:
 
 The engines
+
+.. figure:: ../../img/paper/strategies.png
+   :width: 100%
+   :alt: The seven probability engines, in the order they are tried
+
+   The seven engines, in the order they are tried.  A request that does not meet an
+   engine's conditions (right) passes to the next, so the general Magnus ladder answers
+   whatever no other engine takes.  Each row sketches what its engine does along the
+   trajectory; shading is the matter density.  From the Magνs paper.
 -------------
 
 Seven engines can answer a request, and each declines the ones it cannot serve
