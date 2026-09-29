@@ -2341,7 +2341,7 @@ H = ham.hamiltonian_pseudo_dirac_vacuum(
     {1: 1.0e-18})
 H.shape                        # (4, 4)
 \end{pysnip}
-The last argument lists the mass states to split, each with the mass-squared splitting of its pair, $\delta m^2_j$, in eV$^2$. The mass states are counted from 0, so {\tt \{1: 1.0e-18\}} splits $\nu_2$ by $\delta m^2_2 = 10^{-18}$~eV$^2$. States not listed stay unsplit; with an empty mapping, the builder returns the three-flavor vacuum Hamiltonian, to round-off.
+The last argument lists the mass states to split, each with the mass-squared splitting of its pair, $\delta m^2_j$, in eV$^2$. The mass states are counted from 0, so \verb|{1: 1.0e-18}| splits $\nu_2$ by $\delta m^2_2 = 10^{-18}$~eV$^2$. States not listed stay unsplit; with an empty mapping, the builder returns the three-flavor vacuum Hamiltonian, to round-off.
 
 The call returns \equ{h_vacuum} for the enlarged set of states, \ie,
 \begin{equation}
@@ -2557,7 +2557,7 @@ P_vac_E = oscprob.osc_prob_3nu_vacuum(
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-In Listing~\ref{lst:prob_vs}, \magnus\ computes the two columns of \figu{prob_vs} with different engines. The left column is a scan over distance at one energy. Through a varying profile, \magnus\ walks the profile once and reads off the probability at each distance along the way; this is the cumulative engine of Sec.~\ref{sec:engines}, and it computes the whole left column in under half a second. The right column is a scan over energy at one distance, which cannot reuse a single walk, since the Hamiltonian changes with the energy. Instead, the energy-batched engine of Sec.~\ref{sec:engines} samples the potential once and evolves all the energies together. It applies to any Hamiltonian made of an energy-dependent part plus the potential times a fixed matrix, such as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians, and it computes the whole right column in under a second. \magnus\ picks each engine by itself (\tabl{assignment}); {\tt strategy\_info} reports which one answered:
+In Listing~\ref{lst:prob_vs}, \magnus\ computes the two columns of \figu{prob_vs} with different engines. The left column is a scan over distance at one energy. Through a varying profile, \magnus\ walks the profile once and reads off the probability at each distance along the way; this is the cumulative engine of Sec.~\ref{sec:engines}, and it computes the whole left column in under half a second. The right column is a scan over energy at one distance, which cannot reuse a single walk, since the Hamiltonian changes with the energy. Instead, the energy-batched engine of Sec.~\ref{sec:engines} samples the potential once and evolves all the energies together. It applies to any Hamiltonian made of an energy-dependent part plus the potential times a fixed matrix, such as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians, and it computes the whole right column in under a second. \magnus\ picks each engine by itself (Sec.~\ref{sec:engines}); {\tt strategy\_info} reports which one answered:
 \begin{pysnip}
 info = {}
 P = oscprob.osc_prob_matter_std_potential(
