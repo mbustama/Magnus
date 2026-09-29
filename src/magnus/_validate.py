@@ -48,8 +48,6 @@ import numbers
 
 import numpy as np
 
-from magnus import globaldefs as gd
-
 __all__ = ['InputTypeError']
 
 
@@ -73,6 +71,9 @@ _SCAN_HINT = {'oscprob.': "  Only energy and L take arrays; to scan another para
 
 
 def _msg(where: str, text: str) -> str:
+    # Imported here, on the failing path only: globaldefs imports magnus.magnus, which
+    # imports this module.
+    from magnus import globaldefs as gd
     return gd.ERROR_MSG_NO_COLOR + " " + where + ": " + text
 
 
@@ -248,7 +249,8 @@ def check_dict(name: str, x, where: str, *, allow_none: bool = True):
 
 
 def check_slab_edges(t_slab_edges, t_ini: float, t_fin: float, where: str,
-                     name: str = 't_slab_edges', rel: float = 1e-12):
+                     name: str = 't_slab_edges', rel: float = 1e-12,
+                     allow_zero_width: bool = False):
     r"""Slab edges as ``[[t0, t1], [t1, t2], ...]``: a gap-free partition of ``[t_ini, t_fin]``.
 
     Requires shape ``(n, 2)`` with ``n >= 1``, finite values, each pair increasing, each pair
@@ -269,8 +271,9 @@ def check_slab_edges(t_slab_edges, t_ini: float, t_fin: float, where: str,
     scale = max(abs(t_fin - t_ini), abs(t_ini), abs(t_fin), 1.0)
     tol = rel*scale
     widths = e[:, 1] - e[:, 0]
-    if (widths <= 0.0).any():
-        i = int(np.argmax(widths <= 0.0))
+    bad = (widths < 0.0) if allow_zero_width else (widths <= 0.0)
+    if bad.any():
+        i = int(np.argmax(bad))
         raise ValueError(_msg(where, name + ": slab " + str(i) + " has end <= start (" +
                               repr(e[i].tolist()) + ")."))
     if e.shape[0] > 1:

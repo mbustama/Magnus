@@ -99,6 +99,7 @@ import numpy as np
 import scipy as sp
 
 from magnus import expmkernels
+from magnus import _validate as _v
 
 
 class MagnusHighOrderCostWarning(UserWarning):
@@ -255,6 +256,74 @@ MAGNUS_EXP_ORDER_MAX_GL = 8
 
 # Valid values of integration_method
 valid_integration_methods = ['gl', 'trapezoid', 'simpson']
+
+
+# Argument rules for the public entry points of this module (issue #160 §10), applied only to
+# calls from outside the package: osc_prob calls these once per refinement level with
+# arguments it has checked already.
+def _r_generator_at(where_key):
+    r"""``A`` callable, and its sample at the start of the interval a square array."""
+    def rule(name, x, where, a):
+        _v.r_callable(name, x, where, a)
+        t = where_key(a)
+        At = np.asarray(x(t))
+        if At.ndim < 2 or At.shape[-1] != At.shape[-2] or At.shape[-1] == 0:
+            raise ValueError(_v._msg(where, name + " must return a square matrix; at t = " +
+                                     format(float(t), '.6g') + " it returned shape " +
+                                     str(At.shape) + "."))
+        if not np.all(np.isfinite(At)):
+            raise ValueError(_v._msg(where, name + " is not finite at t = " +
+                                     format(float(t), '.6g') + "."))
+    return rule
+
+
+def _r_points(name, x, where, a):
+    r"""A point count that the chosen quadrature can use: 2 for trapezoid, 3 for Simpson."""
+    method = a.get('integration_method', 'gl')
+    lo = {'trapezoid': 2, 'simpson': 3}.get(method, 1)
+    _v.check_int(name, x, where, lo=lo, what="an integer >= " + str(lo) +
+                 (" for integration_method=" + repr(method) if method != 'gl' else ""))
+
+
+def _r_edges(name, x, where, a):
+    try:
+        e = np.asarray(x, dtype=float)
+    except (TypeError, ValueError):
+        raise _v.InputTypeError(_v._msg(where, name + " must be a list of [start, end] pairs "
+                                        "of real numbers.")) from None
+    if e.ndim != 2 or e.shape[-1] != 2 or e.shape[0] < 1:
+        raise ValueError(_v._msg(where, name + " must be a list of [start, end] pairs, "
+                                 "[[t0, t1], [t1, t2], ...]; got an array of shape " +
+                                 str(e.shape) + "."))
+    # A zero-width slab is exact here (its operator is the identity), so it is allowed.
+    _v.check_slab_edges(e, float(e[0, 0]), float(e[-1, 1]), where, name=name,
+                        allow_zero_width=True)
+
+
+def _r_symmetric_over(name, x, where, a):
+    if x is None:
+        return
+    try:
+        lo, hi = x
+    except (TypeError, ValueError):
+        raise ValueError(_v._msg(where, name + " must be None or a pair (lo, hi); got " +
+                                 repr(x) + ".")) from None
+    lo, hi = _v.check_real(name + '[0]', lo, where), _v.check_real(name + '[1]', hi, where)
+    if not lo < hi:
+        raise ValueError(_v._msg(where, name + " must have lo < hi; got " + repr(x) + "."))
+
+
+_ORDER = _v.r_int(lo=1, hi=MAGNUS_EXP_ORDER_MAX, what="an integer from 1 to " +
+                  str(MAGNUS_EXP_ORDER_MAX))
+_METHOD = _v.r_choice(tuple(valid_integration_methods))
+_EVAL_MODE = _v.r_choice(('vector', 'constant', 'scalar'), allow_none=True)
+
+
+def _r_stack(name, x, where, a):
+    U = np.asarray(x)
+    if U.ndim != 3 or U.shape[0] == 0 or U.shape[1] != U.shape[2]:
+        raise ValueError(_v._msg(where, name + " must be a non-empty stack of square matrices, "
+                                 "of shape (n, d, d); got shape " + str(U.shape) + "."))
 
 # Gauss-Legendre nodes on [0, 1] used by the 'gl' method
 _GL1_NODES = np.array([0.5])
@@ -966,6 +1035,7 @@ def cached_eval_mode(A: Callable, t0: float, t1: float, key=None) -> str:
     return mode
 
 
+@_v.validated(dict(A=_v.r_callable, t0=_v.r_real(), t1=_v.r_real(), n_probe=_v.r_int(lo=2)))
 def probe_eval_mode(A: Callable, t0: float, t1: float,
                     n_probe: Optional[int] = 5) -> str:
     r"""Determine how the matrix function A can be evaluated.
@@ -1012,6 +1082,7 @@ def probe_eval_mode(A: Callable, t0: float, t1: float,
     return mode
 
 
+@_v.validated(dict(A=_v.r_callable, t0=_v.r_real(), t1=_v.r_real(), A_eval_mode=_EVAL_MODE, n_probe=_v.r_int(lo=2), phase_per_slab=_v.r_real(positive=True)))
 def suggest_n_slabs(
     A: Callable,
     t0: float,
@@ -1865,6 +1936,7 @@ def _warn_slab_norm(nmax: float):
         MagnusConvergenceWarning, stacklevel=4)
 
 
+@_v.validated(dict(U=_r_stack))
 def ordered_product(U: np.ndarray) -> np.ndarray:
     r"""Time-ordered product of a stack of slab operators, earliest slab first.
 
@@ -2562,6 +2634,9 @@ def _validate(order: int, integration_method: str):
             + str(MAGNUS_EXP_ORDER_MAX) + ", not " + str(order) + ".")
 
 
+
+
+@_v.validated(dict(A=_r_generator_at(lambda a: a['t0']), t0=_v.r_real(), t1=_v.r_real(), n_tpts=_r_points, order=_ORDER, integration_method=_METHOD, return_magnus_terms=_v.r_bool, validate_input=_v.r_bool, A_eval_mode=_EVAL_MODE))
 def magnus_expansion(
     A: Callable,
     t0: float,
@@ -2787,6 +2862,7 @@ def evolution_operators_from_samples(
     return out.reshape(lead + Bt.shape[-2:])
 
 
+@_v.validated(dict(order=_v.r_int(lo=1, hi=MAGNUS_EXP_ORDER_MAX_GL, what='an integer from 1 to ' + str(MAGNUS_EXP_ORDER_MAX_GL))))
 def gl_nodes(order: int) -> np.ndarray:
     r"""Returns the Gauss-Legendre nodes on [0, 1] used by the 'gl' method.
 
@@ -3032,6 +3108,7 @@ def _one_sided_samples(tgrid: np.ndarray, edges: np.ndarray, widths: np.ndarray,
     tgrid[rt, -1] = edges[rt, 1] - nudge[rt]
 
 
+@_v.validated(dict(t_slab_edges=_r_edges, A=_r_generator_at(lambda a: float(np.asarray(a['t_slab_edges'], dtype=float)[0, 0])), n_tpts_per_slab=_r_points, order=_ORDER, integration_method=_METHOD, validate_input=_v.r_bool, A_eval_mode=_EVAL_MODE, symmetric_over=_r_symmetric_over, t_breakpoints=_v.r_real_array(allow_empty=True)))
 def magnus_expansion_multislab(
     A: Callable,
     t_slab_edges: Union[list, np.ndarray],

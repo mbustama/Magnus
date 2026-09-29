@@ -114,6 +114,6 @@ def test_refinement_rules():
                 dict(magnus_exp_order=True), dict(magnus_exp_order=11), dict(n_jobs=0),
                 dict(n_jobs=2.5), dict(n_tpts_per_slab=np.inf), dict(cumulative=2),
                 dict(integration_method='foo'), dict(strategy_info=[]),
-                dict(n_slabs=10, max_n_slabs=5)):
+                dict(min_n_slabs=10, max_n_slabs=5)):
         with pytest.raises((TypeError, ValueError), match=list(bad)[0]):
             v.check_refinement(W, bad)
