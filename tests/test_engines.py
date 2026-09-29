@@ -63,7 +63,8 @@ def hybrid_under_auto(monkeypatch):
     These tests are about what the hybrid strategy does and reports when ``'auto'`` runs it.
     Since issue #70, ``'auto'`` hands a moderate phase at a loose tolerance to the ladder
     before the hybrid is tried, which is what most of the requests below are; that route has
-    its own tests in ``test_auto_ladder.py``."""
+    its own tests in ``test_auto_ladder.py``.  A negative limit also closes the route at a tight
+    tolerance (issue #120), whose limit is this one scaled down."""
     monkeypatch.setattr(op, 'AUTO_LADDER_MAX_PHASE', -1.0)
 
 

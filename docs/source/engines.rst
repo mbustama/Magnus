@@ -167,10 +167,10 @@ Two thresholds decide the seams, and both are constants with docstrings of their
 
 **The ladder route of** ``'auto'`` (issue #70).  On a smooth profile the hybrid strategy's cost
 is its window search, which does not follow the tolerance.  At a loose tolerance on a moderate
-phase that makes it the slower route, so ``'auto'`` hands a request to the ladder ahead of the
-hybrid when all three of these hold:
+phase that makes it the slower route.  So, at a tolerance ``min(rtol, atol)`` of
+:data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6 or looser, ``'auto'`` hands a request to
+the ladder ahead of the hybrid when both of these hold:
 
-* ``min(rtol, atol)`` is at least :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6;
 * the estimated accumulated phase (the integral of the spread of ``H``'s eigenvalues up to the
   longest baseline) is at most :data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE` = 1e4 rad;
 * the ladder's starting slab count is at most
@@ -191,6 +191,21 @@ undeclared density jump still runs, and still warns.  Over 20 smooth workloads w
 500 times faster per point of a 40-energy scan, within the tolerance on every one.  On the
 profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
 default tolerance of 1e-3, where the hybrid took 8 s.
+
+**At a tighter tolerance** (issue #120) the route stays open on ``integration_method='gl'``, with
+a phase limit that shrinks with the tolerance and the order:
+``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
+capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad.  The ladder's slab
+count grows as ``tol**(-1/p)``, while the hybrid's window search does not follow the tolerance.
+The limit applies to an energy scan as well, and the ladder runs at the tolerance itself: its
+rungs are then deep in the asymptotic regime, where the difference between two of them already
+overestimates the finer one's error, and a tenth of the tolerance had made it the slower route.
+The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
+``magnus_exp_order = 8``: the limit there is 1 000 rad, its four curves estimate 10 to 78, and
+the ladder answers them in 0.015 to 0.13 of the hybrid's time.  Over the 139 workloads measured
+at 1e-7, 1e-9 and 1e-12 against DOP853, the ladder at order 8 missed no tolerance without a
+warning and never warned where the hybrid had certified; the cap keeps the partial solar chords
+from 2 217 rad on, where it did, on the hybrid.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.

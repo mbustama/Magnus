@@ -336,6 +336,7 @@ File Tree
    │       ├── elsarticle-num.bst
    │       └── figs/                   # Its twenty-three figures, written by notebook 28
    ├── tools/                          # Standalone utilities that are not part of the package
+   │   ├── auto_tight/                 # Issue #120's measurement of 'auto' at tight tolerances, with its DOP853 references
    │   ├── build_solar_model_tables.py  # Trims the authors' solar-model files to the shipped tables, checking each hash
    │   ├── lint_notebook_cells.py      # Finds names the notebooks use but never define; run by the lint workflow
    │   ├── make_demo_video.py          # Joins and shrinks notebook 27's clips; shared with NuOscProbExact

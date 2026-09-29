@@ -493,8 +493,9 @@ reported by :class:`magnus.oscprob.ToleranceNotAchievedWarning` rather than abso
 "unmeasured" means something milder for them than for a threshold that silently decides an
 outcome. The constants that *do* silently decide an outcome appear in the table above, or,
 for the refinement and routing gates (:data:`magnus.oscprob.MIN_EFFECTIVE_REFINEMENT`,
-:data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE`, :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE`),
-with their measurements in their own documentation.
+:data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE`, :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE`,
+:data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE`), with their measurements in their own
+documentation.
 
 
 Reproducing any of this

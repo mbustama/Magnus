@@ -314,3 +314,48 @@ profile that fails it still goes to the ladder, where the hybrid would have sent
 
 Unchanged: `strategy='hybrid'`, `strategy='magnus'`, tolerances tighter than 1e-6, and every
 solar path measured (MeV and GeV, two and three flavors, exponential and B16).
+
+## Addendum, 2026-09-29: the route stays open below 1e-6 for a small phase (issue #120)
+
+The cut-off at `AUTO_LADDER_MIN_TOLERANCE` is gone. At 1e-6 and looser everything above holds bit
+for bit. Below it, with `tol = min(rtol, atol)` and `p` the requested `magnus_exp_order`, the
+dispatcher hands a request to the ladder when:
+
+- `integration_method == 'gl'` and `p` is an integer from 1 to 8 (any other order keeps the
+  hybrid's path and the error it raises there);
+- the estimated phase is at most `min(AUTO_LADDER_TIGHT_MAX_PHASE, AUTO_LADDER_MAX_PHASE *
+  (tol/1e-6)**(1/p))`, for an energy scan as well (#84's exemption was measured at loose
+  tolerances only);
+- the slab-count condition holds, as above.
+
+The ladder then runs at the tolerance itself (`_PreferLadder.tolerance_margin = 1`).
+
+Why the margin goes: at a tenth of 1e-12 the ladder cost more than 1.2 times the hybrid on 18 of
+139 workloads at order 4 (over 8 times on Listing 1's four-flavor scan), which is what the old
+"0.9 to 1.3 times at 1e-9" was measuring. Deep in the asymptotic regime, the difference between
+two rungs already overestimates the finer one's error by about 1.5^p - 1.
+
+Why the limit shrinks as tol^(1/p): the ladder's slab count grows as tol^(-1/p); the hybrid's
+window search does not follow the tolerance.
+
+Why the cap: uncapped, at order 8 the limit admits partial solar chords from 2 217 rad on, and on
+two of them the ladder warned `ToleranceNotAchievedWarning` where the hybrid certified (one at
+1e-9, one of eight admitted at 1e-7). At 2 000 rad none is admitted.
+
+Measured (B1 of issue #120): the 139 workloads the route takes at 1e-3, at rtol 1e-7, 1e-9 and
+1e-12 with atol a hundredth of it, scored against DOP853 at 1e-13 with the 1e-12 run's spread as
+the floor. At order 8 there were no silent misses and no warnings where the hybrid had certified,
+at 0.12 to 0.19 of the hybrid's time at the median. At order 4 there were four silent misses at
+1e-12, 1.01 to 1.15 times outside, against the hybrid's own four of up to 1.3. The four routed
+cases ever timed slower than the hybrid (under four workers) took 0.38 to 0.54 of its time
+re-timed alone. Listing 1's four scans at order 8 take 0.015 to 0.13 of the hybrid's time.
+
+Checked not to move anything else, on `main` with the rule in a scratch copy:
+- no decision changes at 1e-6 and looser (1238 of 1238);
+- none of the 29 notebooks changes engine (668 decisions); notebook 24's timed tight-tolerance
+  calls stay on the hybrid (3.1e5 rad);
+- the full suite passes except the #70 test this replaces;
+- two extra 3nu exponential scans (25 and 250 km) are within 0.12 of the tolerance where
+  routed, and bit-identical to `main` where not.
+
+The measurement harness is in `tools/auto_tight/`.

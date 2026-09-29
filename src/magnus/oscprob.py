@@ -292,6 +292,7 @@ __author__ = 'Mauricio Bustamante'
 
 import functools
 import math
+import numbers
 import numpy as np
 import sys
 import warnings
@@ -955,9 +956,10 @@ AUTO_LADDER_MAX_PHASE = 1.0e4
 r"""float: Module-level constant
 
 Largest estimated accumulated phase, in radians, at which ``strategy='auto'`` hands a smooth
-profile to the Magnus ladder instead of the hybrid strategy (issue #70), provided the tolerance
-is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE` and the ladder's starting slab count stays
-within :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of its cap.  The phase is the integral of the
+profile to the Magnus ladder instead of the hybrid strategy (issue #70), at a tolerance of
+:data:`AUTO_LADDER_MIN_TOLERANCE` or looser, provided the ladder's starting slab count stays
+within :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of its cap.  At a tighter tolerance the limit
+shrinks with it (see :data:`AUTO_LADDER_TIGHT_MAX_PHASE`).  The phase is the integral of the
 spread of the Hamiltonian's eigenvalues along the path, the phase of its fastest oscillation,
 from 17 samples at up to five of the requested energies (see ``_estimated_phase``).
 
@@ -1009,10 +1011,51 @@ behind :data:`AUTO_LADDER_MAX_PHASE` start at 5 to 4 700.
 AUTO_LADDER_MIN_TOLERANCE = 1.0e-6
 r"""float: Module-level constant
 
-Tightest ``min(rtol, atol)`` at which ``strategy='auto'`` may prefer the Magnus ladder over the
-hybrid strategy; see :data:`AUTO_LADDER_MAX_PHASE`.  At 1e-9 the ladder's advantage shrinks or
-reverses at four and five flavors (0.9 to 1.3 times the hybrid's cost), while the hybrid
-strategy reaches about 1e-9 on these profiles at no extra cost.
+Tolerance, ``min(rtol, atol)``, below which ``strategy='auto'`` tightens its route to the Magnus
+ladder (issue #120).  At it and looser, the route of :data:`AUTO_LADDER_MAX_PHASE` applies as
+measured for issue #70, with the ladder at a tenth of the tolerance
+(:data:`AUTO_LADDER_TOLERANCE_MARGIN`).  Below it, and only with ``integration_method='gl'``,
+the phase limit shrinks with the tolerance and the order, capped at
+:data:`AUTO_LADDER_TIGHT_MAX_PHASE`, and the ladder runs at the requested tolerance itself.
+
+Until issue #120 this was a cut-off: no tighter request went to the ladder, because at 1e-9 the
+ladder, run at a tenth of the tolerance, cost 0.9 to 1.3 times the hybrid strategy at four and
+five flavors.  Most of that was the margin.  Run at the requested tolerance, the ladder answers
+the four scans of the paper's Listing 1 at ``rtol = 1e-12``, ``atol = 1e-14`` and order 8 in
+0.015 to 0.13 of the hybrid strategy's time.
+
+.. versionadded:: 1.1.1
+"""
+
+
+AUTO_LADDER_TIGHT_MAX_PHASE = 2000.0
+r"""float: Module-level constant
+
+Largest estimated phase, in radians, at which ``strategy='auto'`` hands a request to the Magnus
+ladder when the tolerance is tighter than :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120).
+
+Below that tolerance the phase limit is
+``AUTO_LADDER_MAX_PHASE*(tol/AUTO_LADDER_MIN_TOLERANCE)**(1/p)``, with ``tol = min(rtol, atol)``
+and ``p`` the requested ``magnus_exp_order``: the ladder's slab count grows as ``tol**(-1/p)``,
+while the hybrid strategy's window search does not follow the tolerance.  This constant caps it.
+For the paper's Listing 1 (``rtol = 1e-12``, ``atol = 1e-14``, order 8) the limit is 1 000 rad,
+and its four curves estimate 10 to 78.
+
+Measured on the 139 workloads the route takes at the default tolerance (Listing 1 at 26 energies
+per curve, the workloads behind :data:`AUTO_LADDER_MAX_PHASE`, a multi-resonance profile and
+partial solar chords of 0.1 to 0.3 R_sun), at ``rtol`` = 1e-7, 1e-9 and 1e-12 with ``atol`` a
+hundredth of it, and scored against ``solve_ivp``/DOP853 at 1e-13.  At order 8 the ladder missed
+no tolerance without a warning, never warned where the hybrid strategy had certified, and took
+0.12 to 0.19 of the hybrid strategy's time at the median (at most 0.82, warm, under four
+parallel workers).  At order 4, four workloads at 1e-12 came back 1.01 to 1.15 times outside the
+tolerance without a warning; the hybrid strategy's own four misses there reach 1.3 times.
+Uncapped, the limit admits partial solar chords from 2 217 rad on at order 8, and on two of them
+the ladder warned :class:`ToleranceNotAchievedWarning` where the hybrid strategy certified.  At
+2 000 every such chord stays on the hybrid strategy.
+
+Unlike :data:`AUTO_LADDER_MAX_PHASE`, the tightened limit also applies to an energy scan that the
+energy-batched engine takes: the scans that exempted them were measured at loose tolerances
+(issue #84).
 
 .. versionadded:: 1.1.1
 """
@@ -1026,6 +1069,13 @@ the Magnus ladder in place of the hybrid strategy.  The ladder's tolerances are 
 criterion, not an error bound, and the energy-batched scan engine can land several times outside
 them (issue #71: 5.8e-3 at a requested 1e-3); asked for a tenth, it stayed inside the requested
 tolerance on every workload measured for :data:`AUTO_LADDER_MAX_PHASE`.
+
+The margin applies at :data:`AUTO_LADDER_MIN_TOLERANCE` and looser.  Below it the ladder runs at
+the requested tolerance (issue #120).  There its rungs are deep in the asymptotic regime, where
+the difference between two of them overestimates the finer one's error by about
+``1.5**p - 1`` (4 at order 4, 25 at order 8); and a tenth of 1e-12 cost more than 1.2 times
+the hybrid strategy on 18 of 139 workloads at order 4, over 8 times on the four-flavor scan of
+the paper's Listing 1.
 
 .. versionadded:: 1.1.1
 """
@@ -6539,19 +6589,28 @@ class _PreferLadder:
         The fewest slabs over the longest baseline on which every slab meets the sufficient
         condition :class:`magnus.magnus.MagnusConvergenceWarning` checks; see
         :func:`_estimated_phase`.
+    tolerance_margin : float or None
+        What :meth:`request` divides the tolerances by: 1 below
+        :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120), or None for
+        :data:`AUTO_LADDER_TOLERANCE_MARGIN`, read when the request is made.
     """
-    __slots__ = ('min_n_slabs',)
+    __slots__ = ('min_n_slabs', 'tolerance_margin')
 
-    def __init__(self, min_n_slabs: int):
+    def __init__(self, min_n_slabs: int, tolerance_margin: Optional[float] = None):
         self.min_n_slabs = int(min_n_slabs)
+        self.tolerance_margin = tolerance_margin
 
     def __repr__(self):
-        return '_PreferLadder(min_n_slabs=%d)' % self.min_n_slabs
+        if self.tolerance_margin is None:
+            return '_PreferLadder(min_n_slabs=%d)' % self.min_n_slabs
+        return '_PreferLadder(min_n_slabs=%d, tolerance_margin=%g)' % (self.min_n_slabs,
+                                                                     self.tolerance_margin)
 
     def request(self, rtol, atol, min_n_slabs, max_n_slabs, integration_method):
         r"""The ``(rtol, atol, min_n_slabs)`` the ladder runs at.
 
-        Each tolerance divided by :data:`AUTO_LADDER_TOLERANCE_MARGIN` (a ``None`` left as it
+        Each tolerance divided by :attr:`tolerance_margin`, or by
+        :data:`AUTO_LADDER_TOLERANCE_MARGIN` when that is None (a ``None`` tolerance left as it
         is), and the caller's ``min_n_slabs`` raised to :attr:`min_n_slabs`, capped at the
         resolved ``max_n_slabs``.  The floor keeps the refinement from starting on slabs wider
         than the Magnus series is guaranteed to converge over: the seed of
@@ -6560,7 +6619,7 @@ class _PreferLadder:
 
         .. versionadded:: 1.1.1
         """
-        m = AUTO_LADDER_TOLERANCE_MARGIN
+        m = AUTO_LADDER_TOLERANCE_MARGIN if self.tolerance_margin is None else self.tolerance_margin
         rtol = None if rtol is None else rtol/m
         atol = None if atol is None else atol/m
         cap = _resolve_max_n_slabs(max_n_slabs, integration_method)
@@ -6610,22 +6669,43 @@ def _estimated_phase(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.nd
     return phase, max(1, int(np.ceil((L1 - L0)*radius/np.pi)))
 
 
+def _auto_ladder_max_phase(tol: float, magnus_exp_order: int, batched_scan: bool) -> float:
+    r"""The largest estimated phase at which ``strategy='auto'`` hands a request to the ladder.
+
+    At :data:`AUTO_LADDER_MIN_TOLERANCE` and looser, :data:`AUTO_LADDER_MAX_PHASE`, or no limit
+    for an energy scan that the energy-batched engine takes (issue #84).  Tighter (issue #120),
+    ``AUTO_LADDER_MAX_PHASE*(tol/AUTO_LADDER_MIN_TOLERANCE)**(1/magnus_exp_order)`` capped at
+    :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, for a scan as well.
+
+    .. versionadded:: 1.1.1
+    """
+    if tol >= AUTO_LADDER_MIN_TOLERANCE:
+        return np.inf if batched_scan else AUTO_LADDER_MAX_PHASE
+    return min(AUTO_LADDER_TIGHT_MAX_PHASE,
+               AUTO_LADDER_MAX_PHASE*(tol/AUTO_LADDER_MIN_TOLERANCE)**(1.0/magnus_exp_order))
+
+
 def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.ndarray,
                          L0: float, rtol: float, atol: float,
-                         max_n_slabs: int, batched_scan: bool = False) -> Optional[_PreferLadder]:
+                         max_n_slabs: int, batched_scan: bool = False, magnus_exp_order: int = 4,
+                         integration_method: str = 'gl') -> Optional[_PreferLadder]:
     r"""Whether ``strategy='auto'`` should hand a smooth-profile request to the ladder (issue #70).
 
-    Yes when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`, the estimated
-    accumulated phase is at most :data:`AUTO_LADDER_MAX_PHASE`, and the ladder's starting slab
-    count is at most :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.
-    ``rtol`` and ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of
-    the nonzero ones is the tolerance.  Records the decision in ``strategy_info`` when it is
-    taken.
+    Yes when the estimated accumulated phase is at most the limit of
+    :func:`_auto_ladder_max_phase` and the ladder's starting slab count is at most
+    :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.  ``rtol`` and
+    ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of the nonzero
+    ones is the tolerance.  Below :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120) only with
+    ``integration_method='gl'`` and an order it supports (an integer from 1 to 8; any other
+    order keeps the hybrid strategy's path and its errors), and the ladder then runs at the
+    requested tolerance rather than a tenth of it.  Records the decision in ``strategy_info``
+    when it is taken.
 
     With ``batched_scan`` -- several energies at one shared baseline, which the energy-batched
-    engine answers in one pass -- the phase condition is dropped and only the slab-count
-    condition applies.  The phase limit prices the ladder one point at a time; the batched engine
-    shares its slabs across the energies, so the hybrid strategy, which pays its window search
+    engine answers in one pass -- the phase condition is dropped at
+    :data:`AUTO_LADDER_MIN_TOLERANCE` and looser, leaving only the slab-count condition.  The
+    phase limit prices the ladder one point at a time; the batched engine shares its slabs
+    across the energies, so the hybrid strategy, which pays its window search
     at every energy, is the slower route there by far: 62 s against 0.4 s on 100 energies of a
     three-flavor, two-resonance profile whose phase estimate (1.05e4, at the lowest energy) sat
     just above the limit.  The slab-count condition still keeps the full Sun on the hybrid
@@ -6645,25 +6725,32 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
         The marker the dispatcher returns, or None to run the hybrid strategy.
     """
     tols = [t for t in (rtol, atol) if t > 0.0]
-    if not tols or min(tols) < AUTO_LADDER_MIN_TOLERANCE:
+    if not tols:
+        return None
+    tol = min(tols)
+    tight = tol < AUTO_LADDER_MIN_TOLERANCE
+    order_ok = (isinstance(magnus_exp_order, numbers.Integral)
+                and not isinstance(magnus_exp_order, bool) and (1 <= magnus_exp_order <= 8))
+    if tight and not ((integration_method == 'gl') and order_ok):
         return None
     phase, n_floor = _estimated_phase(H_at_energy, energy_arr, L_arr, L0)
-    if ((phase > AUTO_LADDER_MAX_PHASE) and not batched_scan) \
-            or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
+    phase_limit = _auto_ladder_max_phase(tol, magnus_exp_order, batched_scan)
+    if (phase > phase_limit) or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
         return None
     H_lo = H_at_energy(float(np.min(np.asarray(energy_arr, dtype=float))))
     l0, l1 = float(L0), float(np.max(np.asarray(L_arr, dtype=float)))
     resolved = (adiabatic._profile_is_resolved(H_lo, l0, l1, 200)
                 or adiabatic._profile_is_resolved(H_lo, l0, l1, 6400))
-    detail = dict(estimated_phase=phase, min_n_slabs=n_floor,
-                  tolerance_margin=AUTO_LADDER_TOLERANCE_MARGIN)
+    margin = 1.0 if tight else AUTO_LADDER_TOLERANCE_MARGIN
+    detail = dict(estimated_phase=phase, phase_limit=phase_limit, min_n_slabs=n_floor,
+                  magnus_exp_order=magnus_exp_order, tolerance_margin=margin)
     if resolved:
         _note_engine('hybrid', answered=False, reason='auto prefers the ladder', **detail)
     else:
         _note_engine('hybrid', answered=False, certified=False,
                      reason='the profile is not resolved at the probe scale', **detail)
         _warn_hybrid_unresolved()
-    return _PreferLadder(n_floor)
+    return _PreferLadder(n_floor, 1.0 if tight else None)
 
 
 def _osc_prob_hybrid_dispatch(
@@ -6862,7 +6949,8 @@ def _osc_prob_hybrid_dispatch(
                     and ('separable' not in _ENGINES_DISABLED))
     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
                   _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method),
-                  batched_scan=batched_scan)
+                  batched_scan=batched_scan, magnus_exp_order=magnus_exp_order,
+                  integration_method=integration_method)
               if strategy == 'auto' else None)
     if prefer is not None:
         return prefer
@@ -7120,7 +7208,8 @@ def _osc_prob_hybrid_dispatch_generic(
     # hybrid strategy's cost does not follow the tolerance, and there it is the slower route by
     # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).
     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
-                  _resolve_max_n_slabs(None, integration_method))
+                  _resolve_max_n_slabs(None, integration_method),
+                  magnus_exp_order=magnus_exp_order, integration_method=integration_method)
               if strategy == 'auto' else None)
     if prefer is not None:
         return prefer
@@ -8761,23 +8850,30 @@ def osc_prob_matter_std_potential(
           (see ``cumulative`` in :func:`osc_prob_energy_baseline`) answers from one traversal
           instead of one hybrid call per point -- measured on solar profiles as tens of times
           faster at equal or better accuracy.  Ahead of the hybrid, it hands a request to the
-          Magnus ladder when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`,
-          the estimated accumulated phase is at most :data:`AUTO_LADDER_MAX_PHASE`, and the
-          ladder can start well below its slab cap (:data:`AUTO_LADDER_MAX_FLOOR_FRACTION`):
-          there the hybrid is the slower route by one to two orders of magnitude, because its
-          window search costs the same at any tolerance.  The ladder then runs at a tenth of the
-          requested ``rtol`` and ``atol`` (:data:`AUTO_LADDER_TOLERANCE_MARGIN`), without the
-          interaction-picture integrator, on slabs narrow enough from its first rung for the
-          Magnus series to converge.  An energy scan at one baseline that the energy-batched
-          scan will take is handed over whatever its phase (issue #84): that engine shares its
-          slabs across the energies, so the phase limit, which prices the ladder point by point,
-          does not apply to it.  ``strategy_info`` reports the handoff as the hybrid
-          declining, with the reason ``'auto prefers the ladder'``; the hybrid's test for a
-          density jump nobody declared still runs, with its reason and its warning.
+          Magnus ladder when the estimated accumulated phase is at most
+          :data:`AUTO_LADDER_MAX_PHASE` and the ladder can start well below its slab cap
+          (:data:`AUTO_LADDER_MAX_FLOOR_FRACTION`): there the hybrid is the slower route by one
+          to two orders of magnitude, because its window search costs the same at any
+          tolerance.  The ladder then runs at a tenth of the requested ``rtol`` and ``atol``
+          (:data:`AUTO_LADDER_TOLERANCE_MARGIN`), without the interaction-picture integrator,
+          on slabs narrow enough from its first rung for the Magnus series to converge.  An
+          energy scan at one baseline that the energy-batched scan will take is handed over
+          whatever its phase (issue #84): that engine shares its slabs across the energies, so
+          the phase limit, which prices the ladder point by point, does not apply to it.  Below
+          :data:`AUTO_LADDER_MIN_TOLERANCE`, as ``min(rtol, atol)``, the hand-over needs
+          ``integration_method='gl'`` and a phase within a limit that shrinks with the
+          tolerance and the order, capped at :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, for a scan as
+          well; the ladder then runs at the requested tolerance itself (issue #120).  The
+          paper's Listing 1, at ``rtol = 1e-12``, ``atol = 1e-14`` and
+          ``magnus_exp_order = 8``, is handed over this way.  ``strategy_info`` reports the
+          handoff as the hybrid declining, with the reason ``'auto prefers the ladder'``; the
+          hybrid's test for a density jump nobody declared still runs, with its reason and its
+          warning.
 
         .. versionchanged:: 1.1.1
            ``'auto'`` hands a moderate phase at a loose tolerance to the ladder (issue #70),
-           and an energy scan the energy-batched scan will take at any phase (issue #84).
+           an energy scan the energy-batched scan will take at any phase (issue #84), and a
+           small phase at a tight tolerance (issue #120).
 
         The hybrid strategy is the natural tool exactly where the plain Magnus refinement needs
         very many slabs (an extreme accumulated phase, e.g., low-energy solar neutrinos crossing
@@ -9125,7 +9221,8 @@ def osc_prob_matter_std_potential(
         P_hybrid = _osc_prob_hybrid_dispatch(h_vac_energy_indep, VCC_func, h_matt_proj, None, None,
             energy, L, L0, nu_i, nu_f, scan_kwargs, strategy)
         # strategy='auto' handed the request to the ladder (issue #70): the engines below run at a
-        # tenth of the tolerance, and the interaction-picture fast path is skipped.
+        # tenth of the tolerance (at the tolerance itself below AUTO_LADDER_MIN_TOLERANCE, issue
+        # #120), and the interaction-picture fast path is skipped.
         prefer_ladder = isinstance(P_hybrid, _PreferLadder)
         if prefer_ladder:
             rtol, atol, min_n_slabs = P_hybrid.request(rtol, atol, min_n_slabs, max_n_slabs,
@@ -14409,7 +14506,8 @@ def _osc_prob_with_potential(
                 t_breakpoints, rtol, atol, magnus_exp_order, integration_method, strategy,
                 kwargs))
         # strategy='auto' handed the request to the ladder, which runs at a tenth of the
-        # tolerance and above a slab floor (issue #70; see osc_prob_matter_std_potential).
+        # tolerance (at the tolerance itself below AUTO_LADDER_MIN_TOLERANCE, issue #120) and
+        # above a slab floor (issue #70; see osc_prob_matter_std_potential).
         if isinstance(P_hybrid, _PreferLadder):
             rtol, atol, n_floor = P_hybrid.request(rtol, atol, kwargs.get('min_n_slabs'),
                 kwargs.get('max_n_slabs'), integration_method)
@@ -24417,6 +24515,7 @@ __all__ = [
     'CUMULATIVE_N_ACC_SAFETY',
     'AUTO_LADDER_MAX_PHASE',
     'AUTO_LADDER_MIN_TOLERANCE',
+    'AUTO_LADDER_TIGHT_MAX_PHASE',
     'AUTO_LADDER_TOLERANCE_MARGIN',
     'AUTO_LADDER_MAX_FLOOR_FRACTION',
     'OUTPUT_GUARD_MIN_BYTES',
