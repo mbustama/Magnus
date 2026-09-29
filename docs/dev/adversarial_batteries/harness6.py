@@ -41,11 +41,11 @@ def liv_params_for(d, n_liv=0, frac=0.10, energy=1.0e7):
     if d == 3:
         return {'sxi12': 0.3, 'sxi23': 0.2, 'sxi13': 0.1, 'dxiCP': 0.5, **common}
     if d == 4:
-        return {'sxi12': 0.3, 'sxi23': 0.2, 'sxi13': 0.1, 'dxi13': 0.5,
+        return {'sxi12': 0.3, 'sxi23': 0.2, 'sxi13': 0.1, 'dxiCP': 0.5,
                 'sxi14': 0.15, 'dxi14': 0.3, 'sxi24': 0.12, 'dxi24': 0.7, 'sxi34': 0.1,
                 'b4': 3.0*scale, **common}
     if d == 5:
-        return {'sxi12': 0.3, 'sxi23': 0.2, 'sxi13': 0.1, 'dxi13': 0.5,
+        return {'sxi12': 0.3, 'sxi23': 0.2, 'sxi13': 0.1, 'dxiCP': 0.5,
                 'sxi14': 0.15, 'dxi14': 0.3, 'sxi15': 0.13, 'dxi15': 1.1,
                 'sxi24': 0.12, 'dxi24': 0.7, 'sxi25': 0.1, 'sxi34': 0.1,
                 'sxi35': 0.09, 'dxi35': 0.2,
@@ -87,12 +87,12 @@ def _h_liv(d, liv, nubar=False):
             p['Lambda'], p['n_liv'], nubar=nubar)
     if d == 4:
         return hams.hamiltonian_4nu_liv_energy_independent(
-            p['sxi12'], p['sxi23'], p['sxi13'], p['dxi13'], p['sxi14'], p['dxi14'], p['sxi24'],
+            p['sxi12'], p['sxi23'], p['sxi13'], p['dxiCP'], p['sxi14'], p['dxi14'], p['sxi24'],
             p['dxi24'], p['sxi34'], p['b1'], p['b2'], p['b3'], p['b4'], p['Lambda'], p['n_liv'],
             nubar=nubar)
     if d == 5:
         return hams.hamiltonian_5nu_liv_energy_independent(
-            p['sxi12'], p['sxi23'], p['sxi13'], p['dxi13'], p['sxi14'], p['dxi14'], p['sxi15'],
+            p['sxi12'], p['sxi23'], p['sxi13'], p['dxiCP'], p['sxi14'], p['dxi14'], p['sxi15'],
             p['dxi15'], p['sxi24'], p['dxi24'], p['sxi25'], p['sxi34'], p['sxi35'], p['dxi35'],
             p['b1'], p['b2'], p['b3'], p['b4'], p['b5'], p['Lambda'], p['n_liv'], nubar=nubar)
     raise ValueError(d)

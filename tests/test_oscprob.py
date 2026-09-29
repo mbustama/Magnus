@@ -1322,7 +1322,7 @@ NSI_SWEEP_PARAMS = dict(
 )
 LIV_SWEEP_PARAMS = dict(
     sxi=0.2,                                                    # 2nu naming
-    sxi12=0.2, sxi23=0.1, sxi13=0.05, dxiCP=0.0, dxi13=0.0,
+    sxi12=0.2, sxi23=0.1, sxi13=0.05, dxiCP=0.0,
     sxi14=0.05, dxi14=0.0, sxi24=0.03, dxi24=0.0, sxi34=0.02,
     sxi15=0.03, dxi15=0.0, sxi25=0.02, sxi35=0.01, dxi35=0.0,
     b1=gd.B1, b2=gd.B2, b3=gd.B3, b4=3.0e-9, b5=4.0e-9,

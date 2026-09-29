@@ -3080,8 +3080,10 @@ def unpack_liv_params_from_dict(
         Dictionary of LIV parameters. Always must contain 'Lambda' (LIV energy scale, must be
         positive) and 'n_liv' (power of the energy dependence). For ``num_flavors == 2``, must
         also contain 'sxi', 'b1', 'b2'. For 3, 'sxi12', 'sxi23', 'sxi13', 'dxiCP', 'b1', 'b2',
-        'b3'. For 4, additionally 'dxi13' (replacing 'dxiCP'), 'sxi14', 'dxi14', 'sxi24', 'dxi24',
+        'b3'. For 4, additionally 'sxi14', 'dxi14', 'sxi24', 'dxi24',
         'sxi34', 'b4'. For 5, additionally 'sxi15', 'dxi15', 'sxi25', 'sxi35', 'dxi35', 'b5'.
+        At four and five flavors, 'dxi13', the former name of 'dxiCP', is still accepted,
+        with a :class:`FutureWarning`.
     h_liv : list or np.ndarray
         Precomputed LIV Hamiltonian, required when ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (in which case there is nothing to
@@ -3134,6 +3136,8 @@ def unpack_liv_params_from_dict(
                     "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxiCP'," + \
                     " 'b1', 'b2', 'b3', 'Lambda', and 'n_liv'.")
     elif (num_flavors == 4):
+        liv_params = _angles.take_renamed_key('oscprob.' + source_func_name, liv_params,
+                                              'dxi13', 'dxiCP')
         try:
             Lambda = liv_params['Lambda']
             if (Lambda <= 0.0):
@@ -3142,7 +3146,7 @@ def unpack_liv_params_from_dict(
             sxi12 = liv_params['sxi12']
             sxi23 = liv_params['sxi23']
             sxi13 = liv_params['sxi13']
-            dxi13 = liv_params['dxi13']
+            dxiCP = liv_params['dxiCP']
             sxi14 = liv_params['sxi14']
             dxi14 = liv_params['dxi14']
             sxi24 = liv_params['sxi24']
@@ -3153,7 +3157,7 @@ def unpack_liv_params_from_dict(
             b3 = liv_params['b3']
             b4 = liv_params['b4']
             n_liv = liv_params['n_liv']
-            return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2,
+            return np.array([sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2,
                 b3, b4, Lambda, n_liv])
         except ValueError:
             _raise_if_array_params(source_func_name, liv_params)
@@ -3161,10 +3165,12 @@ def unpack_liv_params_from_dict(
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 4, the dictionary of LIV parameters " + \
-                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
+                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxiCP'," + \
                     " 'sxi14', 'dxi14', 'sxi24', 'dxi24', 'sxi34', 'b1', 'b2', 'b3', 'b4'," + \
                     " 'Lambda', and 'n_liv'.")
     elif (num_flavors == 5):
+        liv_params = _angles.take_renamed_key('oscprob.' + source_func_name, liv_params,
+                                              'dxi13', 'dxiCP')
         try:
             Lambda = liv_params['Lambda']
             if (Lambda <= 0.0):
@@ -3173,7 +3179,7 @@ def unpack_liv_params_from_dict(
             sxi12 = liv_params['sxi12']
             sxi23 = liv_params['sxi23']
             sxi13 = liv_params['sxi13']
-            dxi13 = liv_params['dxi13']
+            dxiCP = liv_params['dxiCP']
             sxi14 = liv_params['sxi14']
             dxi14 = liv_params['dxi14']
             sxi15 = liv_params['sxi15']
@@ -3190,7 +3196,7 @@ def unpack_liv_params_from_dict(
             b4 = liv_params['b4']
             b5 = liv_params['b5']
             n_liv = liv_params['n_liv']
-            return np.array([sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, 
+            return np.array([sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, 
                 sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5, Lambda, n_liv])
         except ValueError:
             _raise_if_array_params(source_func_name, liv_params)
@@ -3198,7 +3204,7 @@ def unpack_liv_params_from_dict(
         except KeyError:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": since " + \
                     "num_flavors == 5, the dictionary of LIV parameters " + \
-                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxi13'," + \
+                    "(liv_params) must contain the keys 'sxi12', 'sxi23', 'sxi13', 'dxiCP'," + \
                     " 'sxi14', 'dxi14', 'sxi15', 'dxi15', 'sxi24', 'dxi24', 'sxi25' 'sxi34', " + \
                     " 'sxi35', 'dxi35', 'b1', 'b2', 'b3', 'b4', 'b5', 'Lambda', and 'n_liv'.")
     elif (num_flavors > gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
@@ -10134,12 +10140,12 @@ def osc_prob_liv(
         sxi12, sxi23, sxi13, dxiCP, b1, b2, b3, Lambda, n_liv = liv_params_list
     elif num_flavors == 4:
         s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41 = osc_params_list
-        sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, \
+        sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, \
             n_liv = liv_params_list
     elif num_flavors == 5:
         s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51 = \
             osc_params_list
-        sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, \
+        sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, \
             dxi35, b1, b2, b3, b4, b5, Lambda, n_liv = liv_params_list
 
     if validate_input:
@@ -10193,11 +10199,11 @@ def osc_prob_liv(
             sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar, angles=angles)
     elif num_flavors == 4:
         h_liv_energy_indep = hamiltonians.hamiltonian_4nu_liv_energy_independent(sxi12, sxi23,
-            sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
+            sxi13, dxiCP, sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv,
             nubar=nubar, angles=angles)
     elif num_flavors == 5:
         h_liv_energy_indep = hamiltonians.hamiltonian_5nu_liv_energy_independent(sxi12, sxi23,
-            sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
+            sxi13, dxiCP, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1,
             b2, b3, b4, b5, Lambda, n_liv, nubar=nubar, angles=angles)
    
     if (rho_func != 0.0): # Matter density is nonzero, include the matter term in the Hamiltonian
@@ -19945,6 +19951,7 @@ def osc_prob_3nu_vacuum_liv(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_4nu_vacuum_liv(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -19963,7 +19970,7 @@ def osc_prob_4nu_vacuum_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi24: Optional[Union[int, float]]=0.0,
@@ -20027,8 +20034,10 @@ def osc_prob_4nu_vacuum_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -20099,7 +20108,7 @@ def osc_prob_4nu_vacuum_liv(
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
         nubar=nubar,
@@ -20116,6 +20125,7 @@ def osc_prob_4nu_vacuum_liv(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_5nu_vacuum_liv(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -20140,7 +20150,7 @@ def osc_prob_5nu_vacuum_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi15: Optional[Union[int, float]]=0.0,
@@ -20222,8 +20232,10 @@ def osc_prob_5nu_vacuum_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -20307,7 +20319,7 @@ def osc_prob_5nu_vacuum_liv(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -20615,6 +20627,7 @@ def osc_prob_3nu_matter_liv_constant_density(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_4nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -20634,7 +20647,7 @@ def osc_prob_4nu_matter_liv_constant_density(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi24: Optional[Union[int, float]]=0.0,
@@ -20706,8 +20719,10 @@ def osc_prob_4nu_matter_liv_constant_density(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -20788,7 +20803,7 @@ def osc_prob_4nu_matter_liv_constant_density(
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
@@ -20810,6 +20825,7 @@ def osc_prob_4nu_matter_liv_constant_density(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_5nu_matter_liv_constant_density(
     energy: Union[int, float, list, np.ndarray], 
     L: Union[int, float, list, np.ndarray], 
@@ -20835,7 +20851,7 @@ def osc_prob_5nu_matter_liv_constant_density(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi15: Optional[Union[int, float]]=0.0,
@@ -20925,8 +20941,10 @@ def osc_prob_5nu_matter_liv_constant_density(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -21020,7 +21038,7 @@ def osc_prob_5nu_matter_liv_constant_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -21378,6 +21396,7 @@ def osc_prob_3nu_matter_liv_exp_density(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_4nu_matter_liv_exp_density(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
@@ -21399,7 +21418,7 @@ def osc_prob_4nu_matter_liv_exp_density(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi24: Optional[Union[int, float]]=0.0,
@@ -21475,8 +21494,10 @@ def osc_prob_4nu_matter_liv_exp_density(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -21569,7 +21590,7 @@ def osc_prob_4nu_matter_liv_exp_density(
         L=L,
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
         rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
@@ -21593,6 +21614,7 @@ def osc_prob_4nu_matter_liv_exp_density(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_5nu_matter_liv_exp_density(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
@@ -21620,7 +21642,7 @@ def osc_prob_5nu_matter_liv_exp_density(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi15: Optional[Union[int, float]]=0.0,
@@ -21714,8 +21736,10 @@ def osc_prob_5nu_matter_liv_exp_density(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -21821,7 +21845,7 @@ def osc_prob_5nu_matter_liv_exp_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -22576,6 +22600,7 @@ def osc_prob_3nu_earth_liv(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_4nu_earth_liv(
     energy: Union[int, float, list, np.ndarray], 
     costhz: Optional[Union[int, float]]=None,
@@ -22597,7 +22622,7 @@ def osc_prob_4nu_earth_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi24: Optional[Union[int, float]]=0.0,
@@ -22701,7 +22726,7 @@ def osc_prob_4nu_earth_liv(
             warnings.simplefilter('ignore', MagnusConvergenceWarning)
             P = oscprob.osc_prob_4nu_earth_liv(
                 energy, costhz=costhz, L=baseline,
-                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxi13=0.2,
+                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxiCP=0.2,
                 sxi14=0.05, dxi14=0.4, sxi24=0.03, dxi24=0.5, sxi34=0.02,
                 b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, Lambda=1.e9, n_liv=1)
         P
@@ -22755,8 +22780,10 @@ def osc_prob_4nu_earth_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -22966,7 +22993,7 @@ def osc_prob_4nu_earth_liv(
         symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth),
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's24': s24, 'd24': d24, 's34': s34, 'D21': D21, 'D31': D31, 'D41': D41},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
         L0=0.0,
@@ -22991,6 +23018,7 @@ def osc_prob_4nu_earth_liv(
     )  
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_5nu_earth_liv(
     energy: Union[int, float, list, np.ndarray], 
     costhz: Optional[Union[int, float]]=None,
@@ -23018,7 +23046,7 @@ def osc_prob_5nu_earth_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi15: Optional[Union[int, float]]=0.0,
@@ -23128,7 +23156,7 @@ def osc_prob_5nu_earth_liv(
             warnings.simplefilter('ignore', MagnusConvergenceWarning)
             P = oscprob.osc_prob_5nu_earth_liv(
                 energy, costhz=costhz, L=baseline,
-                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxi13=0.2,
+                sxi12=0.1, sxi23=0.05, sxi13=0.02, dxiCP=0.2,
                 sxi14=0.05, dxi14=0.4, sxi15=0.02, dxi15=0.6,
                 sxi24=0.03, dxi24=0.5, sxi25=0.01, sxi34=0.02, sxi35=0.01, dxi35=0.7,
                 b1=1.e-13, b2=2.e-13, b3=3.e-13, b4=1.e-13, b5=1.e-13, Lambda=1.e9, n_liv=1)
@@ -23195,8 +23223,10 @@ def osc_prob_5nu_earth_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -23419,7 +23449,7 @@ def osc_prob_5nu_earth_liv(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 
             's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 
             'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51},
-        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxi13': dxi13, 'sxi14': sxi14,
+        liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
@@ -23816,6 +23846,7 @@ def osc_prob_3nu_sun_liv(
     return _refuse_past_table_edge(P, _beyond)
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_4nu_sun_liv(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
@@ -23835,7 +23866,7 @@ def osc_prob_4nu_sun_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi24: Optional[Union[int, float]]=0.0,
@@ -23920,8 +23951,10 @@ def osc_prob_4nu_sun_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -24048,7 +24081,7 @@ def osc_prob_4nu_sun_liv(
         sxi12=sxi12,
         sxi23=sxi23,
         sxi13=sxi13,
-        dxi13=dxi13,
+        dxiCP=dxiCP,
         sxi14=sxi14,
         dxi14=dxi14,
         sxi24=sxi24,
@@ -24087,6 +24120,7 @@ def osc_prob_4nu_sun_liv(
     return _refuse_past_table_edge(P, _beyond)
 
 
+@_angles.renamed_keyword('dxi13', 'dxiCP')
 def osc_prob_5nu_sun_liv(
     energy: Union[float, list, np.ndarray], 
     L: Union[float, list, np.ndarray],
@@ -24112,7 +24146,7 @@ def osc_prob_5nu_sun_liv(
     sxi12: Optional[Union[int, float]]=0.0,
     sxi23: Optional[Union[int, float]]=0.0,
     sxi13: Optional[Union[int, float]]=0.0,
-    dxi13: Optional[Union[int, float]]=0.0,
+    dxiCP: Optional[Union[int, float]]=0.0,
     sxi14: Optional[Union[int, float]]=0.0,
     dxi14: Optional[Union[int, float]]=0.0,
     sxi15: Optional[Union[int, float]]=0.0,
@@ -24215,8 +24249,10 @@ def osc_prob_5nu_sun_liv(
         Angle xi_23; see ``sxi12``. Default: 0.0.
     sxi13 : int or float, optional
         Angle xi_13; see ``sxi12``. Default: 0.0.
-    dxi13 : int or float, optional
-        CP-violation phase of the LIV operator [radian] (replaces ``dxiCP`` for 4/5-flavor systems). Default: 0.0.
+    dxiCP : int or float, optional
+        CP-violation phase of the 1-3 rotation of the LIV operator [radian], named as at
+        three flavors.  Its former name, ``dxi13``, is still accepted, with a
+        :class:`FutureWarning`. Default: 0.0.
     sxi14 : int or float, optional
         Angle xi_14; see ``sxi12``. Default: 0.0.
     dxi14 : int or float, optional
@@ -24361,7 +24397,7 @@ def osc_prob_5nu_sun_liv(
         sxi12=sxi12,
         sxi23=sxi23,
         sxi13=sxi13,
-        dxi13=dxi13,
+        dxiCP=dxiCP,
         sxi14=sxi14,
         dxi14=dxi14,
         sxi15=sxi15,

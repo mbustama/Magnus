@@ -39,11 +39,16 @@ Routine listings
     * validate_convention - Raise unless ``angles`` is one of the four accepted values
     * resolve - Convert mixing angles to sines and CP phases to radians
     * from_sines - The inverse: state stored sines in the caller's convention
+    * renamed_keyword - Accept a parameter's former name, with a warning
+    * take_renamed_key - The same, for a key of a parameter dictionary
 """
 
 __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
+
+import functools
+import warnings
 
 import numpy as np
 
@@ -310,10 +315,86 @@ def _validate_range(source_func_name, values, low, high, convention, what):
             + repr(convention) + ", " + name + " is " + what + "; got " + repr(bad) + ".")
 
 
+
+def renamed_keyword(old: str, new: str):
+    r"""Decorator: accept ``old`` as a keyword argument meaning ``new``, with a warning.
+
+    The four- and five-flavor builders and wrappers named their 1-3 CP phase ``d13`` (and the
+    Lorentz-violating one ``dxi13``), where every other entry point, and
+    :func:`magnus.globaldefs.load_nufit_params`, says ``dCP`` (``dxiCP``) (issue #121).  The
+    parameter is now ``new``; a call that still passes ``old`` by keyword gets the same result
+    and a :class:`FutureWarning` naming the new keyword.  Passing both raises
+    :class:`TypeError`, as Python does for any argument given twice.
+
+    Only keyword use is affected: the parameter keeps its position, so positional calls are
+    unchanged.  The check is one dictionary lookup per call.
+
+    .. versionadded:: 1.1.1
+
+    Parameters
+    ----------
+    old : str
+        The former keyword.
+    new : str
+        The keyword that replaces it.
+    """
+    def decorate(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if old in kwargs:
+                if new in kwargs:
+                    raise TypeError(f"{func.__name__}() got both '{new}' and its former "
+                                    f"name '{old}'; pass '{new}' only.")
+                warnings.warn(f"{func.__name__}: the keyword '{old}' is deprecated; use "
+                              f"'{new}', which means the same.", FutureWarning, stacklevel=2)
+                kwargs[new] = kwargs.pop(old)
+            return func(*args, **kwargs)
+        return wrapper
+    return decorate
+
+
+def take_renamed_key(source_func_name: str, params: dict, old: str, new: str) -> dict:
+    r"""Returns ``params`` with a former key ``old`` moved to ``new``, with a warning.
+
+    The dictionary counterpart of :func:`renamed_keyword`, for parameter dictionaries such as
+    ``liv_params``.  The caller's dictionary is not modified: a copy is returned when a key is
+    moved, and ``params`` itself otherwise.  Both keys present raises :class:`ValueError`.
+
+    .. versionadded:: 1.1.1
+
+    Parameters
+    ----------
+    source_func_name : str
+        Module-qualified name of the calling function, for the messages.
+    params : dict
+        The parameter dictionary.
+    old : str
+        The former key.
+    new : str
+        The key that replaces it.
+
+    Returns
+    -------
+    dict
+        ``params``, or a copy of it with ``old`` renamed to ``new``.
+    """
+    if old not in params:
+        return params
+    if new in params:
+        raise ValueError(f"Error in magnus: {source_func_name}: the parameter dictionary has "
+                         f"both '{new}' and its former name '{old}'; keep '{new}' only.")
+    warnings.warn(f"{source_func_name}: the key '{old}' is deprecated; use '{new}', which "
+                  f"means the same.", FutureWarning, stacklevel=3)
+    out = dict(params)
+    out[new] = out.pop(old)
+    return out
+
 __all__ = [
     'IMPLAUSIBLE_MIXING_ANGLE_DEG',
     'from_sines',
+    'renamed_keyword',
     'resolve',
+    'take_renamed_key',
     'validate_convention',
     'validate_sines',
 ]

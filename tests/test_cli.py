@@ -101,6 +101,24 @@ def test_vacuum_liv_dispatch_and_effect(capsys):
     assert np.allclose(np.sum(P_liv, axis=-1), 1.0, atol=1e-8)
 
 
+def test_dxicp_names_the_liv_phase_at_four_flavors_and_dxi13_still_works(capsys):
+    """Issue #121: --dxicp is the flag at every flavor count; --dxi13 is its former name."""
+    base = ['prob', '--flavors', '4', '--environment', 'vacuum', '--scenario', 'liv',
+            '--sxi12', '0.3', '--sxi13', '0.2', '--b1', '6e-13', '--b2', '1.2e-12',
+            '--liv-lambda', '1e9', '--n-liv', '1', '--energy', '1', '--energy-unit', 'GeV',
+            '--baseline', '1300', '--baseline-unit', 'km', '--json']
+    code, out = run(base + ['--dxicp', '1.3'], capsys)
+    assert code == 0
+    P_new = np.asarray(json.loads(out)['probability'])
+    code, out = run(base, capsys)
+    P_zero = np.asarray(json.loads(out)['probability'])
+    assert not np.allclose(P_new, P_zero)     # the phase reaches the wrapper
+    with pytest.warns(FutureWarning, match="'--dxi13' is deprecated"):
+        code, out = run(base + ['--dxi13', '1.3'], capsys)
+    assert code == 0
+    assert np.array_equal(np.asarray(json.loads(out)['probability']), P_new)
+
+
 def test_channel_selection_returns_scalar(capsys):
     code, out = run(['prob', '--flavors', '3', '--environment', 'vacuum',
                       '--energy', '1', '--energy-unit', 'GeV',

@@ -42,7 +42,8 @@ import magnus.matter as matter
 from typing import Optional, Callable, Union
 
 
-def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def mixing_matrix_4x4(s12: float, s23: float, s13:float, dCP: float, s14: float, d14: float,
     s24: float, d24: float, s34: float,
     compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -65,8 +66,10 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
         Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
         Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
-    d13 : float
-        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
+    dCP : float
+        :math:`\delta_{\rm CP}`, the phase of the 1-3 rotation [radian, or degree if
+        ``angles='deg'``].  Formerly ``d13``, which is still accepted as a keyword, with a
+        :class:`FutureWarning`.
     s14 : float
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
@@ -114,10 +117,10 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     _r, _p = _angles.resolve(
         'hamiltonians.mixing_matrix_4x4', angles,
         {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's24': s24, 's34': s34},
-        {'d13': d13, 'd14': d14, 'd24': d24})
+        {'dCP': dCP, 'd14': d14, 'd24': d24})
     s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
     s14, s24, s34 = _r['s14'], _r['s24'], _r['s34']
-    d13, d14, d24 = _p['d13'], _p['d14'], _p['d24']
+    dCP, d14, d24 = _p['dCP'], _p['d14'], _p['d24']
 
     c12 = np.sqrt(1.0-s12*s12)
     c23 = np.sqrt(1.0-s23*s23)
@@ -125,8 +128,8 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
     c14 = np.sqrt(1.0-s14*s14)
     c24 = np.sqrt(1.0-s24*s24)
     c34 = np.sqrt(1.0-s34*s34)
-    cd13 = np.cos(d13)
-    sd13 = np.sin(d13)
+    cd13 = np.cos(dCP)
+    sd13 = np.sin(dCP)
     exp_d13_p = complex(cd13, sd13)
     exp_d13_m = np.conj(exp_d13_p)
     cd14 = np.cos(d14)
@@ -183,7 +186,8 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, d13: float, s14: float,
         return np.linalg.multi_dot([R34, R24, R14, R23, R13, R12])
 
 
-def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float, d13: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float, dCP: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -205,8 +209,10 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
         Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
         Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
-    d13 : float
-        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
+    dCP : float
+        :math:`\delta_{\rm CP}`, the phase of the 1-3 rotation [radian, or degree if
+        ``angles='deg'``].  Formerly ``d13``, which is still accepted as a keyword, with a
+        :class:`FutureWarning`.
     s14 : float
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
@@ -248,14 +254,14 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     _r, _p = _angles.resolve(
         'hamiltonians.hamiltonian_4nu_vacuum_energy_independent', angles,
         {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's24': s24, 's34': s34},
-        {'d13': d13, 'd14': d14, 'd24': d24})
+        {'dCP': dCP, 'd14': d14, 'd24': d24})
     s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
     s14, s24, s34 = _r['s14'], _r['s24'], _r['s34']
-    d13, d14, d24 = _p['d13'], _p['d14'], _p['d24']
+    dCP, d14, d24 = _p['dCP'], _p['d14'], _p['d24']
     # 4x4 mixing matrix
-    R = mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
+    R = mixing_matrix_4x4(s12, s23, s13, dCP, s14, d14, s24, d24, s34,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
-            np.conj(mixing_matrix_4x4(s12, s23, s13, d13, s14, d14, s24, d24, s34,
+            np.conj(mixing_matrix_4x4(s12, s23, s13, dCP, s14, d14, s24, d24, s34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
     # Mass matrix
     M2 = np.diag([0.0, D21, D31, D41])
@@ -264,8 +270,9 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     # return 0.5 * R @ M2 @ np.conj(R.T)
 
 
+@_angles.renamed_keyword('d13', 'dCP')
 def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float,
-    d13: float, s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float,
+    dCP: float, s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float,
     D41: float, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -281,8 +288,9 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     ----------
     l : float
         Position at which the Hamiltonian is evaluated.
-    s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
-        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
+    s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
+        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -305,12 +313,13 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
-    return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24, d24, s34,
+    return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34,
         D21, D31, D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
         angles=angles)
 
 
-def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -324,8 +333,9 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     ----------
     energy : float
         Neutrino energy.
-    s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
-        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
+    s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
+        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -348,12 +358,13 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
-    return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s24,
+    return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24,
         d24, s34, D21, D31, D41, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
-def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float, d13: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float, dCP: float,
     s14: float, d14: float, s24: float, d24: float, s34: float, D21: float, D31: float, D41: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -371,8 +382,9 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         Position at which the Hamiltonian is evaluated.
     energy : float
         Neutrino energy.
-    s12, s23, s13, d13, s14, d14, s24, d24, s34 : float
-        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.
+    s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
+        3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -395,7 +407,7 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
-    return hamiltonian_4nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s24, d24, s34, D21, D31,
+    return hamiltonian_4nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31,
         D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
         angles=angles)
 
@@ -463,7 +475,9 @@ def hamiltonian_4nu_matter(VCC: float,
     return VCC[..., None, None] * proj
 
 
-def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]] = 1.0
+) -> np.ndarray:
     r"""Returns the four-neutrino Hamiltonian for matter oscillations, as a function of distance.
 
     Computes and returns the 4x4 real four-neutrino Hamiltonian for oscillations in matter with a
@@ -478,13 +492,25 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
+    ratio_number_neutrons_to_protons : int, float or Callable, optional
+        :math:`r = n_n/n_p` of the medium, as in :func:`hamiltonian_4nu_matter`: a number, or
+        a function of position, evaluated at ``l``.  Default: 1.0 (isoscalar matter).
+
+        .. versionchanged:: 1.1.1
+           Added (issue #121).  Without it, this function equalled
+           :func:`hamiltonian_4nu_matter` only at :math:`r = 1`.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 4x4 matrix.
     """
-    return hamiltonian_4nu_matter(VCC_func(l))
+    if callable(ratio_number_neutrons_to_protons):
+        # The projector of a position-dependent ratio is itself a function of position.
+        VCC = np.asarray(VCC_func(l), dtype=float)
+        proj = matter.matter_potential_projector(4, ratio_number_neutrons_to_protons)(l)
+        return VCC[..., None, None] * proj
+    return hamiltonian_4nu_matter(VCC_func(l), ratio_number_neutrons_to_protons)
 
 
 def hamiltonian_4nu_nsi(
@@ -575,7 +601,8 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
         eps_tt, eps_ts, eps_ss)
 
 
-def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxi13: float,
+@_angles.renamed_keyword('dxi13', 'dxiCP')
+def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float, dxiCP: float,
     sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float,
     b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False,
@@ -596,8 +623,9 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B4
         and the flavor states, parametrized as in :func:`mixing_matrix_4x4`.
-    dxi13, dxi14, dxi24 : float
-        CP-violation phases of the LIV operator B4 [radian].
+    dxiCP, dxi14, dxi24 : float
+        CP-violation phases of the LIV operator B4 [radian].  ``dxiCP`` is the
+        phase of the 1-3 rotation, formerly ``dxi13``, which is still accepted as a keyword.
     b1 : float
         Eigenvalue b1 of the LIV operator B4.
     b2 : float
@@ -628,12 +656,13 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
         Hamiltonian 4x4 matrix.
     """
 
-    return pow(energy, n_liv) * hamiltonian_4nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
+    return pow(energy, n_liv) * hamiltonian_4nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
-def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxi13: float,
+@_angles.renamed_keyword('dxi13', 'dxiCP')
+def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: float, dxiCP: float,
     sxi14: float, dxi14: float, sxi24: float, dxi24: float, sxi34: float, b1: float, b2: float,
     b3: float, b4: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False,
@@ -650,8 +679,9 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B4
         and the flavor states, parametrized as in :func:`mixing_matrix_4x4`.
-    dxi13, dxi14, dxi24 : float
-        CP-violation phases of the LIV operator B4 [radian].
+    dxiCP, dxi14, dxi24 : float
+        CP-violation phases of the LIV operator B4 [radian].  ``dxiCP`` is the
+        phase of the 1-3 rotation, formerly ``dxi13``, which is still accepted as a keyword.
     b1 : float
         Eigenvalue b1 of the LIV operator B4.
     b2 : float
@@ -687,15 +717,15 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
         'hamiltonians.hamiltonian_4nu_liv_energy_independent', angles,
         {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'sxi14': sxi14,
          'sxi24': sxi24, 'sxi34': sxi34},
-        {'dxi13': dxi13, 'dxi14': dxi14, 'dxi24': dxi24})
+        {'dxiCP': dxiCP, 'dxi14': dxi14, 'dxi24': dxi24})
     sxi12, sxi23, sxi13 = _r['sxi12'], _r['sxi23'], _r['sxi13']
     sxi14, sxi24, sxi34 = _r['sxi14'], _r['sxi24'], _r['sxi34']
-    dxi13, dxi14, dxi24 = _p['dxi13'], _p['dxi14'], _p['dxi24']
+    dxiCP, dxi14, dxi24 = _p['dxiCP'], _p['dxi14'], _p['dxi24']
 
     # 4x4 mixing matrix
-    R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
+    R = mixing_matrix_4x4(sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi24, dxi24, sxi34,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
-            np.conj(mixing_matrix_4x4(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi24, dxi24, sxi34,
+            np.conj(mixing_matrix_4x4(sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi24, dxi24, sxi34,
                 compute_matrix_multiplication=compute_matrix_multiplication))
 
     return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4]) @ np.conj(R.T)

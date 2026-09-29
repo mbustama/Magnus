@@ -58,7 +58,7 @@ def test_non_positive_liv_scale_is_rejected(num_flavors):
     not a physical choice; it is checked before the other keys are read, so
     the diagnostic is about Lambda rather than about a missing key."""
     liv_params = dict(Lambda=0.0, sxi=0.1, b1=1e-9, b2=1e-9, b3=1e-9, b4=1e-9, b5=1e-9,
-                      n_liv=1, sxi12=0.1, sxi23=0.1, sxi13=0.1, dxiCP=0.0, dxi13=0.0,
+                      n_liv=1, sxi12=0.1, sxi23=0.1, sxi13=0.1, dxiCP=0.0,
                       sxi14=0.1, dxi14=0.0, sxi24=0.1, dxi24=0.0, sxi34=0.1,
                       sxi15=0.1, dxi15=0.0, sxi25=0.1, sxi35=0.1, dxi35=0.0)
     with pytest.raises(ValueError, match="Lambda"):

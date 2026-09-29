@@ -36,6 +36,7 @@ import argparse
 import inspect
 import json
 import sys
+import warnings
 from typing import Optional
 
 import numpy as np
@@ -291,9 +292,9 @@ def build_parser() -> argparse.ArgumentParser:
     g_liv.add_argument('--sxi23', type=float, default=0.0, help='LIV mixing angle xi_23, per --angles.')
     g_liv.add_argument('--sxi13', type=float, default=0.0, help='LIV mixing angle xi_13, per --angles.')
     g_liv.add_argument('--dxicp', type=float, default=0.0, dest='dxiCP',
-        help='(3nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--dxi13', type=float, default=0.0,
-        help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg] (replaces --dxicp).')
+        help='(3/4/5nu) LIV CP-violation phase of the 1-3 rotation [radian, or degree with --angles deg].')
+    g_liv.add_argument('--dxi13', type=float, default=None,
+        help='(4/5nu) Former name of --dxicp; still accepted, with a warning.')
     g_liv.add_argument('--sxi14', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
     g_liv.add_argument('--dxi14', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi24', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
@@ -432,8 +433,9 @@ def _liv_kwargs(flavors: int, args: argparse.Namespace) -> dict:
     r"""Collects the Lorentz-violating operator's parameters for one flavor count.
 
     Returns the mixing angles, the CP phases and the eigenvalues the LIV wrappers
-    declare at that count.  Three flavors take ``dxiCP``; four and five replace it with
-    ``dxi13`` and add the sterile sector's angles, phases and eigenvalues.  ``Lambda``
+    declare at that count.  Every count from three up takes ``dxiCP``; four and five add
+    the sterile sector's angles, phases and eigenvalues.  ``--dxi13``, the former name of
+    ``--dxicp`` at four and five flavors, is still accepted, with a :class:`FutureWarning`.  ``Lambda``
     and ``n_liv`` go in at every count.  An eigenvalue above the flavor count is
     accepted by the parser and dropped here.
 
@@ -454,10 +456,13 @@ def _liv_kwargs(flavors: int, args: argparse.Namespace) -> dict:
                 'n_liv': args.n_liv}
     kw = {'sxi12': args.sxi12, 'sxi23': args.sxi23, 'sxi13': args.sxi13,
           'b1': args.b1, 'b2': args.b2, 'b3': args.b3, 'Lambda': args.Lambda, 'n_liv': args.n_liv}
-    if flavors == 3:
-        kw['dxiCP'] = args.dxiCP
+    kw['dxiCP'] = args.dxiCP
+    if flavors >= 4 and args.dxi13 is not None:
+        warnings.warn("magnus: '--dxi13' is deprecated; use '--dxicp', which means the same.",
+                      FutureWarning, stacklevel=2)
+        kw['dxiCP'] = args.dxi13
     if flavors >= 4:
-        kw.update({'dxi13': args.dxi13, 'sxi14': args.sxi14, 'dxi14': args.dxi14,
+        kw.update({'sxi14': args.sxi14, 'dxi14': args.dxi14,
                    'sxi24': args.sxi24, 'dxi24': args.dxi24, 'sxi34': args.sxi34, 'b4': args.b4})
     if flavors == 5:
         kw.update({'sxi15': args.sxi15, 'dxi15': args.dxi15, 'sxi25': args.sxi25,

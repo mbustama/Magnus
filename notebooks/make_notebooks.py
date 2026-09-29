@@ -14092,12 +14092,12 @@ def vacuum_hamiltonian(d):
             D21=OSC['D21'], D31=OSC['D31'])
     if d == 4:
         return hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
-            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], d13=OSC['dCP'],
+            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], dCP=OSC['dCP'],
             s14=STERILE4['s14'], d14=0.0, s24=STERILE4['s24'], d24=0.0,
             s34=STERILE4['s34'], D21=OSC['D21'], D31=OSC['D31'], D41=STERILE4['D41'])
     if d == 5:
         return hamiltonians.hamiltonian_5nu_vacuum_energy_independent(
-            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], d13=OSC['dCP'],
+            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], dCP=OSC['dCP'],
             s14=STERILE5['s14'], d14=0.0, s15=STERILE5['s15'], d15=0.0,
             s24=STERILE5['s24'], d24=0.0, s25=STERILE5['s25'],
             s34=STERILE5['s34'], s35=STERILE5['s35'], d35=0.0,
@@ -15867,9 +15867,9 @@ ax.set_xlim(0.034, 0.094)
 ax.set_ylim(0.005, 0.025)
 ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
 tag = ax.text(0.97, 0.97, 'DUNE\n$L = 1300$~km, $E = 2$~GeV\nNormal ordering',
-              transform=ax.transAxes, ha='right', va='top', fontsize=7.4, color=INK,
+              transform=ax.transAxes, ha='right', va='top', fontsize=7.4, color='black',
               zorder=6, linespacing=1.4,
-              bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+              bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 # The delta_CP legend hangs below the label, flush with its right border; both are measured
 # from the drawn box, since a text's anchor is the text and not its frame.
 fig.canvas.draw()

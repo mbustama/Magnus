@@ -409,8 +409,8 @@ and ``matter.vcc_func_from_rho_func`` for the matter term.
     def _vacuum_part(num_flavors, osc_params, nubar):
         """The vacuum Hamiltonian times the energy, H_vac * E, from the standard parameters.
 
-        The shipped builders take the parameters positionally, and name the CP phase ``dCP`` at
-        three flavors and ``d13`` beyond, so the dictionary is unpacked explicitly."""
+        The dictionary carries the parameters of every flavor count, and each builder takes
+        only its own, so it is unpacked explicitly for each."""
         p = osc_params
         if num_flavors == 2:
             return hamiltonians.hamiltonian_2nu_vacuum_energy_independent(p['sth'], p['Dm2'])

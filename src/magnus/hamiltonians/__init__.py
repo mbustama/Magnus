@@ -77,6 +77,7 @@ from .hamiltonians5nu import (
     hamiltonian_5nu_matter,
     hamiltonian_5nu_matter_td,
     hamiltonian_5nu_nsi,
+    hamiltonian_5nu_nsi_td,
     hamiltonian_5nu_liv,
     hamiltonian_5nu_liv_energy_independent,
 )
@@ -148,6 +149,7 @@ __all__ = [
     'hamiltonian_5nu_matter',
     'hamiltonian_5nu_matter_td',
     'hamiltonian_5nu_nsi',
+    'hamiltonian_5nu_nsi_td',
     'hamiltonian_5nu_liv',
     'hamiltonian_5nu_liv_energy_independent',
     'PseudoDiracSplittingWarning',
