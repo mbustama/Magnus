@@ -337,7 +337,7 @@ higher order into fewer slabs on its own, so the order and the requested
 tolerance interact: raising the order pays only once the tolerance is tight
 enough to make the extra work per slab worthwhile.
 
-.. figure:: ../../img/paper/phase_vs_profile.png
+.. figure:: ../../img/paper/phase_vs_profile.svg
    :width: 100%
    :alt: Cost and accuracy of a Magnus slab at three flavors
 

@@ -67,7 +67,7 @@ From the command line, ``magnus --environment sun`` takes the same names through
 compares all twelve on the averaged observable: they agree to :math:`2.4\times10^{-3}`,
 and the exponential fit is off by up to 0.1, at 2.5 MeV (0.02 at 10 MeV, as above).
 
-.. figure:: ../../img/paper/solar_models.png
+.. figure:: ../../img/paper/solar_models.svg
    :width: 90%
    :alt: Two tabulated solar models and the exponential fit, and their averaged survival probabilities
 

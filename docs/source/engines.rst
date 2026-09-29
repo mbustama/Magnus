@@ -14,7 +14,7 @@ for what to do when one warns.
 The engines
 -------------
 
-.. figure:: ../../img/paper/strategies.png
+.. figure:: ../../img/paper/strategies.svg
    :width: 100%
    :alt: The seven probability engines, in the order they are tried
 

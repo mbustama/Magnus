@@ -22,7 +22,7 @@ process on one machine.
 Eight codes, three setups
 ---------------------------
 
-.. figure:: ../../img/paper/speed_accuracy_combined.png
+.. figure:: ../../img/paper/speed_accuracy_combined.svg
    :width: 100%
    :alt: Error against time per probability for eight codes on three setups
 
@@ -56,7 +56,7 @@ chiefly the nucleon mass that fixes :math:`V_{\rm CC}`, so two codes can both re
 Against NuOscProbExact, two to five flavors
 ---------------------------------------------
 
-.. figure:: ../../img/paper/smooth_reach.png
+.. figure:: ../../img/paper/smooth_reach.svg
    :width: 100%
    :alt: Accuracy against cost, Magnus against NuOscProbExact
 
@@ -72,7 +72,7 @@ runs into an accuracy floor that more slabs cannot lower, and Magνs reaches pas
 The averaged solar probability
 --------------------------------
 
-.. figure:: ../../img/paper/solar_average_cost.png
+.. figure:: ../../img/paper/solar_average_cost.svg
    :width: 80%
    :alt: Cost of an averaged solar survival probability
 

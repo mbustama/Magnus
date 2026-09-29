@@ -5,7 +5,7 @@ Layered matter
 
 .. _ex-fig-arrangement:
 
-.. figure:: ../../../img/paper/density_arrangement.png
+.. figure:: ../../../img/paper/density_arrangement.svg
    :width: 95%
    :alt: Same mean density, different probabilities
 

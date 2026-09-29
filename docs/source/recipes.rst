@@ -401,7 +401,7 @@ High-order quadrature converges at its nominal order only inside a smooth slab.
 If your profile has a jump or a kink, pass its position as a mandatory slab edge;
 no number of slabs fixes one that straddles it.
 
-.. figure:: ../../img/paper/declaring_edges.png
+.. figure:: ../../img/paper/declaring_edges.svg
    :width: 90%
    :alt: Declaring a density discontinuity
 

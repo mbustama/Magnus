@@ -12,7 +12,7 @@ A cavity in the Earth’s crust
 
 .. _ex-fig-cavity:
 
-.. figure:: ../../../img/paper/cavity.png
+.. figure:: ../../../img/paper/cavity.svg
    :width: 95%
    :alt: A cavity in the Earth’s crust
 
@@ -90,7 +90,7 @@ The probability contrast map reflects that semicircle. Structure fills the :math
 
 .. _ex-fig-cavity-sweep:
 
-.. figure:: ../../../img/paper/cavity_sweep.png
+.. figure:: ../../../img/paper/cavity_sweep.svg
    :width: 95%
    :alt: A beam swept across a buried body
 
@@ -150,7 +150,7 @@ Geoneutrinos
 
 .. _ex-fig-geoneutrinos:
 
-.. figure:: ../../../img/paper/geoneutrinos.png
+.. figure:: ../../../img/paper/geoneutrinos.svg
    :width: 95%
    :alt: Geoneutrino geometry at Borexino
 
@@ -163,7 +163,7 @@ Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>` shows the s
 
 .. _ex-fig-geoneutrino-energy:
 
-.. figure:: ../../../img/paper/geoneutrino_energy.png
+.. figure:: ../../../img/paper/geoneutrino_energy.svg
    :width: 95%
    :alt: Geoneutrino survival against energy
 
@@ -252,7 +252,7 @@ Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` compute
 
 .. _ex-fig-geoneutrino-flux:
 
-.. figure:: ../../../img/paper/geoneutrino_flux.png
+.. figure:: ../../../img/paper/geoneutrino_flux.svg
    :width: 95%
    :alt: Where the geoneutrino flux comes from
 
@@ -277,7 +277,7 @@ Neutrino tomography of the Sun
 
 .. _ex-fig-solar-adiabaticity:
 
-.. figure:: ../../../img/paper/solar_adiabaticity.png
+.. figure:: ../../../img/paper/solar_adiabaticity.svg
    :width: 95%
    :alt: Adiabaticity along a solar chord
 
@@ -335,7 +335,7 @@ The parameter :math:`\gamma_{\rm max}` grows with energy because the vacuum spli
 
 .. _ex-fig-solar-tomography:
 
-.. figure:: ../../../img/paper/solar_tomography.png
+.. figure:: ../../../img/paper/solar_tomography.svg
    :width: 95%
    :alt: The Sun in the electron-neutrino channel
 
@@ -423,7 +423,7 @@ Here, ``P`` is the probability matrix at the surface of the star and ``U`` is th
 
 .. _ex-fig-jet:
 
-.. figure:: ../../../img/paper/jet.png
+.. figure:: ../../../img/paper/jet.svg
    :width: 95%
    :alt: Jet neutrinos in a stellar envelope
 
@@ -526,7 +526,7 @@ Long-range interactions in the Sun
 
 .. _ex-fig-solar-lri:
 
-.. figure:: ../../../img/paper/solar_long_range.png
+.. figure:: ../../../img/paper/solar_long_range.svg
    :width: 95%
    :alt: A long-range force in the Sun
 
@@ -684,7 +684,7 @@ Turbulent matter profile
 
 .. _ex-fig-turbulence-rabi:
 
-.. figure:: ../../../img/paper/turbulence_rabi.png
+.. figure:: ../../../img/paper/turbulence_rabi.svg
    :width: 95%
    :alt: A density mode against its closed form
 
@@ -693,7 +693,7 @@ Turbulent matter profile
 
 .. _ex-fig-turbulence:
 
-.. figure:: ../../../img/paper/turbulence.png
+.. figure:: ../../../img/paper/turbulence.svg
    :width: 95%
    :alt: The same mode in the flavor channel
 

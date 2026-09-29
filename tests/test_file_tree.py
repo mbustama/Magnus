@@ -135,7 +135,7 @@ TREE = [
     ('img/anim_sterile.gif', 'Animated: a sterile state as its mass splitting grows'),
     ('img/anim_wave.gif', 'Animated: a density crest traveling along the baseline'),
     ('img/gallery/', 'Figures lifted from the executed notebooks, embedded in the docs'),
-    ('img/paper/', 'Figures from the paper, as PNG, embedded in the docs'),
+    ('img/paper/', 'Figures from the paper, as SVG, embedded in the docs'),
     ('notebooks/', 'Numbered Jupyter notebooks -- see docs/source/tutorials.rst'),
     ('notebooks/01_magnus_introduction.ipynb',
      'The shortest path to a probability'),

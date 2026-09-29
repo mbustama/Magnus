@@ -5,7 +5,7 @@ A supernova shock front
 
 .. _ex-fig-shock:
 
-.. figure:: ../../../img/paper/shock_probability.png
+.. figure:: ../../../img/paper/shock_probability.svg
    :width: 95%
    :alt: A supernova shock front
 
@@ -136,7 +136,7 @@ Unlike the limit returned on a smooth profile, this average depends on the width
 
 .. _ex-fig-shock-energy:
 
-.. figure:: ../../../img/paper/shock_energy.png
+.. figure:: ../../../img/paper/shock_energy.svg
    :width: 95%
    :alt: The shock signature against energy
 

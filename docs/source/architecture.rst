@@ -14,7 +14,7 @@ method; this page is about the *code*.
 The path of a request
 ---------------------
 
-.. figure:: ../../img/paper/architecture.png
+.. figure:: ../../img/paper/architecture.svg
    :width: 100%
    :alt: The modules of Magnus and the path of a request through them
 
@@ -123,7 +123,7 @@ The four layers of ``oscprob``
 that they do not repeat the same logic, its functions are organized in four layers, each
 calling the one below it:
 
-.. figure:: ../../img/paper/layers.png
+.. figure:: ../../img/paper/layers.svg
    :width: 100%
    :alt: The four layers of magnus.oscprob and the engines each one tries
 
