@@ -357,6 +357,89 @@ def test_average_spread_must_be_a_non_negative_number(bad):
                                average_spread=bad)
 
 
+# ------------------------------------------------------------ the energy-window route (#134)
+
+_STEP_AT = 1500.0*gd.UNIT_KM
+
+
+def _step_density(l):
+    """Two layers with one declared jump: the energy-window route of average=True."""
+    out = np.where(np.asarray(l, dtype=float) < _STEP_AT, 3.0, 5.0)
+    return out[()] if np.ndim(out) == 0 else out
+
+
+_STEP_CALL = dict(t_breakpoints=[_STEP_AT], nu_i=0, nu_f=0, density_matter_is_in_g_per_cm3=True)
+_STEP_OSC = dict(sth=0.55, Dm2=2.5e-3)
+_STEP_E, _STEP_L = 1.0*gd.UNIT_GEV, 3000.0*gd.UNIT_KM
+
+
+def _step_window_average(**kw):
+    return op.osc_prob_matter_std_potential(2, _step_density, _STEP_E, _STEP_L, _STEP_OSC,
+                                            average=True, **_STEP_CALL, **kw)
+
+
+def _step_by_hand(relative_spread, n_samples):
+    def prob_of_energy(e):
+        return op.osc_prob_matter_std_potential(2, _step_density, e, _STEP_L, _STEP_OSC,
+                                                **_STEP_CALL)
+    return ap.averaged_probabilities_numerically(prob_of_energy, _STEP_E,
+                                                 relative_spread=relative_spread,
+                                                 n_samples=n_samples)
+
+
+def test_average_spread_and_n_samples_set_the_energy_window():
+    """Issue #134: across declared discontinuities, average_spread was accepted and ignored, and
+    the sample count could not be set.  Both now reach the window, bit for bit."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = _step_window_average(average_spread=0.05, average_n_samples=11)
+        P_default = _step_window_average()
+        expected, _ = _step_by_hand(0.05, 11)
+        expected_default, _ = _step_by_hand(ap.AVG_DEFAULT_ENERGY_SPREAD,
+                                            ap.AVG_DEFAULT_N_SAMPLES)
+    assert float(P) == float(expected)
+    assert float(P_default) == float(expected_default)
+    assert abs(float(P) - float(P_default)) > 1e-3     # the keywords are not ignored
+
+
+def test_the_window_warning_and_the_trace_quote_the_window_used():
+    info = {}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        _step_window_average(average_spread=0.05, average_n_samples=11, strategy_info=info)
+    text = ' '.join(str(w.message) for w in caught if w.category is op.PhaseAveragingWarning)
+    assert '+/-5.0%' in text and 'over 11 samples' in text
+    last = info['trace'][-1]
+    assert last['engine'] == 'average'
+    assert last['window_half_width'] == 0.05 and last['n_samples'] == 11
+    assert last['largest_sem'] > 0.0
+
+
+@pytest.mark.parametrize("bad", [1, 0, True, 2.0, 'many'])
+def test_average_n_samples_must_be_an_integer_of_at_least_two(bad):
+    with pytest.raises(ValueError, match='average_n_samples'):
+        _step_window_average(average_n_samples=bad)
+
+
+@pytest.mark.parametrize("bad", [0.0, 1.0, 1.5])
+def test_the_window_half_width_must_lie_between_zero_and_one(bad):
+    with pytest.raises(ValueError, match='average_spread'):
+        _step_window_average(average_spread=bad)
+
+
+def test_average_n_samples_is_refused_where_nothing_is_sampled():
+    """The closed form and the adiabatic route sample no energies: the keyword would be ignored
+    there, so it is refused rather than dropped."""
+    with pytest.raises(ValueError, match='average_n_samples'):
+        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC, average=True,
+                               average_n_samples=11)
+    with pytest.raises(ValueError, match='average_n_samples'):
+        op.osc_prob_matter_std_potential(2, lambda l: 3.0 + 2.0*float(l)/_STEP_L, _STEP_E,
+                                         _STEP_L, _STEP_OSC, average=True,
+                                         average_n_samples=11, nu_i=0, nu_f=0,
+                                         density_matter_is_in_g_per_cm3=True)
+
+
 def test_a_profile_with_a_window_is_recomputed_and_reported():
     """The end of the solar disk at 10 TeV (issue #62): one window over the whole chord, whose
     readout the decohered route discarded; the phase average keeps it."""

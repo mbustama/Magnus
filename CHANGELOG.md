@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`average_spread` sets the energy window of `average=True` across declared discontinuities**
+  (issue #134).  On that route the window was always the default, ±10%, and a caller's
+  `average_spread` was accepted and silently ignored.  It is now the half-width of the window
+  as a fraction of the energy, and must lie strictly between 0 and 1.  The
+  `PhaseAveragingWarning` of that route quotes the width and the number of samples actually
+  used, and `strategy_info` records them.  Results at the defaults are unchanged.
 - **The command-line error for `--costhz` without a length names every way to give one**
   (issue #136).  It said that only `--loc-ini`/`--loc-fin` compute the baseline, but
   `--detector-depth` and `--source-depth` do too; the message for `--environment earth` with
@@ -29,6 +35,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`average_n_samples`** (issue #134), on every function that takes `average`: the number of
+  energies the energy-window average samples on a profile with declared discontinuities, 41 by
+  default.  The standard error of that average falls as the inverse square root of the number,
+  and each sample costs a full propagation.  The other averaging routes sample nothing and
+  refuse the keyword.
 - **`hamiltonian_5nu_nsi_td`** (issue #121), the one builder that existed at two to four flavors
   but not at five; `magnus.hamiltonians` now has 43 builders.
 - **`ratio_number_neutrons_to_protons` in `hamiltonian_4nu_matter_td` and

@@ -416,9 +416,10 @@ Ten per cent is the order of a real detector's energy resolution, and it is the
 oscillation phase varies by many cycles across whatever window the measurement
 integrates over.  It is a default, not a property of the physics, so it is named
 here rather than buried, every use of it through the :mod:`magnus.oscprob` entry
-points is warned about, and callers with an actual resolution should pass theirs.
-Calling this module directly warns nobody: the width and the standard error come
-back in the result instead.
+points is warned about, and callers with an actual resolution should pass theirs:
+``average_spread`` on those entry points, ``relative_spread`` here.  Calling this
+module directly warns nobody: the width and the standard error come back in the
+result instead.
 
 .. versionadded:: 1.0.0
 """
@@ -434,7 +435,8 @@ The sampled phases are effectively independent when the accumulated phase is
 large, so the error of the mean falls only as :math:`1/\sqrt{N}` -- 41 samples
 give a few per cent.  Raising it buys accuracy slowly and costs a full
 propagation each; the closed-form paths in this module exist precisely to avoid
-this trade.
+this trade.  Callers set it through ``average_n_samples`` on the
+:mod:`magnus.oscprob` entry points, or ``n_samples`` here.
 
 .. versionadded:: 1.0.0
 """
