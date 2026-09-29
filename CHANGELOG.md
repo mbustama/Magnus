@@ -7,6 +7,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`average_spread` sets the energy window of `average=True` across declared discontinuities**
+  (issue #134).  On that route the window was always the default, ±10%, and a caller's
+  `average_spread` was accepted and silently ignored.  It is now the half-width of the window
+  as a fraction of the energy, and must lie strictly between 0 and 1.  The
+  `PhaseAveragingWarning` of that route quotes the width and the number of samples actually
+  used, and `strategy_info` records them.  Results at the defaults are unchanged.
+
 ### Changed
 
 - **The 1-3 CP phase is `dCP`, and the Lorentz-violating one `dxiCP`, at every flavor count**
@@ -22,6 +31,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`average_n_samples`** (issue #134), on every function that takes `average`: the number of
+  energies the energy-window average samples on a profile with declared discontinuities, 41 by
+  default.  The standard error of that average falls as the inverse square root of the number,
+  and each sample costs a full propagation.  The other averaging routes sample nothing and
+  refuse the keyword.
 - **`prob` is optional on the command line** (issue #138).  It is the only subcommand, so
   `magnus --flavors 3 ...` now runs `magnus prob --flavors 3 ...`, with the same output;
   `magnus prob ...` works as before, and `magnus --help` says so.  The worked examples in
