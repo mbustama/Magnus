@@ -292,6 +292,7 @@ __author__ = 'Mauricio Bustamante'
 
 import functools
 import math
+import os
 import numbers
 import numpy as np
 import sys
@@ -8522,8 +8523,13 @@ def osc_prob_energy_baseline(
             magnus.EXPM_BACKEND = _backend
             return compute_single_point(enu, baseline)
 
-        probs += Parallel(n_jobs=n_jobs)(delayed(compute_single_point_in_worker)(enu, baseline)
-            for enu, baseline in zip(energy[1:], L[1:]))
+        # No more workers than there are points left, or cores (issue #160 §5): n_jobs=1000 on
+        # a 20-energy scan used to start about 626 worker processes and stall the machine.
+        _workers = len(energy) - 1
+        _cores = os.cpu_count() or 1
+        _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
+        probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
+            enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
     else:
         probs = []
         for enu, baseline in zip(energy, L):
