@@ -33,8 +33,8 @@ oscillation parameters it defaults to.
 
     P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
 
-    print('P_ee   = %.6f' % np.asarray(P)[0][0])
-    print('P_mue  = %.6f' % np.asarray(P)[1][0])
+    print('P_ee   = %.6f' % np.asarray(P)[0][0])     # 0.928948
+    print('P_mue  = %.6f' % np.asarray(P)[1][0])     # 0.031266
 
 The return is the probability matrix, indexed ``P[nu_i][nu_f]``: the *initial*
 flavor first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
@@ -68,8 +68,8 @@ operator itself, phases included.
     content = abs(R.conj().T @ U)**2
     P_far = abs(R)**2 @ content
 
-    print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])
-    print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])
+    print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])   # 0.7824
+    print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])           # 0.4933
 
 ``P`` is what the same call returns without the keyword; ``U`` is complex and
 unitary, indexed ``U[final, initial]``, so ``(abs(U)**2).T`` is ``P``. See
@@ -125,7 +125,7 @@ aligned with the layer boundaries all follow.
     P = np.asarray(oscprob.osc_prob_3nu_earth(10.0*gd.UNIT_GEV, costhz=costhz, L=L))
 
     print('chord   = %.0f km' % (L/gd.UNIT_KM))
-    print('P_mue   = %.6f' % P[1][0])
+    print('P_mue   = %.6f' % P[1][0])                 # 0.133678
 
 A detector underground is the same call with its depth named. The zenith angle
 is measured at the detector, so the baseline follows from the geometry and is
@@ -193,6 +193,45 @@ baseline, and ``magnus.earth.loc_coords_dms`` lists the sites.
 draws these, with T2K, Hyper-K and ESS.
 
 
+DUNE: neutrinos and antineutrinos through PREM
+----------------------------------------------
+
+The full appearance and disappearance spectra at DUNE, Fermilab to the Homestake
+mine, over 200 energies: one call for neutrinos and one for antineutrinos.
+
+.. jupyter-execute::
+
+    import time
+    import warnings
+    from magnus.magnus import MagnusConvergenceWarning
+
+    E_dune = np.logspace(np.log10(0.5), 1.0, 200)*gd.UNIT_GEV     # 0.5 to 10 GeV
+
+    def dune(nubar):
+        with warnings.catch_warnings():      # expected on this chord; see diagnostics
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            return np.asarray(oscprob.osc_prob_3nu_earth(
+                E_dune, loc_ini='fermilab', loc_fin='homestake', nubar=nubar))
+
+    dune(False)                              # the first call pays the set-up
+
+    t0 = time.perf_counter()
+    P_nu = dune(False)
+    P_nubar = dune(True)
+    t1 = time.perf_counter()
+
+    i = np.argmax(np.where(E_dune > 1.5*gd.UNIT_GEV, P_nu[:, 1, 0], 0.0))
+    print('shape:', P_nu.shape)                                          # (200, 3, 3)
+    print('first maximum at %.2f GeV' % (E_dune[i]/gd.UNIT_GEV))         # 2.06 GeV
+    print('P_mue = %.4f, P_mue-bar = %.4f' % (P_nu[i, 1, 0], P_nubar[i, 1, 0]))   # 0.0796, 0.0145
+    print('both spectra: %.1f ms' % (1e3*(t1 - t0)))
+
+The two spectra take a few milliseconds together once warm (under 10 ms on a CI runner); the
+first call of a session costs a few hundred milliseconds more, spent on set-up.
+The gap between ``P_mue`` and ``P_mue-bar`` is the matter effect together with
+:math:`\delta_{\rm CP}`: the chord is 1285 km, and the default ordering is normal.
+
+
 An oscillogram
 --------------
 
@@ -244,7 +283,7 @@ standard solar models ship as well, and the Sun wrappers take them by name
         {'sth': osc['s12'], 'Dm2': osc['D21']},
         L0=0.0, density_is_of_number_of_electrons=True))
 
-    print('P_ee = %.6f' % P[0][0])
+    print('P_ee = %.6f' % P[0][0])                    # 0.483533
 
 Notebooks
 `13 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
@@ -280,7 +319,7 @@ instantaneous value. Ask for it directly rather than averaging a scan by hand.
         2, profile, 10.0*gd.UNIT_MEV, L_sun, params, average=True, **kw))
 
     print('instantaneous P_ee = %.6f' % inst[0][0])
-    print('phase-averaged     = %.6f' % avg[0][0])
+    print('phase-averaged     = %.6f' % avg[0][0])    # 0.410154
 
 This matters for accuracy as well as for physics: an error that is a *phase*
 disappears under averaging, and one that is an *envelope* does not. See

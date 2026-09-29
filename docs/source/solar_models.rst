@@ -60,6 +60,7 @@ Names are matched without regard to case, and ``'exp'`` is the default.
                                         nu_i=gd.NUE, nu_f=gd.NUE, average=True,
                                         density_profile=profile)
         print('%-10s <P_ee> = %.4f' % (profile, P_ee))
+    # exp 0.2971, BP04 0.3185, B16-GS98 0.3189, B23-AAG21 0.3192
 
 From the command line, ``magnus --environment sun`` takes the same names through
 ``--density-profile`` (see :doc:`cli`).  `Notebook 13
@@ -172,13 +173,14 @@ oscillation:
                                     density_profile='BS05-AGS-OP', strategy='magnus',
                                     t_breakpoints=rows, n_slabs=200_000,
                                     max_n_slabs=10_000_000)
-    print('P_ee = %.9f' % P_ee)
+    print('P_ee = %.9f' % P_ee)    # 0.333876132
 
 On the same eleven cases this came within :math:`4\times10^{-9}` of the reference, with no
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two still raised
 :class:`~magnus.magnus.MagnusConvergenceWarning`, which reports a slab width rather than an
 error (see :doc:`diagnostics`).  The measurements are in
-``docs/dev/adversarial_batteries/solar_model_engines.py`` and ``solar_model_coherent.py``.
+``docs/dev/adversarial_batteries/solar_model_engines.py`` and ``solar_model_coherent.py``, in a
+source checkout (a PyPI install does not ship them).
 
 
 Provenance

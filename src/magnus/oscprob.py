@@ -4824,20 +4824,48 @@ def _check_passthrough_kwargs(kwargs: dict, source_func_name: str) -> None:
         return
 
     import difflib
+    import inspect
+
+    # The misspelled keyword is as often a physics one (`eps_mue` for `eps_em`, `theta12`
+    # for `s12`) as an engine one, and the physics keywords belong to the public wrapper
+    # the caller invoked, not to this entry point.  Find that wrapper -- the outermost
+    # public function of this module on the stack -- and offer its own keywords too.  This
+    # runs only on the error path, so the stack walk costs nothing on a valid call.
+    own_name, own_params = None, []
+    frame = inspect.currentframe().f_back
+    while frame is not None:
+        name = frame.f_code.co_name
+        if (frame.f_globals.get('__name__') == __name__ and not name.startswith('_')
+                and callable(globals().get(name))):
+            own_name = name
+        frame = frame.f_back
+    if own_name is not None:
+        # Listed: the wrapper's physics and scenario keywords.  Left out: the engine
+        # keywords, listed separately below, and the logging and validation switches.
+        bookkeeping = {'kwargs', 'energy', 'L', 'validate_input', 'save_log', 'filename_log',
+                       'file_log', 'close_file_log_upon_exit', 'verbose',
+                       'default_osc_params_set_name', 'new_recursion_limit'}
+        own_params = [p for p in inspect.signature(globals()[own_name]).parameters
+                      if p not in bookkeeping and p not in valid]
 
     # Suggestions are drawn from the full accepted set, but only the useful subset is
     # *listed*: the derived set includes engine internals (`A`, `H_func`,
     # `close_file_log_upon_exit`) that no caller of a wrapper should be reaching for, and
     # printing forty names buries the one that matters.
+    candidates = sorted(valid | set(own_params))
     lines = []
     for key in sorted(unknown):
-        close = difflib.get_close_matches(key, sorted(valid), n=1, cutoff=0.6)
+        close = difflib.get_close_matches(key, candidates, n=1, cutoff=0.6)
         lines.append("'" + key + "'" + (", did you mean '" + close[0] + "'?"
                                         if close else ''))
+    own = ("  The keywords of " + own_name + " itself are: " + ', '.join(own_params) + "."
+           if own_params else '')
+    listed = '; '.join(lines)
     raise ValueError(
         gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": unrecognized keyword "
-        "argument(s): " + '; '.join(lines) + ".  The engine keywords these wrappers forward "
-        "are: " + ', '.join(PASSTHROUGH_KWARGS_DOCUMENTED) + ".  Note that t_breakpoints "
+        "argument(s): " + listed + ('' if listed.endswith('?') else '.') + own + "  The "
+        "engine keywords these "
+        "wrappers forward are: " + ', '.join(PASSTHROUGH_KWARGS_DOCUMENTED) + ".  Note that t_breakpoints "
         "(positions at which to place slab edges, filling in between) and t_slab_edges (the "
         "complete set of edges) are different parameters; t_breakpoints is the one wanted "
         "for a density jump or a shock front.")

@@ -52,19 +52,20 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
      - Conversion constant (multiply by it)
    * - Neutrino energy
      - eV
-     - ``UNIT_MEV``, ``UNIT_GEV``
+     - ``UNIT_MEV`` = 1e6, ``UNIT_GEV`` = 1e9
    * - Baseline, position
      - eV\ :sup:`-1`
-     - ``UNIT_KM``, ``UNIT_CM``; ``gd.SUN_RADIUS`` and ``gd.EARTH_RADIUS`` are in km
+     - ``UNIT_KM`` = 5.068e9, ``UNIT_CM`` = 5.068e4; ``gd.SUN_RADIUS`` and
+       ``gd.EARTH_RADIUS`` are in km
    * - Hamiltonian, matter potential
      - eV
      - none
    * - Mass density
      - eV\ :sup:`4`
-     - ``UNIT_G_PER_CM3``
+     - ``UNIT_G_PER_CM3`` = 4.309e18
    * - Number density
      - eV\ :sup:`3`
-     - ``UNIT_PER_CM3``
+     - ``UNIT_PER_CM3`` = 7.684e-15
    * - Mass-squared differences
      - eV\ :sup:`2`
      - none
@@ -92,7 +93,31 @@ They are the standard ones, stated here so that you can check them against other
   is given.  The Earth functions use one value per layer (0.4656 in the core,
   0.4957 in the mantle); :doc:`functions` lists them.
 
-:ref:`conventions` gives the details.
+:ref:`conventions` gives the details, and :ref:`coming-from-other-codes` sets them
+beside those of GLoBES, Prob3++ and nuSQuIDS.
+
+.. _glossary:
+
+Terms used throughout
+----------------------
+
+* **Slab**: one step of the position grid; on each, Magνs exponentiates the Magnus
+  expansion of :math:`H`, and the evolution operator is the product over slabs.
+* **Ladder**: the refinement that raises the slab count until two successive counts
+  agree to ``rtol`` and ``atol``.
+* **Engine**: the algorithm that answers a call (the ladder, an energy-batched scan,
+  a closed form, ...).  Magνs picks one from the shape of the request; :doc:`engines`
+  lists them.
+* **Strategy**: the ``strategy`` argument, which chooses between the Magnus ladder
+  (``'magnus'``), the hybrid (``'hybrid'``) and letting Magνs decide (``'auto'``,
+  the default).
+* **Hybrid**: transport along the instantaneous eigenstates where the profile is
+  adiabatic, with the Magnus expansion only across the windows where it is not
+  (:doc:`adiabatic_strategy`).
+* **Phase-averaged**: the probability averaged over oscillation phases too fast for a
+  detector to resolve (``average=True``; :doc:`averaged_probability`).
+* **Chord**: the straight path through the Earth between a source and a detector.
+* **Oscillogram**: a map of probability over energy and zenith angle.
 
 .. _nufit-parameters:
 
@@ -286,8 +311,8 @@ Your own Hamiltonian
 
 :func:`~magnus.oscprob.osc_prob_earth` and :func:`~magnus.oscprob.osc_prob_sun`
 take the trajectory and the density profile from the package and the physics from
-you: a function ``H(energy, l, VCC)``, where ``VCC`` is the standard matter
-potential at position ``l`` (already with the antineutrino sign).  Write it so that
+you: a function ``H(E, l, VCC)`` of the energy ``E``, the position ``l`` and ``VCC``,
+the standard matter potential at ``l`` (already with the antineutrino sign).  Write it so that
 it accepts an array of positions and returns a stack of matrices, which is several
 times faster:
 
@@ -298,9 +323,9 @@ times faster:
    h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**osc)
    e_ee = np.diag([1.0, 0.0, 0.0])
 
-   def H(energy, l, VCC):
+   def H(E, l, VCC):
        # VCC[..., None, None] broadcasts over an array of positions
-       return h_vac/energy + np.asarray(VCC)[..., None, None]*e_ee
+       return h_vac/E + np.asarray(VCC)[..., None, None]*e_ee
 
    P = oscprob.osc_prob_earth(H, 2.5*gd.UNIT_GEV, loc_ini='fermilab',
                               loc_fin='homestake')
@@ -326,11 +351,13 @@ Any Hermitian matrix function of position, of any dimension, goes through
    .. code-block:: python
 
       h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
-          s12=33.76, s23=43.28, s13=8.62, dCP=212.0, D21=7.49e-5, D31=2.513e-3,
+          s12=33.76, s23=43.28, s13=8.62, dCP=212.0, D21=7.537e-5, D31=2.511e-3,
           angles='deg')
 
-   ``load_nufit_params`` returns sines unless it is given the same ``angles``, so
-   pass the same value to both.
+   These are the NuFIT 6.1 values as published, rounded to two decimals, so this
+   Hamiltonian agrees with the loader's to about 1e-4.  ``load_nufit_params``
+   returns sines unless it is given the same ``angles``, so pass the same value
+   to both.
 
 Where next
 -----------

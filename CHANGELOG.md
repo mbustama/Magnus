@@ -19,6 +19,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   (issue #136).  It said that only `--loc-ini`/`--loc-fin` compute the baseline, but
   `--detector-depth` and `--source-depth` do too; the message for `--environment earth` with
   neither a direction nor a pair of locations now lists them as well.
+- **An unrecognized keyword on a wrapper lists the wrapper's own keywords** (issue #152).  A
+  misspelled physics keyword (`eps_mue`, `theta12`) got a list of engine keywords only; the
+  message now also names the wrapper the caller invoked and its physics and scenario
+  keywords (`s12`, `eps_em`, `nubar`, ...), and draws its "did you mean" from both.
 
 ### Changed
 
