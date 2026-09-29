@@ -273,6 +273,41 @@ wrong together**, which a cross-check cannot see by construction. See
 ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
 
 
+.. _input-checks:
+
+Input checks: what is refused, and where
+------------------------------------------
+
+Every argument of a public function is checked once per call, before any engine is chosen,
+so whether a value is refused does not depend on which engine would have answered.  The
+rules:
+
+* **Numbers** are Python or NumPy reals (``np.float32``, ``np.int64`` and 0-d arrays
+  included), never ``bool`` and never complex, and finite.  Energy and ``L`` are checked
+  entry by entry, and every ``L`` must be at least ``L0``.  The off-diagonal NSI couplings
+  are the one exception to "real": they may be complex.
+* **Integers** are ``int`` or ``np.integer``, never ``bool`` and never a float such as 2.5.
+  **Flags** are ``True`` or ``False``: they are not truth-tested, so ``'False'`` is refused
+  rather than read as true.  **Strings** come from their documented set, even where the
+  argument does not apply to the call.
+* **Tolerances** ``rtol`` and ``atol`` are ``None`` or above zero.  **Slab and point counts**
+  are positive integers, growth factors are above 1, and ``n_jobs`` is -1 or a positive
+  integer.
+* **Parameter dictionaries** (``osc_params``, ``nsi_params``, ``liv_params``) refuse unknown
+  keys, naming the nearest valid one.
+* **Slab edges** chain without gap or overlap over the whole path; a **Hamiltonian** you pass
+  must be (or return) a finite, square, Hermitian array.
+
+A wrong type raises ``InputTypeError`` (from ``magnus._validate``), which is both a
+:class:`TypeError` and a :class:`ValueError`; a wrong value raises :class:`ValueError`.  The
+message names the function you called and the argument you passed.
+
+The functions that run at every quadrature node -- the density profiles, the ``*_td``
+builders, ``hamiltonian_Nnu_matter`` -- are not checked, since a check there would be paid
+millions of times.  Their parameters are checked where they are set, by the wrappers and the
+factories.  ``validate_input=False`` skips the scenario-level checks.
+
+
 .. _warning-catalogue:
 
 Warnings: what each one means and what to do about it
