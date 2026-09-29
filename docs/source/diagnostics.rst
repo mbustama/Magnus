@@ -22,6 +22,42 @@ Accuracy
    tolerance is tightened.  Deviations below the floor cannot be resolved by this
    comparison.  From the Magνs paper.
 
+Precision, accuracy and tolerance
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three different things, often run together (Sec. 7.4 of the Magνs paper).  **Precision** is
+limited by rounding, **accuracy** by the refinement's stopping rule, and the **tolerance** is
+the user's setting for that rule.
+
+*Precision* is how closely Magνs agrees with itself.  Two calls with the same inputs return the
+same number bit for bit, and the tests require exact equality there, so a change that let one
+call affect the next, through a cache for instance, would fail them.  A parallel run agrees
+with a serial one only to the requested tolerance, since each starts its refinement from a
+different point.  With the slab grid fixed, a batched scan and the same points one at a time
+agree to 1e-14; left to refine, they stop at different slab counts and differ at the level of
+the tolerance.  The two matrix-exponential backends agree to about 1e-15 for one exponential,
+and by 3e-12 on a solar chain of about 34 000, within the :math:`N\varepsilon = 7.4 \times
+10^{-12}` that rounding allows over that many products.
+
+*Accuracy* is how close Magνs comes to the true probability, measured below against external
+references.  It is already far better than a typical oscillation analysis needs: an analysis
+evaluates probabilities on a grid, interpolates, and folds them with a flux, a cross section
+and a detector response, and the error of that grid is orders of magnitude larger than anything
+the oscillation code contributes.  Higher accuracy still earns its place: it makes Magνs a
+reference against which another code, or a coarser setting of Magνs, can be checked; where no
+closed form exists it is often the only reference; it matters for quantities computed once
+rather than averaged over bins; and it separates the error of a method from the error of a
+model.
+
+*The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
+To judge whether an answer can be trusted, check the warnings.  They are standard Python
+warnings, each shown once per session by default; ``warnings.simplefilter('always')`` shows
+every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
+catches every warning that an answer may be outside the tolerance.  They err on the side of
+caution, firing often on answers that prove accurate, because most flag a property of the
+input rather than predict the error.  Less often an answer is inaccurate and none fires: on
+random smooth profiles, the hardest family measured, about one answer in twenty-five.
+
 .. _what-rtol-atol-control:
 
 What ``rtol`` and ``atol`` actually control
@@ -157,9 +193,9 @@ no reason to exist for that request. Declining is the honest answer, and the gen
 70× faster there.
 
 **Cross-method agreement** (:func:`magnus.oscprob.cross_check_strategies`). Runs whichever
-engines apply and reports the pairwise spread. On the pre-fix package it reports the
-disagreement on **seven of the eight** constructions where a method was silently wrong, each
-at least four times the requested tolerance. *What it cannot do:* see the one below.
+engines apply and reports the pairwise spread.  On eight constructions where a method had
+been silently wrong, it reported the disagreement on **seven**, each at least four times the
+requested tolerance. *What it cannot do:* see the one below.
 
 **The sampling report** (:func:`magnus.adiabatic.oscillation_sampling`). Answers a question no
 engine asks itself: how coarsely does this request sample the oscillation it is computing?  A
@@ -217,9 +253,8 @@ The cure is caller-supplied ``t_breakpoints`` at the feature, and it is verified
 edges placed by hand at the feature's own width the same case goes to 8.8e-04 at a single
 point and 8.9e-04 over a 60-point scan, and with the set the warning itself prints (it
 localizes the feature by re-sampling the flagged interval) to 1.0e-04. This is a property
-of any fixed grid, not of any particular test, and no detector that pretends otherwise would
-be honest. What *has* changed is that the condition is now usually **detected and reported**
-rather than silent -- see the feature scan above.
+of any fixed grid, not of any particular test.  The condition is usually **detected and
+reported** rather than silent -- see the feature scan above.
 
 **The scan is sized to the request.** It runs once per call whatever the point count, so its
 share of the work falls as the request grows: 8 sub-steps (0.37 ms) for a single point, 32
@@ -410,11 +445,10 @@ Two of these deserve their honesty spelled out rather than buried:
 ``MagnusConvergenceWarning`` **reports slab width, not accuracy.** The convergence bound it
 checks is sufficient, not necessary, so exceeding it does not imply a wrong answer. It fires
 on results accurate to 1.6e-06 and on results seven times outside a requested 1e-3, and
-nothing available to it distinguishes the two. Until recently its message ended by telling
-the reader that "if a target tolerance was requested … this warning can be ignored". That
-clause was **false in exactly the cases where the warning matters**: on a sawtooth density
-with ``rtol=atol=1e-3`` explicitly requested, under both ``strategy='auto'`` and
-``strategy='magnus'``, the refinement ran and the answer was still 7.484e-03. It is gone.
+nothing available to it distinguishes the two.  Do not assume that a requested tolerance
+makes it safe to ignore: on a sawtooth density with ``rtol=atol=1e-3`` requested, under both
+``strategy='auto'`` and ``strategy='magnus'``, the refinement ran and the answer was still
+wrong by 7.5e-03.
 
 ``HybridCertificationWarning`` **means unverified, not wrong.** Every piece of the hybrid
 propagator is unitary by construction, so the returned probabilities are a valid probability

@@ -13,12 +13,11 @@ docstrings directly, see the *API Reference* section in the sidebar) by
 showing the *shape* of the whole family at a glance -- useful when you know
 roughly what you want ("3-flavor, matter, with NSI") but not the exact name.
 
-The internal middle layer these wrappers dispatch through
-(``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
-``osc_prob_matter_nsi``, ``osc_prob_liv``, and
-``osc_prob_energy_baseline``) is deliberately not listed here; see
-:doc:`architecture` for what it does, when you would call it directly, and how
-the wrapper/middle/primordial layering fits together.  :doc:`cli` is the
+The layers below the wrappers -- the scenario functions ``osc_prob_vacuum``,
+``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi`` and ``osc_prob_liv``, then
+``osc_prob_energy_baseline`` and ``osc_prob`` -- are not listed here; see
+:doc:`architecture` for what each does, when you would call it directly, and how the
+four layers fit together.  :doc:`cli` is the
 command-line calculator that wraps the same functions.
 
 Every function below returns a full :math:`d \times d` probability matrix
@@ -217,7 +216,7 @@ For anything the tables above don't cover -- any other number of flavors,
 or a Hamiltonian that doesn't fit the vacuum/matter/NSI/LIV mold -- three
 functions accept an arbitrary user-supplied Hamiltonian directly:
 
-* :py:func:`~magnus.oscprob.osc_prob` -- the primordial function:
+* :py:func:`~magnus.oscprob.osc_prob` -- the general Magnus ladder, the base layer:
   any Hamiltonian, any dimension, any environment you build yourself.
 * :py:func:`~magnus.oscprob.osc_prob_earth` -- like ``osc_prob``,
   but handles the Earth-crossing geometry and PREM potential for you.

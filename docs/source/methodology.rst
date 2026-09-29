@@ -52,9 +52,12 @@ which is what the verification checks against.
 the answer.**  Whatever order the sum stops at, :math:`\Omega` remains
 anti-Hermitian (since each :math:`\Omega_k` is a real combination of nested
 commutators of anti-Hermitian matrices), so :math:`\exp(\Omega)` is
-*exactly* unitary — probabilities computed from it are non-negative and sum
-to one to machine precision, regardless of the truncation order or the
-quadrature accuracy.  This is the central practical advantage over direct
+*exactly* unitary, regardless of the truncation order or the quadrature
+accuracy.  In floating point it comes close: one exponential deviates by
+:math:`\lVert U^\dagger U - \mathbb{1}\rVert = 4\times10^{-16}` in the median (the worst
+of a stack of 4096 reaches :math:`4\times10^{-15}`), and a whole probability, built from
+many such factors, by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst across
+four decades in the number of points, at two to five flavors.  This is the central practical advantage over direct
 ODE integration, whose iterates only approximately preserve unitarity (see
 :ref:`accumulated-phase`).
 
@@ -98,6 +101,10 @@ the most accurate choice whenever the Hamiltonian is smooth within a slab,
 which is why it is the default.  Layer-aligned slabs (below) make that the
 common case even across the Earth.
 
+Orders 4, 6 and 8 need 1, 3 and 6 commutators, the fewest possible at each order
+:cite:p:`Blanes2002`; the paper's Table 4 lists the coefficients of the order-6 and
+order-8 schemes.  No collocation scheme of this form is known at order 10 or above.
+
 Because ``'gl'`` uses a fixed 1, 2, 3, or 4 nodes per slab, ``n_tpts_per_slab``
 plays no role for it: accuracy is controlled by the slab count alone, and the
 adaptive refinement below grows only ``n_slabs``.  The physics-informed
@@ -118,7 +125,72 @@ itself, so both sides of a jump are integrated with their own values and the
 rule keeps its order.  One left *inside* a slab degrades every method.  The quadrature error
 (:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate
 the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows
-accordingly.
+accordingly.  The grid starts at 100 points per slab, and the refinement grows it together
+with the number of slabs.
+
+**What ``magnus_exp_order`` means on each path.**  On ``'gl'`` it is the order the method
+delivers: the error over the trajectory falls as :math:`h^p`, or :math:`N_{\rm
+slabs}^{-p}`.  On ``'simpson'`` and ``'trapezoid'`` it is the index of the last
+:math:`\Omega_k` kept, and the order delivered runs ahead of it,
+:math:`2\lfloor k/2 \rfloor + 2`: order 6 on Simpson keeps :math:`\Omega_5` and
+:math:`\Omega_6` and is an eighth-order method.  Every order is even, because about the
+slab midpoint each :math:`\Omega_k` carries only odd powers of :math:`h`, which pairs the
+terms (:math:`\Omega_3` and :math:`\Omega_4` both at :math:`h^5`, and so on).  An odd
+request runs the next even scheme on ``'gl'``, and delivers the even order just below on
+the cumulative rules, at the cost of one more term:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - ``magnus_exp_order``
+     - ``'gl'``
+     - ``'simpson'``
+     - ``'trapezoid'``
+   * - 1
+     - 2
+     - 2
+     - (2)
+   * - 2
+     - 2
+     - 4
+     - (4)
+   * - 3
+     - 4
+     - 4
+     - (4)
+   * - 4 (default)
+     - **4**
+     - 6
+     - (6)
+   * - 5
+     - 6
+     - 6
+     - (6)
+   * - 6
+     - 6
+     - 8
+     - (8)
+   * - 7
+     - (8)
+     - (8)
+     - (8)
+   * - 8
+     - 8
+     - 10
+     - (10)
+   * - 9
+     - --
+     - (10)
+     - (10)
+   * - 10
+     - --
+     - 12
+     - (12)
+
+Entries without parentheses are measured, by fitting the error against the slab count on a
+smooth, non-commuting problem against DOP853; entries in parentheses follow from the two
+rules above.
 
 Unitarity from the spectral decomposition
 ------------------------------------------------
@@ -164,9 +236,16 @@ Adaptive refinement and slab placement
 By default, ``osc_prob`` and its wrappers refine the number of slabs (and,
 for the quadrature methods, the number of points per slab) until the
 probability matrix stops changing within a requested tolerance
-(``rtol``, ``atol``), doubling as the standard heuristic for an a
-posteriori error estimate.  Three refinements make this efficient in
-practice:
+(``rtol``, ``atol``): it multiplies the slab count by 1.5
+(``growth_factor_n_slabs``), recomputes, and stops when two successive levels agree in
+every entry, :math:`|P^{(n)}_{\alpha\beta} - P^{(n-1)}_{\alpha\beta}| \le
+{\tt atol} + {\tt rtol}\,|P^{(n-1)}_{\alpha\beta}|`.  ``strict_convergence=True`` asks
+for two consecutive agreements instead of one.  Declared edges are present at every
+level, so they can shrink the step between two grids; an agreement counts only when the
+finer grid has at least 25% more edges than the coarser one.  Every level below the one
+that converges is computed and discarded: on an Earth chord this makes a call about four
+times slower than one given the right slab count, which ``convergence_info`` reports and
+``n_slabs`` with ``rtol=atol=None`` reuses.  Four devices keep the ladder short:
 
 * **Physics-informed starting slab count.**  Rather than always starting
   from one slab, the refinement is seeded from an estimate of the
@@ -269,43 +348,14 @@ enough to make the extra work per slab worthwhile.
    :math:`10^{-8}`.  Bottom right: deviation from an extended-precision reference
    against the number of slabs.  From the Magνs paper.
 
-Measured wall time relative to order 4 on the same problem (greater than 1
-means order 6 is faster):
+Across Earth, solar and exponential density profiles, order 6 runs 0.96 to 1.12 times as
+fast as order 4 at a requested tolerance of :math:`10^{-4}`, and 1.08 to 1.93 times as fast
+at :math:`10^{-8}`, under the timing protocol of :doc:`performance`.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 16 17 17 15 17 18
-
-   * - Tolerance
-     - Earth 3ν, 1 GeV
-     - Earth 3ν, 10 GeV
-     - Earth 5ν
-     - Exponential density
-     - 200-energy scan
-   * - :math:`10^{-4}`
-     - 0.89
-     - 0.91
-     - 0.89
-     - 1.04
-     - 0.70
-   * - :math:`10^{-6}`
-     - 0.98
-     - 1.03
-     - 1.07
-     - 1.02
-     - 1.05
-   * - :math:`10^{-8}`
-     - 1.25
-     - 1.42
-     - 1.08
-     - 1.51
-     - 1.93
-
-So: leave the order alone for everyday work, and raise it to 6 if you are
-asking for :math:`10^{-7}` or tighter, where it runs up to twice as fast.
-Dropping to order 2 is almost never worthwhile -- at :math:`10^{-8}` on the
-Earth cases it needs thousands of slabs where order 6 needs about a hundred,
-and runs roughly twenty times slower.
+So: leave the order alone for everyday work, and raise it to 6 if you are asking for a
+tight tolerance, where it runs up to about twice as fast.  Dropping to order 2 is almost
+never worthwhile: at :math:`10^{-8}` on an Earth chord it needs thousands of slabs where
+order 6 needs about a hundred.
 
 Beyond order 6 the terms are generated rather than written out and their count
 roughly doubles per order (see :doc:`expansion_terms`).  ``'gl'`` reaches order
@@ -330,7 +380,7 @@ there for accuracy studies rather than production runs.
       proxy: the fixed per-slab overhead (array setup, the eigendecomposition
       for the matrix exponential, the slab product) outweighs the node count,
       so fewer slabs matters more than fewer evaluations.  Re-timing the same
-      optima is what produced the table above, and it moved the crossover --
+      optima is what produced the ranges above, and it moved the crossover --
       order 2 wins on evaluations at :math:`10^{-4}` but loses on wall time.
    #. **Seed prototype, rejected.**  Because the starting slab count comes
       from a phase target that is order-independent (:math:`2\pi` radians per
@@ -417,10 +467,8 @@ constant density -- is detected separately and broadcast, so it is already on
 a fast path.  And the ``osc_prob_{2,3,4,5}nu_*`` wrappers build their own
 Hamiltonians, already array-capable, so this applies only when you supply one.
 
-Since version 1.0.0 the fallback raises
-:class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the
-fix.  It was silent before, which is why the slow path is easy to sit on
-without noticing -- the example notebooks shipped with it for years.
+The fallback raises :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session,
+naming the fix.
 
 .. _validation:
 
@@ -431,9 +479,9 @@ The `test suite <https://github.com/mbustama/Magnus/tree/main/tests>`_,
 which runs in CI on every push (see the badge on :doc:`index`), validates
 the methodology above directly:
 
-* **The expansion terms** :math:`\Omega_1, \ldots, \Omega_6` are compared,
-  term by term, to an independently coded implementation of the
-  Bernoulli-number recursion, using a Hamiltonian with three independent,
+* **The expansion terms** :math:`\Omega_1, \ldots, \Omega_{10}` are compared,
+  term by term, to terms generated independently from the Bernoulli-number recursion
+  (:doc:`expansion_terms`), agreeing to a relative :math:`10^{-11}` at every order, using a Hamiltonian with three independent,
   non-commuting generators — chosen specifically because a
   two-generator Hamiltonian causes one nested-commutator term of
   :math:`\Omega_4` to vanish identically, which would otherwise mask a
@@ -446,7 +494,7 @@ the methodology above directly:
   4.0/16.0/63.8 under slab halving, matching :math:`2^{\text{order}}`).
 * **Physical probabilities** are cross-checked against closed-form
   expressions for 2ν and 3ν vacuum oscillations and 2ν constant-density
-  matter oscillations (for both neutrinos and antineutrinos), and against
+  matter oscillations (for both neutrinos and antineutrinos), to :math:`10^{-12}`, and against
   ``solve_ivp`` for asymmetric, complex-valued profiles and for full
   PREM Earth crossings.
 * **Time-ordering, unitarity, channel conventions, the silent
@@ -455,17 +503,14 @@ the methodology above directly:
   quadrature) that isolates the slab time-ordering from every other
   source of numerical error.
 
-In practice the default setting (``rtol = atol = 1e-3``, a target for the
-difference between successive refinements rather than a strict global error
-bound) is usually far better than it promises and occasionally worse.  Over
-eight Earth chords from grazing to core-crossing at six energies between 0.5
-and 20 GeV, the same call at :math:`10^{-7}` differs from it by a median of
-9e-07 and a p90 of 1.2e-04 -- but by 2.2e-03 on the core-crossing chord at
-0.5 GeV, outside the tolerance that was asked for.  No single figure summarises
-a spread of three orders.  That sweep is
-``docs/dev/adversarial_batteries/prem_default_tolerance.py``; :doc:`diagnostics`
-gives the distribution over much larger populations, scored against an
-independent oracle rather than against a tighter run of the same method.
+In practice the default setting (``rtol = atol = 1e-3``, a stopping rule rather than a
+bound) is usually far more accurate than it promises; in the rare cases where it is not, the
+error stays within about twice the tolerance.  Over eight Earth chords from grazing to
+core-crossing at six energies between 0.5 and 20 GeV, the same call at :math:`10^{-7}`
+differs from it by about :math:`10^{-6}` in the median, by less than :math:`10^{-4}` in nine
+cases in ten, and by roughly :math:`10^{-3}` at most, on the core-crossing chord at
+0.5 GeV.  :doc:`diagnostics` gives the distribution over much larger populations, scored
+against an independent reference.
 
 See :doc:`references` for full citations of the works referred to above.
 

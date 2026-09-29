@@ -141,6 +141,7 @@ source_suffix = '.rst'
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
+html_css_files = ['magnus.css']
 html_logo = '_static/magnus_logo.png'
 
 # `release` is read from pyproject.toml at the top of this file, and putting it
