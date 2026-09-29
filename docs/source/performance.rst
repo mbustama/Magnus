@@ -9,6 +9,7 @@ Where the time goes, what was tried and rejected, and the population every
 tuned constant was measured on.
 
 Speed
+-------
 
 .. figure:: ../../img/paper/batching.png
    :width: 90%
@@ -29,7 +30,6 @@ Speed
    Earth chord at :math:`\cos\theta_z = -0.9`, each energy with its own baseline so
    that every run takes the per-point path.  Starting the workers costs time once per
    call, so a short scan gains little or loses.  From the Magνs paper.
--------
 
 Measured by an alternating harness (``docs/dev/adversarial_batteries/timing.py``) that
 interleaves the trees round-robin and carries two workloads the change cannot touch as

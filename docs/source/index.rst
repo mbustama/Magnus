@@ -172,12 +172,15 @@ tolerance.  Truncating early costs accuracy, never norm.
      - 1e-4 to 1e-7
    * - Energy-batched scan vs the per-point path, grid and tolerances pinned
      - 1e-12
-   * - ``n_jobs > 1`` vs serial
+   * - Repeated calls, and a baseline scan given in shuffled order
      - exactly 0.0
+   * - ``n_jobs=2`` vs serial, general ladder, ``rtol = atol = 1e-6``
+     - 1.1e-7
 
-The last row is the one worth reading twice: it is a *bit-identity* assertion
-rather than a tolerance, so an optimization that changed an answer would fail it
-rather than pass quietly.  The batched scan is held to 1e-12, and only with the
+The exact rows are *bit-identity* assertions rather than tolerances, so an
+optimization that changed an answer would fail them rather than pass quietly.  A
+parallel scan is not bit-identical to a serial one: the two warm-start their points
+differently, so they agree to the tolerance, not to the last bit.  The batched scan is held to 1e-12, and only with the
 grid pinned, which is what isolates the batching: left to refine on its own it
 builds the matter profile once for the whole scan, moving the answer at the 1e-6
 level.  Notebook 24 measures that comparison.
@@ -220,31 +223,21 @@ Runge–Kutta solver), Magνs wins when one or more of these apply:
 #. **Unitarity matters more than raw local error** — long baselines, small
    probabilities, CP/T asymmetries.  Runge–Kutta iterates drift off the
    unitary manifold (probability leaks of ~1e-6 at typical tolerances,
-   growing with baseline); the Magnus route has no leakage to leak, ever
-   (probability rows sum to 1 to ~1e-14).
+   growing with baseline); the Magnus route cannot leak (probability rows
+   sum to 1 to ~1e-14).
 
 #. **You want arbitrary physics with no per-model work**: any number of
    flavors, any Hermitian Hamiltonian — sterile neutrinos, non-standard
    interactions, Lorentz-invariance violation, or your own matrix function
    of energy and position.
 
-When is it *not* the best tool?  For a single probability at a single
-energy, any method is fast enough.  For **extreme accumulated phases** —
-e.g., ~10 MeV neutrinos crossing most of the Sun (~1e4 rad of
-matter-dominated phase) — the plain Magnus slab-refinement method can need
-a very large slab count, and warns (``ToleranceNotAchievedWarning``)
-instead of failing silently if it hits its caps first.  This regime is now
-handled automatically by ``strategy='auto'`` (the default for
-``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi``, ``osc_prob_liv``,
-and every wrapper built on them, including every ``osc_prob_*_sun*``
-function): an adiabatic-transport-plus-Magnus-patch strategy that stays
-exactly unitary and is 50-25,000x faster than direct integration across the
-validation grid — see :doc:`adiabatic_strategy` for the full derivation.
-And a tight-tolerance ODE solver remains the best *reference* for
-validation regardless — Magνs's own test suite uses
-``scipy.integrate.solve_ivp`` at ``rtol=1e-12`` as ground truth.
-See :doc:`methodology` for the full numerical story, including how these
-numbers were measured.
+For a single probability at a single energy, any method is fast enough.  For
+**extreme accumulated phases**, such as a 10 MeV neutrino crossing most of the Sun,
+the default ``strategy='auto'`` switches to adiabatic transport with Magnus patches,
+exactly unitary and 50--25 000x faster than direct integration (see
+:doc:`adiabatic_strategy`).  A tight-tolerance ODE solver remains the best
+*reference*: the test suite uses ``solve_ivp`` at ``rtol=1e-12`` as ground truth.
+:doc:`methodology` tells how these numbers were measured.
 
 .. _when-is-magnus-not-the-right-tool:
 
@@ -342,8 +335,8 @@ The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
 
 **Pre-packaged observables.**  ``average=True`` returns the phase-averaged
 probability a solar experiment actually measures, without resolving some 13 000
-radians of phase and averaging the result yourself.  Neither of the other codes offers it.  And every entry point
-can hand back the converged evolution operator alongside the probabilities
+radians of phase and averaging the result yourself.  None of the other codes in :doc:`comparison` offers it.  And
+every entry point can hand back the converged evolution operator alongside the probabilities
 (``return_evolution_operator=True``), for the observables that are built from
 amplitudes rather than from probabilities.
 
@@ -368,34 +361,10 @@ profile, with bit-identical output.  A scalar-only Hamiltonian raises
 :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
 See :ref:`write-h-func-vectorized`.
 
-**An Earth chord is a palindrome.**  A neutrino crossing a spherically symmetric
-Earth meets every radius twice, so the Hamiltonian is evaluated on the first half
-of the slab chain and the rest follows by reversal.  That halves the calls to
-your ``H_func``, so it is worth what your Hamiltonian costs:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 55 22 23
-
-   * - Workload
-     - Speed-up
-     - Note
-   * - Single point, plain PREM
-     - 0.91x
-     - a density lookup is too cheap to halve
-   * - Single point, expensive ``H_func``
-     - **1.41x--1.67x**
-     -
-   * - 12- and 40-energy scan, expensive ``H_func``
-     - **1.56x--1.64x**
-     -
-   * - Energy scan, standard PREM
-     - 1.00x
-     - the separable engine already shares the profile
-
-:data:`magnus.magnus.USE_PALINDROME` switches it off.  Standard PREM scans are
-unaffected because the batched engine already evaluates the profile once and
-shares it across energies --- the same saving, taken earlier.
+**An Earth chord is a palindrome.**  The Hamiltonian is evaluated on the first
+half of the slab chain and the rest follows by reversal, which halves the calls to
+your ``H_func``: 1.4x--1.7x for an expensive one, none for plain PREM
+(:doc:`performance` has the table).
 
 **And one cost that runs the other way.**  The adaptive ladder computes the
 probability at several slab counts and stops when two agree, so a call at a tight
@@ -408,9 +377,6 @@ rejected.
 Salient features
 -----------------
 
-* **Two ways to use it**: as an importable Python module (the full API --
-  see :doc:`quickstart`) or as a ``magnus`` command-line calculator for a
-  single probability with no Python required (see :doc:`cli`).
 * **Any number of flavors, any Hamiltonian**: dedicated, validated wrappers
   for 2ν, 3ν, 4ν (3+1 sterile), and 5ν (3+2 sterile) systems (see
   :doc:`functions` for the full listing), plus a fully generic entry point

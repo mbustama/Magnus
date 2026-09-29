@@ -280,7 +280,8 @@ discretizes.  Two properties are exact regardless; the rest is measured.
 | 2ν and 3ν in vacuum, 2ν in constant-density matter: against the closed form | machine precision |
 | Earth crossing at the default `rtol = atol = 1e-3`, against the same call at 10⁻⁷ | median 9 × 10⁻⁷, worst 2 × 10⁻³ |
 | Complex Hamiltonians on asymmetric profiles against `solve_ivp` at `rtol = 1e-12` | 10⁻⁷ to 10⁻⁴ |
-| `n_jobs > 1` against serial | exactly 0.0 |
+| Repeated calls, and a baseline scan given in shuffled order | exactly 0.0 |
+| `n_jobs=2` against serial, general ladder, `rtol = atol = 1e-6` | 1.1 × 10⁻⁷ |
 
 The suite asserts identities rather than tolerances where an identity holds, so
 an optimization that changed an answer fails rather than passing quietly.  One

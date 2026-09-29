@@ -242,7 +242,7 @@ File tree
    │   ├── 03_magnus_3nu_vacuum_matter.ipynb  # The same, with three flavors and a CP phase
    │   ├── 04_magnus_long_baseline.ipynb  # Between two points on the surface
    │   ├── 05_magnus_biprobability.ipynb  # The CP ellipse
-   │   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, in one call
+   │   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, one energy scan per angle
    │   ├── 07_magnus_bsm_sterile_nu.ipynb  # Four and five flavors
    │   ├── 08_magnus_bsm_nsi.ipynb     # Non-standard interactions
    │   ├── 09_magnus_bsm_liv.ipynb     # Lorentz-invariance violation

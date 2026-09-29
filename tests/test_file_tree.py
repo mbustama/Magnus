@@ -148,7 +148,7 @@ TREE = [
     ('notebooks/05_magnus_biprobability.ipynb',
      'The CP ellipse'),
     ('notebooks/06_magnus_oscillograms.ipynb',
-     'Zenith angle against energy, in one call'),
+     'Zenith angle against energy, one energy scan per angle'),
     ('notebooks/07_magnus_bsm_sterile_nu.ipynb',
      'Four and five flavors'),
     ('notebooks/08_magnus_bsm_nsi.ipynb',

@@ -9,6 +9,7 @@ What you actually asked for when you passed ``rtol``, what each safeguard can
 and cannot catch, and what every warning means.
 
 Accuracy
+----------
 
 .. figure:: ../../img/paper/validation.png
    :width: 100%
@@ -20,7 +21,6 @@ Accuracy
    summing to one, and the *oracle floor*, how much DOP853 itself moves when its
    tolerance is tightened.  Deviations below the floor cannot be resolved by this
    comparison.  From the Magνs paper.
-----------
 
 .. _what-rtol-atol-control:
 
