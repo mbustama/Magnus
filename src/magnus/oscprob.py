@@ -4360,6 +4360,7 @@ def _avg_prob_dispatch(
     smooth_profile: Optional[bool] = True,
     engine_kwargs: Optional[dict] = None,
     average_spread: Optional[float] = None,
+    average_n_samples: Optional[int] = None,
     average_initial_state: Optional[str] = None,
     energy_dependent: Optional[bool] = True
 ):
@@ -4419,7 +4420,13 @@ def _avg_prob_dispatch(
         :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic`.
     average_spread : float or None
         Relative energy spread of the phase average.  None means
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`.  On the energy-window route, the half-width
+        of the window as a fraction of the energy, strictly between 0 and 1; None there means
+        :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`.
+    average_n_samples : int or None
+        Number of energies sampled on the energy-window route, at least 2.  None means
+        :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`.  Refused on the other routes, which do
+        not sample (issue #134).
     energy_dependent : bool
         Whether ``htot`` depends on the energy it is given.  A Hamiltonian that does not -- a
         fixed matrix, or a function of position alone, on the direct route -- has no slope for
@@ -4456,6 +4463,27 @@ def _avg_prob_dispatch(
             "discontinuities: there is no instantaneous eigenbasis to decohere in at a jump, and "
             "this route averages the probability over an energy window starting from the flavor "
             "state.  Leave average_initial_state at 'flavor' there.")
+    if average_n_samples is not None:
+        if not sample_numerically:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                "average_n_samples sets how many energies the energy-window average samples, "
+                "and that average is taken only on a profile with declared discontinuities.  "
+                "This call takes the closed-form or adiabatic route, which samples nothing; "
+                "remove average_n_samples.")
+        if (isinstance(average_n_samples, bool)
+                or not isinstance(average_n_samples, (int, np.integer)) or average_n_samples < 2):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                "average_n_samples is the number of energies sampled across the window and "
+                "must be an integer of at least 2, not " + repr(average_n_samples) + ".")
+    if sample_numerically:
+        window = (avgprob.AVG_DEFAULT_ENERGY_SPREAD if average_spread is None else spread)
+        if not (0.0 < window < 1.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                "average_spread is, on a profile with declared discontinuities, the half-width "
+                "of the energy window as a fraction of the energy, and must lie strictly "
+                "between 0 and 1, not " + repr(average_spread) + ".")
+        n_samples = (avgprob.AVG_DEFAULT_N_SAMPLES if average_n_samples is None
+                     else int(average_n_samples))
     if sample_numerically and (engine_kwargs is None):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "needs a Hamiltonian that is either constant along the trajectory or smooth enough "
@@ -4560,18 +4588,19 @@ def _avg_prob_dispatch(
                     htot_is_function_only_of_energy, **eng, **extra)
 
             P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
-                float(energy_arr[i]))
+                float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
             worst_sem = max(worst_sem, sem)
 
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "on a profile with discontinuities has no closed form, so the probability was "
             "propagated across an energy window of +/-" +
-            str(100.0*avgprob.AVG_DEFAULT_ENERGY_SPREAD) + "% and averaged over " +
-            str(avgprob.AVG_DEFAULT_N_SAMPLES) + " samples.  This is the average over that "
+            str(100.0*window) + "% and averaged over " +
+            str(n_samples) + " samples.  This is the average over that "
             "window, not the L/E -> infinity limit, and it depends on the window: the largest "
-            "standard error of the mean here is " + format(worst_sem, '.2e') + ".  Pass an "
-            "explicit width via magnus.avgprob.averaged_probabilities_numerically if the "
-            "measurement has a known resolution.  Shown once per session.",
+            "standard error of the mean here is " + format(worst_sem, '.2e') + ".  Pass "
+            "average_spread to set the half-width of the window to the resolution of the "
+            "measurement, and average_n_samples to reduce the error, which falls as the "
+            "inverse square root of the number of samples.  Shown once per session.",
             PhaseAveragingWarning, stacklevel=3)
 
     else:
@@ -4673,8 +4702,10 @@ def _avg_prob_dispatch(
             "The oscillation probability itself (average=False) is the meaningful quantity there. "
             "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
 
+    window_detail = (dict(window_half_width=window, n_samples=n_samples, largest_sem=worst_sem)
+                     if sample_numerically else {})
     _note_engine('average', average_spread=spread, recomputed=recomputed_points,
-                 sigma_sensitivity=largest_sensitivity)
+                 sigma_sensitivity=largest_sensitivity, **window_detail)
     if (nu_i is not None) and (nu_f is not None):
         P_out = P_out[:, nu_i, nu_f]
 
@@ -7404,6 +7435,7 @@ def osc_prob_energy_baseline(
     return_evolution_operator: Optional[bool]=False,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     strategy_info: Optional[Dict]=None,
     **kwargs
@@ -7592,8 +7624,19 @@ def osc_prob_energy_baseline(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -7765,6 +7808,7 @@ def osc_prob_energy_baseline(
         return _avg_prob_dispatch(htot, only_energy, energy_in, L_in, L0, nu_i, nu_f, True,
             'osc_prob_energy_baseline', smooth_profile=smooth, engine_kwargs=engine,
             average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state, energy_dependent=energy_dependent)
 
     if callable(H_first):
@@ -8406,6 +8450,7 @@ def osc_prob_vacuum(
     h_vac_energy_indep: Union[list, np.ndarray]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     strategy_info: Optional[Dict]=None,
     nubar: Optional[bool]=False, 
@@ -8468,8 +8513,19 @@ def osc_prob_vacuum(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -8670,6 +8726,7 @@ def osc_prob_vacuum(
 
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0,
             nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
@@ -8714,6 +8771,7 @@ def osc_prob_matter_std_potential(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
@@ -8814,8 +8872,19 @@ def osc_prob_matter_std_potential(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -9208,6 +9277,7 @@ def osc_prob_matter_std_potential(
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
@@ -9335,6 +9405,7 @@ def osc_prob_matter_nsi(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
@@ -9442,8 +9513,19 @@ def osc_prob_matter_nsi(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -9799,6 +9881,7 @@ def osc_prob_matter_nsi(
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
@@ -9872,6 +9955,7 @@ def osc_prob_liv(
     default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     strategy: Optional[str]='auto',
     strategy_info: Optional[Dict]=None,
@@ -9977,8 +10061,19 @@ def osc_prob_liv(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -10335,6 +10430,7 @@ def osc_prob_liv(
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
             average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
@@ -13996,6 +14092,7 @@ def osc_prob_earth(
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     **kwargs
 ) -> Union[float, np.ndarray]:
@@ -14162,8 +14259,19 @@ def osc_prob_earth(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -14282,6 +14390,7 @@ def osc_prob_earth(
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info, average=average,
         average_spread=average_spread,
+        average_n_samples=average_n_samples,
             average_initial_state=average_initial_state,
         symmetric_over=_earth_chord_symmetry(costhz, L, source_depth, detector_depth), **kwargs)
 
@@ -14309,6 +14418,7 @@ def _osc_prob_with_potential(
     return_evolution_operator: Optional[bool] = False,
     average: Optional[bool] = False,
     average_spread: Optional[float] = None,
+    average_n_samples: Optional[int] = None,
     average_initial_state: Optional[str] = None,
     **kwargs
 ) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
@@ -14404,8 +14514,19 @@ def _osc_prob_with_potential(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -14508,6 +14629,7 @@ def _osc_prob_with_potential(
                 validate_input=validate_input, verbose=verbose, cumulative=cumulative,
                 symmetric_over=symmetric_over, kwargs=kwargs),
             average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
             return P_avg
@@ -15524,6 +15646,7 @@ def osc_prob_sun(
     strategy_info: Optional[Dict]=None,
     average: Optional[bool]=False,
     average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
     average_initial_state: Optional[str]=None,
     density_profile: Optional[str]='exp',
     stop_at_table_edge: Optional[bool]=False,
@@ -15628,8 +15751,19 @@ def osc_prob_sun(
         Relative energy spread :math:`\sigma` of the phase average ``average=True`` returns:
         every interference term keeps its phase and is weighted by
         :math:`e^{-\sigma^2\phi'^2/2}`, :math:`\phi' = d\phi/d\ln E` (see
-        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  Ignored without ``average``.  Default:
-        None, meaning 0.1.
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
+        discontinuities, where ``average=True`` averages over an energy window instead, it is
+        the half-width of that window as a fraction of the energy, and must lie between 0
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
+        ``average``.  Default: None, meaning 0.1.
+    average_n_samples : int, optional
+        Number of energies sampled across the window by ``average=True`` on a profile with
+        declared discontinuities, at least 2.  The standard error of the window average
+        falls as the inverse square root of this number, and each sample costs a full
+        propagation.  No other route samples, so it is refused there.  Default: None,
+        meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
+
+        .. versionadded:: 1.1.1
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -15723,6 +15857,7 @@ def osc_prob_sun(
         nu_f, t_breakpoints, magnus_exp_order, n_jobs, integration_method, rtol, atol,
         validate_input, verbose, strategy=strategy, strategy_info=strategy_info,
         average=average, average_spread=average_spread,
+            average_n_samples=average_n_samples,
             average_initial_state=average_initial_state, **kwargs)
     return _refuse_past_table_edge(P, _beyond)
 

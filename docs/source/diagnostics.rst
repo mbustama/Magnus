@@ -297,7 +297,7 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        a Hamiltonian without energy dependence, where the limit does not apply.
      - The number is the average over the spread asked for, not over another.
      - ``average_spread`` set to the resolution of the measurement; the s.e.m. is
-       reported for the window average.
+       reported for the window average, and ``average_n_samples`` lowers it.
    * - :class:`magnus.hamiltonians.hamiltonians_pseudodirac.PseudoDiracSplittingWarning`
      - The pseudo-Dirac splitting is not small against the standard mass-squared ones.
      - The number is what was asked for; the *model* is the wrong one. At that size the
