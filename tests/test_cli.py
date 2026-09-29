@@ -365,6 +365,11 @@ def test_help_and_version_stay_at_the_top_level(capsys):
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
     assert 'usage: magnus [-h] [-V] {prob}' in out and 'default subcommand' in out
+    # ... followed by the options of the default subcommand, so that 'prob' need not be typed
+    # to see them.
+    assert out.index('usage: magnus [-h]') < out.index('usage: magnus prob')
+    for option in ('--flavors', '--energy', '--baseline', '--rtol', '--json'):
+        assert option in out
     with pytest.raises(SystemExit) as excinfo:
         cli.main(['-V'])
     assert excinfo.value.code == 0

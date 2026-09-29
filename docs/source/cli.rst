@@ -15,7 +15,8 @@ the Python API: ``magnus`` picks the right one from
 you give (see :doc:`architecture` for how those functions themselves are
 organized).  Its one subcommand, ``prob``, is the default and may be
 omitted: ``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are
-the same call.
+the same call.  ``magnus --help`` prints the options of ``prob`` after its
+own, so ``magnus --help`` and ``magnus prob --help`` both list every flag.
 
 .. note::
    The CLI computes **one probability at a time** (a single energy and

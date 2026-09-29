@@ -147,6 +147,23 @@ def _with_default_subcommand(argv):
     return argv
 
 
+class _HelpWithDefaultSubcommand(argparse.Action):
+    r"""``magnus -h``: the top-level help, followed by the help of the default subcommand.
+
+    ``prob`` runs when no subcommand is named, so its options are the ones a user of
+    ``magnus --help`` is looking for; printing only the subcommand list would send them to
+    ``magnus prob --help`` for every option (issue #138).
+
+    .. versionadded:: 1.1.1
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        parser.print_help()
+        print()
+        parser.default_subparser.print_help()
+        parser.exit()
+
+
 def build_parser() -> argparse.ArgumentParser:
     r"""Builds the ``magnus`` command-line argument parser.
 
@@ -155,20 +172,28 @@ def build_parser() -> argparse.ArgumentParser:
     Returns
     -------
     argparse.ArgumentParser
-        The top-level parser, with the ``prob`` subcommand attached.  Its epilog says that
-        ``prob`` is the default subcommand, which :func:`main` supplies when none is given.
+        The top-level parser, with the ``prob`` subcommand attached (also kept as its
+        ``default_subparser`` attribute).  Its epilog says that ``prob`` is the default
+        subcommand, which :func:`main` supplies when none is given, and its ``-h`` prints
+        the help of ``prob`` after its own.
 
     .. versionchanged:: 1.1.1
-       The epilog names ``prob`` as the default subcommand (issue #138).
+       The epilog names ``prob`` as the default subcommand, and ``magnus -h`` also prints
+       the options of ``prob`` (issue #138).
     """
     parser = argparse.ArgumentParser(
         prog='magnus',
         description="Magνs: neutrino oscillation probabilities via the Magnus expansion.",
-        epilog="prob is the default subcommand: 'magnus ...' runs 'magnus prob ...'.")
+        epilog="prob is the default subcommand: 'magnus ...' runs 'magnus prob ...', and its "
+               "options follow.",
+        add_help=False)
+    parser.add_argument('-h', '--help', action=_HelpWithDefaultSubcommand, nargs=0,
+        help="show this help message, followed by that of 'prob', and exit")
     parser.add_argument('-V', '--version', action='version', version=f'magnus {__version__}')
     sub = parser.add_subparsers(dest='command', required=True)
 
     p = sub.add_parser('prob', help='Compute a single oscillation probability (matrix or channel).')
+    parser.default_subparser = p
 
     g_env = p.add_argument_group('Environment')
     g_env.add_argument('--flavors', type=int, choices=[2, 3, 4, 5], default=3,
