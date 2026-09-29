@@ -1,0 +1,152 @@
+astro_earth_nsi                          identical
+astro_liv                                identical
+astro_pseudo_dirac                       identical
+astro_vacuum                             identical
+fixed                                    identical
+geo_energy_core                          724 of 22501 leaves differ; largest relative changes:
+      /value[716]                                                  0.9254405777362797 -> 0.925438736802557  (rel 2.0e-06)
+      /value[715]                                                  0.9468468419329952 -> 0.9468449685420388  (rel 2.0e-06)
+      /value[714]                                                  0.9698085238545319 -> 0.9698069751716647  (rel 1.6e-06)
+geo_energy_far_crust                     730 of 22501 leaves differ; largest relative changes:
+      /value[676]                                                  0.36442857521794336 -> 0.3644285060386956  (rel 1.9e-07)
+      /value[677]                                                  0.3675128136094631 -> 0.3675127445588482  (rel 1.9e-07)
+      /value[675]                                                  0.36232033025150184 -> 0.36232026228487596  (rel 1.9e-07)
+geo_energy_local                         identical
+geo_energy_mantle                        723 of 22501 leaves differ; largest relative changes:
+      /value[719]                                                  0.9126102720121432 -> 0.9126091283650959  (rel 1.3e-06)
+      /value[718]                                                  0.917893552481282 -> 0.9178924036508536  (rel 1.3e-06)
+      /value[720]                                                  0.9111951692136577 -> 0.9111940678795769  (rel 1.2e-06)
+geo_flux_unoscillated                    identical
+geo_flux_window_average                  63 of 901 leaves differ; largest relative changes:
+      /value[518]                                                  0.49508243035029875 -> 0.4950824303502983  (rel 9.0e-16)
+      /value[519]                                                  0.4942668019612485 -> 0.49426680196124884  (rel 6.7e-16)
+      /value[542]                                                  0.6052085209233332 -> 0.6052085209233335  (rel 5.5e-16)
+geo_local_scan                           identical
+geo_matter_average                       identical
+jet_smooth                               identical
+jet_stepped                              identical
+jet_turbulent                            identical
+oracle                                   identical
+orders                                   identical
+oscillogram_Earth_3_1                    30186 of 34001 leaves differ; largest relative changes:
+      /value[159][0]                                               0.7659115953173415 -> 0.7659115166583192  (rel 1.0e-07)
+      /value[159][1]                                               0.7621759915270458 -> 0.7621759145870212  (rel 1.0e-07)
+      /value[159][2]                                               0.7589091923991055 -> 0.7589091172244227  (rel 9.9e-08)
+oscillogram_Earth_3_2                    26860 of 34001 leaves differ; largest relative changes:
+      /value[159][33]                                              0.6997457570928644 -> 0.699745689540015  (rel 9.7e-08)
+      /value[159][34]                                              0.7011761447062815 -> 0.7011760790869058  (rel 9.4e-08)
+      /value[159][35]                                              0.7028826863302687 -> 0.7028826226326693  (rel 9.1e-08)
+oscillogram_Earth_3_nu                   30588 of 34001 leaves differ; largest relative changes:
+      /value[115][122]                                             0.43301751364357877 -> 0.4330175565988831  (rel 9.9e-08)
+      /value[115][123]                                             0.4472104426474495 -> 0.44721048498484756  (rel 9.5e-08)
+      /value[115][124]                                             0.4612139742302448 -> 0.4612140159253881  (rel 9.0e-08)
+oscillogram_Earth_3_nu_NSI               30547 of 34001 leaves differ; largest relative changes:
+      /value[159][0]                                               0.26912858262721917 -> 0.2691285892972217  (rel 2.5e-08)
+      /value[98][7]                                                0.06739950701598012 -> 0.06739950637534836  (rel 9.5e-09)
+      /value[115][134]                                             0.5018323284161275 -> 0.5018323328161494  (rel 8.8e-09)
+prem_timings                             identical
+prob_vs_E_constant                       identical
+prob_vs_E_exponential                    identical
+prob_vs_E_gaussian                       identical
+prob_vs_L_constant                       identical
+prob_vs_L_exponential                    identical
+prob_vs_L_gaussian                       identical
+scan                                     identical
+shock_3_1_0p07                           identical
+shock_3_1_70                             identical
+shock_3_2_0p07                           identical
+shock_3_2_70                             identical
+shock_3_nu_0p07                          identical
+shock_3_nu_70                            identical
+shock_3_nu_NSI_0p07                      identical
+shock_3_nu_NSI_70                        identical
+shock_energy_0p07                        identical
+shock_energy_70                          identical
+shock_energy_none                        1 of 61 leaves differ; largest relative changes:
+      /value/P[56]                                                 0.04167340757840954 -> 0.042186109032273565  (rel 1.2e-02)
+solar_3_1                                identical
+solar_3_2                                identical
+solar_3_nu                               identical
+solar_3_nu_NSI                           identical
+solar_disk_0p01                          identical
+solar_disk_10                            1734 of 2002 leaves differ; largest relative changes:
+      /value[217]                                                  0.5297248746369743 -> 0.5297025753496981  (rel 4.2e-05)
+      /value[213]                                                  0.5296608329404348 -> 0.5296829256056567  (rel 4.2e-05)
+      /value[223]                                                  0.52973760531373 -> 0.5297166926819404  (rel 3.9e-05)
+solar_disk_100                           1327 of 2002 leaves differ; largest relative changes:
+      /value[40]                                                   0.2862289059396244 -> 0.2862028130576471  (rel 9.1e-05)
+      /value[71]                                                   0.2871489062180906 -> 0.28712646241338585  (rel 7.8e-05)
+      /value[29]                                                   0.28085821527006555 -> 0.2808782377645972  (rel 7.1e-05)
+solar_disk_1000                          1220 of 2002 leaves differ; largest relative changes:
+      /value[73]                                                   0.5373651709423525 -> 0.5372432080543666  (rel 2.3e-04)
+      /value[108]                                                  0.5342043304696475 -> 0.5340956420375773  (rel 2.0e-04)
+      /value[349]                                                  0.5380648987968523 -> 0.5380977808851782  (rel 6.1e-05)
+solar_disk_10000                         1223 of 2002 leaves differ; largest relative changes:
+      /value[61]                                                   0.5465650307624337 -> 0.5465771604507306  (rel 2.2e-05)
+      /value[168]                                                  0.5446856959519047 -> 0.5446750393006337  (rel 2.0e-05)
+      /value[313]                                                  0.5455987301526986 -> 0.5455886189281558  (rel 1.9e-05)
+solar_disk_1000_core                     6733 of 6773 leaves differ; largest relative changes:
+      /value[70]                                                   0.519691224946442 -> 0.51987971049015  (rel 3.6e-04)
+      /value[262]                                                  0.5234132190102249 -> 0.5235835481543464  (rel 3.3e-04)
+      /value[630]                                                  0.5197404082500308 -> 0.5196555264131728  (rel 1.6e-04)
+solar_disk_100_core                      identical
+solar_disk_30                            1401 of 2002 leaves differ; largest relative changes:
+      /value[44]                                                   0.4002403963535138 -> 0.40031277637863905  (rel 1.8e-04)
+      /value[71]                                                   0.399173883677813 -> 0.3992316833753425  (rel 1.4e-04)
+      /value[142]                                                  0.39857665455323027 -> 0.3985474558825639  (rel 7.3e-05)
+solar_disk_300                           1307 of 2002 leaves differ; largest relative changes:
+      /value[21]                                                   0.37175492108825936 -> 0.3716540214356141  (rel 2.7e-04)
+      /value[65]                                                   0.4050645418189587 -> 0.4051478876121131  (rel 2.1e-04)
+      /value[53]                                                   0.3873666465044803 -> 0.3872892181715138  (rel 2.0e-04)
+solar_disk_3000                          1208 of 2002 leaves differ; largest relative changes:
+      /value[122]                                                  0.5468410463091761 -> 0.5468281327374429  (rel 2.4e-05)
+      /value[303]                                                  0.5449774226775825 -> 0.544987423086355  (rel 1.8e-05)
+      /value[191]                                                  0.5435897301202411 -> 0.5435979665455238  (rel 1.5e-05)
+solar_disk_3000_core                     6728 of 6773 leaves differ; largest relative changes:
+      /value[406]                                                  0.542829738515829 -> 0.5427943128689305  (rel 6.5e-05)
+      /value[776]                                                  0.5428343685329639 -> 0.5428124012807842  (rel 4.0e-05)
+      /value[713]                                                  0.547173070876959 -> 0.5471536810375481  (rel 3.5e-05)
+solar_disk_300_core                      identical
+solar_disk_30_core                       identical
+solar_disk_50000                         1323 of 2002 leaves differ; largest relative changes:
+      /value[94]                                                   0.5435775770177225 -> 0.5435745851921736  (rel 5.5e-06)
+      /value[200]                                                  0.5435871245999839 -> 0.5435849653233157  (rel 4.0e-06)
+      /value[15]                                                   0.543661891154554 -> 0.5436638712800097  (rel 3.6e-06)
+solar_gamma_b0                           identical
+solar_gamma_b0p6                         identical
+solar_gamma_b0p9                         identical
+solar_gamma_b0p95                        identical
+solar_long_range                         identical
+solar_model_B16                          identical
+solar_model_BS05                         identical
+solar_model_exp                          identical
+solar_production_1MeV                    identical
+solar_production_20MeV                   identical
+solar_production_5MeV                    identical
+solar_two_flavor_B16                     identical
+solar_two_flavor_BS05                    identical
+solar_two_flavor_exp                     identical
+sterile_scan_m0p5_nu                     identical
+sterile_scan_m0p5_nubar                  identical
+sterile_scan_m1_nu                       identical
+sterile_scan_m1_nubar                    identical
+timings                                  identical
+turb_convergence                         3 of 5 leaves differ; largest relative changes:
+      /value[0]                                                    0.7893530025883405 -> 0.7893531260114541  (rel 1.6e-07)
+      /value[2]                                                    0.7893530025883405 -> 0.7893531260114541  (rel 1.6e-07)
+      /value[3]                                                    0.7893530025883405 -> 0.7893531260114541  (rel 1.6e-07)
+turb_flavor_1                            identical
+turb_flavor_10                           identical
+turb_flavor_3                            identical
+turb_flavor_30                           identical
+turb_levels_1                            identical
+turb_levels_10                           identical
+turb_levels_3                            identical
+turb_levels_30                           identical
+turb_offband                             identical
+turb_sterile                             identical
+turb_sweep_11p2                          identical
+turb_sweep_1p12                          identical
+turb_sweep_37p3                          identical
+turb_sweep_3p7                           identical
+what                                     identical

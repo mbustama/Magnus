@@ -1,0 +1,45 @@
+control ratio 0.995
+NuOscProbExact: SKIPPED.  Set PREM_RUN_NPE=1 to include it -- held back so it can be run against v1.14.0, which batches on PREM with rtol and would therefore be dialled by tolerance rather than by slab count.
+--- 2 flavours ---
+    Magnus
+/home/mbustamante/Research/magnus/src/magnus/oscprob.py:5115: MagnusConvergenceWarning: at least one time slab is too wide for guaranteed convergence of the Magnus series (||Omega||_2 >= pi, over by up to a factor of ten). This is a statement about the slab width, not about the answer: it reports that a sufficient condition for convergence was not met somewhere, and the error may be anywhere from negligible to large. To act on it, use more (narrower) slabs -- request a smaller rtol/atol, or raise n_slabs; raising magnus_exp_order will not help in this regime. If the profile has a density jump or a kink, pass t_breakpoints there as well: a slab straddling one is not fixed by any number of slabs. Do NOT assume the adaptive refinement has already taken care of it -- measured on a sawtooth density with rtol=atol=1e-3 explicitly requested, the refinement ran and the answer was still 7.5e-03, seven times outside the tolerance asked for. Shown once per session.
+  U = magnus.evolution_operators_from_samples(At, widths,
+      rtol 1e-03       57.11 us/prob  err 3.620e-06
+      rtol 1e-04       72.70 us/prob  err 1.032e-06
+      rtol 1e-06      115.40 us/prob  err 2.222e-07
+      rtol 1e-08      172.98 us/prob  err 2.138e-09
+      rtol 1e-10      393.84 us/prob  err 3.059e-11
+    Magnus, order 6
+      rtol 1e-03       61.55 us/prob  err 6.362e-08
+      rtol 1e-04       75.93 us/prob  err 3.733e-08
+      rtol 1e-06       83.43 us/prob  err 1.262e-08
+      rtol 1e-08      123.41 us/prob  err 5.625e-11
+      rtol 1e-10      177.75 us/prob  err 7.290e-12
+    Magnus, order 8
+      rtol 1e-03       75.53 us/prob  err 1.041e-08
+      rtol 1e-04       75.29 us/prob  err 1.041e-08
+      rtol 1e-06       97.41 us/prob  err 5.112e-10
+      rtol 1e-08      117.88 us/prob  err 6.810e-11
+      rtol 1e-10      165.43 us/prob  err 8.629e-13
+--- 3 flavours ---
+    Magnus
+      rtol 1e-03       92.77 us/prob  err 1.175e-06
+      rtol 1e-04       94.30 us/prob  err 1.175e-06
+      rtol 1e-06      170.61 us/prob  err 4.859e-08
+      rtol 1e-08      375.21 us/prob  err 3.607e-10
+      rtol 1e-10      841.30 us/prob  err 3.504e-12
+    Magnus, order 6
+      rtol 1e-03       85.89 us/prob  err 1.362e-07
+      rtol 1e-04       95.80 us/prob  err 3.029e-08
+      rtol 1e-06      126.46 us/prob  err 2.750e-09
+      rtol 1e-08      189.03 us/prob  err 1.315e-10
+      rtol 1e-10      318.53 us/prob  err 9.147e-13
+    Magnus, order 8
+      rtol 1e-03       96.80 us/prob  err 7.693e-09
+      rtol 1e-04      129.44 us/prob  err 4.822e-10
+      rtol 1e-06      146.97 us/prob  err 2.070e-11
+      rtol 1e-08      188.48 us/prob  err 2.070e-11
+      rtol 1e-10      254.51 us/prob  err 3.578e-13
+--- 4 flavours ---
+--- 5 flavours ---
+wrote prem_chord_rerun2.json

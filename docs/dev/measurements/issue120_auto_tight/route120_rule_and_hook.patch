@@ -1,0 +1,95 @@
+--- /dev/fd/63	2026-09-29 12:40:49.902074433 +0200
++++ /tmp/claude-1000/-home-mbustamante-Research-magnus/93bacad5-e69e-4b42-9e80-36335d33ac78/scratchpad/mirror120/src/magnus/oscprob.py	2026-09-29 09:31:28.199274399 +0200
+@@ -1018,6 +1018,8 @@
+ """
+ 
+ 
++AUTO_LADDER_TIGHT_MAX_PHASE = 2000.0
++
+ AUTO_LADDER_TOLERANCE_MARGIN = 10.0
+ r"""float: Module-level constant
+ 
+@@ -6560,7 +6562,9 @@
+ 
+         .. versionadded:: 1.1.1
+         """
+-        m = AUTO_LADDER_TOLERANCE_MARGIN
++        tols = [t for t in (rtol, atol) if t]
++        m = (AUTO_LADDER_TOLERANCE_MARGIN if (not tols) or min(tols) >= AUTO_LADDER_MIN_TOLERANCE
++             else 1.0)
+         rtol = None if rtol is None else rtol/m
+         atol = None if atol is None else atol/m
+         cap = _resolve_max_n_slabs(max_n_slabs, integration_method)
+@@ -6612,7 +6616,8 @@
+ 
+ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.ndarray,
+                          L0: float, rtol: float, atol: float,
+-                         max_n_slabs: int, batched_scan: bool = False) -> Optional[_PreferLadder]:
++                         max_n_slabs: int, batched_scan: bool = False, magnus_exp_order: int = 4,
++                         integration_method: str = 'gl') -> Optional[_PreferLadder]:
+     r"""Whether ``strategy='auto'`` should hand a smooth-profile request to the ladder (issue #70).
+ 
+     Yes when the tolerance is no tighter than :data:`AUTO_LADDER_MIN_TOLERANCE`, the estimated
+@@ -6645,18 +6650,38 @@
+         The marker the dispatcher returns, or None to run the hybrid strategy.
+     """
+     tols = [t for t in (rtol, atol) if t > 0.0]
+-    if not tols or min(tols) < AUTO_LADDER_MIN_TOLERANCE:
++    if not tols:
+         return None
++    tol = min(tols)
++    tight = tol < AUTO_LADDER_MIN_TOLERANCE
+     phase, n_floor = _estimated_phase(H_at_energy, energy_arr, L_arr, L0)
+-    if ((phase > AUTO_LADDER_MAX_PHASE) and not batched_scan) \
+-            or (n_floor > AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs):
++    floor_ok = n_floor <= AUTO_LADDER_MAX_FLOOR_FRACTION*max_n_slabs
++    old = (not tight) and floor_ok and ((phase <= AUTO_LADDER_MAX_PHASE) or batched_scan)
++    if tight:
++        max_phase = min(AUTO_LADDER_TIGHT_MAX_PHASE,
++                        AUTO_LADDER_MAX_PHASE*(tol/AUTO_LADDER_MIN_TOLERANCE)**(1.0/magnus_exp_order))
++        new = (integration_method == 'gl') and floor_ok and (phase <= max_phase)
++    else:
++        max_phase = AUTO_LADDER_MAX_PHASE
++        new = old
++    import os as _os, json as _json
++    _log = _os.environ.get('ROUTE120_LOG')
++    if _log:
++        with open(_log, 'a') as _fh:
++            _fh.write(_json.dumps(dict(
++                where=_os.environ.get('NB_NAME') or _os.environ.get('PYTEST_CURRENT_TEST', '?'),
++                tol=float(tol), rtol=float(rtol), atol=float(atol), p=int(magnus_exp_order),
++                method=str(integration_method), batched=bool(batched_scan), phase=float(phase),
++                n_floor=int(n_floor), cap=float(max_n_slabs), max_phase=float(max_phase),
++                n_energies=int(np.size(energy_arr)), old=bool(old), new=bool(new))) + '\n')
++    if not new:
+         return None
+     H_lo = H_at_energy(float(np.min(np.asarray(energy_arr, dtype=float))))
+     l0, l1 = float(L0), float(np.max(np.asarray(L_arr, dtype=float)))
+     resolved = (adiabatic._profile_is_resolved(H_lo, l0, l1, 200)
+                 or adiabatic._profile_is_resolved(H_lo, l0, l1, 6400))
+     detail = dict(estimated_phase=phase, min_n_slabs=n_floor,
+-                  tolerance_margin=AUTO_LADDER_TOLERANCE_MARGIN)
++                  tolerance_margin=1.0 if tight else AUTO_LADDER_TOLERANCE_MARGIN)
+     if resolved:
+         _note_engine('hybrid', answered=False, reason='auto prefers the ladder', **detail)
+     else:
+@@ -6862,7 +6887,8 @@
+                     and ('separable' not in _ENGINES_DISABLED))
+     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+                   _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method),
+-                  batched_scan=batched_scan)
++                  batched_scan=batched_scan, magnus_exp_order=magnus_exp_order,
++                  integration_method=integration_method)
+               if strategy == 'auto' else None)
+     if prefer is not None:
+         return prefer
+@@ -7120,7 +7146,8 @@
+     # hybrid strategy's cost does not follow the tolerance, and there it is the slower route by
+     # one to two orders of magnitude (issue #70; see AUTO_LADDER_MAX_PHASE).
+     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
+-                  _resolve_max_n_slabs(None, integration_method))
++                  _resolve_max_n_slabs(None, integration_method),
++                  magnus_exp_order=magnus_exp_order, integration_method=integration_method)
+               if strategy == 'auto' else None)
+     if prefer is not None:
+         return prefer
