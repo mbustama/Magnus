@@ -373,7 +373,28 @@ a real detector's energy resolution -- and every use of it raises
 :class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the
 number of samples, and the standard error of the resulting mean, so the
 figure is never silently dependent on a constant the caller did not
-choose.  Callers with a known resolution should pass their own.
+choose.  Callers with a known resolution should pass their own, through
+``average_spread``, which on this route is the half-width of the window
+as a fraction of the energy, strictly between 0 and 1.  The number of
+samples is ``average_n_samples``, 41 by default
+(:data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`).  The standard error of
+the mean falls as the inverse square root of that number, and each
+sample costs a full propagation, so a target error :math:`\delta` needs
+about :math:`N(\sigma/\delta)^2` samples, with :math:`N` the samples
+used and :math:`\sigma` the error the warning reported.  The other
+routes sample nothing and refuse ``average_n_samples``.
+
+.. code-block:: python
+
+    P = oscprob.osc_prob_matter_std_potential(
+        3, ne, energy, L, osc, t_breakpoints=edges,
+        average=True, average_spread=0.05, average_n_samples=161,
+        density_is_of_number_of_electrons=True)
+
+.. versionchanged:: 1.1.1
+   ``average_spread`` sets the window on this route, and ``average_n_samples`` is new
+   (issue #134).  Before, the window was always the default and ``average_spread`` was
+   accepted and ignored.
 
 Cost
 -------

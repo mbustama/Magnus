@@ -264,7 +264,8 @@ The phase average is likewise available on the direct route:
 ``average=True`` on ``osc_prob_energy_baseline``, ``osc_prob_earth`` and
 ``osc_prob_sun`` returns what the same keyword returns on a wrapper, by the same
 three routes (closed form, adiabatic transport, or an energy-window average
-across declared discontinuities), with the spread set by ``average_spread`` and the
+across declared discontinuities), with the spread set by ``average_spread``, the
+number of energies sampled by the window average by ``average_n_samples``, and the
 starting state by ``average_initial_state`` (the flavor state by default).  A
 matrix, or a function of position alone, does not depend on energy and returns
 the :math:`L/E \to \infty` limit; see :doc:`averaged_probability`.
