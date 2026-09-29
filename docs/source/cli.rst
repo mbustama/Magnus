@@ -10,10 +10,13 @@ In addition to the Python API (:doc:`quickstart`), Magνs installs a
 ``magnus`` command (equivalently, ``python -m magnus``) for computing a
 single oscillation probability directly from the shell, with no Python
 required. It wraps the same ``osc_prob_{2,3,4,5}nu_*`` functions used by
-the Python API: ``magnus prob`` picks the right one from
+the Python API: ``magnus`` picks the right one from
 ``--flavors``/``--environment``/``--scenario`` and calls it with the flags
 you give (see :doc:`architecture` for how those functions themselves are
-organized).
+organized).  Its one subcommand, ``prob``, is the default and may be
+omitted: ``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are
+the same call.  ``magnus --help`` prints the options of ``prob`` after its
+own, so ``magnus --help`` and ``magnus prob --help`` both list every flag.
 
 .. note::
    The CLI computes **one probability at a time** (a single energy and
@@ -44,9 +47,9 @@ Usage pattern
 
 .. code-block:: text
 
-   magnus prob --flavors {2,3,4,5} --environment {vacuum,matter,earth,sun}
-               --scenario {std,nsi,liv} [environment- and scenario-specific flags]
-               --energy ENERGY [--energy-unit UNIT] [--baseline BASELINE] ...
+   magnus [prob] --flavors {2,3,4,5} --environment {vacuum,matter,earth,sun}
+                 --scenario {std,nsi,liv} [environment- and scenario-specific flags]
+                 --energy ENERGY [--energy-unit UNIT] [--baseline BASELINE] ...
 
 ``--environment`` selects the propagation medium; ``--scenario`` selects
 the physics on top of it. Not every combination exists: ``--scenario nsi``
@@ -104,7 +107,7 @@ from this version):
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment vacuum \
+   $ magnus --flavors 3 --environment vacuum \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
@@ -118,7 +121,7 @@ The same calculation, one channel only:
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
+   $ magnus --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
    Magνs 1.1.1 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
@@ -130,7 +133,7 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment earth --energy 1 --energy-unit GeV \
+   $ magnus --flavors 3 --environment earth --energy 1 --energy-unit GeV \
        --costhz -0.8 --baseline 10193.6 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_earth
    E = 1 GeV, L = 10193.6 km
@@ -151,7 +154,7 @@ their names in any case):
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment sun --density-profile B16-GS98 \
+   $ magnus --flavors 3 --environment sun --density-profile B16-GS98 \
        --energy 10 --energy-unit MeV --baseline 300000 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_sun
    E = 10 MeV, L = 300000 km, B16-GS98 solar model
@@ -169,7 +172,7 @@ Constant-density matter with non-standard interactions:
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment matter --scenario nsi --rho 2.7 \
+   $ magnus --flavors 3 --environment matter --scenario nsi --rho 2.7 \
        --eps-ee 0.06 --eps-em -0.06 \
        --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_matter_nsi_constant_density
@@ -185,7 +188,7 @@ term -- compare to the plain-vacuum result above at the same energy and baseline
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment vacuum --scenario liv \
+   $ magnus --flavors 3 --environment vacuum --scenario liv \
        --sxi12 0.3 --b1 6e-13 --b2 1.2e-12 --liv-lambda 1e9 --n-liv 1 \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_vacuum_liv
@@ -200,7 +203,7 @@ A 3+2 sterile scenario (5 flavors), machine-readable output:
 
 .. code-block:: text
 
-   $ magnus prob --flavors 5 --environment earth --scenario liv \
+   $ magnus --flavors 5 --environment earth --scenario liv \
        --costhz -0.8 --baseline 10193.6 --sxi12 0.2 --b1 1e-13 --liv-lambda 1e9 \
        --energy 1 --energy-unit GeV --json
    {
@@ -252,12 +255,12 @@ traceback:
 
 .. code-block:: text
 
-   $ magnus prob --flavors 3 --environment vacuum --scenario nsi --energy 1 --baseline 1300
+   $ magnus --flavors 3 --environment vacuum --scenario nsi --energy 1 --baseline 1300
    magnus prob: --scenario nsi is not available with --environment vacuum (NSI couplings
    scale the matter potential, which vacuum has none of); use --environment matter/earth/sun
    instead.
 
-   $ magnus prob --flavors 2 --environment vacuum --energy 1 --baseline 1300
+   $ magnus --flavors 2 --environment vacuum --energy 1 --baseline 1300
    usage: magnus [-h] [-V] {prob} ...
    magnus: error: --sth and --dm2 are both required for --flavors 2.
 
@@ -525,7 +528,7 @@ configures):
 Implementation notes
 -----------------------
 
-``magnus prob`` does not reimplement any physics: it builds a keyword-argument
+``magnus`` does not reimplement any physics: it builds a keyword-argument
 dictionary from the flags you passed and calls straight into the matching
 ``osc_prob_{N}nu_*`` function (see :func:`magnus.cli.main` and
 ``_wrapper_name``). Physics keyword arguments that a given

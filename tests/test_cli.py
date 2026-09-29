@@ -369,3 +369,54 @@ def test_costhz_with_a_depth_computes_the_length(depth, capsys):
                      depth, '1', '--nu-i', 'mu', '--nu-f', 'e', '--json'])
     assert code in (0, None)
     assert 0.0 <= json.loads(capsys.readouterr().out)['probability'] <= 1.0
+
+
+# ------------------------------------------------------------------ prob is optional (#138)
+
+_MATRIX = ['--flavors', '3', '--environment', 'matter', '--density-profile', 'constant',
+           '--rho', '3.0', '--energy', '1', '--baseline', '1000']
+
+
+@pytest.mark.parametrize('extra', [[], ['--nu-i', 'mu', '--nu-f', 'e', '--json']],
+                         ids=['matrix', 'json-channel'])
+def test_prob_is_optional_and_prints_the_same(extra, capsys):
+    """Issue #138: a command line without a subcommand runs prob, byte for byte."""
+    assert cli.main(['prob'] + _MATRIX + extra) == 0
+    with_prob = capsys.readouterr().out
+    assert cli.main(_MATRIX + extra) == 0
+    assert capsys.readouterr().out == with_prob
+
+
+def test_help_and_version_stay_at_the_top_level(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['--help'])
+    assert excinfo.value.code == 0
+    out = capsys.readouterr().out
+    assert 'usage: magnus [-h] [-V] {prob}' in out and 'default subcommand' in out
+    # ... followed by the options of the default subcommand, so that 'prob' need not be typed
+    # to see them.
+    assert out.index('usage: magnus [-h]') < out.index('usage: magnus prob')
+    for option in ('--flavors', '--energy', '--baseline', '--rtol', '--json'):
+        assert option in out
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['-V'])
+    assert excinfo.value.code == 0
+    assert capsys.readouterr().out.strip() == 'magnus %s' % cli.__version__
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['prob', '--help'])
+    assert excinfo.value.code == 0
+    assert 'usage: magnus prob' in capsys.readouterr().out
+
+
+def test_an_empty_command_line_is_still_a_usage_error():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main([])
+    assert excinfo.value.code == 2
+
+
+def test_an_argument_error_without_prob_exits_as_with_it():
+    for argv in (['prob', '--flavors', '7', '--energy', '1', '--baseline', '1'],
+                 ['--flavors', '7', '--energy', '1', '--baseline', '1']):
+        with pytest.raises(SystemExit) as excinfo:
+            cli.main(argv)
+        assert excinfo.value.code == 2

@@ -40,6 +40,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
   default.  The standard error of that average falls as the inverse square root of the number,
   and each sample costs a full propagation.  The other averaging routes sample nothing and
   refuse the keyword.
+- **`prob` is optional on the command line** (issue #138).  It is the only subcommand, so
+  `magnus --flavors 3 ...` now runs `magnus prob --flavors 3 ...`, with the same output;
+  `magnus prob ...` works as before.  `magnus --help` says so and prints the options of
+  `prob` after its own, so it lists every flag.  The worked examples in
+  `cli.rst`, `installation.rst` and the README drop the word.
 - **`hamiltonian_5nu_nsi_td`** (issue #121), the one builder that existed at two to four flavors
   but not at five; `magnus.hamiltonians` now has 43 builders.
 - **`ratio_number_neutrons_to_protons` in `hamiltonian_4nu_matter_td` and
