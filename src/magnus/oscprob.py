@@ -1611,7 +1611,10 @@ class PhaseAveragingWarning(UserWarning):
     match the resolution of the measurement.  The original meaning remains
     for a Hamiltonian that does not depend on energy, which has no spread to
     average over, and the energy-window route of a profile with declared
-    discontinuities warns as before.
+    discontinuities warns every time it samples, naming the half-width of the
+    window and the number of samples it used and the standard error of the
+    mean; ``average_spread`` and ``average_n_samples`` set the first two
+    (issue #134).
 
     .. versionadded:: 1.0.0
 
