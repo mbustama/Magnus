@@ -1,0 +1,6 @@
+/* Equation numbers beside display math, not above it.  Sphinx floats span.eqno to the
+   right before the equation; MathJax then renders the equation as a block of its own,
+   which pushes the number onto a line above. */
+div.math { display: flex; align-items: center; }
+div.math > span.eqno { order: 2; float: none; margin-left: 1em; white-space: nowrap; }
+div.math > mjx-container { order: 1; flex: 1 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; }
