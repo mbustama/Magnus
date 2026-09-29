@@ -114,8 +114,10 @@ target-version = "py310"
 # lines and unused bindings are how a benchmark gets written, and cleaning them would
 # edit evidence.  docs/dev/ is exempt from the file-tree test for the same reason; this
 # makes it exempt from the linter too.  The other .py files under docs/dev/ are tools
-# that are run and maintained, and stay linted.
-extend-exclude = ["docs/jupyter_execute", "docs/dev/overhead_survey/prototypes"]
+# that are run and maintained, and stay linted.  docs/dev/measurements/ is the same kind of
+# record, for the measurements behind issues #70 to #122.
+extend-exclude = ["docs/jupyter_execute", "docs/dev/overhead_survey/prototypes",
+                  "docs/dev/measurements"]
 
 [tool.ruff.lint]
 # Pinned explicitly rather than left to ruff's default.  The default selection is not

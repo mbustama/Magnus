@@ -1,0 +1,62 @@
+--- /dev/fd/63	2026-09-29 12:40:49.914074264 +0200
++++ /tmp/claude-1000/-home-mbustamante-Research-magnus/93bacad5-e69e-4b42-9e80-36335d33ac78/scratchpad/mirror122/src/magnus/oscprob.py	2026-09-29 08:46:30.153280356 +0200
+@@ -443,7 +443,19 @@
+ within tolerance and faster (0.7 of the time at two flavors, 0.8 at three from 1e-4 on; 1.2 at
+ three flavors and 1e-3, where the old ladder stopped on a false agreement).
+ 
++Without breakpoints the engine applies the bound to one step only: on ``'gl'``, the last step
++onto ``max_n_slabs``, which is clamped and so can refine the grid by a sliver.  On the
++five-flavor scan of the paper's Listing 1 at ``rtol = 5e-13``, a ladder that had reached 19 926
++slabs compared them with 20 000, found them in agreement, and returned a probability 6.7 times
++outside the tolerance with no warning (issue #122).  Refused, that agreement ends the ladder in
++the existing refinement-caps warning, on the same probabilities: ``'gl'`` fixes the points per
++slab, so no further level is computed.
++
+ .. versionadded:: 1.0.0
++
++.. versionchanged:: 1.1.1
++   The energy-batched engine also refuses an agreement across the clamped last step onto the
++   slab cap on ``'gl'``.
+ """
+ 
+ 
+@@ -5379,7 +5391,8 @@
+              if t_breakpoints is not None else np.zeros(0))
+     bp_in = bp_in[(bp_in > L0) & (bp_in < L_val)]
+     # Refinement of the previous level's real grid (grid points times points per slab); see
+-    # MIN_EFFECTIVE_REFINEMENT.  Only used with breakpoints.
++    # MIN_EFFECTIVE_REFINEMENT.  Checked at every level with breakpoints; without them, only
++    # for the clamped last step onto the slab cap on 'gl' (issue #122).
+     r_prev = None
+     # The previous level's slab count, to tell a level that refined only the points per slab.
+     n_slabs_prev_level = None
+@@ -5453,13 +5466,23 @@
+         have_prev = ~np.isnan(prev[:, 0, 0])
+         conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
+                                   axis=(-1, -2))
+-        if bp_in.size:
+-            # As in osc_prob: two grids that differ by a few breakpoint-dominated percent agree
+-            # without having converged, so their agreement does not count.
+-            r_level = len(grid)*n_tpts_per_slab
+-            if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
++        r_level = len(grid)*n_tpts_per_slab
++        if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
++            if bp_in.size:
++                # As in osc_prob: two grids that differ by a few breakpoint-dominated percent
++                # agree without having converged, so their agreement does not count.
++                conv[:] = False
++            elif (integration_method == 'gl') and (n_slabs >= max_n_slabs):
++                import json as _j; _a = np.flatnonzero(active) if np.asarray(active).dtype == bool else np.asarray(active)
++                _d = np.max(np.abs(P_new - prev)/(atol + rtol*np.abs(prev)), axis=(-1, -2))
++                open('/tmp/claude-1000/-home-mbustamante-Research-magnus/93bacad5-e69e-4b42-9e80-36335d33ac78/scratchpad/clamp122.jsonl', 'a').write(_j.dumps(dict(n_slabs=int(n_slabs), r=int(r_level), r_prev=int(r_prev), p=int(magnus_exp_order), idx=[int(x) for x in _a], dtol=[float(x) for x in _d], conv=[bool(x) for x in conv])) + '\n')
++                # The last step onto the slab cap is clamped, so it can refine the grid by a
++                # sliver: 19 926 -> 20 000 slabs agree without having converged, and the scan
++                # returned a probability 6.7x outside the tolerance with no warning (issue
++                # #122).  Refused, the energies left end in the caps warning below on the same
++                # probabilities; 'gl' fixes the points per slab, so no further level runs.
+                 conv[:] = False
+-            r_prev = r_level
++        r_prev = r_level
+         if gl_gate and conv.any() and (n_slabs < max_n_slabs) and (loop_count < max_num_loops):
+             # A chance agreement between two coarse grids (issue #71): refused for the energies
+             # whose own slabs are still wide, which go one level further.

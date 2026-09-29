@@ -1,0 +1,296 @@
+{
+ "generated_by": "notebooks/gen_prem_plane_magnus.py",
+ "mode": "accuracy",
+ "magnus": "/tmp/claude-1000/-home-mbustamante-Research-magnus/93bacad5-e69e-4b42-9e80-36335d33ac78/scratchpad/v6751/src/magnus/oscprob.py",
+ "repository_head": "bd9f9d7",
+ "strategy": "magnus",
+ "date": "2026-09-28",
+ "machine": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+ "load_average_at_start": [
+  0.86865234375,
+  0.8310546875,
+  0.97412109375
+ ],
+ "manifest_sha256": "d758e1935f45312b4ce1e66dd1a89cff9dab7678629b66fe70a6a48e9cbee6fa",
+ "thread_environment": {
+  "cpu_count": 12,
+  "omp_num_threads": null,
+  "openblas_num_threads": null,
+  "mkl_num_threads": null,
+  "numexpr_num_threads": null,
+  "numba_num_threads": null,
+  "blas_threads": [
+   {
+    "library": "blas",
+    "threads": 10
+   },
+   {
+    "library": "openmp",
+    "threads": 12
+   }
+  ]
+ },
+ "protocol": "ACCURACY",
+ "panels": {
+  "3nu": {
+   "Magnus (tolerance)": [
+    {
+     "label": "1e-01",
+     "knob": -1,
+     "rtol": 0.1,
+     "n_slabs": null,
+     "max_abs_error": 0.0013103582189484264,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-02",
+     "knob": -2,
+     "rtol": 0.01,
+     "n_slabs": null,
+     "max_abs_error": 0.0012113341791711862,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-03",
+     "knob": -3,
+     "rtol": 0.001,
+     "n_slabs": null,
+     "max_abs_error": 3.110676857465133e-05,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-04",
+     "knob": -4,
+     "rtol": 0.0001,
+     "n_slabs": null,
+     "max_abs_error": 5.853227814101025e-06,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-06",
+     "knob": -6,
+     "rtol": 1e-06,
+     "n_slabs": null,
+     "max_abs_error": 4.006463477645994e-08,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-08",
+     "knob": -8,
+     "rtol": 1e-08,
+     "n_slabs": null,
+     "max_abs_error": 3.182540897483932e-10,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-10",
+     "knob": -10,
+     "rtol": 1e-10,
+     "n_slabs": null,
+     "max_abs_error": 3.6153302573893598e-12,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-12",
+     "knob": -12,
+     "rtol": 1e-12,
+     "n_slabs": null,
+     "max_abs_error": 3.8913317013111737e-14,
+     "engine": "separable"
+    }
+   ],
+   "Magnus": [
+    {
+     "label": "1",
+     "knob": 1,
+     "rtol": null,
+     "n_slabs": 1,
+     "max_abs_error": 0.016795255331021997,
+     "engine": "separable"
+    },
+    {
+     "label": "2",
+     "knob": 2,
+     "rtol": null,
+     "n_slabs": 2,
+     "max_abs_error": 0.005588584262394558,
+     "engine": "separable"
+    },
+    {
+     "label": "4",
+     "knob": 4,
+     "rtol": null,
+     "n_slabs": 4,
+     "max_abs_error": 0.0013103582189484264,
+     "engine": "separable"
+    },
+    {
+     "label": "8",
+     "knob": 8,
+     "rtol": null,
+     "n_slabs": 8,
+     "max_abs_error": 0.0003085640660939193,
+     "engine": "separable"
+    },
+    {
+     "label": "16",
+     "knob": 16,
+     "rtol": null,
+     "n_slabs": 16,
+     "max_abs_error": 1.8450738443753778e-05,
+     "engine": "separable"
+    },
+    {
+     "label": "32",
+     "knob": 32,
+     "rtol": null,
+     "n_slabs": 32,
+     "max_abs_error": 1.1448454686480147e-06,
+     "engine": "separable"
+    },
+    {
+     "label": "64",
+     "knob": 64,
+     "rtol": null,
+     "n_slabs": 64,
+     "max_abs_error": 7.286370040660017e-08,
+     "engine": "separable"
+    },
+    {
+     "label": "128",
+     "knob": 128,
+     "rtol": null,
+     "n_slabs": 128,
+     "max_abs_error": 4.099346362362866e-09,
+     "engine": "separable"
+    },
+    {
+     "label": "256",
+     "knob": 256,
+     "rtol": null,
+     "n_slabs": 256,
+     "max_abs_error": 2.621873274044617e-10,
+     "engine": "separable"
+    }
+   ]
+  },
+  "3+1": {
+   "Magnus (tolerance)": [
+    {
+     "label": "1e-01",
+     "knob": -1,
+     "rtol": 0.1,
+     "n_slabs": null,
+     "max_abs_error": 0.003168308639091566,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-02",
+     "knob": -2,
+     "rtol": 0.01,
+     "n_slabs": null,
+     "max_abs_error": 0.003168308639091566,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-03",
+     "knob": -3,
+     "rtol": 0.001,
+     "n_slabs": null,
+     "max_abs_error": 7.397320223490045e-05,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-04",
+     "knob": -4,
+     "rtol": 0.0001,
+     "n_slabs": null,
+     "max_abs_error": 1.879213779254485e-06,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-06",
+     "knob": -6,
+     "rtol": 1e-06,
+     "n_slabs": null,
+     "max_abs_error": 6.538891095253518e-08,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-08",
+     "knob": -8,
+     "rtol": 1e-08,
+     "n_slabs": null,
+     "max_abs_error": 4.169591338865075e-10,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-10",
+     "knob": -10,
+     "rtol": 1e-10,
+     "n_slabs": null,
+     "max_abs_error": 7.936651336137857e-12,
+     "engine": "separable"
+    },
+    {
+     "label": "1e-12",
+     "knob": -12,
+     "rtol": 1e-12,
+     "n_slabs": null,
+     "max_abs_error": 8.147149621606786e-12,
+     "engine": "separable"
+    }
+   ],
+   "Magnus": [
+    {
+     "label": "1",
+     "knob": 1,
+     "rtol": null,
+     "n_slabs": 1,
+     "max_abs_error": 0.02996846063246028,
+     "engine": "separable"
+    },
+    {
+     "label": "8",
+     "knob": 8,
+     "rtol": null,
+     "n_slabs": 8,
+     "max_abs_error": 0.011468963025905166,
+     "engine": "separable"
+    },
+    {
+     "label": "32",
+     "knob": 32,
+     "rtol": null,
+     "n_slabs": 32,
+     "max_abs_error": 1.7926437223092506e-05,
+     "engine": "separable"
+    },
+    {
+     "label": "128",
+     "knob": 128,
+     "rtol": null,
+     "n_slabs": 128,
+     "max_abs_error": 6.779858350292045e-07,
+     "engine": "separable"
+    },
+    {
+     "label": "512",
+     "knob": 512,
+     "rtol": null,
+     "n_slabs": 512,
+     "max_abs_error": 1.603947197281741e-09,
+     "engine": "separable"
+    },
+    {
+     "label": "2048",
+     "knob": 2048,
+     "rtol": null,
+     "n_slabs": 2048,
+     "max_abs_error": 1.0170198017078746e-11,
+     "engine": "separable"
+    }
+   ]
+  }
+ }
+}

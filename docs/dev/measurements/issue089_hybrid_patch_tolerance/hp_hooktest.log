@@ -1,0 +1,2 @@
+{"hook": "/tmp/claude-1000/-home-mbustamante-Research-magnus/a0d2e3ee-05d1-4f5e-8936-3df18ac27060/scratchpad/hp/mirror/src/magnus/adiabatic.py", "where": "hooktest | ", "pid": 2493427}
+{"where": "hooktest | import numpy as np, magnus.oscprob as op, magnus.globaldefs as gd / P = op.osc_prob_3nu_matter_exp_den", "rtol": 1e-12, "atol": 1e-14, "n_windows": 1, "certified": true, "order": 4, "pid": 2493427}

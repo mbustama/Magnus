@@ -1,0 +1,10 @@
+23:59:58 parallel pass: four copies, value-only sections, no timing; mem avail 9601 MB
+00:16:57 nb28_w0 exit 0; mem avail 7846 MB
+01:05:00 nb28_w2 exit 0; mem avail 8187 MB
+01:06:42 nb28_w1 exit 0; mem avail 9055 MB
+01:09:37 nb28_w3 exit 0; mem avail 10141 MB
+01:09:37 parallel pass done; waiting for the usual quiet level (1-min and 5-min load <= 1.0, three minutes)
+01:19:37 solo pass: the timed prob_vs sections, one process
+01:21:15 nb28_solo exit 0; mem avail 10122 MB
+merged 94 sections
+01:21:17 diff written; TIMING-SKIPPED markers: 4
