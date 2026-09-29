@@ -192,6 +192,49 @@ undeclared density jump still runs, and still warns.  Over 20 smooth workloads w
 profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
 default tolerance of 1e-3, where the hybrid took 8 s.
 
+**Which engine answers a request.**  Put together, the rules above give the engine that
+answers each kind of request under ``strategy='auto'``, by the shape of the request and the
+tolerance, ``min(rtol, atol)``.  "Many energies" are at one baseline, and "baselines" are at
+one energy.  "Too many slabs" means that the ladder would start with more than a quarter of its
+slab cap, as across the Sun.  ``strategy_info`` reports the engine that answered.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 36 36
+
+   * - Request
+     - Tolerance >= 1e-6 (includes the default, 1e-3)
+     - Tolerance < 1e-6
+   * - ``average=True``
+     - averaged probability
+     - averaged probability
+   * - Constant ``H``
+     - constant Hamiltonian
+     - constant Hamiltonian
+   * - Smooth ``H``, one point
+     - general ladder; adiabatic if the phase exceeds 1e4 or with too many slabs
+     - adiabatic; if it cannot certify, the ladder (the interaction picture for an
+       exponential profile at two flavors)
+   * - Smooth ``H``, many energies
+     - energy-batched scan; adiabatic with too many slabs
+     - adiabatic; if it cannot certify, the energy-batched scan
+   * - Smooth ``H``, 2 to 7 baselines
+     - cumulative scan; adiabatic if the phase exceeds 1e4 or with too many slabs
+     - adiabatic; if it cannot certify, the cumulative scan
+   * - Smooth ``H``, 8 or more baselines
+     - cumulative scan
+     - cumulative scan
+   * - Declared discontinuities (``t_breakpoints`` or ``t_slab_edges``)
+     - ladder, energy-batched scan, or cumulative scan, by the shape of the request
+     - the same
+
+At a tolerance tighter than 1e-6, a smooth-profile energy scan goes to the adiabatic engine,
+which is the slower route for a scan: on 300 energies through an exponential profile at 1e-8,
+7.1 s against 0.06 s for the energy-batched scan, both within the tolerance.  Passing
+``strategy='magnus'`` keeps an energy scan on the energy-batched scan; it also turns off the
+cumulative scan, so it is not the choice for a baseline scan.  Issue #125 tracks whether the
+tolerance condition should apply to scans at all.
+
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.
 Measured against ``solve_ivp`` when the seam was at 25 baselines, so that 24 went to the hybrid
