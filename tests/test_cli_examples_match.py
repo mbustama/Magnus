@@ -73,8 +73,8 @@ SOURCES = ((CLI_RST, _blocks, INDENT), (README, _fenced, ''))
 
 def _parse(text):
     """(command, expected stdout, lines consumed by the command) for one quoted call, or None."""
-    if not text or not text[0].startswith('$ magnus prob'):
-        return None
+    if not text or not text[0].startswith('$ magnus --'):
+        return None                       # a call written without the optional 'prob' (#138)
     if sum(1 for t in text if t.startswith('$ ')) > 1:
         return None                       # the two-command error example
     argv, k = [], 0
@@ -92,7 +92,7 @@ def _parse(text):
 
 
 def _examples():
-    """Every verbatim ``$ magnus prob`` example: (file, command, expected stdout, span)."""
+    """Every verbatim ``$ magnus`` example: (file, command, expected stdout, span)."""
     out = []
     for path, blocks, indent in SOURCES:
         lines = path.read_text(encoding='utf-8').splitlines()
@@ -106,10 +106,10 @@ def _examples():
 
 
 def _run(command):
-    assert command.startswith('magnus prob ')
+    assert command.startswith('magnus ')
     env = dict(os.environ, COLUMNS='90')
-    r = subprocess.run([sys.executable, '-m', 'magnus', 'prob']
-                       + command[len('magnus prob '):].split(),
+    r = subprocess.run([sys.executable, '-m', 'magnus']
+                       + command[len('magnus '):].split(),
                        capture_output=True, text=True, env=env)
     assert r.returncode == 0, "%r exited %d: %s" % (command, r.returncode, r.stderr[-400:])
     return [ln.rstrip() for ln in r.stdout.rstrip('\n').splitlines()]

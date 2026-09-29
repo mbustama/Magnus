@@ -22,6 +22,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`prob` is optional on the command line** (issue #138).  It is the only subcommand, so
+  `magnus --flavors 3 ...` now runs `magnus prob --flavors 3 ...`, with the same output;
+  `magnus prob ...` works as before, and `magnus --help` says so.  The worked examples in
+  `cli.rst`, `installation.rst` and the README drop the word.
 - **`hamiltonian_5nu_nsi_td`** (issue #121), the one builder that existed at two to four flavors
   but not at five; `magnus.hamiltonians` now has 43 builders.
 - **`ratio_number_neutrons_to_protons` in `hamiltonian_4nu_matter_td` and

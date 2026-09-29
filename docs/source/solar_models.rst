@@ -61,7 +61,7 @@ Names are matched without regard to case, and ``'exp'`` is the default.
                                         density_profile=profile)
         print('%-10s <P_ee> = %.4f' % (profile, P_ee))
 
-From the command line, ``magnus prob --environment sun`` takes the same names through
+From the command line, ``magnus --environment sun`` takes the same names through
 ``--density-profile`` (see :doc:`cli`).  `Notebook 13
 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
 compares all twelve on the averaged observable: they agree to :math:`2.4\times10^{-3}`,

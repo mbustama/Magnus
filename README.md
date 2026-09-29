@@ -91,7 +91,7 @@ runnable snippet for each common task.
 ### Or from the command line
 
 ```bash
-$ magnus prob --flavors 3 --environment vacuum \
+$ magnus --flavors 3 --environment vacuum \
     --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
 Magνs 1.1.1 -- osc_prob_3nu_vacuum
 E = 1 GeV, L = 1300 km

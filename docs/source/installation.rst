@@ -56,7 +56,7 @@ Either way, one command confirms it worked:
 
 .. code-block:: bash
 
-   magnus prob --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
+   magnus --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km
 
 If you would rather not install the package at all, put ``src/`` on your Python

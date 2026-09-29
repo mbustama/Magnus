@@ -11,13 +11,16 @@ and :doc:`/cli`), dispatching to the right one based on ``--flavors``,
 ``--environment``, ``--scenario`` and ``--density-profile``.
 
 Installed as the ``magnus`` console script (see ``[project.scripts]``
-in pyproject.toml) and also runnable as ``python -m magnus``.
+in pyproject.toml) and also runnable as ``python -m magnus``.  Its one
+subcommand, ``prob``, is the default: ``magnus --flavors 3 ...`` runs
+``magnus prob --flavors 3 ...`` (issue #138).
 
 Routine listings
 ----------------
 
     * main - Entry point: parses argv, dispatches, prints the result
     * build_parser - Builds the argparse.ArgumentParser
+    * SUBCOMMANDS - The subcommands build_parser registers; the first is the default
     * FLAVOR_NAME_TO_INDEX - Maps flavor names (e, mu, tau, s, s1, s2)
            to their globaldefs index
     * ENERGY_UNITS, LENGTH_UNITS - Unit-name to :math:`\text{eV}` / :math:`\text{eV}^{-1}`
@@ -110,6 +113,40 @@ def _flavor_index(value: str) -> int:
     return FLAVOR_NAME_TO_INDEX[key]
 
 
+SUBCOMMANDS = ('prob',)
+r"""tuple of str: Module-level constant
+
+The subcommands :func:`build_parser` registers.  The first, ``prob``, is the default:
+a command line that names none runs it (issue #138).
+
+.. versionadded:: 1.1.1
+"""
+
+
+def _with_default_subcommand(argv):
+    r"""Prepend the default subcommand unless ``argv`` names one or asks for top-level help.
+
+    ``magnus --flavors 3 ...`` becomes ``magnus prob --flavors 3 ...``.  An empty command
+    line, ``-h``/``--help`` and ``-V``/``--version`` are left to the top-level parser.
+
+    .. versionadded:: 1.1.1
+
+    Parameters
+    ----------
+    argv : list of str
+        The command-line arguments, without the program name.
+
+    Returns
+    -------
+    list of str
+        ``argv``, with ``'prob'`` in front where no subcommand was given.
+    """
+    argv = list(argv)
+    if argv and argv[0] not in SUBCOMMANDS + ('-h', '--help', '-V', '--version'):
+        argv.insert(0, SUBCOMMANDS[0])
+    return argv
+
+
 def build_parser() -> argparse.ArgumentParser:
     r"""Builds the ``magnus`` command-line argument parser.
 
@@ -118,11 +155,16 @@ def build_parser() -> argparse.ArgumentParser:
     Returns
     -------
     argparse.ArgumentParser
-        The top-level parser, with the ``prob`` subcommand attached.
+        The top-level parser, with the ``prob`` subcommand attached.  Its epilog says that
+        ``prob`` is the default subcommand, which :func:`main` supplies when none is given.
+
+    .. versionchanged:: 1.1.1
+       The epilog names ``prob`` as the default subcommand (issue #138).
     """
     parser = argparse.ArgumentParser(
         prog='magnus',
-        description="Magνs: neutrino oscillation probabilities via the Magnus expansion.")
+        description="Magνs: neutrino oscillation probabilities via the Magnus expansion.",
+        epilog="prob is the default subcommand: 'magnus ...' runs 'magnus prob ...'.")
     parser.add_argument('-V', '--version', action='version', version=f'magnus {__version__}')
     sub = parser.add_subparsers(dest='command', required=True)
 
@@ -677,7 +719,13 @@ def _format_table(P: np.ndarray, flavors: int, precision: int) -> str:
 def main(argv=None) -> int:
     r"""Entry point for the ``magnus`` console script / ``python -m magnus``.
 
+    A command line that names no subcommand runs ``prob``, the only one:
+    ``magnus --flavors 3 ...`` is ``magnus prob --flavors 3 ...``.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.1.1
+       ``prob`` is optional (issue #138).
 
     Parameters
     ----------
@@ -697,7 +745,7 @@ def main(argv=None) -> int:
         combination of flags that ``_env_kwargs`` or ``_wrapper_name`` refuses.
     """
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_with_default_subcommand(sys.argv[1:] if argv is None else argv))
 
     flavors = args.flavors
     environment = args.environment
