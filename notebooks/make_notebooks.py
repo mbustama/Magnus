@@ -15867,9 +15867,9 @@ ax.set_xlim(0.034, 0.094)
 ax.set_ylim(0.005, 0.025)
 ax.grid(True, which='major', color=GRID, lw=0.5); ax.set_axisbelow(True)
 tag = ax.text(0.97, 0.97, 'DUNE\n$L = 1300$~km, $E = 2$~GeV\nNormal ordering',
-              transform=ax.transAxes, ha='right', va='top', fontsize=7.4, color=INK,
+              transform=ax.transAxes, ha='right', va='top', fontsize=7.4, color='black',
               zorder=6, linespacing=1.4,
-              bbox=dict(boxstyle='round,pad=0.35', fc='white', ec=INK, lw=0.6))
+              bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='black', lw=0.6))
 # The delta_CP legend hangs below the label, flush with its right border; both are measured
 # from the drawn box, since a text's anchor is the text and not its frame.
 fig.canvas.draw()
