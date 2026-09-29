@@ -36,6 +36,7 @@ __email__ = "mbustamante@gmail.com"
 
 
 import argparse
+import math
 import inspect
 import json
 import sys
@@ -111,6 +112,36 @@ def _flavor_index(value: str) -> int:
             f"invalid flavor {value!r}; expected an integer index or one of "
             f"{sorted(FLAVOR_NAME_TO_INDEX)}")
     return FLAVOR_NAME_TO_INDEX[key]
+
+
+def _finite_float(value: str) -> float:
+    r"""argparse type= callback: a finite number.
+
+    ``float()`` accepts 'nan' and 'inf', and a NaN baseline or phase used to print a table of
+    NaN with exit code 0 (issue #160 §13).
+    """
+    try:
+        x = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid number {value!r}") from None
+    if not math.isfinite(x):
+        raise argparse.ArgumentTypeError(f"must be a finite number, not {value!r}")
+    return x
+
+
+def _precision(value: str) -> int:
+    r"""argparse type= callback: a digit count from 0 to 17, what a float64 can show.
+
+    -1 used to print the header and then a raw traceback; 100 printed digits beyond float64.
+    """
+    try:
+        n = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid int value {value!r}") from None
+    if not 0 <= n <= 17:
+        raise argparse.ArgumentTypeError(f"must be from 0 to 17 (the digits a double carries), "
+                                         f"not {n}")
+    return n
 
 
 SUBCOMMANDS = ('prob',)
@@ -216,15 +247,15 @@ def build_parser() -> argparse.ArgumentParser:
              'matter, so the two probabilities are equal.')
 
     g_kin = p.add_argument_group('Energy and baseline')
-    g_kin.add_argument('--energy', type=float, required=True, help='Neutrino energy.')
+    g_kin.add_argument('--energy', type=_finite_float, required=True, help='Neutrino energy.')
     g_kin.add_argument('--energy-unit', choices=list(ENERGY_UNITS), default='GeV',
         help='Unit of --energy (default: GeV).')
-    g_kin.add_argument('--baseline', type=float, default=None,
+    g_kin.add_argument('--baseline', type=_finite_float, default=None,
         help='Baseline / final position. Required for vacuum, matter, and sun, and for earth '
              'when using --costhz, unless --source-depth or --detector-depth is given, which '
              'computes it. Computed automatically for earth when both --loc-ini and --loc-fin '
              'are given instead. --detector-depth requires it to be omitted.')
-    g_kin.add_argument('--l0', type=float, default=0.0,
+    g_kin.add_argument('--l0', type=_finite_float, default=0.0,
         help='Initial position (used by --environment sun and --density-profile exp). '
              'Default: 0.0.')
     g_kin.add_argument('--baseline-unit', choices=list(LENGTH_UNITS), default='km',
@@ -232,22 +263,22 @@ def build_parser() -> argparse.ArgumentParser:
              '(default: km).')
 
     g_mat = p.add_argument_group('Matter (--environment matter)')
-    g_mat.add_argument('--rho', type=float, default=None,
+    g_mat.add_argument('--rho', type=_finite_float, default=None,
         help='Matter density (constant profile).')
-    g_mat.add_argument('--rho-central', type=float, default=None,
+    g_mat.add_argument('--rho-central', type=_finite_float, default=None,
         help='Matter density at the center of the profile, l=0 (exponential profile).')
-    g_mat.add_argument('--l-scale', type=float, default=None,
+    g_mat.add_argument('--l-scale', type=_finite_float, default=None,
         help='Length scale of the exponential density decrease (exponential profile).')
     g_mat.add_argument('--density-unit', choices=['g/cm3', 'natural'], default='g/cm3',
         help='Unit of --rho/--rho-central: g/cm3 (converted internally) or natural units '
              '(eV^4). Default: g/cm3.')
-    g_mat.add_argument('--ratio-n-to-p', type=float, default=1.0,
+    g_mat.add_argument('--ratio-n-to-p', type=_finite_float, default=1.0,
         help='Ratio of the number of neutrons to protons in matter. Default: 1.0.')
-    g_mat.add_argument('--electron-fraction', type=float, default=0.5,
+    g_mat.add_argument('--electron-fraction', type=_finite_float, default=0.5,
         help='Electron fraction of matter. Default: 0.5.')
 
     g_earth = p.add_argument_group('Earth (--environment earth)')
-    g_earth.add_argument('--costhz', type=float, default=None,
+    g_earth.add_argument('--costhz', type=_finite_float, default=None,
         help='Cosine of the neutrino zenith angle.')
     g_earth.add_argument('--loc-ini', default=None,
         help='Initial location name (e.g. fermilab); see magnus.earth.loc_coords_dms. '
@@ -258,12 +289,12 @@ def build_parser() -> argparse.ArgumentParser:
     # baseline they replace.  Naming --detector-depth makes --baseline unnecessary rather
     # than optional: the library raises if both arrive, so the branch below stops it here
     # with a message that names the flags rather than the parameters.
-    g_earth.add_argument('--detector-depth', type=float, default=0.0,
+    g_earth.add_argument('--detector-depth', type=_finite_float, default=0.0,
         help='Depth of the detector below the surface, in --baseline-unit. The zenith '
              'angle is measured at the detector, so a buried one also sees downward-going '
              'neutrinos (--costhz > 0) through its overburden. Computes the baseline, so '
              '--baseline must be omitted. Default: 0 (a detector on the surface).')
-    g_earth.add_argument('--source-depth', type=float, default=0.0,
+    g_earth.add_argument('--source-depth', type=_finite_float, default=0.0,
         help="Depth of the neutrino's entry point below the surface, in --baseline-unit. "
              'Default: 0 (entry at the surface).')
 
@@ -280,20 +311,20 @@ def build_parser() -> argparse.ArgumentParser:
              'their sines, sin2 their sines squared -- the form global fits report -- rad the '
              'angles in radians, deg in degrees. Under deg the CP phases (--dcp, --d14, ...) '
              'are read as degrees too; otherwise they stay in radians.')
-    g_osc.add_argument('--sth', type=float, default=None,
+    g_osc.add_argument('--sth', type=_finite_float, default=None,
         help='Mixing angle theta, in the convention set by --angles (required for --flavors 2).')
-    g_osc.add_argument('--dm2', type=float, default=None, dest='Dm2',
+    g_osc.add_argument('--dm2', type=_finite_float, default=None, dest='Dm2',
         help='Mass-squared difference Delta m^2 (required for --flavors 2).')
 
     g_osc3 = p.add_argument_group('Standard oscillation parameters (3+ flavors)')
-    g_osc3.add_argument('--s12', type=float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFIT 6.1.')
-    g_osc3.add_argument('--s23', type=float, default=None, help='Mixing angle theta_23, per --angles. Default: NuFIT 6.1.')
-    g_osc3.add_argument('--s13', type=float, default=None, help='Mixing angle theta_13, per --angles. Default: NuFIT 6.1.')
-    g_osc3.add_argument('--dcp', type=float, default=None, dest='dCP',
+    g_osc3.add_argument('--s12', type=_finite_float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFIT 6.1.')
+    g_osc3.add_argument('--s23', type=_finite_float, default=None, help='Mixing angle theta_23, per --angles. Default: NuFIT 6.1.')
+    g_osc3.add_argument('--s13', type=_finite_float, default=None, help='Mixing angle theta_13, per --angles. Default: NuFIT 6.1.')
+    g_osc3.add_argument('--dcp', type=_finite_float, default=None, dest='dCP',
         help='delta_CP [radian, or degree with --angles deg]. Default: NuFIT 6.1.')
-    g_osc3.add_argument('--dm21', type=float, default=None, dest='D21',
+    g_osc3.add_argument('--dm21', type=_finite_float, default=None, dest='D21',
         help='Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.')
-    g_osc3.add_argument('--dm31', type=float, default=None, dest='D31',
+    g_osc3.add_argument('--dm31', type=_finite_float, default=None, dest='D31',
         help='Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.')
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
@@ -313,71 +344,71 @@ def build_parser() -> argparse.ArgumentParser:
              'asking for inverted ordering silently dropped a release behind the default.')
 
     g_osc4 = p.add_argument_group('Additional sterile mixing (4+ flavors)')
-    g_osc4.add_argument('--s14', type=float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')
-    g_osc4.add_argument('--d14', type=float, default=0.0, help='delta_14 [radian, or degree with --angles deg]. Default: 0.0.')
-    g_osc4.add_argument('--s24', type=float, default=0.0, help='Mixing angle theta_24, per --angles. Default: 0.0.')
-    g_osc4.add_argument('--d24', type=float, default=0.0, help='delta_24 [radian, or degree with --angles deg]. Default: 0.0.')
-    g_osc4.add_argument('--s34', type=float, default=0.0, help='Mixing angle theta_34, per --angles. Default: 0.0.')
-    g_osc4.add_argument('--dm41', type=float, default=0.0, dest='D41',
+    g_osc4.add_argument('--s14', type=_finite_float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')
+    g_osc4.add_argument('--d14', type=_finite_float, default=0.0, help='delta_14 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc4.add_argument('--s24', type=_finite_float, default=0.0, help='Mixing angle theta_24, per --angles. Default: 0.0.')
+    g_osc4.add_argument('--d24', type=_finite_float, default=0.0, help='delta_24 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc4.add_argument('--s34', type=_finite_float, default=0.0, help='Mixing angle theta_34, per --angles. Default: 0.0.')
+    g_osc4.add_argument('--dm41', type=_finite_float, default=0.0, dest='D41',
         help='Mass-squared difference Delta m^2_41. Default: 0.0.')
 
     g_osc5 = p.add_argument_group('Additional sterile mixing (5 flavors)')
-    g_osc5.add_argument('--s15', type=float, default=0.0, help='Mixing angle theta_15, per --angles. Default: 0.0.')
-    g_osc5.add_argument('--d15', type=float, default=0.0, help='delta_15 [radian, or degree with --angles deg]. Default: 0.0.')
-    g_osc5.add_argument('--s25', type=float, default=0.0, help='Mixing angle theta_25, per --angles. Default: 0.0.')
-    g_osc5.add_argument('--s35', type=float, default=0.0, help='Mixing angle theta_35, per --angles. Default: 0.0.')
-    g_osc5.add_argument('--d35', type=float, default=0.0, help='delta_35 [radian, or degree with --angles deg]. Default: 0.0.')
-    g_osc5.add_argument('--dm51', type=float, default=0.0, dest='D51',
+    g_osc5.add_argument('--s15', type=_finite_float, default=0.0, help='Mixing angle theta_15, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--d15', type=_finite_float, default=0.0, help='delta_15 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc5.add_argument('--s25', type=_finite_float, default=0.0, help='Mixing angle theta_25, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--s35', type=_finite_float, default=0.0, help='Mixing angle theta_35, per --angles. Default: 0.0.')
+    g_osc5.add_argument('--d35', type=_finite_float, default=0.0, help='delta_35 [radian, or degree with --angles deg]. Default: 0.0.')
+    g_osc5.add_argument('--dm51', type=_finite_float, default=0.0, dest='D51',
         help='Mass-squared difference Delta m^2_51. Default: 0.0.')
 
     g_nsi = p.add_argument_group('NSI parameters (--scenario nsi)')
-    g_nsi.add_argument('--eps-aa', type=float, default=0.0, help='2-flavor diagonal NSI coupling.')
-    g_nsi.add_argument('--eps-ab', type=float, default=0.0, help='2-flavor off-diagonal NSI coupling.')
-    g_nsi.add_argument('--eps-ee', type=float, default=0.0, help='Diagonal NSI coupling of nu_e.')
-    g_nsi.add_argument('--eps-em', type=float, default=0.0, help='Off-diagonal (e-mu) NSI coupling.')
-    g_nsi.add_argument('--eps-et', type=float, default=0.0, help='Off-diagonal (e-tau) NSI coupling.')
-    g_nsi.add_argument('--eps-mm', type=float, default=0.0, help='Diagonal NSI coupling of nu_mu.')
-    g_nsi.add_argument('--eps-mt', type=float, default=0.0, help='Off-diagonal (mu-tau) NSI coupling.')
-    g_nsi.add_argument('--eps-tt', type=float, default=0.0, help='Diagonal NSI coupling of nu_tau.')
-    g_nsi.add_argument('--eps-es', type=float, default=0.0, help='(4nu) Off-diagonal (e-s) NSI coupling.')
-    g_nsi.add_argument('--eps-ms', type=float, default=0.0, help='(4nu) Off-diagonal (mu-s) NSI coupling.')
-    g_nsi.add_argument('--eps-ts', type=float, default=0.0, help='(4nu) Off-diagonal (tau-s) NSI coupling.')
-    g_nsi.add_argument('--eps-ss', type=float, default=0.0, help='(4nu) Diagonal NSI coupling of nu_s.')
-    g_nsi.add_argument('--eps-es1', type=float, default=0.0, help='(5nu) Off-diagonal (e-s1) NSI coupling.')
-    g_nsi.add_argument('--eps-es2', type=float, default=0.0, help='(5nu) Off-diagonal (e-s2) NSI coupling.')
-    g_nsi.add_argument('--eps-ms1', type=float, default=0.0, help='(5nu) Off-diagonal (mu-s1) NSI coupling.')
-    g_nsi.add_argument('--eps-ms2', type=float, default=0.0, help='(5nu) Off-diagonal (mu-s2) NSI coupling.')
-    g_nsi.add_argument('--eps-ts1', type=float, default=0.0, help='(5nu) Off-diagonal (tau-s1) NSI coupling.')
-    g_nsi.add_argument('--eps-ts2', type=float, default=0.0, help='(5nu) Off-diagonal (tau-s2) NSI coupling.')
-    g_nsi.add_argument('--eps-s1s1', type=float, default=0.0, help='(5nu) Diagonal NSI coupling of nu_s1.')
-    g_nsi.add_argument('--eps-s1s2', type=float, default=0.0, help='(5nu) Off-diagonal (s1-s2) NSI coupling.')
-    g_nsi.add_argument('--eps-s2s2', type=float, default=0.0, help='(5nu) Diagonal NSI coupling of nu_s2.')
+    g_nsi.add_argument('--eps-aa', type=_finite_float, default=0.0, help='2-flavor diagonal NSI coupling.')
+    g_nsi.add_argument('--eps-ab', type=_finite_float, default=0.0, help='2-flavor off-diagonal NSI coupling.')
+    g_nsi.add_argument('--eps-ee', type=_finite_float, default=0.0, help='Diagonal NSI coupling of nu_e.')
+    g_nsi.add_argument('--eps-em', type=_finite_float, default=0.0, help='Off-diagonal (e-mu) NSI coupling.')
+    g_nsi.add_argument('--eps-et', type=_finite_float, default=0.0, help='Off-diagonal (e-tau) NSI coupling.')
+    g_nsi.add_argument('--eps-mm', type=_finite_float, default=0.0, help='Diagonal NSI coupling of nu_mu.')
+    g_nsi.add_argument('--eps-mt', type=_finite_float, default=0.0, help='Off-diagonal (mu-tau) NSI coupling.')
+    g_nsi.add_argument('--eps-tt', type=_finite_float, default=0.0, help='Diagonal NSI coupling of nu_tau.')
+    g_nsi.add_argument('--eps-es', type=_finite_float, default=0.0, help='(4nu) Off-diagonal (e-s) NSI coupling.')
+    g_nsi.add_argument('--eps-ms', type=_finite_float, default=0.0, help='(4nu) Off-diagonal (mu-s) NSI coupling.')
+    g_nsi.add_argument('--eps-ts', type=_finite_float, default=0.0, help='(4nu) Off-diagonal (tau-s) NSI coupling.')
+    g_nsi.add_argument('--eps-ss', type=_finite_float, default=0.0, help='(4nu) Diagonal NSI coupling of nu_s.')
+    g_nsi.add_argument('--eps-es1', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (e-s1) NSI coupling.')
+    g_nsi.add_argument('--eps-es2', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (e-s2) NSI coupling.')
+    g_nsi.add_argument('--eps-ms1', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (mu-s1) NSI coupling.')
+    g_nsi.add_argument('--eps-ms2', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (mu-s2) NSI coupling.')
+    g_nsi.add_argument('--eps-ts1', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (tau-s1) NSI coupling.')
+    g_nsi.add_argument('--eps-ts2', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (tau-s2) NSI coupling.')
+    g_nsi.add_argument('--eps-s1s1', type=_finite_float, default=0.0, help='(5nu) Diagonal NSI coupling of nu_s1.')
+    g_nsi.add_argument('--eps-s1s2', type=_finite_float, default=0.0, help='(5nu) Off-diagonal (s1-s2) NSI coupling.')
+    g_nsi.add_argument('--eps-s2s2', type=_finite_float, default=0.0, help='(5nu) Diagonal NSI coupling of nu_s2.')
 
     g_liv = p.add_argument_group('LIV parameters (--scenario liv)')
-    g_liv.add_argument('--sxi', type=float, default=0.0, help='2-flavor LIV mixing angle xi, per --angles.')
-    g_liv.add_argument('--sxi12', type=float, default=0.0, help='LIV mixing angle xi_12, per --angles.')
-    g_liv.add_argument('--sxi23', type=float, default=0.0, help='LIV mixing angle xi_23, per --angles.')
-    g_liv.add_argument('--sxi13', type=float, default=0.0, help='LIV mixing angle xi_13, per --angles.')
-    g_liv.add_argument('--dxicp', type=float, default=0.0, dest='dxiCP',
+    g_liv.add_argument('--sxi', type=_finite_float, default=0.0, help='2-flavor LIV mixing angle xi, per --angles.')
+    g_liv.add_argument('--sxi12', type=_finite_float, default=0.0, help='LIV mixing angle xi_12, per --angles.')
+    g_liv.add_argument('--sxi23', type=_finite_float, default=0.0, help='LIV mixing angle xi_23, per --angles.')
+    g_liv.add_argument('--sxi13', type=_finite_float, default=0.0, help='LIV mixing angle xi_13, per --angles.')
+    g_liv.add_argument('--dxicp', type=_finite_float, default=None, dest='dxiCP',
         help='(3/4/5nu) LIV CP-violation phase of the 1-3 rotation [radian, or degree with --angles deg].')
-    g_liv.add_argument('--dxi13', type=float, default=None,
+    g_liv.add_argument('--dxi13', type=_finite_float, default=None,
         help='(4/5nu) Former name of --dxicp; still accepted, with a warning.')
-    g_liv.add_argument('--sxi14', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
-    g_liv.add_argument('--dxi14', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--sxi24', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
-    g_liv.add_argument('--dxi24', type=float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--sxi34', type=float, default=0.0, help='(4/5nu) LIV mixing angle xi_34, per --angles.')
-    g_liv.add_argument('--sxi15', type=float, default=0.0, help='(5nu) LIV mixing angle xi_15, per --angles.')
-    g_liv.add_argument('--dxi15', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--sxi25', type=float, default=0.0, help='(5nu) LIV mixing angle xi_25, per --angles.')
-    g_liv.add_argument('--sxi35', type=float, default=0.0, help='(5nu) LIV mixing angle xi_35, per --angles.')
-    g_liv.add_argument('--dxi35', type=float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--b1', type=float, default=0.0, help='LIV eigenvalue b1.')
-    g_liv.add_argument('--b2', type=float, default=0.0, help='LIV eigenvalue b2.')
-    g_liv.add_argument('--b3', type=float, default=0.0, help='LIV eigenvalue b3.')
-    g_liv.add_argument('--b4', type=float, default=0.0, help='LIV eigenvalue b4.')
-    g_liv.add_argument('--b5', type=float, default=0.0, help='LIV eigenvalue b5.')
-    g_liv.add_argument('--liv-lambda', type=float, default=1.0, dest='Lambda',
+    g_liv.add_argument('--sxi14', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
+    g_liv.add_argument('--dxi14', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--sxi24', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
+    g_liv.add_argument('--dxi24', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--sxi34', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_34, per --angles.')
+    g_liv.add_argument('--sxi15', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_15, per --angles.')
+    g_liv.add_argument('--dxi15', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--sxi25', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_25, per --angles.')
+    g_liv.add_argument('--sxi35', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_35, per --angles.')
+    g_liv.add_argument('--dxi35', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--b1', type=_finite_float, default=0.0, help='LIV eigenvalue b1.')
+    g_liv.add_argument('--b2', type=_finite_float, default=0.0, help='LIV eigenvalue b2.')
+    g_liv.add_argument('--b3', type=_finite_float, default=0.0, help='LIV eigenvalue b3.')
+    g_liv.add_argument('--b4', type=_finite_float, default=0.0, help='LIV eigenvalue b4.')
+    g_liv.add_argument('--b5', type=_finite_float, default=0.0, help='LIV eigenvalue b5.')
+    g_liv.add_argument('--liv-lambda', type=_finite_float, default=1.0, dest='Lambda',
         help='LIV energy scale Lambda. Default: 1.0.')
     g_liv.add_argument('--n-liv', type=int, default=0,
         help='Power of the energy dependence of the LIV operator. Default: 0.')
@@ -401,9 +432,9 @@ def build_parser() -> argparse.ArgumentParser:
              "(the library default; the CLI does not expose it), "
              "and at a declared breakpoint sample each side of a jump with its own values. "
              "Default: gl.")
-    g_num.add_argument('--rtol', type=float, default=1.e-3,
+    g_num.add_argument('--rtol', type=_finite_float, default=1.e-3,
         help='Relative tolerance on the agreement between successive refinement levels -- a stopping rule, not a guaranteed accuracy. Default: 1e-3.')
-    g_num.add_argument('--atol', type=float, default=1.e-3,
+    g_num.add_argument('--atol', type=_finite_float, default=1.e-3,
         help='Absolute tolerance on the same agreement; see --rtol. Default: 1e-3.')
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',
         help='Number of parallel joblib workers. Default: 1.')
@@ -419,7 +450,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     g_out = p.add_argument_group('Output')
     g_out.add_argument('--json', action='store_true', help='Print the result as JSON instead of a table.')
-    g_out.add_argument('--precision', type=int, default=4,
+    g_out.add_argument('--precision', type=_precision, default=4,
         help='Decimal digits shown in the table and in the single-channel value; ignored '
              'with --json. Default: 4.')
 
@@ -523,7 +554,7 @@ def _liv_kwargs(flavors: int, args: argparse.Namespace) -> dict:
                 'n_liv': args.n_liv}
     kw = {'sxi12': args.sxi12, 'sxi23': args.sxi23, 'sxi13': args.sxi13,
           'b1': args.b1, 'b2': args.b2, 'b3': args.b3, 'Lambda': args.Lambda, 'n_liv': args.n_liv}
-    kw['dxiCP'] = args.dxiCP
+    kw['dxiCP'] = 0.0 if args.dxiCP is None else args.dxiCP
     if flavors >= 4 and args.dxi13 is not None:
         warnings.warn("magnus: '--dxi13' is deprecated; use '--dxicp', which means the same.",
                       FutureWarning, stacklevel=2)
@@ -744,6 +775,43 @@ def _format_table(P: np.ndarray, flavors: int, precision: int) -> str:
     return '\n'.join(lines)
 
 
+class _ReadRecorder:
+    r"""Wraps an argparse namespace and records which attributes are read."""
+
+    def __init__(self, namespace):
+        object.__setattr__(self, '_ns', namespace)
+        object.__setattr__(self, 'read', set())
+
+    def __getattr__(self, name):
+        self.read.add(name)
+        return getattr(self._ns, name)
+
+
+# Flags that every run uses, or that main() reads for itself rather than through a builder.
+_ALWAYS_USED = frozenset(('command', 'flavors', 'environment', 'scenario', 'density_profile',
+    'energy', 'energy_unit', 'baseline', 'baseline_unit', 'nubar', 'nu_i', 'nu_f', 'verbose',
+    'magnus_exp_order', 'n_jobs', 'integration_method', 'rtol', 'atol', 'json', 'precision',
+    'help', 'version'))
+
+
+def _unread_flags(prob: argparse.ArgumentParser, args: argparse.Namespace,
+                  used: _ReadRecorder) -> list:
+    r"""The flags set on the command line that no part of this run read, by their option names.
+
+    A flag counts as set when its value differs from its default.
+
+    .. versionadded:: 1.2.0
+    """
+    out = []
+    for action in prob._actions:
+        dest = action.dest
+        if dest in _ALWAYS_USED or dest in used.read or not action.option_strings:
+            continue
+        if getattr(args, dest, action.default) != action.default:
+            out.append(action.option_strings[-1])
+    return out
+
+
 def main(argv=None) -> int:
     r"""Entry point for the ``magnus`` console script / ``python -m magnus``.
 
@@ -774,6 +842,18 @@ def main(argv=None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(_with_default_subcommand(sys.argv[1:] if argv is None else argv))
+    prob = parser.default_subparser
+
+    # The deprecated name and the new one together: the old name used to win silently, while
+    # the Python API refuses the pair (issue #160 §13).
+    if args.dxi13 is not None and args.dxiCP is not None:
+        prob.error("give --dxicp or its deprecated alias --dxi13, not both.")
+
+    # The builders below read, from `args`, exactly the flags this run uses.  Anything the
+    # user set and none of them read would be ignored in silence -- --rho in vacuum, an NSI
+    # coupling without --scenario nsi, a sterile angle at three flavors -- so it is refused
+    # instead, by name (issue #160 §13).
+    used = _ReadRecorder(args)
 
     flavors = args.flavors
     environment = args.environment
@@ -799,12 +879,12 @@ def main(argv=None) -> int:
     fn = getattr(oscprob, fn_name)
 
     candidate = {'energy': energy_ev}
-    candidate.update(_env_kwargs(environment, density_profile, args, baseline_ev, l0_ev))
-    candidate.update(_std_osc_kwargs(flavors, args))
+    candidate.update(_env_kwargs(environment, density_profile, used, baseline_ev, l0_ev))
+    candidate.update(_std_osc_kwargs(flavors, used))
     if scenario == 'nsi':
-        candidate.update(_nsi_kwargs(flavors, args))
+        candidate.update(_nsi_kwargs(flavors, used))
     elif scenario == 'liv':
-        candidate.update(_liv_kwargs(flavors, args))
+        candidate.update(_liv_kwargs(flavors, used))
     candidate.update({
         'nubar': args.nubar, 'nu_i': args.nu_i, 'nu_f': args.nu_f,
         'validate_input': True, 'verbose': args.verbose,
@@ -817,14 +897,29 @@ def main(argv=None) -> int:
     # way down to the Magnus core, which would reject it.
     if environment in ('earth', 'sun') or (environment == 'matter'
                                            and density_profile == 'exp'):
-        candidate['strategy'] = args.strategy
+        candidate['strategy'] = used.strategy
+    if 'L0' in candidate:
+        used.l0
+
+    ignored = _unread_flags(prob, args, used)
+    if ignored:
+        prob.error(", ".join(ignored) + (" does" if len(ignored) == 1 else " do") +
+                   " not apply to --flavors " + str(flavors) + " --environment " + environment +
+                   " --scenario " + scenario + (" --density-profile " + density_profile
+                   if environment in ('matter', 'sun') else "") + ", and would be ignored.")
 
     try:
         P = _call(fn, candidate)
     except ValueError as error:
         # The library validates its own inputs and raises; surface that as a clean CLI error
-        # (exit code 2, like any other argument problem) rather than a raw traceback.
-        parser.error(str(error))
+        # (exit code 2, like any other argument problem) rather than a raw traceback.  The
+        # library names its own arguments; the flag the user typed is named instead.
+        message = str(error)
+        for action in prob._actions:
+            if action.option_strings and action.dest not in ('help', 'version'):
+                message = message.replace(': ' + action.dest + ' must',
+                                          ': ' + action.option_strings[-1] + ' must')
+        parser.error(message)
 
     if args.json:
         payload = {

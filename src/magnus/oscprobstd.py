@@ -151,7 +151,6 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
     sth = _angles.resolve('oscprobstd.osc_prob_2nu_matter_std', angles, {'sth': sth})[0]['sth']
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
-    s2thsq = s2th*s2th
     # Signed: sqrt(1 - sin^2(2 theta)) is non-negative, which silently reflects the
     # second octant onto the first.  The two agree only up to theta = 45 degrees.
     c2th = cth*cth - sth*sth

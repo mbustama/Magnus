@@ -8752,6 +8752,21 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
     --------
     ENGINE_FAMILIES : which engines share machinery, and therefore which pairs carry information.
     """
+    # engines: None, or a non-empty list of labels.  A bare string was iterated letter by
+    # letter, an int raised a raw TypeError, and [] returned {} as though every check had
+    # passed (issue #160 §14).
+    _where = "oscprob.cross_check_strategies"
+    if not callable(entry_point):
+        raise _v.InputTypeError(_v._msg(_where, "entry_point must be one of the osc_prob "
+            "functions; got " + type(entry_point).__name__ + "."))
+    if engines is not None:
+        if isinstance(engines, str) or not isinstance(engines, (list, tuple, set, frozenset)):
+            raise _v.InputTypeError(_v._msg(_where, "engines must be None or a list of engine "
+                "labels, such as ['hybrid', 'magnus']; got " + type(engines).__name__ + " " +
+                repr(engines) + "."))
+        if len(engines) == 0:
+            raise ValueError(_v._msg(_where, "engines is empty, so there is nothing to "
+                "compare; pass None for every engine."))
     wanted = tuple(_CROSS_CHECK_FORCING) + ('expm',) if engines is None else tuple(engines)
     unknown = set(wanted) - set(_CROSS_CHECK_FORCING) - {'expm'}
     if unknown:

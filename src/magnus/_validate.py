@@ -44,7 +44,10 @@ Routine listings
     * r_real_array - Rule factory: a real scalar or array
 """
 
+import functools as _functools
+import inspect as _inspect
 import numbers
+import sys as _sys
 
 import numpy as np
 
@@ -427,9 +430,6 @@ def check_refinement(where: str, values: dict) -> None:
 # user gets every argument checked.
 # ---------------------------------------------------------------------------------------------
 
-import functools as _functools
-import inspect as _inspect
-import sys as _sys
 
 
 def _called_from_inside(depth: int) -> bool:
