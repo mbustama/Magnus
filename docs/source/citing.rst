@@ -66,4 +66,4 @@ Related software
 
 If your Hamiltonian is constant or piecewise constant, `NuOscProbExact
 <https://github.com/mbustama/NuOscProbExact>`_ solves that case in closed form
-and has its own citation; see :ref:`use-nuoscprobexact-instead`.
+and has its own citation; see :doc:`comparison` for when to use it.
