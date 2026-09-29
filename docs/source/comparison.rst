@@ -6,17 +6,17 @@ Against other codes
    :depth: 2
 
 Magνs is not the fastest way to compute every oscillation probability, and
-this page says where it is not.  Everything below is measured in
-:doc:`notebook 25 <tutorials>`, with **every code timed in one process on one
-machine** and refereed by a method that is neither code's.  The frozen
-datasets it draws on live in ``notebooks/external_*.json``.
-
-Two codes are compared throughout: `NuOscProbExact
+this page says where it is not.  It has two parts.  The first gives the
+comparisons in the Magνs paper: eight codes on three setups, NuOscProbExact at
+two to five flavors, and the cost of an averaged solar probability, all computed in
+notebook 28.  The second goes into more detail on two of the codes, `NuOscProbExact
 <https://github.com/mbustama/NuOscProbExact>`_ :cite:p:`Bustamante:2019ggq`,
 which solves each slab of constant density in closed form, and `nuSQuIDS
 <https://github.com/arguelles/nuSQuIDS>`_
 :cite:p:`Arguelles:2021twb,Delgado:2014lyt`, which integrates the
-density-matrix evolution.
+density-matrix evolution; it is measured in :doc:`notebook 25 <tutorials>`, from
+the frozen datasets in ``notebooks/external_*.json``.  In both, **every code is
+timed in one process on one machine**.
 
 .. warning::
 
@@ -25,6 +25,82 @@ density-matrix evolution.
    only within one code's own curve.  "Code A is faster than code B" does not
    survive a change of hardware; "tightening this dial costs 20% and buys four
    orders of magnitude" does.
+
+Eight codes, three setups
+---------------------------
+
+.. figure:: ../../img/paper/speed_accuracy_combined.png
+   :width: 100%
+   :alt: Error against time per probability for eight codes on three setups
+
+   Error against time per probability, for eight codes: constant density (top), a
+   core-crossing Earth chord at :math:`\cos\theta_z = -0.9` at three flavors
+   (middle), and the same chord with one sterile state (bottom).  Magνs and
+   NuOscProbExact appear twice on the Earth panels because each has two dials, a
+   slab count and a tolerance.
+
+The codes are GLoBES, Prob3++, nuCraft, NuFast-LBL, NuFast-Earth, NuOscProbExact,
+nuSQuIDS and Magνs, with a second-order analytic expansion for reference.  Each is
+scored against a 50-digit reference built in **its own** constants and conventions,
+chiefly the nucleon mass that fixes :math:`V_{\rm CC}`, so two codes can both reach
+:math:`10^{-14}` here and still disagree with each other at :math:`10^{-4}`.
+
+* **Constant density.**  Most codes land near round-off and differ only in cost,
+  from 0.04 µs per probability for NuFast-LBL to about 100 µs for nuSQuIDS.  Magνs
+  sits at :math:`3 \times 10^{-15}` and 3.9 µs.
+* **Earth, three flavors.**  To reach about :math:`3 \times 10^{-10}`, Magνs needs
+  0.43 ms (256 slabs), nuSQuIDS 1.3 ms, NuOscProbExact 26 ms, nuCraft 62 ms and
+  GLoBES 0.5 s.  NuOscProbExact starts twenty times cheaper, and the two cross near
+  :math:`10^{-6}`: its error falls as the square of the slab width, Magνs's as the
+  fourth power.  Asking Magνs for ``rtol=1e-8`` instead of 256 slabs costs about
+  three times as much, for the same accuracy; that is the price of the
+  convergence check.  NuFast-Earth is by far the cheapest when a scan varies only
+  :math:`\delta_{\rm CP}`.
+* **Earth, 3+1 flavors.**  NuFast-Earth, GLoBES and Prob3++ drop out.  The
+  crossing with NuOscProbExact moves up to about :math:`10^{-5}`, because its slab
+  cost grows eightfold at four flavors against under threefold for Magνs.
+
+Against NuOscProbExact, two to five flavors
+---------------------------------------------
+
+.. figure:: ../../img/paper/smooth_reach.png
+   :width: 100%
+   :alt: Accuracy against cost, Magnus against NuOscProbExact
+
+   Deviation from an extended-precision reference against time per probability, at
+   two to five flavors, on a smooth exponential profile (left) and a core-crossing
+   Earth chord (right).  Magνs at orders 4, 6 and 8; NuOscProbExact through its own
+   adaptive refinement.  Both use :math:`Y_e = 0.5`.  NuOscProbExact stops at four
+   flavors.
+
+The closed form is the cheaper code at loose tolerances.  At tight tolerances it
+runs into an accuracy floor that more slabs cannot lower, and Magνs reaches past it.
+
+The averaged solar probability
+--------------------------------
+
+.. figure:: ../../img/paper/solar_average_cost.png
+   :width: 80%
+   :alt: Cost of an averaged solar survival probability
+
+   Time for one averaged :math:`\nu_e` survival probability at 5 MeV through the
+   tabulated BS2005-AGS,OP model, two to five flavors, with and without NSI and LIV:
+   Magνs against a DOP853 integration followed by an average over the last 1% of
+   the path.
+
+Magνs computes the average directly, from one eigendecomposition at production and
+one at detection, and is four or more orders of magnitude faster than integrating
+the :math:`10^5` oscillations and averaging them away.  The call is
+
+.. code-block:: python
+
+    import magnus.globaldefs as gd
+    import magnus.oscprob as oscprob
+    from magnus import solarmodels
+
+    P = oscprob.osc_prob_3nu_sun(
+        5.0*gd.UNIT_MEV, solarmodels.table_edge('BS05-AGS-OP'), 0.0,
+        density_profile='BS05-AGS-OP', average=True, nu_i=gd.NUE, nu_f=gd.NUE)
 
 The boundary, stated once
 ---------------------------
@@ -84,6 +160,9 @@ choose.
    * - More than four flavors
      - **Magνs**
      - The SU(N) expansions stop at SU(4); Magνs has no ceiling
+   * - Three flavors, a fit that varies only :math:`\delta_{\rm CP}`
+     - **NuFast-LBL / NuFast-Earth**
+     - Scalar closed forms, about 0.07 µs per probability
    * - Genuinely open systems: decay, decoherence
      - Neither
      - Needs a Lindblad solver, not a unitary one

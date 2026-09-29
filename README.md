@@ -10,37 +10,11 @@
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-**Magνs** computes neutrino oscillation probabilities between an arbitrary
-number of flavors, for any given Hamiltonian, time-dependent or independent.
-Internally, it propagates the neutrino evolution operator using the **Magnus
-expansion**: rather than integrating the Schrödinger equation step by step, it
-exponentiates truncated time-ordered integrals of the Hamiltonian over a chain
-of position slabs.  Any truncation of the Magnus series lives in the Lie
-algebra, so the evolution operator is **exactly unitary by construction**:
-probabilities are non-negative and sum to one at machine precision, at any
-accuracy setting.
 
-> **How do I say that?** Just like the name **Magnus** — the Greek letter
-> **ν** (nu), the neutrino's symbol, stands in for the "nu" syllable.  (Most of
-> this package was written in Denmark, so
-> [the Danish way](https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate)
-> is welcome too.)
-
-**Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
-oscillations, non-standard interactions, Lorentz-invariance violation, sterile
-states, pseudo-Dirac pairs and a model of your own all go through the same call.
-Two to five flavors ship ready-made; the generic entry points take any
-dimension and any profile, given as a function of position.
-
-**Fast.**  A scan over energy or arrival direction is one batched call rather
-than a loop, worth one to two orders of magnitude per probability.  The median
-call over 164 Earth and solar configurations is **2 ms**; a 200-energy
-Earth-crossing scan takes 76 ms, and a 100 × 100 oscillogram about 2 s.
-
-**Accurate.**  Probabilities are unitary by construction at every setting, not
-by refinement.  On a smooth profile, Magνs reaches **2.9 × 10⁻¹³**, where a
-composition of constant slabs floors at 2.5 × 10⁻¹¹.  Where it cannot certify
-its own answer, it says so.
+**Magνs** computes neutrino oscillation probabilities for two to five flavors, or
+for any Hamiltonian you write, in vacuum, in matter, through the Earth and through
+the Sun.  Its evolution operator is exactly unitary by construction, so every
+probability is non-negative and every row sums to one, at any accuracy setting.
 
 ## Installation
 
@@ -52,24 +26,43 @@ Python 3.10 or newer.  The distribution is **magnuspy** on PyPI, because plain
 `magnus` was taken; the import package is `magnus`.  From a checkout, use
 `pip install -e .`, or `pip install -e '.[test]'` to run the tests.
 
-## Quick start
+## Your first probability
+
+```python
+import magnus.oscprob as oscprob
+import magnus.globaldefs as gd
+
+# 3 flavors, 1 GeV, 1300 km of vacuum
+P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
+print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e) = 0.0313
+```
+
+`P[i][f]` is the probability for $\nu_i \to \nu_f$, with `gd.NUE`, `gd.NUMU`,
+`gd.NUTAU` = 0, 1, 2.  **Energies and distances are in natural units**: multiply
+by `gd.UNIT_GEV` and `gd.UNIT_KM` on the way in.  Oscillation parameters default
+to the NuFIT 6.1 best fit, normal ordering.
+
+The [quick start guide](https://mbustama.github.io/Magnus/quickstart.html) takes
+you from here through matter, the Earth, the Sun, antineutrinos, new physics and
+a Hamiltonian of your own, with every example runnable as written.
+
+## More in a few lines
 
 ```python
 import numpy as np
-import magnus.oscprob as oscprob
-import magnus.globaldefs as gd
 import magnus.earth as earth
 
-osc = gd.load_nufit_params('NuFIT 6.1')          # best-fit parameters
+osc = gd.load_nufit_params('NuFIT 6.1')          # best-fit parameters, as sines
 
-# One probability: 3 flavors, 1 GeV, 1300 km of vacuum
-P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM, **osc)
-
-# A scan: 200 energies through the Earth, in one call.  The zenith angle
-# fixes the direction of the chord; magnus.earth gives its length
+# 200 energies through the Earth in one call: cos(theta_z) = -0.8 fixes the
+# direction of the chord, and magnus.earth gives its length
 E = np.linspace(0.5, 10.0, 200)*gd.UNIT_GEV
 L = earth.distance_traveled_inside_earth(-0.8)*gd.UNIT_KM
-P = oscprob.osc_prob_3nu_earth(E, costhz=-0.8, L=L, **osc)
+P = oscprob.osc_prob_3nu_earth(E, costhz=-0.8, L=L, **osc)          # shape (200, 3, 3)
+
+# Antineutrinos, one channel
+P_bar = oscprob.osc_prob_3nu_earth(E, costhz=-0.8, L=L, nubar=True,
+                                   nu_i=gd.NUMU, nu_f=gd.NUE, **osc)   # shape (200,)
 
 # Solar neutrinos from the center of a standard solar model, phase-averaged
 # over a 10% energy resolution, as a solar experiment measures them
@@ -82,11 +75,8 @@ P, U = oscprob.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=-0.8, L=L,
                                   return_evolution_operator=True, **osc)
 ```
 
-Pass an array where a single energy or baseline would go to get one
-probability per entry.  Pass `nubar=True` for antineutrinos, `nu_i`/`nu_f` for a
-single channel.  The
-[numerical recipes](https://mbustama.github.io/Magnus/recipes.html) page has a
-runnable snippet for each common task.
+The [numerical recipes](https://mbustama.github.io/Magnus/recipes.html) page has
+a runnable snippet for each common task.
 
 ### Or from the command line
 
@@ -106,6 +96,31 @@ Add `--scenario nsi`, `--flavors 5`, `--nu-i e --nu-f mu` for one channel, or
 `--json` to pipe the result into another program.  The command computes one
 probability at a time; scans, averages and custom Hamiltonians need Python.
 Full reference: [CLI](https://mbustama.github.io/Magnus/cli.html).
+
+## Why Magνs
+
+**Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
+oscillations, non-standard interactions, Lorentz-invariance violation, sterile
+states, pseudo-Dirac pairs and a model of your own all go through the same call.
+Two to five flavors ship ready-made; the generic entry points take any
+dimension and any profile, given as a function of position.
+
+**Fast.**  An energy scan is one batched call rather than a loop, worth one to
+two orders of magnitude per probability; an oscillogram is one such call per
+zenith angle.  The median call over 164 Earth and solar configurations is
+**2 ms**; [Performance](#performance) has the rest.
+
+**Accurate.**  Internally, Magνs propagates the evolution operator with the
+**Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
+a chain of position slabs, and every truncation is exactly unitary.  On a smooth
+profile it reaches **2.9 × 10⁻¹³**, where a composition of constant slabs floors
+at 2.5 × 10⁻¹¹.  Where it cannot certify its own answer, it says so.
+
+> **How do I say that?** Just like the name **Magnus** — the Greek letter
+> **ν** (nu), the neutrino's symbol, stands in for the "nu" syllable.  (Most of
+> this package was written in Denmark, so
+> [the Danish way](https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate)
+> is welcome too.)
 
 ## What it can compute
 
@@ -127,8 +142,8 @@ Each of these is one call with a different Hamiltonian, profile or observable.
 - **Beam experiments** — appearance probabilities along the DUNE, T2K,
   Hyper-K and ESS chords, from two named sites
   ([notebook 04](https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb)).
-- **Atmospheric oscillograms** — probability over zenith angle and energy in a
-  single batched call
+- **Atmospheric oscillograms** — probability over zenith angle and energy, one
+  batched energy scan per zenith angle
   ([notebook 06](https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb)).
 - **Solar neutrinos** — twelve standard solar models, taken by name, and the
   averaged probability an experiment sees
@@ -151,7 +166,7 @@ out of the executed file, so what you see is what that notebook produced.
 | | |
 |:--:|:--:|
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_3nu_vacuum.png" width="380"/><br/>**Oscillation probabilities** against baseline or energy, for two to five flavors, in vacuum and in matter.<br/>[notebook 03](https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_long_baseline.png" width="380"/><br/>**Between two points on the Earth's surface** — Fermilab to SNOLAB, Homestake, CERN and the South Pole, through PREM.<br/>[notebook 04](https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb) |
-| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_oscillogram.png" width="380"/><br/>**Oscillograms** across zenith angle and energy, in a single call.<br/>[notebook 06](https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_biprobability.png" width="380"/><br/>**CP violation**, as bi-probability ellipses traced by the CP phase.<br/>[notebook 05](https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb) |
+| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_oscillogram.png" width="380"/><br/>**Oscillograms** across zenith angle and energy, one batched energy scan per zenith angle.<br/>[notebook 06](https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_biprobability.png" width="380"/><br/>**CP violation**, as bi-probability ellipses traced by the CP phase.<br/>[notebook 05](https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_sterile_3plus2.png" width="380"/><br/>**Five flavors: a 3+2 sterile spectrum**, its fast oscillation filling the three-flavor envelope.<br/>[notebook 07](https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_custom_h.png" width="380"/><br/>**A Hamiltonian of your own** — here a long-range $L_e - L_\mu$ force through the Earth, against the standard curve.<br/>[notebook 19](https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_density_arrangement.png" width="380"/><br/>**Arrangement beats the mean**: the same average density and the same path length, ordered differently, give different probabilities.<br/>[notebook 18](https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_averaged.png" width="380"/><br/>**Phase-averaged probabilities** — what survives when the oscillation is faster than anything can resolve.<br/>[notebook 10](https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in about 0.7 s. The green trace is the *instantaneous* probability another code returns, thrashing between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
@@ -265,7 +280,8 @@ discretizes.  Two properties are exact regardless; the rest is measured.
 | 2ν and 3ν in vacuum, 2ν in constant-density matter: against the closed form | machine precision |
 | Earth crossing at the default `rtol = atol = 1e-3`, against the same call at 10⁻⁷ | median 9 × 10⁻⁷, worst 2 × 10⁻³ |
 | Complex Hamiltonians on asymmetric profiles against `solve_ivp` at `rtol = 1e-12` | 10⁻⁷ to 10⁻⁴ |
-| `n_jobs > 1` against serial | exactly 0.0 |
+| Repeated calls, and a baseline scan given in shuffled order | exactly 0.0 |
+| `n_jobs=2` against serial, general ladder, `rtol = atol = 1e-6` | 1.1 × 10⁻⁷ |
 
 The suite asserts identities rather than tolerances where an identity holds, so
 an optimization that changed an answer fails rather than passing quietly.  One

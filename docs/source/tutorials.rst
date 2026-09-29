@@ -253,4 +253,5 @@ The paper
    methodological caveat: on an Earth chord the probability inherits the relative
    error of the matter potential essentially one for one, so a cross-code comparison
    there is limited by the two Earth models long before it is limited by either
-   solver.
+   solver. :doc:`examples` presents the paper's usage section, with its snippets and
+   figures.

@@ -1,5 +1,5 @@
-API Reference
-==============
+API reference
+=============
 
 Generated from the docstrings, module by module. Every public function,
 class and module-level constant Magνs ships appears here with its full

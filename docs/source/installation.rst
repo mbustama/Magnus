@@ -1,5 +1,5 @@
-Installation & Requirements
-============================
+Installation and requirements
+=============================
 
 Requirements
 ------------
@@ -78,7 +78,7 @@ belong on the path:
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-Verifying the Installation
+Verifying the installation
 ---------------------------
 
 After installing the dependencies, run the test suite to confirm everything
@@ -87,9 +87,10 @@ is configured correctly for your system:
 .. code-block:: bash
 
    pip install -e '.[test]'
-   pytest tests/ -v
+   pytest tests/ -n auto
 
-It is about 1400 tests and takes a few minutes with ``-n auto``; the same suite
+It is about 1900 tests and takes a few minutes spread over all cores (``-n auto``,
+from ``pytest-xdist``, which the ``test`` extra installs); the same suite
 runs in CI on Python 3.10-3.13 on every push, so the badge on the :doc:`index`
 page tells you whether it passes there.
 
@@ -105,9 +106,11 @@ knowing what it establishes:
 * **Against an independently coded recursion.**  The Magnus terms at orders
   1--6, and the Gauss--Legendre convergence rates under slab halving (error
   ratios 4, 16, 64).
-* **Properties that must hold exactly.**  Unitarity, and one *bit-identity*
-  assertion rather than a tolerance: ``n_jobs > 1`` against serial, which an
-  optimization that changed an answer fails rather than passing quietly.  The
+* **Properties that must hold exactly.**  Unitarity, and *bit-identity*
+  assertions rather than tolerances: repeated calls, and a baseline scan given in
+  shuffled order, return the same answer to the last bit, so an optimization that
+  changed an answer fails rather than passing quietly.  A parallel scan is held to
+  the tolerance against a serial one, not to the last bit.  The
   energy-batched scan is held to 1e-12 against the per-point path, with the
   grid and tolerances pinned so that the two are arithmetically the same
   problem.
@@ -163,7 +166,7 @@ coverage overhead, and it is what one would expect here, since the cost is
 dominated by a per-slab Python loop rather than by time spent inside numpy.
 Run it when you want the number, not on every iteration.
 
-File Tree
+File tree
 ---------
 
 .. code-block:: text
@@ -206,11 +209,13 @@ File Tree
    │       ├── changelog.rst           # Renders the root CHANGELOG.md via myst-parser
    │       ├── citing.rst              # How to cite the software, and what to state in the text
    │       ├── cli.rst                 # Command-line calculator: flag reference and examples
-   │       ├── comparison.rst          # Against NuOscProbExact and nuSQuIDS: where each method wins, from notebook 25
+   │       ├── comparison.rst          # Against other codes: the paper's eight-code comparison, then NuOscProbExact and nuSQuIDS in detail
    │       ├── conf.py                 # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
    │       ├── diagnostics.rst         # What rtol really controls, what each safeguard cannot do, every warning
    │       ├── engines.rst             # Which engine answers a call, and how the dispatch order is decided
+   │       ├── examples.rst            # Usage and examples: Sec. 6 of the paper, with snippets, figures and notebook links
    │       ├── expansion_terms.rst     # The Omega_k terms to any order, and how they are generated
+   │       ├── conventions.rst         # Flavor order, signs, mass ordering, parameters and units, in one place
    │       ├── functions.rst           # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
    │       ├── index.rst               # Master documentation page: overview, features, when Magnus wins
    │       ├── installation.rst        # Requirements, install instructions, file tree
@@ -232,14 +237,15 @@ File Tree
    │   ├── anim_solar_nsi.gif          # Animated: the Sun, with a non-standard interaction dialed up
    │   ├── anim_sterile.gif            # Animated: a sterile state as its mass splitting grows
    │   ├── anim_wave.gif               # Animated: a density crest traveling along the baseline
-   │   └── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
+   │   ├── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
+   │   └── paper/                      # Figures from the paper, as PNG, embedded in the docs
    ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
    │   ├── 01_magnus_introduction.ipynb  # The shortest path to a probability
    │   ├── 02_magnus_2nu_vacuum_matter.ipynb  # Two flavors, across seven matter profiles
    │   ├── 03_magnus_3nu_vacuum_matter.ipynb  # The same, with three flavors and a CP phase
    │   ├── 04_magnus_long_baseline.ipynb  # Between two points on the surface
    │   ├── 05_magnus_biprobability.ipynb  # The CP ellipse
-   │   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, in one call
+   │   ├── 06_magnus_oscillograms.ipynb  # Zenith angle against energy, one energy scan per angle
    │   ├── 07_magnus_bsm_sterile_nu.ipynb  # Four and five flavors
    │   ├── 08_magnus_bsm_nsi.ipynb     # Non-standard interactions
    │   ├── 09_magnus_bsm_liv.ipynb     # Lorentz-invariance violation

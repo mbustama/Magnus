@@ -1,5 +1,5 @@
-Available Oscillation-Probability Functions
-==============================================
+Available probability functions
+===============================
 
 .. contents::
    :local:
@@ -25,7 +25,7 @@ Every function below returns a full :math:`d \times d` probability matrix
 (:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
 and ``nu_f`` are both given; every one also accepts ``nubar=True`` to
 compute the antineutrino probability. Standard oscillation parameters
-left as ``None`` default to the NuFIT 6.1 best fit (normal ordering)
+left unset default to the NuFIT 6.1 best fit (normal ordering)
 :cite:p:`Esteban:2024eli`;
 sterile-sector parameters (4th/5th flavor) default to zero mixing.
 
@@ -62,8 +62,11 @@ explicitly; see :doc:`cli`).
 Matter, constant density
 ---------------------------
 
-A user-supplied matter density, uniform along the trajectory (``rho``,
-in :math:`\text{g cm}^{-3}` by default).
+A user-supplied matter density, uniform along the trajectory.  ``rho`` is in
+natural units, eV\ :sup:`4`: pass ``2.8*gd.UNIT_G_PER_CM3``, or pass ``2.8``
+together with ``density_matter_is_in_g_per_cm3=True``, but not both.  The
+electron fraction is :math:`Y_e = 0.5` unless ``electron_fraction`` is given.
+The command line's ``--rho`` is in g cm\ :sup:`-3`.
 
 .. list-table::
    :header-rows: 1
@@ -94,7 +97,8 @@ Matter, exponential density
 -------------------------------
 
 A user-supplied matter density profile
-:math:`\rho(l) = \rho_{\rm central}\, e^{-l/l_{\rm scale}}`.
+:math:`\rho(l) = \rho_{\rm central}\, e^{-l/l_{\rm scale}}`, with ``rho_central``
+in the same units as ``rho`` above and ``l_scale`` in eV\ :sup:`-1`.
 
 .. list-table::
    :header-rows: 1
@@ -128,6 +132,11 @@ The Preliminary Reference Earth Model (PREM) density profile, along a
 chord specified either by the cosine of the zenith angle (plus a
 baseline) or by two named locations (``loc_ini``/``loc_fin``; see
 :data:`magnus.earth.loc_coords_dms` for the predefined sites).
+:math:`\cos\theta_z = -1` is straight up through the Earth's center and 0 is
+horizontal; :func:`magnus.earth.distance_traveled_inside_earth` gives the chord
+length for a zenith angle.  The electron fraction is set per layer (0.4656 in the
+core, 0.4957 in the mantle), and ``electron_fraction_core`` and its siblings
+override it.
 
 Both named locations lie on the surface.  Either end of the trajectory can
 instead be put underground with ``source_depth`` and ``detector_depth``,
@@ -170,7 +179,9 @@ Sun
 
 The built-in exponentially-falling solar electron-density profile (see
 :func:`magnus.oscprob.osc_prob_sun`), from an initial radial
-position ``L0`` (default: the center) to a final radial position ``L``.
+position ``L0`` (0 is the center) to a final radial position ``L``, both in
+eV\ :sup:`-1`; ``gd.SUN_RADIUS*gd.UNIT_KM`` is the surface.  A solar-neutrino
+measurement is the phase-averaged probability: pass ``average=True``.
 Every one takes ``density_profile`` to use one of twelve tabulated standard
 solar models instead (see :doc:`solar_models`).
 
@@ -229,10 +240,16 @@ functions, and the call returns the pair ``(P, U)`` instead of ``P`` alone:
 
 .. code-block:: python
 
+    import numpy as np
+    import magnus.oscprob as oscprob
+    import magnus.globaldefs as gd
+    import magnus.hamiltonians as hamiltonians
+
+    osc = gd.load_nufit_params('NuFIT 6.1')
     P, U = oscprob.osc_prob_3nu_matter_exp_density(
-        energy, L, 0.0, rho_central, l_scale,
-        density_matter_is_in_g_per_cm3=True,
-        return_evolution_operator=True)
+        1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0, 10.0, 1000.0*gd.UNIT_KM,
+        density_matter_is_in_g_per_cm3=True, return_evolution_operator=True,
+        **osc)
 
 ``P`` is exactly what the call returns without the keyword, so ``nu_i``, ``nu_f``
 and the batching over arrays keep their meaning. ``U`` is the evolution operator
@@ -255,10 +272,11 @@ lines:
 
 .. code-block:: python
 
+    R = hamiltonians.pmns_mixing_matrix(osc['s12'], osc['s23'], osc['s13'], osc['dCP'])
     content = abs(R.conj().T @ U)**2      # mass-state content, per initial flavor
     P_far = abs(R)**2 @ content           # phases averaged on the way
 
-with ``R`` the mixing matrix in vacuum (``magnus.hamiltonians.pmns_mixing_matrix``).
+with ``R`` the mixing matrix in vacuum.
 
 The phase average is likewise available on the direct route:
 ``average=True`` on ``osc_prob_energy_baseline``, ``osc_prob_earth`` and
@@ -267,7 +285,8 @@ three routes (closed form, adiabatic transport, or an energy-window average
 across declared discontinuities), with the spread set by ``average_spread``, the
 number of energies sampled by the window average by ``average_n_samples``, and the
 starting state by ``average_initial_state`` (the flavor state by default).  A
-matrix, or a function of position alone, does not depend on energy and returns
-the :math:`L/E \to \infty` limit; see :doc:`averaged_probability`.
+matrix, or a function of position alone, does not depend on energy, so no spread
+can act on it: pairs of levels whose phase has grown large are averaged, and the
+others stay coherent; see :doc:`averaged_probability`.
 ``osc_prob`` computes one point and refuses the keyword by name, as it refuses
 ``cumulative``.

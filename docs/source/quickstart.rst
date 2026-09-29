@@ -1,84 +1,16 @@
-Quick Start Guide
-==================
+Quick start guide
+=================
 
-Magνs works two ways: as an **importable Python module** (the full API --
-this page) and as a **command-line calculator** (one probability, no Python
-required -- see :doc:`cli`). Use the module for anything programmatic
-(scans, plots, fitting); use the CLI for a quick one-off number or a shell
-script.
+This page takes you from installation to the probabilities most users need: vacuum,
+constant-density matter, the Earth and the Sun, for neutrinos and antineutrinos.
+Every block runs as written, in order.  Magνs also works from the shell, one
+probability at a time, with no Python (:doc:`cli`).
 
 Your first probability
 ------------------------
 
-Install Magνs with ``pip install magnuspy`` -- the distribution is
-``magnuspy`` on PyPI, the import package is ``magnus`` (see
-:doc:`installation`) -- then:
-
-.. code-block:: python
-
-   import magnus.oscprob as oscprob
-   import magnus.globaldefs as gd
-
-   # 3-flavor vacuum probability at 1 GeV over 1000 km
-   P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM)
-   print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e)
-
-Oscillation parameters left unset default to the current global fit, so that
-call is complete as it stands.  The two things worth knowing before going
-further are what ``UNIT_GEV`` and ``UNIT_KM`` are doing --- next --- and how to
-choose a different fit.
-
-.. _units-table:
-
-Units
-------
-
-Magνs works in **natural units** throughout: energies in eV, baselines and
-positions in eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
-:mod:`magnus.globaldefs` supplies the conversions — multiply a physical
-quantity by the matching constant, e.g. ``100.0*gd.UNIT_KM`` for a 100 km
-baseline.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 38 26 36
-
-   * - Quantity
-     - Units
-     - Constant
-   * - Neutrino energy
-     - eV
-     - ``UNIT_MEV``, ``UNIT_GEV``
-   * - Baseline, position
-     - eV\ :sup:`-1`
-     - ``UNIT_KM``, ``UNIT_CM``
-   * - Hamiltonian
-     - eV
-     - ---
-   * - Mass-squared differences
-     - eV\ :sup:`2`
-     - ---
-   * - Matter potential
-     - eV
-     - ---
-   * - Mass density
-     - eV\ :sup:`4`
-     - ``UNIT_G_PER_CM3``
-   * - Number density
-     - eV\ :sup:`3`
-     - ``UNIT_PER_CM3``
-   * - Mixing angles
-     - given as :math:`\sin\theta`
-     - ---
-   * - CP phases
-     - radian
-     - ---
-
-The last two are the ones to check first when a result looks untouched by the
-parameters you set; see :ref:`conventions`.
-
-Everything from here on also uses NumPy, so the imports for the rest of the
-page are:
+Install with ``pip install magnuspy`` (the import name is ``magnus``; see
+:doc:`installation`), then:
 
 .. code-block:: python
 
@@ -86,213 +18,324 @@ page are:
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-Oscillation parameters that are not passed explicitly default to the
-`NuFIT 6.1 <http://www.nu-fit.org>`_ best fit (normal ordering) -- the same
-release :func:`~magnus.globaldefs.load_nufit_params` returns by default; pass
-``s12``, ``D31``, ``dCP``, etc., or ``nubar=True``, to change them.
+   # 3 flavors, 1 GeV, 1300 km of vacuum
+   P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
+
+   print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e) = 0.0313
+
+``P`` is the 3×3 matrix of probabilities, **initial flavor first**:
+``P[i][f]`` is :math:`P(\nu_i \to \nu_f)`, and ``gd.NUE``, ``gd.NUMU`` and
+``gd.NUTAU`` are 0, 1 and 2.  Every row sums to one.  The oscillation parameters
+are the NuFIT 6.1 best fit, normal ordering, unless you pass others.
+
+.. important::
+
+   **Energies and distances are in natural units, not GeV and km.**  Multiply by
+   ``gd.UNIT_GEV`` and ``gd.UNIT_KM`` on the way in, and divide by them on the way
+   out.  ``osc_prob_3nu_vacuum(1.0, 1300.0)`` is accepted and means 1 eV and
+   1300 eV\ :sup:`-1`.
+
+.. _units-table:
+
+Units
+------
+
+Magνs works in natural units throughout: energies in eV, distances in
+eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Quantity
+     - Unit
+     - Conversion constant (multiply by it)
+   * - Neutrino energy
+     - eV
+     - ``UNIT_MEV``, ``UNIT_GEV``
+   * - Baseline, position
+     - eV\ :sup:`-1`
+     - ``UNIT_KM``, ``UNIT_CM``; ``gd.SUN_RADIUS`` and ``gd.EARTH_RADIUS`` are in km
+   * - Hamiltonian, matter potential
+     - eV
+     - none
+   * - Mass density
+     - eV\ :sup:`4`
+     - ``UNIT_G_PER_CM3``
+   * - Number density
+     - eV\ :sup:`3`
+     - ``UNIT_PER_CM3``
+   * - Mass-squared differences
+     - eV\ :sup:`2`
+     - none
+   * - Mixing angles
+     - :math:`\sin\theta`
+     - none (``angles=`` accepts other forms; see below)
+   * - CP phases
+     - radian
+     - none
+
+Conventions
+------------
+
+They are the standard ones, stated here so that you can check them against other codes.
+
+* **Mixing matrix**: the PDG parametrization,
+  :math:`U = R_{23}(\theta_{23})\,U_{13}(\theta_{13},\delta_{\rm CP})\,R_{12}(\theta_{12})`,
+  with :math:`U_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`.
+* **Mass splittings**: ``D21`` :math:`= m_2^2 - m_1^2` and ``D31``
+  :math:`= m_3^2 - m_1^2`.  The ordering is the sign of ``D31``: positive is
+  normal, negative is inverted.
+* **Antineutrinos**: ``nubar=True`` conjugates the mixing matrix and flips the sign
+  of the matter potential.
+* **Matter**: an electron fraction :math:`Y_e = 0.5` unless ``electron_fraction``
+  is given.  The Earth functions use one value per layer (0.4656 in the core,
+  0.4957 in the mantle); :doc:`functions` lists them.
+
+:ref:`conventions` gives the details.
 
 .. _nufit-parameters:
 
-Choosing a global fit
----------------------
+Choosing the oscillation parameters
+-------------------------------------
 
-Magνs defaults to the **NuFIT 6.1** best fit, normal ordering
-:cite:p:`Esteban:2024eli`; the numerical tables for every release are at
-`nu-fit.org <http://www.nu-fit.org/>`_.
-
-To use a different release, or the inverted ordering, ask
-:func:`magnus.globaldefs.load_nufit_params` for it.  It returns **exactly the
-six parameters** every ``osc_prob_3nu_*`` function takes -- ``s12``, ``s23``,
-``s13``, ``dCP``, ``D21``, ``D31`` -- so the result can be passed straight
-through:
+Pass any parameter by name to override the default: ``s12``, ``s23``, ``s13``
+(sines), ``dCP`` (radians), ``D21``, ``D31`` (eV\ :sup:`2`).
+:func:`~magnus.globaldefs.load_nufit_params` returns exactly these six, for every
+NuFIT release from 1.0 to 6.1:
 
 .. code-block:: python
 
-   energy = 1.0*gd.UNIT_GEV       # [eV]
-   L = 1000.0*gd.UNIT_KM          # [eV^-1]
+   energy = 1.0*gd.UNIT_GEV
+   L = 1300.0*gd.UNIT_KM
 
-   osc = gd.load_nufit_params('NuFIT 6.1', 'NO')
-
+   osc = gd.load_nufit_params('NuFIT 6.1', 'NO')        # the default set
    P = oscprob.osc_prob_3nu_vacuum(energy, L, **osc)
 
-Every NuFIT release from v1.0 to v6.1 is available, along with the
-release-specific secondary category where one exists (``'with_SK'`` /
-``'without_SK'`` from v4.0, ``'LEM'`` / ``'LID'`` for v2.1,
-``'free_fluxes_rsbl'`` / ``'huber_fluxes_no_rsbl'`` for v1.0-v1.3); omitting
-``category`` takes the release's preferred one.  ``gd.NUFIT_GLOBAL_FITS.keys()``
-lists what is available.
+   # The inverted-ordering best fit (its theta23 and dCP differ too)
+   osc_io_fit = gd.load_nufit_params('NuFIT 6.1', 'IO')
+
+   # The same parameters with only the ordering flipped
+   osc_io = {**osc, 'D31': -abs(osc['D31'])}
+
+NuFIT quotes :math:`\Delta m^2_{32}` for the inverted ordering;
+``load_nufit_params`` converts it, so ``D31`` is always :math:`m_3^2 - m_1^2`.
+Older releases and their categories (with or without Super-Kamiokande data) are
+listed in ``gd.NUFIT_GLOBAL_FITS``:
 
 .. code-block:: python
 
-   inverted = gd.load_nufit_params('NuFIT 6.1', 'IO')
    older = gd.load_nufit_params('NuFIT 5.2', 'NO', category='without_SK')
 
-The mass ordering is carried by the **sign of** ``D31``, so the inverted set
-differs from the normal one in that sign -- and, at the best fit, in the
-:math:`\theta_{23}` octant and :math:`\delta_{\rm CP}` as well.  If you want to
-vary the ordering alone, flip the sign of ``D31`` yourself rather than swapping
-parameter sets; notebook 17 shows why.
+Vacuum: scans, one channel, antineutrinos
+-------------------------------------------
 
-Notebook 26 goes further and samples the :math:`\Delta\chi^2` profiles behind
-these fits, to show how much of a predicted probability is really the
-parameters.
-
-1. Vacuum oscillations
-------------------------
+Pass an array where one energy or one baseline would go.  ``nu_i`` and ``nu_f``
+select one channel, and ``nubar=True`` gives antineutrinos:
 
 .. code-block:: python
 
-   energy = 1.0*gd.UNIT_GEV       # [eV]
-   L = 1000.0*gd.UNIT_KM          # [eV^-1]
+   energies = np.linspace(0.5, 5.0, 200)*gd.UNIT_GEV
 
-   # Full 3x3 probability matrix, P[i][j] = P(nu_i -> nu_j)
-   P = oscprob.osc_prob_3nu_vacuum(energy, L)
+   P_scan = oscprob.osc_prob_3nu_vacuum(energies, L)          # shape (200, 3, 3)
+   P_mue = oscprob.osc_prob_3nu_vacuum(energies, L, nu_i=gd.NUMU, nu_f=gd.NUE)
+   P_mue_bar = oscprob.osc_prob_3nu_vacuum(energies, L, nu_i=gd.NUMU, nu_f=gd.NUE,
+                                           nubar=True)          # shape (200,)
 
-   # A single channel, and an array of energies
-   energies = np.logspace(-1, 1, 50)*gd.UNIT_GEV
-   P_emu = oscprob.osc_prob_3nu_vacuum(energies, L, nu_i=gd.NUE, nu_f=gd.NUMU)
+   import matplotlib.pyplot as plt
+   plt.plot(energies/gd.UNIT_GEV, P_mue, label=r'$\nu_\mu \to \nu_e$')
+   plt.plot(energies/gd.UNIT_GEV, P_mue_bar, label=r'$\bar\nu_\mu \to \bar\nu_e$')
+   plt.xlabel('Energy [GeV]')
+   plt.ylabel('Probability')
+   plt.legend()
+   plt.show()
 
-The same pattern applies to :func:`~magnus.oscprob.osc_prob_2nu_vacuum`,
-:func:`~magnus.oscprob.osc_prob_4nu_vacuum` (3+1 sterile), and :func:`~magnus.oscprob.osc_prob_5nu_vacuum`
-(3+2 sterile).
-
-2. Matter with constant or exponential density
-------------------------------------------------
+:doc:`plotting` has ready-made versions of this and other figures.  The same calls
+work at two flavors, where there is no global fit to default to, so the mixing
+and the splitting are required:
 
 .. code-block:: python
 
-   rho = 5.0*gd.UNIT_G_PER_CM3   # constant matter density [eV^4]
-   P = oscprob.osc_prob_3nu_matter_constant_density(energy, L, rho)
+   P2 = oscprob.osc_prob_2nu_vacuum(energy, L, sth=np.sqrt(0.5), Dm2=2.5e-3)
 
-   # Exponentially falling density profile, e.g. inside a supernova
+At four and five flavors (``osc_prob_4nu_vacuum``, ``osc_prob_5nu_vacuum``), the
+sterile mixing defaults to zero.
+
+Matter of constant density
+----------------------------
+
+A density can be given in natural units, or in g/cm³ with a flag.  Use one or the
+other, never both:
+
+.. code-block:: python
+
+   rho = 2.848*gd.UNIT_G_PER_CM3                  # the average density along DUNE
+
+   P_mue = oscprob.osc_prob_3nu_matter_constant_density(
+       energies, L, rho, nu_i=gd.NUMU, nu_f=gd.NUE)
+
+   # the same, with the density in g/cm^3
+   P_mue = oscprob.osc_prob_3nu_matter_constant_density(
+       energies, L, 2.848, density_matter_is_in_g_per_cm3=True,
+       nu_i=gd.NUMU, nu_f=gd.NUE)
+
+   # T2K: 295 km, 0.6 GeV, 2.6 g/cm^3
+   P_t2k = oscprob.osc_prob_3nu_matter_constant_density(
+       0.6*gd.UNIT_GEV, 295.0*gd.UNIT_KM, 2.6*gd.UNIT_G_PER_CM3,
+       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0524 (0.0318 with nubar=True)
+
+A density that falls exponentially, as in a supernova envelope, takes a central
+density and a scale length:
+
+.. code-block:: python
+
    P = oscprob.osc_prob_3nu_matter_exp_density(
        energy, L, L0=0.0, rho_central=1e3*gd.UNIT_G_PER_CM3,
        l_scale=100.0*gd.UNIT_KM)
 
-3. The Earth (PREM) and the Sun
-----------------------------------
+The Earth
+----------
+
+A path through the Earth is fixed by two named sites, or by the zenith angle at
+the detector and the length of the chord.  :math:`\cos\theta_z = -1` is straight up
+through the Earth's center, 0 is horizontal, and a neutrino with
+:math:`\cos\theta_z > 0` crosses no Earth to reach a detector at the surface.
 
 .. code-block:: python
 
-   # By direction (cosine of the zenith angle) and baseline
-   P = oscprob.osc_prob_3nu_earth(energy, costhz=-0.8,
-                                   L=2.0*6371.0*0.8*gd.UNIT_KM)
+   import magnus.earth as earth
 
-   # By source and detector location (the chord through the Earth is
-   # computed automatically; see magnus.earth.loc_coords_dms for the
-   # predefined named locations)
-   P = oscprob.osc_prob_3nu_earth(energy, loc_ini='fermilab',
-                                   loc_fin='homestake')
+   # Fermilab to the Sanford lab (DUNE): the chord is computed from the sites
+   P = oscprob.osc_prob_3nu_earth(2.5*gd.UNIT_GEV, loc_ini='fermilab',
+                                  loc_fin='homestake')     # P[1][0] = 0.0722
 
-   # A full energy scan is batched internally when the baseline is shared
-   energies = np.logspace(-0.3, 1.3, 200)*gd.UNIT_GEV
-   P_scan = oscprob.osc_prob_3nu_earth(
-       energies, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
-       nu_i=gd.NUE, nu_f=gd.NUMU)
+   # An upgoing atmospheric neutrino, cos(theta_z) = -0.8: a 10194 km chord
+   costhz = -0.8
+   L_chord = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
 
-   # The Sun, with its built-in exponential electron-density profile
-   P = oscprob.osc_prob_2nu_sun(10.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM,
-                                 L0=0.0, sth=np.sqrt(0.308), Dm2=7.5e-5)
+   E_atm = np.logspace(0.0, 1.3, 200)*gd.UNIT_GEV
+   P_atm = oscprob.osc_prob_3nu_earth(E_atm, costhz=costhz, L=L_chord,
+                                      nu_i=gd.NUMU, nu_f=gd.NUE)
 
-None of these pass ``integration_method``, so they use the default,
-``'gl'`` -- the Gauss-Legendre collocation integrators (see
-:doc:`methodology`), which are both the fastest and the most accurate choice
-whenever the Hamiltonian is smooth within each slab, the common case.  Pass
-``integration_method='trapezoid'`` (or ``'simpson'``) for a Hamiltonian with
-a kink or a discontinuity *inside* a slab.
-
-4. Beyond the Standard Model: NSI and LIV
----------------------------------------------
+``magnus.earth.loc_coords_dms`` lists the named sites.  An energy scan is one
+batched call; an oscillogram is one such call per zenith angle:
 
 .. code-block:: python
 
-   # Non-standard neutrino interactions, in the Earth
-   P = oscprob.osc_prob_3nu_earth_nsi(
-       energy, costhz=-0.8, L=2.0*6371.0*0.8*gd.UNIT_KM,
-       eps_ee=0.1, eps_em=0.05j, eps_et=0.0, eps_mm=0.0, eps_mt=0.02,
-       eps_tt=0.0)
+   cos_grid = np.linspace(-1.0, -0.1, 50)
+   E_grid = np.logspace(0.0, 1.5, 50)*gd.UNIT_GEV
 
-   # Lorentz-invariance violation, in vacuum
-   P = oscprob.osc_prob_3nu_vacuum_liv(
-       energy, L, b1=gd.B1, b2=gd.B2, b3=gd.B3, Lambda=gd.LAMBDA, n_liv=1)
+   P_mumu = np.array([
+       oscprob.osc_prob_3nu_earth(
+           E_grid, costhz=c, L=earth.distance_traveled_inside_earth(c)*gd.UNIT_KM,
+           nu_i=gd.NUMU, nu_f=gd.NUMU)
+       for c in cos_grid])                                   # shape (50, 50)
 
-5. Your own Hamiltonian through the Earth or the Sun
---------------------------------------------------------
+Earth and Sun calls can print a ``MagnusConvergenceWarning``.  It reports that a
+slab of the integration grid is wide, not that the result is wrong;
+:doc:`diagnostics` explains every warning and what to do about it.
 
-:func:`~magnus.oscprob.osc_prob_earth` and :func:`~magnus.oscprob.osc_prob_sun` handle the trajectory
-geometry and the built-in density profile for you, while leaving the
-physics completely open: supply ``H_func(energy, l, VCC)`` (``VCC`` is the
-charged-current potential at position ``l``, with the antineutrino sign
-already applied) or the two-argument ``H_func(energy, l)`` to ignore the
-built-in potential entirely.
+The Sun
+--------
+
+For solar neutrinos you almost always want the **phase-averaged** probability,
+which is what a detector with a finite energy resolution measures.  Pass
+``average=True``; without it you get the value at one exact energy and distance,
+which oscillates rapidly:
+
+.. code-block:: python
+
+   R_sun = gd.SUN_RADIUS*gd.UNIT_KM        # gd.SUN_RADIUS is in km
+
+   # nu_e survival at 8 MeV, produced at the center (L0 = 0)
+   P_ee = oscprob.osc_prob_3nu_sun(8.0*gd.UNIT_MEV, R_sun, 0.0,
+                                   nu_i=gd.NUE, nu_f=gd.NUE, average=True)   # 0.300
+
+   # with a standard solar model instead of the built-in exponential fit
+   P_ee = oscprob.osc_prob_3nu_sun(8.0*gd.UNIT_MEV, R_sun, 0.0,
+                                   nu_i=gd.NUE, nu_f=gd.NUE, average=True,
+                                   density_profile='B16-GS98')             # 0.332
+
+The unaveraged value at the same energy is 0.175.  :doc:`solar_models` lists the
+twelve standard solar models, and :doc:`averaged_probability` explains the average.
+
+New physics: NSI and LIV
+--------------------------
+
+Non-standard interactions are given as couplings relative to the standard matter
+potential.  Unset couplings are zero; the diagonal ones (``eps_ee``, ``eps_mm``,
+``eps_tt``) are real and the off-diagonal ones may be complex:
+
+.. code-block:: python
+
+   P_nsi = oscprob.osc_prob_3nu_matter_nsi_constant_density(
+       2.5*gd.UNIT_GEV, L, rho, eps_ee=0.1, eps_em=0.05j,
+       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0845
+
+   # Lorentz-invariance violation, in vacuum: b1, b2, b3 and Lambda in eV
+   P_liv = oscprob.osc_prob_3nu_vacuum_liv(
+       2.5*gd.UNIT_GEV, L, b1=1e-9, b2=1e-9, b3=2e-9, Lambda=1e12, n_liv=1,
+       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0600
+
+Every environment above has NSI and LIV versions (``osc_prob_3nu_earth_nsi``,
+``osc_prob_3nu_sun_liv``, and so on), at two to five flavors; :doc:`functions`
+lists them all.
+
+Your own Hamiltonian
+----------------------
+
+:func:`~magnus.oscprob.osc_prob_earth` and :func:`~magnus.oscprob.osc_prob_sun`
+take the trajectory and the density profile from the package and the physics from
+you: a function ``H(energy, l, VCC)``, where ``VCC`` is the standard matter
+potential at position ``l`` (already with the antineutrino sign).  Write it so that
+it accepts an array of positions and returns a stack of matrices, which is several
+times faster:
 
 .. code-block:: python
 
    import magnus.hamiltonians as hamiltonians
 
-   h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
-       s12=np.sqrt(0.308), s23=np.sqrt(0.470), s13=np.sqrt(2.215e-2),
-       dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3)
+   h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**osc)
+   e_ee = np.diag([1.0, 0.0, 0.0])
 
    def H(energy, l, VCC):
-       vcc = np.asarray(VCC)
-       return (1.0/energy)*h_vac + vcc[..., None, None]*np.diag([1.0, 0.0, 0.0])
+       # VCC[..., None, None] broadcasts over an array of positions
+       return h_vac/energy + np.asarray(VCC)[..., None, None]*e_ee
 
-   P = oscprob.osc_prob_earth(H, energy, loc_ini='fermilab', loc_fin='homestake')
+   P = oscprob.osc_prob_earth(H, 2.5*gd.UNIT_GEV, loc_ini='fermilab',
+                              loc_fin='homestake')
+
+Any Hermitian matrix function of position, of any dimension, goes through
+:func:`~magnus.oscprob.osc_prob`, which every function above calls:
+
+.. code-block:: python
+
+   def H_of_l(l):
+       vcc = 1.0e-13*np.exp(-np.asarray(l)/(500.0*gd.UNIT_KM))   # [eV]
+       return h_vac/energy + vcc[..., None, None]*e_ee
+
+   P = oscprob.osc_prob(H_of_l, t_ini=0.0, t_fin=L, rtol=1e-4, atol=1e-4)
 
 .. note::
 
-   Those square roots and that ``212./180.*np.pi`` are the shape a global fit is
-   published in, converted by hand.  ``angles`` takes the conversion instead --
-   every function that accepts a mixing angle accepts it:
+   Mixing angles are sines by default.  To pass them as published, use ``angles``:
+   ``'sin2'`` for :math:`\sin^2\theta`, ``'rad'`` or ``'deg'`` for the angle (under
+   ``'deg'`` the CP phase is in degrees too).  Every function that takes a mixing
+   angle accepts it:
 
    .. code-block:: python
 
       h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
-          s12=0.308, s23=0.470, s13=2.215e-2,
-          dCP=212./180.*np.pi, D21=7.49e-5, D31=2.513e-3, angles='sin2')
+          s12=33.76, s23=43.28, s13=8.62, dCP=212.0, D21=7.49e-5, D31=2.513e-3,
+          angles='deg')
 
-      # or straight off the NuFIT table, degrees and all
-      h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
-          s12=33.76, s23=43.28, s13=8.62,
-          dCP=212.0, D21=7.49e-5, D31=2.513e-3, angles='deg')
+   ``load_nufit_params`` returns sines unless it is given the same ``angles``, so
+   pass the same value to both.
 
-   ``'sin'`` (the default) is the sine, ``'sin2'`` the sine squared, ``'rad'`` the
-   angle in radians, ``'deg'`` in degrees; under ``'deg'`` the CP phase is read as
-   degrees too.  :func:`~magnus.globaldefs.load_nufit_params` takes the same
-   keyword, and **the two must agree** -- its output is sines by default, so
-   ``osc_prob_3nu_earth(E, **load_nufit_params(), angles='deg')`` would read
-   0.55 as half a degree.  That particular pairing raises
-   :class:`~magnus.globaldefs.MixingAngleConventionWarning`, but stating the
-   convention once and passing it to both is the habit worth having.
+Where next
+-----------
 
-``H`` may accept an array of positions ``l`` and return a stack of
-Hamiltonians (position axis leading) for extra speed; this is detected
-automatically, with a safe per-point fallback if it is not supported.
-
-6. Fully generic: any Hamiltonian, any environment
---------------------------------------------------------
-
-:func:`~magnus.oscprob.osc_prob` is the primordial function that every wrapper above calls
-internally.  It accepts any square, Hermitian-valued function of position
-(or a constant matrix), for any number of flavors:
-
-.. code-block:: python
-
-   # Your own position-dependent Hamiltonian, returning a (d, d) array.
-   # This one is the standard three-flavor vacuum term plus a matter
-   # potential that falls off exponentially with position.
-   h_vac = np.asarray(hamiltonians.hamiltonian_3nu_vacuum_energy_independent(
-       osc['s12'], osc['s23'], osc['s13'], osc['dCP'], osc['D21'], osc['D31']))
-
-   def H_func(l):
-       vcc = 1.0e-13*np.exp(-l/(500.0*gd.UNIT_KM))        # [eV]
-       return h_vac/energy + vcc*np.diag([1.0, 0.0, 0.0])
-
-   P = oscprob.osc_prob(H_func, t_ini=0.0, t_fin=L,
-                         magnus_exp_order=4,
-                         rtol=1e-4, atol=1e-4)
-
-Find a full worked example of a time-dependent matrix exponential (not
-necessarily a physical Hamiltonian), computed with
-:func:`~magnus.magnus.magnus_expansion`, in notebook 11; see :doc:`tutorials`.
+* :doc:`recipes`: a short, runnable snippet for each common task.
+* :doc:`functions`: every entry point, grouped by environment.
+* :doc:`tutorials`: the notebooks, with figures.
+* :doc:`diagnostics`: what each warning means.

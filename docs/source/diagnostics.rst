@@ -11,6 +11,17 @@ and cannot catch, and what every warning means.
 Accuracy
 ----------
 
+.. figure:: ../../img/paper/validation.png
+   :width: 100%
+   :alt: Accuracy at two to five flavors against an independent solver
+
+   :math:`P_{\nu_e \to \nu_e}` at two to five flavors along an exponentially falling
+   profile, computed with Magνs and with a DOP853 integration of the same Hamiltonian
+   (top); below, the largest deviation between the two, the departure of each row from
+   summing to one, and the *oracle floor*, how much DOP853 itself moves when its
+   tolerance is tightened.  Deviations below the floor cannot be resolved by this
+   comparison.  From the Magνs paper.
+
 .. _what-rtol-atol-control:
 
 What ``rtol`` and ``atol`` actually control

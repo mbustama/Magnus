@@ -11,6 +11,26 @@ tuned constant was measured on.
 Speed
 -------
 
+.. figure:: ../../img/paper/batching.png
+   :width: 90%
+   :alt: Four ways a scan is computed
+
+   Four ways a scan is computed, along one density profile.  Each bar is the final
+   slab grid of one refinement ladder; its color marks the process that runs it.
+   (a) One point at a time.  (b) The energy-batched scan: one grid shared by every
+   energy.  (c) The cumulative scan: one energy, every requested baseline in one pass.
+   (d) ``n_jobs=3``: the first point in the calling process, the rest shared among
+   three workers.  From the Magνs paper.
+
+.. figure:: ../../img/paper/njobs_scaling.png
+   :width: 70%
+   :alt: Parallel speed-up of an energy scan
+
+   Speed-up against ``n_jobs``, for scans of 1 000, 5 000 and 20 000 energies along an
+   Earth chord at :math:`\cos\theta_z = -0.9`, each energy with its own baseline so
+   that every run takes the per-point path.  Starting the workers costs time once per
+   call, so a short scan gains little or loses.  From the Magνs paper.
+
 Measured by an alternating harness (``docs/dev/adversarial_batteries/timing.py``) that
 interleaves the trees round-robin and carries two workloads the change cannot touch as
 controls. **Ratios survive a loaded machine; absolute times do not** -- the controls came

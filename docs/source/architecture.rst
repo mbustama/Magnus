@@ -1,5 +1,5 @@
-Code Architecture
-===================
+Code architecture
+=================
 
 .. contents::
    :local:
@@ -156,6 +156,10 @@ call into a much smaller set of shared functions. There are three layers:
 
    Each layer names a few representative functions; the full signatures
    are in the API reference, which is where they stay legible.
+
+The Magνs paper counts ``osc_prob_energy_baseline`` as a layer of its own, between
+the scenario functions and ``osc_prob``, and so describes four; here it is part of
+layer 1.  The call path is the same.
 
 
 **Layer 1 -- primordial.** ``osc_prob`` is the only function that calls

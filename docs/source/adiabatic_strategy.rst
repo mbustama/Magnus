@@ -1,5 +1,5 @@
-Adiabatic + Magnus Hybrid Strategy
-=====================================
+Adiabatic + Magnus hybrid strategy
+==================================
 
 .. contents::
    :local:
@@ -102,7 +102,7 @@ Detecting resonances without differentiating eigenvectors
 ----------------------------------------------------------------
 
 Adiabatic transport breaks down where two eigenvalues nearly cross: the
-gap in the denominator above becomes small, and the state can no longer
+gap between them becomes small, and the state can no longer
 "keep up" with how fast the instantaneous eigenbasis rotates. Locating
 these points, and quantifying how badly adiabaticity is violated there,
 needs the derivative of the eigenvalues and eigenvectors along the
@@ -173,7 +173,7 @@ A candidate with :math:`\gamma_{jk}` above a threshold marks a position
 that needs an exact patch, but not, by itself, a *window*: the region over
 which adiabaticity is violated has a physical width that has nothing to do
 with the arbitrary spacing of the search grid used to locate the
-candidate in the first place. :func:`magnus.adiabatic` grows a window
+candidate in the first place. :func:`magnus.adiabatic.find_nonadiabatic_windows` grows a window
 outward from each candidate by doubling the step size until
 :math:`\gamma_{jk}` drops back below threshold, then pads it by a safety
 factor -- a physical width, not a search-grid artifact (verified directly:
@@ -333,13 +333,13 @@ probe grid** -- see the two limits below.
 
 .. warning::
 
-   Two things this strategy cannot see, both of which make it return
-   ``certified=False`` or, in the second case, a wrong answer:
+   Two things this strategy cannot see.  The first makes it decline to
+   certify; the second can return a wrong answer reported as certified:
 
    * **A profile that is not smooth at the probe scale.** Every diagnostic
      here finite-differences :math:`H(l)` between probe points. On a density
      step, a kink, or any feature sharp compared with the probe spacing,
-     those derivatives are meaningless. ``hybrid_propagator`` now measures
+     those derivatives are meaningless. ``hybrid_propagator`` measures
      this directly (``magnus.adiabatic._profile_is_resolved``) and declines
      to certify, so :func:`magnus.oscprob.osc_prob` falls through to the
      general Magnus path, which handles such profiles correctly. Passing
@@ -369,8 +369,9 @@ probe grid** -- see the two limits below.
 
 .. note::
 
-   That last sentence was, until version 1.0.0, true only of resonances
-   that sit at an extremum of the level gap.  The detector locates
+   The claim above, that the strategy handles any resonance visible on the
+   probe grid, was true until version 1.0.0 only of resonances that sit at an
+   extremum of the level gap.  The detector locates
    candidates as gap extrema and evaluated the adiabaticity parameter
    :math:`\gamma` only there -- but a gap extremum is where the *gap* is
    stationary, which is not where
@@ -480,15 +481,13 @@ both real and genuinely complex (CP-violating) Hamiltonians.
    direct integration, dominated by the (still cheap, since the window is
    narrow) patch computation and the self-certification refinement loop.
 
-Speedups for the patched cases are smaller than the purely adiabatic ones
-for a simple reason: a patch means ``solve_ivp`` itself is being compared
-against on a shorter, more tractable sub-problem (the same reason the
-purely-adiabatic 5ν case reaches the largest speedup of all -- it is also
-the case where ``solve_ivp`` is slowest, since a larger Hamiltonian does
-nothing to shorten its own work). What stays constant across every case is
-the two things that matter: exact unitarity, at every accuracy setting, and
-agreement with direct integration well within the package's standard
-:math:`10^{-3}` target tolerance.
+Speedups for the patched cases are smaller because a patch, and the
+certification loop around it, is real Magnus work, while a purely adiabatic
+case computes no patch at all.  The purely adiabatic 5ν case has the largest
+speedup because it is also where ``solve_ivp`` is slowest: a larger Hamiltonian
+does nothing to shorten its work.  Across every case the unitarity is exact, and
+the agreement with direct integration is at the :math:`10^{-4}` level, reaching
+:math:`2.9\times10^{-3}` only for the two merged resonances.
 
 Limitations and scope
 --------------------------

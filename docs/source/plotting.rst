@@ -1,5 +1,5 @@
-Pre-Packaged Plotting Tools
-=============================
+Pre-packaged plotting tools
+===========================
 
 This page documents :mod:`magnus.plotting`, a small set of functions that
 produce the figures the example notebooks use, so that a plot costs one call
@@ -84,9 +84,6 @@ A first figure
 
 .. jupyter-execute::
 
-    import matplotlib
-    matplotlib.use('Agg')
-
     import numpy as np
     import magnus.globaldefs as gd
     import magnus.oscprob as oscprob
@@ -108,7 +105,6 @@ A first figure
         title=r'$3\nu$ vacuum, $E_\nu = 1$ GeV',
         legend_title='Calculation method',
     )
-    print(ax.get_ylabel())
 
 Note that ``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
 which returns exactly the six mixing parameters.  Splatting
@@ -152,7 +148,85 @@ so they read as a single figure:
         residual_label=r'$\epsilon_{\rm rel}~[\times 10^{-12}]$',
         legend_title='Calculation method',
     )
-    print(f'panels: {len(ax)}')
+
+The other layouts
+-------------------
+
+Three of the functions can compute the probabilities themselves, through the
+Earth wrappers: :func:`~magnus.plotting.plot_probability_with_profile`,
+:func:`~magnus.plotting.plot_biprobability` and
+:func:`~magnus.plotting.plot_oscillogram`.  Leave out the probability, and give
+``num_flavors``, the channel (``nu_i``, ``nu_f``), the energy where the plot does not
+sweep it, and optionally ``osc_params`` and ``wrapper_kw`` (any other keyword of the
+Earth wrapper, such as ``nubar``).  The docstrings list the keywords each one reserves
+for itself.
+
+**Probability against energy**, from a probability you computed:
+
+.. jupyter-execute::
+
+    from magnus.plotting import plot_probability_vs_energy
+
+    E = np.linspace(0.5, 5.0, 300)                              # [GeV]
+    P_mue = np.asarray(oscprob.osc_prob_3nu_matter_constant_density(
+        E*gd.UNIT_GEV, 1300.0*gd.UNIT_KM, 2.848*gd.UNIT_G_PER_CM3,
+        nu_i=gd.NUMU, nu_f=gd.NUE, **osc))
+
+    fig, ax = plot_probability_vs_energy(
+        E, [dict(y=P_mue, label='DUNE, 2.848 g/cm$^3$')],
+        nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, xscale='linear',
+        xlim=(E[0], E[-1]))
+
+``energy_unit`` sets only the label (GeV by default): pass the energies already in
+that unit.
+
+**Density profile over the probability**, computed along a chord through the core:
+
+.. jupyter-execute::
+
+    from magnus.plotting import plot_probability_with_profile
+
+    L_km = np.linspace(100.0, 11000.0, 200)      # the chord at cos = -0.9 is 11 467 km
+    fig, ax = plot_probability_with_profile(
+        L_km, trajectories=[dict(costhz=-0.9, label=r'$\cos\theta_z = -0.9$')],
+        energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+        xscale='linear')
+
+**CP violation as a bi-probability plot**, Fermilab to Homestake at 2 GeV, both
+orderings:
+
+.. jupyter-execute::
+
+    from magnus.plotting import plot_biprobability
+
+    where = dict(loc_ini='fermilab', loc_fin='homestake')
+    fig, ax = plot_biprobability(
+        configurations=[dict(where, **gd.load_nufit_params('NuFIT 6.1', 'NO')),
+                        dict(where, **gd.load_nufit_params('NuFIT 6.1', 'IO'))],
+        dcp=np.linspace(-np.pi, np.pi, 25), energy=2.0*gd.UNIT_GEV, num_flavors=3,
+        labels=['NO', 'IO'], markers=[dict(dcp=0.0, marker='*', label='0')])
+
+**An oscillogram**, over :math:`\cos\theta_z` and :math:`\log_{10}(E/{\rm GeV})`.
+A probability you pass must have shape ``(len(log10_energy), len(costhz))``: one
+row per energy.
+
+.. jupyter-execute::
+
+    import warnings
+    from magnus.magnus import MagnusConvergenceWarning
+    from magnus.plotting import plot_oscillogram
+
+    cos_grid = np.linspace(-1.0, -0.1, 25)
+    log10_E = np.linspace(0.0, 1.0, 20)
+    with warnings.catch_warnings():      # expected on a few chords; see diagnostics
+        warnings.simplefilter('ignore', MagnusConvergenceWarning)
+        fig, ax = plot_oscillogram(cos_grid, log10_E, nu_i=gd.NUMU, nu_f=gd.NUE,
+                                   num_flavors=3)
+
+**Small multiples** (:func:`~magnus.plotting.plot_curves_stacked`), one panel per
+case with matching axes, and **a probability under its phase average**
+(:func:`~magnus.plotting.plot_probability_with_average`) take probabilities you
+computed; their docstrings have an example each.
 
 .. _plotting-api-conventions:
 
@@ -199,7 +273,9 @@ Returning ``(fig, ax)``
 """"""""""""""""""""""""""
 
 Every function returns both, so that a pre-packaged figure is a starting
-point rather than a dead end.  ``ax`` is a single
+point rather than a dead end.  Each call creates its own figure: there is no
+``ax=`` argument for drawing into existing axes, and ``subplots_kw`` cannot set
+``nrows``, ``ncols`` or ``figsize``, which the layout fixes.  ``ax`` is a single
 :class:`~matplotlib.axes.Axes` for the single-panel layouts and an array for
 the multi-panel ones -- with a residual subpanel, ``ax[0]`` is the main panel
 and ``ax[1]`` the residual:
@@ -209,7 +285,6 @@ and ``ax[1]`` the residual:
     fig, ax = plot_curves(L, [dict(y=approx, label='m')], xscale='log')
     ax.axvline(1.0e3, color='0.6', ls=':', lw=1)
     ax.set_title('annotated after the fact', fontsize=20)
-    print(ax.get_title())
 
 What is *not* set here
 """"""""""""""""""""""""

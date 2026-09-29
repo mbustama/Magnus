@@ -1,5 +1,5 @@
-Command-Line Calculator
-=========================
+Command-line calculator
+=======================
 
 .. contents::
    :local:
@@ -28,15 +28,9 @@ own, so ``magnus --help`` and ``magnus prob --help`` both list every flag.
 Installation
 --------------
 
-.. code-block:: bash
-
-   git clone https://github.com/mbustama/Magnus.git
-   cd Magnus
-   pip install -e .
-
-This installs the ``magnus`` console script. If you would rather not
-install the package, ``python -m magnus`` works identically from the
-repository root once ``src/`` is on ``PYTHONPATH``.
+``pip install magnuspy`` installs the ``magnus`` command along with the package.
+From a checkout, ``pip install -e .`` does the same, and ``python -m magnus``
+works from the repository root once ``src/`` is on ``PYTHONPATH``.
 
 ``magnus --version`` (or ``-V``) prints the installed version and exits;
 it reports the same number as ``magnus.__version__``, which is read
@@ -50,6 +44,11 @@ Usage pattern
    magnus [prob] --flavors {2,3,4,5} --environment {vacuum,matter,earth,sun}
                  --scenario {std,nsi,liv} [environment- and scenario-specific flags]
                  --energy ENERGY [--energy-unit UNIT] [--baseline BASELINE] ...
+
+Unlike the Python API, the command line takes physical units: ``--energy`` in
+GeV, ``--baseline`` in km and ``--rho`` in g cm\ :sup:`-3` by default, changed with
+``--energy-unit``, ``--baseline-unit`` and ``--density-unit``.  The NSI couplings
+are real on the command line; complex ones need the Python API.
 
 ``--environment`` selects the propagation medium; ``--scenario`` selects
 the physics on top of it. Not every combination exists: ``--scenario nsi``
@@ -143,7 +142,10 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
    nu_mu     0.0638  0.6912  0.2449
    nu_tau    0.0233  0.2227  0.7540
 
-That command also writes ``MagnusConvergenceWarning`` twice to standard error:
+The baseline, 10193.6 km, is the length of the chord at
+:math:`\cos\theta_z = -0.8`, which ``magnus.earth.distance_traveled_inside_earth``
+gives in Python.  That command also writes ``MagnusConvergenceWarning`` twice to
+standard error:
 some slabs of this chord are wider than the sufficient condition for the series
 to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
 gives its measured false-alarm rate and says what to do about it.
@@ -238,8 +240,8 @@ hybrid strategy (``--strategy magnus``, which reproduces the behavior of
 releases before the adiabatic strategy existed) or to force it and be warned
 when it cannot certify its own result (``--strategy hybrid``).
 
-Opting out is rarely what you want.  ``magnus`` resolves the oscillation phase
-slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
+Opting out is rarely what you want.  ``--strategy magnus`` resolves the
+oscillation phase slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
 it, so that is the route that runs into a refinement cap and raises
 ``ToleranceNotAchievedWarning``.  `Notebook 12
 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_

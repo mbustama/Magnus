@@ -258,6 +258,17 @@ higher order into fewer slabs on its own, so the order and the requested
 tolerance interact: raising the order pays only once the tolerance is tight
 enough to make the extra work per slab worthwhile.
 
+.. figure:: ../../img/paper/phase_vs_profile.png
+   :width: 100%
+   :alt: Cost and accuracy of a Magnus slab at three flavors
+
+   Cost and accuracy of a Magnus slab, at three flavors.  Top right: one slab against
+   an exact exponential of the same constant Hamiltonian; the deviation bottoms out
+   near machine epsilon and rises along :math:`\Phi\varepsilon`.  Bottom left: time per
+   probability for six Magnus configurations and for DOP853, all at a tolerance of
+   :math:`10^{-8}`.  Bottom right: deviation from an extended-precision reference
+   against the number of slabs.  From the Magνs paper.
+
 Measured wall time relative to order 4 on the same problem (greater than 1
 means order 6 is faster):
 
@@ -458,97 +469,5 @@ independent oracle rather than against a tighter run of the same method.
 
 See :doc:`references` for full citations of the works referred to above.
 
-
-.. _conventions:
-
-Conventions
-------------
-
-Everything below is a *choice*. None of it is forced by the physics, all of it
-is forced by consistency, and a convention that is wrong **consistently** passes
-every internal test — which is why they are written down here rather than left
-in the code. Magνs has been bitten by exactly that: a reversed slab ordering, a
-doubled antineutrino potential sign and a flipped two-flavor mass ordering were
-all fixed on the same day, and each had been silently self-consistent.
-
-Ordering of the probabilities
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Every ``osc_prob_*`` function returns the probability matrix indexed
-**initial flavor first**:
-
-.. math::
-
-   P[\nu_i][\nu_f] \;=\; P(\nu_i \to \nu_f) .
-
-So ``P[1][0]`` is :math:`P(\nu_\mu \to \nu_e)`, not the reverse. Flavors are
-in the standard order :math:`(e, \mu, \tau, s_1, s_2)`, so index 0 is always
-:math:`\nu_e`.
-
-Each **row** sums to one — a neutrino that started as :math:`\nu_i` ends as
-something. Each column also sums to one, but that is a consequence of unitarity
-rather than a separate statement. Passing ``nu_i`` and ``nu_f`` returns that one
-entry instead of the matrix.
-
-For a batched call the point index comes **first**: the shape is
-``(n_points, d, d)``, so ``P[:, 1, 0]`` is :math:`P_{\mu e}` along a scan.
-
-Sign of the matter potential
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The charged-current potential enters the electron-flavor diagonal entry,
-
-.. math::
-
-   H \;=\; H_\text{vac} \;+\; \mathrm{diag}(V_{CC},\, 0,\, \ldots) ,
-   \qquad V_{CC} = +\sqrt{2}\, G_F n_e ,
-
-and **for antineutrinos it changes sign**. That flip is applied once, inside
-:func:`magnus.matter.vcc_func_from_rho_func`, so a caller passing
-``nubar=True`` gets it automatically and code downstream must not apply it
-again. It was applied twice once, which gave antineutrinos a positive potential
-and answers that looked plausible.
-
-Mass ordering
-~~~~~~~~~~~~~
-
-The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
-flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
-normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
-eV\ :sup:`2`. It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the same
-release :func:`~magnus.globaldefs.load_nufit_params` returns by default, and is
-derived from it rather than written out a second time.
-``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` carries every NuFIT release from 1.0
-on, in both orderings and, from 4.0 on, with and without that atmospheric data,
-if you want to name the fit explicitly.
-
-For two flavors the same rule applies to :math:`\Delta m^2`, which is what
-makes the two-flavor case easy to get backwards: flipping its sign moves the
-MSW resonance into the other channel, and the result is still a perfectly
-ordinary-looking probability.
-
-Mixing parameters
-~~~~~~~~~~~~~~~~~
-
-Angles are given as **sines** by default (``angles='sin'``) -- not as angles,
-and not as :math:`\sin^2\theta`; ``angles=`` also accepts ``'sin2'``,
-``'rad'`` and ``'deg'``.  By default ``s12`` is
-:math:`\sin\theta_{12}`. Quoted fits usually give :math:`\sin^2\theta`, so
-take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
-Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
-212 degrees.
-
-Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. This is
-one of the few convention errors here that cannot pass quietly: unrecognized
-keywords are refused by name at the call site rather than forwarded down, so a
-two-flavor call written with the three-flavor names raises instead of returning
-a probability computed from the defaults.
-
-Units
-~~~~~
-
-Natural units throughout: energies in eV, baselines and positions in
-eV\ :sup:`-1`, so that :math:`HL` is dimensionless.
-:mod:`magnus.globaldefs` supplies the conversions — multiply by ``UNIT_KM``,
-``UNIT_MEV``, ``UNIT_GEV``, ``UNIT_G_PER_CM3`` — and :ref:`units-table` lists
-them.
+The conventions -- flavor order, signs, the mass ordering, the parameters and the
+units -- are on their own page, :doc:`conventions`.

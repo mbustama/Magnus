@@ -164,7 +164,61 @@ turns it into an oscillogram.
    :width: 70%
    :alt: Oscillogram across zenith angle and energy
 
-   Probability across zenith angle and energy in one call.
+   Probability across zenith angle and energy: one batched energy scan per zenith
+   angle.
+
+Between two named sites
+-----------------------
+
+Two site names replace ``costhz`` and ``L``: the chord between them is the
+baseline, and ``magnus.earth.loc_coords_dms`` lists the sites.
+
+.. jupyter-execute::
+
+    import warnings
+    from magnus.magnus import MagnusConvergenceWarning
+
+    E_beam = np.logspace(np.log10(0.3), 1.0, 5)*gd.UNIT_GEV
+
+    for site in ('homestake', 'snolab', 'cern'):
+        a, b = earth.loc_coords_dms['fermilab'], earth.loc_coords_dms[site]
+        L_km = earth.chord_length_inside_earth(a['lat'], a['lon'], b['lat'], b['lon'])
+        with warnings.catch_warnings():      # expected on these chords; see diagnostics
+            warnings.simplefilter('ignore', MagnusConvergenceWarning)
+            P_site = np.asarray(oscprob.osc_prob_3nu_earth(
+                E_beam, loc_ini='fermilab', loc_fin=site, nu_i=gd.NUMU, nu_f=gd.NUE))
+        print('fermilab -> %-9s %6.0f km   P_mue:' % (site, L_km), np.round(P_site, 4))
+
+`Notebook 04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_
+draws these, with T2K, Hyper-K and ESS.
+
+
+An oscillogram
+--------------
+
+An energy scan is one batched call; an oscillogram is one such call per zenith
+angle.  The result has one row per zenith angle.
+
+.. jupyter-execute::
+
+    import warnings
+    from magnus.magnus import MagnusConvergenceWarning
+
+    cos_grid = np.linspace(-1.0, -0.1, 40)
+    E_grid = np.logspace(0.0, 1.5, 60)*gd.UNIT_GEV
+
+    with warnings.catch_warnings():      # expected on a few chords; see diagnostics
+        warnings.simplefilter('ignore', MagnusConvergenceWarning)
+        P_mumu = np.array([
+            oscprob.osc_prob_3nu_earth(
+                E_grid, costhz=c, L=earth.distance_traveled_inside_earth(c)*gd.UNIT_KM,
+                nu_i=gd.NUMU, nu_f=gd.NUMU)
+            for c in cos_grid])
+
+    print('shape:', P_mumu.shape, '  smallest P_mumu = %.3f' % P_mumu.min())
+
+:func:`magnus.plotting.plot_oscillogram` computes and draws the same map in one
+call (see :doc:`plotting`).
 
 
 A profile of your own
@@ -182,10 +236,11 @@ standard solar models ship as well, and the Sun wrappers take them by name
 
     profile = matter.exp_density_profile(gd.NUM_DENSITY_E_SUN_CENTRAL,
                                          gd.L_SCALE_SUN)
-    osc = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    osc = gd.load_nufit_params('NuFIT 6.1')
 
+    # arguments: flavors, density, energy, baseline, oscillation parameters
     P = np.asarray(oscprob.osc_prob_matter_std_potential(
-        2, profile, 10.0e6, 0.3*gd.SUN_RADIUS*gd.UNIT_KM,
+        2, profile, 10.0*gd.UNIT_MEV, 0.3*gd.SUN_RADIUS*gd.UNIT_KM,
         {'sth': osc['s12'], 'Dm2': osc['D21']},
         L0=0.0, density_is_of_number_of_electrons=True))
 
@@ -220,9 +275,9 @@ instantaneous value. Ask for it directly rather than averaging a scan by hand.
     L_sun = 0.3*gd.SUN_RADIUS*gd.UNIT_KM
 
     inst = np.asarray(oscprob.osc_prob_matter_std_potential(
-        2, profile, 10.0e6, L_sun, params, **kw))
+        2, profile, 10.0*gd.UNIT_MEV, L_sun, params, **kw))
     avg = np.asarray(oscprob.osc_prob_matter_std_potential(
-        2, profile, 10.0e6, L_sun, params, average=True, **kw))
+        2, profile, 10.0*gd.UNIT_MEV, L_sun, params, average=True, **kw))
 
     print('instantaneous P_ee = %.6f' % inst[0][0])
     print('phase-averaged     = %.6f' % avg[0][0])
@@ -237,6 +292,29 @@ disappears under averaging, and one that is an *envelope* does not. See
    :alt: Instantaneous against phase-averaged probabilities
 
    What survives when the phase is unresolvable.
+
+Flavor composition of astrophysical neutrinos
+---------------------------------------------
+
+From a source 100 Mpc away every oscillation has averaged out, so the flavor
+composition at Earth is the source composition times the averaged probability
+matrix.
+
+.. jupyter-execute::
+
+    E_astro = np.array([1e3, 1e5])*gd.UNIT_GEV                 # 1 TeV and 100 TeV
+    L_src = 100.0*3.0857e19*gd.UNIT_KM                          # 100 Mpc
+    f_source = np.array([1/3, 2/3, 0.0])                        # pion decay
+
+    P_avg = np.asarray(oscprob.osc_prob_3nu_vacuum(E_astro, L_src, average=True))
+    for E_i, P_i in zip(E_astro, P_avg):
+        f_earth = f_source @ P_i
+        print('%6.0f TeV   (f_e, f_mu, f_tau) at Earth =' % (E_i/gd.UNIT_TEV),
+              np.round(f_earth, 3))
+
+New physics changes the matrix, and with it the composition;
+`notebook 29 <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_
+does this for pseudo-Dirac pairs.
 
 
 Asking for an accuracy instead of a slab count
@@ -283,7 +361,7 @@ answering quietly.
 
     report = {}
     oscprob.osc_prob_matter_std_potential(
-        2, profile, 10.0e6, L_sun, params, strategy_info=report, **kw)
+        2, profile, 10.0*gd.UNIT_MEV, L_sun, params, strategy_info=report, **kw)
 
     print('engine that answered:', report['engine'])
 
@@ -291,6 +369,29 @@ Pass ``strategy_info`` whenever you want to know which of the engines produced a
 number. See :doc:`adiabatic_strategy`, and
 `notebook 12 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_,
 which times all three against ``solve_ivp``.
+
+Checking an answer two ways
+---------------------------
+
+:func:`~magnus.oscprob.cross_check_strategies` runs the same call through every
+engine that applies and reports how far their answers spread.  Engines of different
+families fail in different ways, so agreement between them is stronger evidence
+than any one engine's own convergence check.
+
+.. jupyter-execute::
+
+    check = oscprob.cross_check_strategies(
+        oscprob.osc_prob_3nu_sun, np.array([5.0, 8.0, 10.0])*gd.UNIT_MEV,
+        0.5*gd.SUN_RADIUS*gd.UNIT_KM, 0.0)
+
+    print('engines that ran              :', check['ran'])
+    print('largest spread                : %.1e' % check['max_spread'])
+    print('largest spread across families: %.1e' % check['max_spread_independent'])
+
+The spread across engine families is the one that counts: two engines of the same
+family share their failure modes, and when only one family applies the function
+says so with :class:`~magnus.oscprob.CrossCheckInconclusiveWarning`.  A large spread
+is reported, never raised; read it before trusting a number that matters.
 
 
 Telling it where the profile is not smooth
@@ -300,13 +401,25 @@ High-order quadrature converges at its nominal order only inside a smooth slab.
 If your profile has a jump or a kink, pass its position as a mandatory slab edge;
 no number of slabs fixes one that straddles it.
 
+.. figure:: ../../img/paper/declaring_edges.png
+   :width: 90%
+   :alt: Declaring a density discontinuity
+
+   What a density jump does to a slab, and the two ways of declaring it.  Nothing
+   declared, one slab straddles the jump and the quadrature sees a straight line across
+   it (shaded).  ``t_breakpoints`` adds the jump to the refinement grid;
+   ``t_slab_edges`` replaces the grid.  From the Magνs paper.
+
 .. code-block:: python
 
-    breakpoints = earth.prem_layer_edges_along_chord(costhz)*gd.UNIT_KM
+    osc = gd.load_nufit_params('NuFIT 6.1')
+
+    def rho_func(l):                              # [g/cm^3]: a jump at 1000 km
+        return 3.0 if l < 1000.0*gd.UNIT_KM else 8.0
 
     P = oscprob.osc_prob_matter_std_potential(
-        3, rho_func, energy, L, osc_params, L0=0.0,
-        t_breakpoints=breakpoints)
+        3, rho_func, 10.0*gd.UNIT_GEV, 3000.0*gd.UNIT_KM, osc, L0=0.0,
+        t_breakpoints=[1000.0*gd.UNIT_KM], density_matter_is_in_g_per_cm3=True)
 
 The Earth entry points do this for you. It is worth doing by hand for a shock
 front, a castle-wall profile, or a tabulated model with a discontinuous
@@ -314,6 +427,36 @@ derivative — and on a *scan* it is an established cure, while on a single poin
 it is not: measured across 18 shock configurations it improved 7 and worsened 11.
 `Notebook 14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
 is that measurement.
+
+A layered profile, exactly
+--------------------------
+
+A piecewise-constant profile -- a castle wall -- is exact once its slab edges are
+declared: inside each layer the Hamiltonian is constant, and one exponential per
+layer is the whole answer.
+
+.. jupyter-execute::
+
+    # 24 layers of 250 km, alternating 2 and 8 g/cm^3
+    n_layers, width = 24, 250.0*gd.UNIT_KM
+    rho_layers = np.where(np.arange(n_layers) % 2 == 0, 2.0, 8.0)
+    edges = np.arange(n_layers + 1)*width
+
+    def castle_wall(l):
+        k = np.searchsorted(edges, l, side='right') - 1
+        return rho_layers[np.clip(k, 0, n_layers - 1)]
+
+    E_cw = np.array([1.0, 2.0, 4.0])*gd.UNIT_GEV
+    for nubar in (False, True):
+        P_cw = oscprob.osc_prob_matter_std_potential(
+            3, castle_wall, E_cw, n_layers*width, gd.load_nufit_params('NuFIT 6.1'),
+            t_breakpoints=edges[1:-1], nubar=nubar, nu_i=gd.NUMU, nu_f=gd.NUE,
+            density_matter_is_in_g_per_cm3=True)
+        print('nubar=%-5s P_mue at 1, 2, 4 GeV:' % nubar, np.round(P_cw, 4))
+
+The same mean density arranged differently gives different probabilities;
+`notebook 18 <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
+compares four arrangements.
 
 
 New physics
@@ -325,20 +468,24 @@ calculation with a different Hamiltonian.
 
 .. code-block:: python
 
-    # NSI: an extra matter potential with off-diagonal couplings
-    P = oscprob.osc_prob_3nu_earth_nsi(energy, costhz=costhz, L=L,
-                                       eps_ee=0.1, eps_em=0.05, eps_et=0.0,
-                                       eps_mm=0.0, eps_mt=0.0, eps_tt=0.0)
+    energy = 10.0*gd.UNIT_GEV
+    costhz = -0.5
+    L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
+    osc = gd.load_nufit_params('NuFIT 6.1')
 
-    # LIV: an energy dependence the vacuum term does not have
-    P = oscprob.osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L,
-                                       b1=1.0e-23, b2=0.0, b3=0.0)
+    # NSI: couplings relative to the standard potential; unset ones are zero,
+    # diagonal ones are real, off-diagonal ones may be complex
+    P = oscprob.osc_prob_3nu_earth_nsi(energy, costhz=costhz, L=L, **osc,
+                                       eps_ee=0.1, eps_em=0.05j)
+
+    # LIV: an energy dependence the vacuum term does not have (b's and Lambda in eV)
+    P = oscprob.osc_prob_3nu_earth_liv(energy, costhz=costhz, L=L, **osc,
+                                       b1=1.0e-23, b2=0.0, b3=0.0,
+                                       Lambda=1.0e9, n_liv=1)
 
     # 3+1 sterile: the same machinery at one dimension higher
-    P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L,
-                                   s12=s12, s23=s23, s13=s13, dCP=dCP,
-                                   s14=0.1, s24=0.1, s34=0.0,
-                                   D21=D21, D31=D31, D41=1.0)
+    P = oscprob.osc_prob_4nu_earth(energy, costhz=costhz, L=L, **osc,
+                                   s14=0.1, s24=0.1, s34=0.0, D41=1.0)
 
 .. figure:: ../../img/gallery/gallery_biprobability.png
    :width: 60%
@@ -366,17 +513,22 @@ probability, repeated at each refinement level.
 
 .. code-block:: python
 
+    energy = 1.0*gd.UNIT_GEV
+    h_vac = hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    e00 = np.diag([1.0, 0.0, 0.0])
+
+    def vcc(l):                                   # [eV], falls exponentially
+        return 1.0e-13*np.exp(-np.asarray(l, dtype=float)/(500.0*gd.UNIT_KM))
+
     # Slow: one position at a time
-    def H_func(l):
-        VCC = matter.VCC_func(l, num_density_e_func)
-        return (1.0/energy)*h_vac + hamiltonians.hamiltonian_3nu_matter(VCC)
+    def H_slow(l):
+        return h_vac/energy + float(vcc(l))*e00
 
     # Fast: the same physics, all positions at once
-    e00 = np.diag([1.0, 0.0, 0.0])
-    def H_func(l):
-        l = np.asarray(l, dtype=float)
-        VCC = vcc_of(l)                       # returns an array
-        return (1.0/energy)*h_vac + VCC[..., None, None]*e00
+    def H_fast(l):
+        return h_vac/energy + vcc(l)[..., None, None]*e00
+
+    P = oscprob.osc_prob(H_fast, t_ini=0.0, t_fin=1000.0*gd.UNIT_KM)
 
 The trailing ``[..., None, None]`` is the whole trick: it turns one potential per
 position into a stack of matrices, so NumPy broadcasts instead of Python looping.
