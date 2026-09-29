@@ -105,16 +105,16 @@ states, pseudo-Dirac pairs and a model of your own all go through the same call.
 Two to five flavors ship ready-made; the generic entry points take any
 dimension and any profile, given as a function of position.
 
-**Fast.**  An energy scan is one batched call rather than a loop, worth one to
-two orders of magnitude per probability; an oscillogram is one such call per
-zenith angle.  The median call over 164 Earth and solar configurations is
+**Fast.**  An energy scan is one batched call rather than a loop, worth about an
+order of magnitude per probability; an oscillogram is one such call per zenith
+angle.  The median call over 164 Earth and solar configurations is
 **2 ms**; [Performance](#performance) has the rest.
 
 **Accurate.**  Internally, Magνs propagates the evolution operator with the
 **Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
-a chain of position slabs, and every truncation is exactly unitary.  On a smooth
-profile it reaches **2.9 × 10⁻¹³**, where a composition of constant slabs floors
-at 2.5 × 10⁻¹¹.  Where it cannot certify its own answer, it says so.
+a chain of position slabs, and every truncation is exactly unitary.  Asked for it, it agrees with an
+independent integration to a few parts in **10¹²** at two to five
+flavors.  Where it cannot certify its own answer, it says so.
 
 > **How do I say that?** Just like the name **Magnus** — the Greek letter
 > **ν** (nu), the neutrino's symbol, stands in for the "nu" syllable.  (Most of
@@ -172,89 +172,53 @@ out of the executed file, so what you see is what that notebook produced.
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in about 0.7 s. The green trace is the *instantaneous* probability another code returns, thrashing between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_shock_bsm.png" width="380"/><br/>**The same two scenarios on a supernova shock**, where the identical $\varepsilon$ moves the answer thirty times further.<br/>[notebook 14](https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb) | |
 
-## When is Magνs a win?
+## When is Magνs the right tool?
 
-Compared to solving the propagation equation directly, with an adaptive
-Runge–Kutta solver for instance, Magνs wins when one or more of these apply.
+Three advantages follow from the method, whatever the Hamiltonian contains.
+Magνs is **robust**: the evolution operator is exactly unitary.  It is **fast**
+without giving up accuracy: its cost follows the profile, not the phase, where
+an ODE solver pays for every radian it resolves, and a scan over energy or
+direction is one batched call on compiled kernels.  And it is **flexible**: the
+Hamiltonian is a callable returning a Hermitian matrix of any size.
 
-1. **The matter profile varies slowly compared to the oscillation length.**  A
-   Magnus slab is *exact* for a constant Hamiltonian however many oscillation
-   cycles it spans, so the slab size is set by how fast the *profile* changes,
-   not by how fast the phase winds.  For a 1 GeV neutrino crossing the Earth,
-   that is **~2 ms against ~360–700 ms** per probability for `solve_ivp` at
-   comparable accuracy.  Where the accumulated phase is extreme, as for a solar
-   neutrino, Magνs transports the state along the instantaneous eigenstates
-   and keeps the expansion for the level crossings, choosing the hand-over
-   itself.
-2. **You scan over energy or direction.**  The slabs, and for the standard,
-   NSI and LIV Hamiltonians the whole energy axis, evaluate as batched NumPy
-   calls.  An adaptive solver cannot share its steps across energies.
-3. **Unitarity matters more than raw local error**: long baselines, small
-   probabilities, CP and T asymmetries.  Runge–Kutta iterates drift off the
-   unitary manifold; the Magnus route has nothing to leak.
-4. **You want arbitrary physics with no per-model work**: any number of
-   flavors and any Hermitian Hamiltonian, given as a function of energy and
-   position.
-
-Numbers behind each case, and a case-by-case table against other codes, are on
-the [Against other codes](https://mbustama.github.io/Magnus/comparison.html)
-page; [notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb)
-runs the comparison in full, every code timed in one process and refereed by a
-method that is neither code's.
+Reach for it when the density varies fast against the oscillation length, as in
+the Sun; when the profile has structure at a known place, declared with
+`t_breakpoints`; for more than three flavors; for a Hamiltonian with no closed
+form; for an averaged observable; or for an accuracy below where a composition
+of constant-density slabs floors.  Elsewhere another code may be cheaper: at
+constant density NuFast-LBL is about sixty times faster, and on an Earth chord
+resolved to no better than about 10⁻⁶
+[NuOscProbExact](https://github.com/mbustama/NuOscProbExact) is cheaper.  The
+measurements are on the
+[Against other codes](https://mbustama.github.io/Magnus/comparison.html) page.
 
 ## When is it not the right tool?
 
-Magνs solves the **unitary** Schrödinger equation for a Hermitian Hamiltonian.
-Quantum decoherence, coupling to a bath and neutrino decay each need a
-non-unitary term in the evolution.  Self-consistent collective oscillations
-need a Hamiltonian that depends on the solution.  Neither fits an expansion for
-a known Hermitian Hamiltonian.  For those, look to density-matrix (Lindblad)
-codes or to dedicated collective-oscillation codes.
-
-Where the density is constant or piecewise constant, a closed form is exact and
-leaner: [NuOscProbExact](https://github.com/mbustama/NuOscProbExact) is built
-for that case.  And Magνs is not a flux, cross-section or detector code, a
-fitting framework, or an event generator: it computes oscillation probabilities
-and stops there.
-
-## What Magνs earns its place on
-
-**Reach.**  A slab product has a *floor*: on a smooth profile its error bottoms
-out near 2.5 × 10⁻¹¹ and then **rises**, because the round-off of composing that
-many matrix products outgrows what another halving of the width buys.  Magνs
-continues to 2.9 × 10⁻¹³.
-
-**Generality.**  An arbitrary H(t) — a custom Hamiltonian, a BSM term nobody
-has diagonalized, a profile interpolated from a simulation — needs no per-model
-work, because nothing in the method assumes a form for H.  The SU(N) closed
-forms stop at SU(4); Magνs has no ceiling.
-
-**Pre-packaged observables.**  `average=True` returns the phase-averaged
-probability a solar experiment measures, without resolving some 13 000 radians
-of phase and averaging the result yourself.  Every entry point can also hand
-back the converged evolution operator alongside the probabilities
-(`return_evolution_operator=True`), for the observables built from amplitudes.
+Magνs solves the Schrödinger equation for a Hermitian Hamiltonian fixed before
+the propagation.  Decoherence, coupling to a bath and decay to invisible states
+need a non-unitary evolution; [nuSQuIDS](https://github.com/arguelles/nuSQuIDS)
+is the tool for those.  Collective oscillations need a Hamiltonian that depends
+on the solution, and Magνs does not ship the self-consistent iteration.  And a
+feature narrower than every sampling grid is missed by every engine together;
+the matter scenario functions scan the profile for such features and warn, but
+the scan catches most, not all.  Magνs is not a flux, cross-section or detector
+code, a fitting framework, or an event generator: it computes oscillation
+probabilities and stops there.
 
 ## Performance
 
 A single three-flavor Earth probability takes about 2 ms at the default
-tolerance of 10⁻³:
-
-| Workload | Time |
-|---|---|
-| One probability, 1 GeV, cos θz = −0.8 | ~2 ms |
-| 200-energy scan, one direction | 76 ms |
-| 100 × 100 oscillogram | ~2 s |
-| `solve_ivp` DOP853 reference, one probability | ~360 ms |
+tolerance of 10⁻³; across 164 Earth and solar configurations the median call
+takes 2 ms and the slowest under a second.
 
 **Pass arrays instead of looping.**  Every wrapper takes an array of energies,
-of baselines or of both.  The matter profile is then built once for the whole
-scan.
+of baselines or of both, and shares work across the points: worth about an order
+of magnitude at two and three flavors, and several-fold at four and five.
 
-**Write your `H_func` to accept an array of positions.**  The engine tries a
-single vectorized call and otherwise falls back to a Python loop, 4.6× slower
-for a bit-identical answer.  The trick is broadcasting the potential into a
-stack of matrices:
+**Write your `H_func` to accept an array of positions.**  It is then called once
+per refinement stage rather than once per quadrature node: several times faster,
+with identical output.  The trick is broadcasting the potential into a stack of
+matrices:
 
 ```python
 def H_func(l):
@@ -264,30 +228,31 @@ def H_func(l):
 ```
 
 A Hamiltonian that ignores its argument is detected and broadcast already.  The
-fallback warns once per session, naming the fix.  More:
+fallback warns once per session, naming the fix.
+
+**`n_jobs` helps only where no batched engine applies**, 2 to 3 times with ten
+workers; where one applies, a single process is faster.  More:
 [performance](https://mbustama.github.io/Magnus/performance.html).
 
 ## What "accurate" means here
 
-Magνs is a numerical integrator, so its error depends on how finely it
-discretizes.  Two properties are exact regardless; the rest is measured.
+Every truncation of the Magnus series is anti-Hermitian, so the evolution is
+unitary at any order and tolerance.  The rest is measured:
 
-| Property | Measured agreement |
+| Checked against | Result |
 |---|---|
-| Unitarity, U†U − 1 | 10⁻¹⁶ to 10⁻¹³ |
-| Magnus terms against an independently coded Bernoulli recursion, orders 1–6 | machine precision |
-| Gauss–Legendre convergence under slab halving, orders 2 / 4 / 6 | error ratios 4 / 16 / 64 |
-| 2ν and 3ν in vacuum, 2ν in constant-density matter: against the closed form | machine precision |
-| Earth crossing at the default `rtol = atol = 1e-3`, against the same call at 10⁻⁷ | median 9 × 10⁻⁷, worst 2 × 10⁻³ |
-| Complex Hamiltonians on asymmetric profiles against `solve_ivp` at `rtol = 1e-12` | 10⁻⁷ to 10⁻⁴ |
-| Repeated calls, and a baseline scan given in shuffled order | exactly 0.0 |
-| `n_jobs=2` against serial, general ladder, `rtol = atol = 1e-6` | 1.1 × 10⁻⁷ |
+| Every expansion term, Ω₁ to Ω₁₀, against an independent recursion | relative 10⁻¹¹ |
+| 2ν and 3ν vacuum, 2ν constant-density matter: the closed forms | 10⁻¹² |
+| Halving the slab width at orders 2 / 4 / 6, against DOP853 | error ÷ 4 / 16 / 64 |
+| Repeated calls, and a baseline scan in any order | identical, bit for bit |
+| A parallel run against a serial one | to the requested tolerance |
+| 40 random smooth profiles, default tolerance | median 10⁻⁸, one silent miss |
+| 120 random step profiles, edges undeclared | 19 outside tolerance, all warned |
 
-The suite asserts identities rather than tolerances where an identity holds, so
-an optimization that changed an answer fails rather than passing quietly.  One
-caveat worth stating plainly: `rtol` and `atol` are a **stopping criterion**,
-not an error bound.  They compare two of the code's own approximations, not the
-distance to the truth.  See
+A *silent miss* is an answer outside the tolerance with no warning.  `rtol` and
+`atol` are a **stopping rule**, not a guarantee: at the default 10⁻³ an Earth
+probability is usually far more accurate (median 10⁻⁶ from the same call at
+10⁻⁷, largest about 10⁻³).  See
 [what they actually control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-actually-control).
 
 ## Salient features

@@ -305,87 +305,6 @@ def module_layout(path):
     print(f'wrote {path}')
 
 
-def api_layers(path):
-    """The three layers of ``magnus.oscprob``, names only.
-
-    The Mermaid version put full signatures in the boxes; that is what made it
-    overlap.  The signatures belong in the table beside it.
-    """
-    fig, ax = plt.subplots(figsize=(8.8, 4.6))
-    ax.set_xlim(0, 10)
-    ax.set_ylim(0, 5.6)
-    ax.axis('off')
-
-    from matplotlib.patches import FancyBboxPatch
-
-    # Rows per band: four long names do not fit across one row at a legible
-    # size, and shrinking the font to make them fit is how a figure becomes
-    # unreadable at print size.  They wrap instead.
-    layers = [
-        ('Layer 3 — wrappers', '~60 functions',
-         [['osc_prob_3nu_earth', 'osc_prob_2nu_matter_nsi…', 'osc_prob_5nu_vacuum_liv']]),
-        ('Layer 2 — scenario', '4 functions, generic in num_flavors',
-         [['osc_prob_vacuum', 'osc_prob_matter_std_potential'],
-          ['osc_prob_matter_nsi', 'osc_prob_liv']]),
-        ('Layer 1 — primordial', '2 functions',
-         [['osc_prob_energy_baseline', 'osc_prob']]),
-    ]
-
-    bw_band, x0 = 7.5, 0.35
-    row_h, head_h, gap = 0.50, 0.46, 0.34
-    y_cursor = 5.35
-    band_rects = []
-    for title, count, rows in layers:
-        height = head_h + row_h*len(rows) + 0.14
-        y_top = y_cursor
-        y_bot = y_top - height
-        ax.add_patch(FancyBboxPatch(
-            (x0, y_bot), bw_band, height,
-            boxstyle='round,pad=0.0,rounding_size=0.10',
-            linewidth=1.1, facecolor=BAND, edgecolor=PANEL_EDGE, zorder=1))
-        ax.text(x0 + 0.27, y_top - 0.25, title, fontsize=9.6, color=INK,
-                fontweight='bold', va='center', zorder=3)
-        ax.text(x0 + bw_band - 0.27, y_top - 0.25, count, fontsize=8.0,
-                color='#5a6b7d', va='center', ha='right', zorder=3)
-        for r, names in enumerate(rows):
-            span = bw_band/len(names)
-            yr = y_top - head_h - row_h*(r + 0.5)
-            for i, name in enumerate(names):
-                _rounded(ax, x0 + span*(i + 0.5), yr, span - 0.26, 0.42,
-                         name, face='#ffffff', fontsize=8.0, zorder=2)
-        band_rects.append((x0 + bw_band/2.0, (y_top + y_bot)/2.0, bw_band, height))
-        y_cursor = y_bot - gap
-
-    for upper, lower in zip(band_rects, band_rects[1:]):
-        _connect(ax, upper, lower, lw=1.3)
-
-    core = _rounded(ax, x0 + bw_band/2.0, y_cursor - 0.28, 5.6, 0.50,
-                    'magnus.magnus — the Magnus expansion core',
-                    face=PANEL, fontsize=8.8, weight='bold')
-    _connect(ax, band_rects[-1], core, lw=1.3)
-
-    # The escape hatch keeps to the right of every band, so "bypasses" is what
-    # the geometry shows as well as what the caption says.
-    _rounded(ax, 9.05, band_rects[0][1], 1.62, 0.80,
-             'your own\nH_func(l)', face='#fff4e8', edge=ORANGE,
-             fontsize=8.2, color='#8a4b00')
-    ax.annotate('', xy=(x0 + bw_band, band_rects[-1][1]),
-                xytext=(9.05, band_rects[0][1] - 0.44),
-                arrowprops=dict(arrowstyle='-|>', mutation_scale=11,
-                                color=ORANGE, linewidth=1.2,
-                                linestyle=(0, (4, 2)), shrinkA=2, shrinkB=0,
-                                connectionstyle='angle,angleA=-90,angleB=0,rad=6'))
-    # Right-aligned so it ends before the dashed lane rather than sitting on it.
-    ax.text(8.88, (band_rects[0][1] + band_rects[-1][1])/2.0 + 0.12,
-            'bypasses layers\n3 and 2 entirely', ha='right', va='center',
-            fontsize=7.4, color=ORANGE, linespacing=1.4)
-
-    fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
-    fig.savefig(path, metadata=SVG_METADATA)
-    plt.close(fig)
-    print(f'wrote {path}')
-
-
 def call_sequence(path):
     """What is built, in what order, on one call.
 
@@ -472,7 +391,6 @@ def main():
     averaging_regimes(STATIC / 'averaging_regimes.svg')
     _check_module_graph()
     module_layout(STATIC / 'module_layout.svg')
-    api_layers(STATIC / 'api_layers.svg')
     call_sequence(STATIC / 'call_sequence.svg')
     return 0
 

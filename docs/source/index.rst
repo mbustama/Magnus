@@ -76,16 +76,15 @@ states, pseudo-Dirac pairs and a model of your own all go through the same call.
 Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
-**Fast.**  An energy scan is one batched call rather than a loop, worth one to two
-orders of magnitude per probability; an oscillogram is one such call per zenith
-angle.  The median call over 164 Earth and solar configurations is **2 ms**;
+**Fast.**  An energy scan is one batched call rather than a loop, worth about an order
+of magnitude per probability; an oscillogram is one such call per zenith angle.  The median call over 164 Earth and solar configurations is **2 ms**;
 :doc:`performance` has the rest.
 
 **Accurate.**  Internally, Magνs propagates the evolution operator with the
 **Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
-a chain of position slabs, and every truncation is exactly unitary.  On a smooth
-profile it reaches **2.9e-13**, where a composition of constant slabs floors at
-2.5e-11.  Where it cannot certify its own answer, it says so.
+a chain of position slabs, and every truncation is exactly unitary.  Asked for it, it agrees with an
+independent integration to a few parts in :math:`10^{12}` at two to five
+flavors.  Where it cannot certify its own answer, it says so.
 
 .. hint::
    **How do I say that?** Just like the name **Magnus** — the Greek letter
@@ -140,239 +139,140 @@ guided tour.
 What "accurate" means here
 ---------------------------
 
-Magνs is a numerical integrator, so unlike a closed-form method it has an error
-that depends on how finely it discretizes.  Two properties are exact regardless,
-and the rest is measured rather than asserted.
-
-**Exact at any order, by construction.** Every truncation of the Magnus series is
-anti-Hermitian, so its exponential is exactly unitary --- not unitary to within a
-tolerance.  Truncating early costs accuracy, never norm.
+Magνs is a numerical integrator, so its error depends on how finely it discretizes.  One
+property is exact regardless: every truncation of the Magnus series is anti-Hermitian, so the
+evolution operator is unitary at any order, any tolerance and any slab count, and the
+probabilities add up to one to round-off.  The rest is measured, in layers that are
+independent on purpose (Sec. 5.11 of the paper):
 
 .. list-table::
    :header-rows: 1
-   :widths: 62 38
+   :widths: 58 42
 
-   * - Property
-     - Measured agreement
-   * - Unitarity, :math:`U^\dagger U - \mathbb{1}`
-     - 1e-16 to 1e-13
-   * - Magnus terms vs an independently coded Bernoulli recursion, orders 1--6
-     - machine precision
-   * - Gauss--Legendre convergence rate under slab halving, orders 2/4/6
-     - error ratios 4 / 16 / 64
-   * - 2ν and 3ν vacuum vs the closed-form expression
-     - machine precision
-   * - 2ν constant-density matter vs the closed form, ν and ν̄
-     - machine precision
-   * - Earth crossing (PREM) at the default ``rtol = atol = 1e-3``, against the
-       same call at 1e-7
-     - median 9e-7, worst 2e-3
-   * - Asymmetric profiles with complex Hamiltonians vs ``solve_ivp``/DOP853 at
-       ``rtol=1e-12``
-     - 1e-4 to 1e-7
-   * - Energy-batched scan vs the per-point path, grid and tolerances pinned
-     - 1e-12
-   * - Repeated calls, and a baseline scan given in shuffled order
-     - exactly 0.0
-   * - ``n_jobs=2`` vs serial, general ladder, ``rtol = atol = 1e-6``
-     - 1.1e-7
+   * - Checked against
+     - Result
+   * - The derivation: every expansion term, :math:`\Omega_1` to :math:`\Omega_{10}`, against
+       terms generated independently from the recursion
+     - agree to a relative 1e-11 at every order
+   * - Closed forms: 2ν and 3ν vacuum, 2ν constant-density matter, ν and ν̄
+     - agree to 1e-12
+   * - An independent solver: DOP853 at ``rtol=1e-12``, ``atol=1e-14``; halving the slab
+       width at orders 2, 4, 6
+     - error divided by about 4, 16, 64
+   * - Itself: repeated calls, and a baseline scan given in any order
+     - identical, bit for bit
+   * - Itself: a parallel run against a serial one
+     - agree to the requested tolerance
+   * - Itself: the energy-batched scan against the per-point path, grid pinned
+     - agree to 1e-12 (asserted), 1e-14 (measured)
+   * - A population: 40 random smooth profiles at the default tolerance
+     - median error about 1e-8, one silent miss
+   * - A population: 120 random piecewise-constant profiles, edges left undeclared
+     - 19 answers outside the tolerance, every one warned
 
-The exact rows are *bit-identity* assertions rather than tolerances, so an
-optimization that changed an answer would fail them rather than pass quietly.  A
-parallel scan is not bit-identical to a serial one: the two warm-start their points
-differently, so they agree to the tolerance, not to the last bit.  The batched scan is held to 1e-12, and only with the
-grid pinned, which is what isolates the batching: left to refine on its own it
-builds the matter profile once for the whole scan, moving the answer at the 1e-6
-level.  Notebook 24 measures that comparison.
+A *silent miss* is an answer outside the requested tolerance with no warning; it is the
+failure that matters.  Larger batteries, run by hand, found about 4% silent misses on 145
+random smooth profiles (each within three times the tolerance), none on 150 piecewise-constant
+profiles with declared edges, and none on 164 Earth, solar, vacuum and constant-density
+configurations.
 
-**And the honest caveat.** ``rtol``/``atol`` are a stopping criterion --- the
-ladder halts when two successive refinement levels agree --- not a bound on the
-error of what is returned.  Usually that is conservative.  It is not always:
-:ref:`what-rtol-atol-control` gives the measured detail, including a case where
-two levels agreed coincidentally and the answer was wrong by 0.855.  Magνs warns
-loudly in that regime, and :doc:`diagnostics` reports the measured
-false-alarm rate of each warning.
+**And the caveat.**  ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the ladder
+stops once two successive answers agree.  Two slab counts can be wrong by the same amount and
+still agree, which is how a silent miss happens.  At the default ``rtol = atol = 1e-3`` a
+probability through the Earth is usually far more accurate than that: on eight chords at six
+energies, the median difference from the same call at 1e-7 is about 1e-6, and the largest
+about 1e-3.  :ref:`what-rtol-atol-control` gives the details, and :doc:`diagnostics` what each
+warning means.
 
 .. _when-is-magnus-a-win:
 
-When is Magνs a win?
-------------------------
+When is Magνs the right tool?
+-----------------------------
 
-Compared to solving the propagation ODE directly (e.g., with an adaptive
-Runge–Kutta solver), Magνs wins when one or more of these apply:
+Three advantages follow from the method, whatever the Hamiltonian contains.  Magνs is
+**robust**: the evolution operator is exactly unitary.  It is **fast** without giving up
+accuracy: its cost follows the profile, not the phase, where an ODE solver pays for every
+radian it resolves, and a scan over energy or direction is one batched call on compiled
+kernels.  And it is **flexible**: the Hamiltonian is a callable that returns a Hermitian matrix
+of any size, so five flavors, non-standard interactions, a Lorentz-violating background and a
+new interaction are the same call.
 
-#. **The matter profile varies slowly compared to the oscillation length.**
-   A Magnus slab is *exact* for a constant Hamiltonian no matter how many
-   oscillation cycles it spans, so the slab size is set by how fast the
-   *profile* changes, not by how fast the phase winds.  An ODE solver must
-   resolve every oscillation.  For a 1 GeV neutrino crossing the Earth
-   (PREM profile), Magνs needs ~10 slabs plus the ~16 layer crossings,
-   versus thousands of right-hand-side evaluations for ``solve_ivp`` —
-   measured: **~2 ms vs ~360-700 ms per probability** at comparable
-   accuracy.
+It is the code to reach for when the profile, the accuracy, the flavor count or the
+Hamiltonian takes a problem outside what a composition of constant-density slabs does well:
+a density that varies fast against the oscillation length, as in the Sun; structure at a known
+place, declared with ``t_breakpoints``; more than three flavors; a Hamiltonian with no closed
+form; an averaged observable; or an accuracy below where a slab composition floors.  Where the
+accumulated phase is extreme and the profile varies slowly, as in the Sun, Magνs transports
+the state along the instantaneous eigenstates and keeps the expansion for the narrow windows
+where that fails (:doc:`adiabatic_strategy`); it decides the hand-over itself.
 
-#. **You scan over energy and/or direction** (spectra, oscillograms,
-   sensitivity studies).  The Magnus kernel is built from fixed,
-   data-independent matrix operations, so slabs — and, for the
-   standard/NSI/LIV Hamiltonians, the *entire energy axis* — evaluate as
-   batched NumPy/BLAS calls.  Adaptive ODE integration is inherently
-   sequential and cannot share steps across energies.  Measured: a
-   200-energy Earth-crossing scan takes **76 ms** (0.4 ms per energy); a
-   100×100 oscillogram takes **~2 s**.
+.. _use-nuoscprobexact-instead:
 
-#. **Unitarity matters more than raw local error** — long baselines, small
-   probabilities, CP/T asymmetries.  Runge–Kutta iterates drift off the
-   unitary manifold (probability leaks of ~1e-6 at typical tolerances,
-   growing with baseline); the Magnus route cannot leak (probability rows
-   sum to 1 to ~1e-14).
-
-#. **You want arbitrary physics with no per-model work**: any number of
-   flavors, any Hermitian Hamiltonian — sterile neutrinos, non-standard
-   interactions, Lorentz-invariance violation, or your own matrix function
-   of energy and position.
-
-For a single probability at a single energy, any method is fast enough.  For
-**extreme accumulated phases**, such as a 10 MeV neutrino crossing most of the Sun,
-the default ``strategy='auto'`` switches to adiabatic transport with Magnus patches,
-exactly unitary and 50--25 000x faster than direct integration (see
-:doc:`adiabatic_strategy`).  A tight-tolerance ODE solver remains the best
-*reference*: the test suite uses ``solve_ivp`` at ``rtol=1e-12`` as ground truth.
-:doc:`methodology` tells how these numbers were measured.
+Elsewhere, another code may be cheaper.  At constant density every code reaches round-off,
+and NuFast-LBL does it about sixty times faster than Magνs.  On an Earth chord resolved to no
+better than about 1e-6, NuOscProbExact is cheaper; a three-flavor fit that moves only
+:math:`\delta_{\rm CP}` is cheaper still with NuFast-Earth.  :doc:`comparison` has the
+measurements.
 
 .. _when-is-magnus-not-the-right-tool:
 
 When is Magνs not the right tool?
 -------------------------------------
 
-Magνs solves the **unitary** Schrödinger equation for a Hermitian
-Hamiltonian: any truncation of the Magnus series lives in the Lie algebra, so
-the package is architecturally committed to norm-preserving, reversible
-evolution.  That rules out several classes of problems that show up in
-neutrino phenomenology:
+Some limits belong to the method, and no implementation would remove them (Sec. 5.12 of the
+paper):
 
-#. **Quantum decoherence.**  Wave-packet separation, quantum-gravity-induced
-   decoherence, or any model where coherence between mass eigenstates is
-   damped over the baseline requires evolving a density matrix under a
-   non-unitary master equation (e.g., Lindblad/GKSL), not a state vector
-   under a Hamiltonian.  Magνs has no dissipative term and cannot represent
-   one.
+* **Open systems.**  Decoherence, coupling to a bath and decay to invisible states remove
+  probability or damp the coherence between mass eigenstates.  They need a density matrix
+  under a non-unitary evolution equation, or an anti-Hermitian term, neither of which a
+  unitary method admits.  nuSQuIDS is the tool for those.
+* **Collective oscillations.**  In a dense neutrino gas the Hamiltonian depends on the
+  flavor content of the neutrinos, so the problem is nonlinear.  In Magνs the Hamiltonian is
+  fixed before the propagation.  Magνs could be the propagator inside a self-consistent
+  iteration, but it does not ship one.
+* **A feature narrower than every grid.**  Every engine samples the Hamiltonian on a grid of
+  positions, so a feature narrower than the finest grid is missed by all of them together.
+  The matter scenario functions scan the profile for such features and warn, naming the
+  breakpoints to declare; the scan catches most, not all.
 
-#. **Open-system coupling to a bath.**  Any scenario where the neutrino
-   exchanges energy or phase information with an environment --
-   collisional decoherence, thermal baths, stochastic scattering beyond the
-   mean-field matter potential -- needs a reduced density matrix with
-   dissipators, which is again outside a Hermitian-Hamiltonian, pure-state
-   framework.
-
-#. **Neutrino decay.**  Invisible or visible decay into lighter states
-   removes probability from the system, so the evolution is no longer
-   norm-preserving.  A Hermitian effective Hamiltonian cannot encode a decay
-   width -- that requires an anti-Hermitian term, which breaks the
-   unitarity the whole method relies on.
-
-#. **Self-consistent collective oscillations.**  Dense-environment (e.g.,
-   supernova) neutrino self-interactions, where the effective Hamiltonian
-   depends on the (unknown, evolving) neutrino/antineutrino flavor content
-   itself, are a nonlinear, self-consistent problem.  Magνs assumes the
-   Hamiltonian is a *known* function of energy and position supplied by the
-   caller, not a functional of the solution.
-
-If your problem needs any of the above, look instead at packages built
-around density-matrix/Lindblad evolution (for decoherence or decay) or
-dedicated collective-oscillation codes (for self-interaction problems).
+Others belong to the implementation: at constant density the exponential comes wrapped in a
+general solver's dispatch and validation, so a code built for that case alone is cheaper;
+the structural diagnostics cannot see density fluctuations spread over every scale, for which
+the slab-count floor ``n_slabs`` should be raised; and two nearly identical requests can be
+answered by different engines, so the error can step between them (:doc:`engines`).
 
 .. _what-magnus-is-not:
 
-**And separately from the physics, worth saying plainly so that nobody
-evaluates Magνs for a job it was never meant to do:**
-
-* **Not a solver for constant Hamiltonians in a hurry.**  It will do them, but
-  a closed form beats an integrator every time; see
-  :ref:`use-nuoscprobexact-instead`.
-* **Not a flux, cross-section or detector code.**  It computes oscillation
-  probabilities and stops there.
-* **Not a fitting framework.**  There is no likelihood machinery; the
-  probabilities are meant to be handed to whatever does that.
-* **Not an event generator, and not an unfolding tool.**
-
-.. _use-nuoscprobexact-instead:
-
-When to use NuOscProbExact instead
------------------------------------
-
-Magνs answers a constant-density call exactly: the series terminates at its first
-term, so the evolution operator is a single exponential carrying no discretization
-at all, and a whole scan is one batched exponential.  What NuOscProbExact offers
-there is not a better answer but a leaner route to it, being built for that case
-alone rather than carrying a general solver's dispatch, validation and refinement
-ladder.  The margin is narrow and runs both ways: on a 3ν constant-density scan
-Magνs costs 1.10 µs per energy against NuOscProbExact's 1.44 µs batched, while at
-a *single* point it costs 33.8 µs against 19.9 µs.  :doc:`comparison` carries the
-decision table --- which of the two to reach for, case by case --- together with
-the measured speed and accuracy behind it.
-
-
-.. _what-magnus-earns-its-place-on:
-
-What Magνs earns its place on
-------------------------------
-
-The lists above are cases, not a reason.  Where a closed form exists, an exact
-algebraic solution beats a truncated series --- that is arithmetic, not a
-defect in anybody's code.  What is left is three axes, every one of them
-measured against the other codes in :doc:`comparison`:
-
-**Reach.**  A slab product has a *floor*: on a smooth profile its error bottoms
-out near :math:`2.5\times10^{-11}` and then **rises**, because the round-off of
-composing that many matrix products outgrows what another halving of the width
-buys.  No setting reaches below it.  Magνs continues to
-:math:`2.9\times10^{-13}`.
-
-**Generality.**  An arbitrary :math:`H(t)` --- a custom Hamiltonian, a BSM term
-nobody has diagonalized, a profile interpolated from a simulation --- needs no
-per-model work, because nothing in the method assumes a form for :math:`H`.
-The SU(N) closed forms stop at SU(4); Magνs has no ceiling.
-
-**Pre-packaged observables.**  ``average=True`` returns the phase-averaged
-probability a solar experiment actually measures, without resolving some 13 000
-radians of phase and averaging the result yourself.  None of the other codes in :doc:`comparison` offers it.  And
-every entry point can hand back the converged evolution operator alongside the probabilities
-(``return_evolution_operator=True``), for the observables that are built from
-amplitudes rather than from probabilities.
+Magνs is also not a flux, cross-section or detector code, not a fitting framework, and not an
+event generator: it computes oscillation probabilities, and hands them to whatever does the
+rest.
 
 .. _performance:
 
 Performance
 ------------
 
-A single 3ν Earth probability takes about 2 ms at the default tolerance, and the
-median call across 164 Earth and solar configurations is 2 ms with the slowest at
-0.90 s.  Scans are what the code mostly does, and three things make them much
-faster without changing any answer.
+A single three-flavor probability through the Earth takes about 2 ms at the default
+tolerance, and across 164 Earth and solar configurations the median call takes 2 ms and the
+slowest under a second.  Four things set the cost (Sec. 7.3 of the paper):
 
-**Pass arrays instead of looping.**  Every wrapper takes an array of energies, of
-baselines, or both.  For a position-dependent Hamiltonian the matter profile is
-then built once for the whole scan rather than once per point, which is what the
-energy-batched engine exists to do.
+* **Pass arrays.**  Every wrapper accepts arrays of energies, of baselines, or both, and then
+  shares work across the points: worth about an order of magnitude at two and three flavors,
+  and several-fold at four and five.
+* **Write your** ``H_func`` **to accept an array of positions.**  It is then called once per
+  refinement stage rather than once per quadrature node: several times faster, with identical
+  output.  A scalar-only Hamiltonian raises ``ScalarHamiltonianWarning``.
+* **Earth chords are symmetric.**  The Hamiltonian is evaluated on the first half of the chord
+  and mirrored, which makes an expensive Hamiltonian about 1.5 times faster.  This one is
+  automatic.
+* **Ask for worker processes where no batched engine applies.**  ``n_jobs=10`` makes a
+  per-point scan 2 to 3 times faster.  Where a batched engine applies, ``n_jobs > 1`` sends
+  the scan to the per-point path instead, about ten times slower on 5 000 energies, so one
+  process is the right default.
 
-**Write your ``H_func`` so it accepts an array of positions.**  The single largest
-factor under a caller's control: measured at **4.6x** on a 3ν exponential-density
-profile, with bit-identical output.  A scalar-only Hamiltonian raises
-:class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
-See :ref:`write-h-func-vectorized`.
-
-**An Earth chord is a palindrome.**  The Hamiltonian is evaluated on the first
-half of the slab chain and the rest follows by reversal, which halves the calls to
-your ``H_func``: 1.4x--1.7x for an expensive one, none for plain PREM
-(:doc:`performance` has the table).
-
-**And one cost that runs the other way.**  The adaptive ladder computes the
-probability at several slab counts and stops when two agree, so a call at a tight
-tolerance is doing real extra work rather than being slow.  ``rtol=atol=None``
-runs once at the grid you specify.
-
-:doc:`performance` reports where the time goes, and what was tried and
-rejected.
+The refinement ladder works against these savings: it computes every slab count below the one
+that converges.  On an Earth chord that makes a call about four times slower than one given the
+right slab count in advance.  :doc:`performance` has the rest.
 
 Salient features
 -----------------

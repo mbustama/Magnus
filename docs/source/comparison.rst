@@ -5,18 +5,11 @@ Against other codes
    :local:
    :depth: 2
 
-Magνs is not the fastest way to compute every oscillation probability, and
-this page says where it is not.  It has two parts.  The first gives the
-comparisons in the Magνs paper: eight codes on three setups, NuOscProbExact at
-two to five flavors, and the cost of an averaged solar probability, all computed in
-notebook 28.  The second goes into more detail on two of the codes, `NuOscProbExact
-<https://github.com/mbustama/NuOscProbExact>`_ :cite:p:`Bustamante:2019ggq`,
-which solves each slab of constant density in closed form, and `nuSQuIDS
-<https://github.com/arguelles/nuSQuIDS>`_
-:cite:p:`Arguelles:2021twb,Delgado:2014lyt`, which integrates the
-density-matrix evolution; it is measured in :doc:`notebook 25 <tutorials>`, from
-the frozen datasets in ``notebooks/external_*.json``.  In both, **every code is
-timed in one process on one machine**.
+Magνs is not the fastest way to compute every oscillation probability, and this page
+says where it is not.  It follows Sec. 8 of the Magνs paper: eight codes on three setups,
+NuOscProbExact at two to five flavors, and the cost of an averaged solar probability, all
+computed in notebook 28, and then which code to reach for.  Every code is timed in one
+process on one machine.
 
 .. warning::
 
@@ -102,346 +95,55 @@ the :math:`10^5` oscillations and averaging them away.  The call is
         5.0*gd.UNIT_MEV, solarmodels.table_edge('BS05-AGS-OP'), 0.0,
         density_profile='BS05-AGS-OP', average=True, nu_i=gd.NUE, nu_f=gd.NUE)
 
-The boundary, stated once
----------------------------
+When to use Magνs, and when not
+---------------------------------
 
-**Where a closed form exists and the accumulated phase is large, use the
-closed form.**  An exact algebraic solution beats a truncated series; that is
-arithmetic, not a defect in either code.  Constant density, piecewise-constant
-PREM and standard three-flavor propagation are precisely what closed forms are
-built for, and on those Magνs does not win on cost.
+Structurally, Magνs sits between NuOscProbExact and nuSQuIDS: it composes slab exponentials
+as the first does, while resolving the variation of the Hamiltonian inside each slab, as the
+second does by other means.  It is the code to reach for when the profile, the accuracy, the
+flavor count or the Hamiltonian takes a problem outside what a composition of
+constant-density slabs does well:
 
-What Magνs buys is everything that is not that: accuracy past the point where
-a piecewise-constant discretization stalls, an arbitrary varying profile, a
-Hamiltonian nobody has diagonalized, five flavors, and observables that are
-returned rather than reconstructed.
+* **The density varies continuously and fast against the oscillation length.**  A
+  composition of constant-density slabs needs some :math:`10^4` steps per resonance crossing
+  in the Sun, where Magνs integrates across the slab.
+* **The profile has structure at a known place.**  A shock front, a layer boundary or a kink
+  is passed as ``t_breakpoints``, which puts a slab edge on it at every refinement level.
+* **The problem has more than three flavors.**  At 3+1 NuOscProbExact finds its eigenvalues
+  numerically, at eight times the cost per slab; past four flavors the SU(N) closed forms stop.
+* **The Hamiltonian has no closed form of its own.**  Nothing in Magνs assumes a form for
+  :math:`H(l)` beyond Hermiticity, so a non-standard interaction, a Lorentz-violating
+  background or a new Hamiltonian is passed as a matrix, with no change to the solver.
+* **The observable is an average.**  Phase-averaged probabilities and flavor compositions
+  are returned directly rather than reconstructed from a scan (:doc:`averaged_probability`).
+* **The accuracy lies below where a slab composition floors.**  On a core-crossing PREM chord
+  NuOscProbExact stops near :math:`2 \times 10^{-10}`; Magνs reaches further.  Both are far
+  below the per-cent level that matters in a data analysis.
 
-Which one should I use?
--------------------------
-
-Magνs integrates a Hamiltonian *across* each slab, which is what lets it follow
-a density that changes as the neutrino moves.  That machinery is wasted — and
-slower than the alternative — when the Hamiltonian does not change at all.
-
-Reach for NuOscProbExact when **the Hamiltonian is constant, or piecewise
-constant**.  It expands the Hamiltonian and the evolution operator in the SU(2),
-SU(3) and SU(4) bases, which gives a closed form rather than a numerical
-integration: exact up to floating-point round-off, and with no slab count to
-choose.
+Elsewhere another code may be cheaper:
 
 .. list-table::
    :header-rows: 1
    :widths: 46 27 27
 
    * - Situation
-     - Use this
+     - Cheapest
      - Because
    * - Constant density
-     - **NuOscProbExact**
-     - One closed form, no integration
-   * - Piecewise constant, tens of layers — the Earth through PREM
-     - **NuOscProbExact**
-     - Each layer solved exactly, operators multiplied
-   * - Smoothly varying, slow against the oscillation
-     - Either
-     - Slabbing converges quickly
-   * - Smoothly varying, fast against the oscillation — the Sun, adiabatic MSW
-     - **Magνs**
-     - Slabbing needs :math:`\sim 10^4` steps per resonance crossing
-   * - A front resolved across many slabs — a shock from a simulation snapshot
-     - **Magνs**
-     - Smooth on the slab scale, so fourth order beats second
-   * - A front thin against the oscillation length — a real hydrodynamic shock
-     - **NuOscProbExact**
-     - To any sampling method that is a jump, which is a closed form's home ground
-   * - A kink, a tabulated profile
-     - **Magνs**
-     - ``t_breakpoints`` puts a slab edge on the discontinuity
-   * - More than four flavors
-     - **Magνs**
-     - The SU(N) expansions stop at SU(4); Magνs has no ceiling
-   * - Three flavors, a fit that varies only :math:`\delta_{\rm CP}`
-     - **NuFast-LBL / NuFast-Earth**
-     - Scalar closed forms, about 0.07 µs per probability
-   * - Genuinely open systems: decay, decoherence
-     - Neither
-     - Needs a Lindblad solver, not a unitary one
-
-The two packages share conventions, units and parameter defaults deliberately,
-so a calculation can be moved between them as a cross-check.  That is worth
-doing: agreement between two methods with different failure modes is stronger
-evidence than either one's internal convergence check.
-
-Constant density
-------------------
-
-Both codes are exact here, to round-off:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 46 18 18 18
-
-   * - Route
-     - Total [s]
-     - µs/point
-     - max \|P − exact\|
-   * - Magνs, batched wrapper
-     - 0.0006
-     - 9.72
-     - 9.0e-17
-   * - Magνs, one call per energy
-     - 0.0057
-     - 95.06
-     - 9.0e-17
-   * - NuOscProbExact, looped
-     - 0.0009
-     - 14.32
-     - 4.9e-16
-   * - NuOscProbExact, batched
-     - 0.0001
-     - 1.34
-     - 4.9e-16
-
-1300 km at 2.848 g/cm³, 60 energies from 0.6 to 20 GeV.  The lesson here is
-about **batching, not about codes**: either code called one energy at a time
-costs about an order of magnitude more than the same physics asked for in one
-call.
-
-PREM, three flavors
-----------------------
-
-An Earth chord at :math:`\cos\theta_z = -0.85` (10 831 km), refereed by a
-Richardson-extrapolated slab product whose own residual discretization error is
-**4.3e-07** — nothing below that line is resolvable by this comparison.
-
-Refined against itself, each code reaches:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 50 25 25
-
-   * -
-     - Magνs
+     - NuFast-LBL (three flavors); closed-form codes
+     - Every code reaches round-off; NuFast-LBL does it in about 0.07 µs, some sixty times
+       faster than Magνs
+   * - Earth chord, three flavors, a fit that moves only :math:`\delta_{\rm CP}`
+     - NuFast-Earth
+     - It reuses its layer solve across :math:`\delta_{\rm CP}`
+   * - Earth chord, accuracy no better than about :math:`10^{-6}`
      - NuOscProbExact
-   * - Best accuracy **tried**
-     - **3.3e-10**
-     - 5.6e-05
-   * - Cost per call
-     - ~20× more
-     - ~20× less
-
-**Neither figure is a floor.**  Each is the last point of a sweep that was still
-descending: Magνs over ``rtol`` down to 1e-8 against a 1e-11 reference, and
-NuOscProbExact over 2, 4, 8 and 16 slabs per segment against a 64-slab one,
-improving by about an order at every doubling and never run past 16 here.  What
-the closed form can actually reach is settled elsewhere: the paper's cross-code
-planes score each code against a 50-digit reference built in *its own* constants
-and conventions, and put NuOscProbExact near 2e-10 on a core-crossing chord.
-This comparison could not have resolved that in any case -- its referee's own
-residual is 4.3e-07.
-
-The residual between the two codes is 4.1e-04, which is the same order as the
-*looser* of the two curves — so most of it is NuOscProbExact's discretization
-rather than a disagreement about physics.  A residual far above **both** curves
-would have meant a convention mismatch instead, and that is the check worth
-making before concluding anything from a cross-code difference.
-
-PREM, 3+1
------------
-
-The most expensive case for Magνs in the whole comparison, and — once the
-referee was corrected — not the least accurate one.  The two axes point in
-opposite directions, so they are worth separating.
-
-**Cost: NuOscProbExact, by about 400×.**  56 000 µs per probability against
-127.  The cost does not fall when the tolerance is loosened, and that flatness
-is the diagnosis: the refinement ladder is not converging and stopping, it is
-running to its slab ceiling.  An eV-scale :math:`\Delta m^2_{41}` over an
-11 000 km chord accumulates a phase whose required slab width is below what
-the ladder will reach, which is why a ``MagnusConvergenceWarning`` appears on
-every row.
-
-**Accuracy: Magνs, and it reaches the floor of the measurement.**  Its residual
-against the referee is 4.5e-08, *below the referee's own discretization error of
-4.1e-07* — so the honest statement is that Magνs agrees with the referee to
-within the referee's uncertainty, and this comparison cannot resolve it further.
-NuOscProbExact sits at 2.6e-04, some six hundred times above that floor, and its
-convergence is **not monotonic**: 32 slabs per segment is worse than 8.
-Non-monotonic convergence is the signature of a discretization whose edges
-straddle structure they do not resolve, and it means there is no setting of that
-dial to read off as "converged".
-
-.. note::
-
-   **A convergence warning is a statement about evidence, not about error.**
-   Magνs warns on every row here and is right to — the answer is not backed by
-   a convergence argument.  It is also the most accurate answer on the plot.
-   The two come apart exactly here.
-
-A smooth profile: where each method runs out
-----------------------------------------------
-
-On a smooth exponential profile the comparison is no longer about cost but
-about **reach**.  Composing slabs is second order in the slab width, so halving
-it buys a factor of four; the Gauss–Legendre Magnus expansion is fourth order
-and buys sixteen.  More importantly the slab product has a *floor*:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 33 33
-
-   * - Exponential profile, 3ν
-     - Best error
-     - At
-   * - NuOscProbExact
-     - 2.5e-11, then **rises**
-     - 16 384 slabs; 32 768 is worse
-   * - Magνs
-     - **2.9e-13**
-     - tightest tolerance
-
-Past about 16 000 slabs the round-off of composing that many matrix products
-costs more than another halving of the width buys.  No setting reaches below
-that floor.  At five flavors there is no comparison to draw at all —
-NuOscProbExact has no five-flavor route — which is the other half of the same
-point.
-
-The Sun: an observable the others do not offer
-------------------------------------------------
-
-.. figure:: ../../img/gallery/gallery_solar_averaged.png
-   :width: 90%
-   :alt: The averaged solar survival probability against the instantaneous one
-
-   The averaged solar survival probability, returned directly.  The
-   instantaneous probability another code returns is the trace thrashing
-   between 0.15 and 0.9 — it is not the observable.
-
-The model is the tabulated BS2005-AGS,OP solar profile
-:cite:p:`Bahcall:2004pz`.  A neutrino leaving the Sun accumulates some 13 000
-radians of phase at 5 MeV,
-so the instantaneous survival probability at the surface is neither measurable
-nor stable: neighboring energies land anywhere between 0.15 and 0.9.  What a
-solar experiment measures is the phase-averaged probability, and ``average=True``
-returns it directly — 40 averaged energies in **about 0.7 s**, matching the analytic
-adiabatic limit to 1.3e-05.
-
-nuSQuIDS needs about **ten minutes** merely to reach the solver tolerance at
-which its output is a probability at all, and then a further factor of *N* to
-average the phase away:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 30 30
-
-   * - ``rel_error``
-     - Seconds
-     - P over all flavors
-     - A probability?
-   * - 1e-04
-     - 160.8
-     - −1.19 … 3.09
-     - **no**
-   * - 1e-05
-     - 251.3
-     - −0.011 … 1.007
-     - **no**
-   * - 1e-06
-     - 568.1
-     - 0.0002 … 0.979
-     - yes
-   * - 1e-07
-     - 1078.2
-     - 0.0001 … 0.979
-     - yes
-
-.. warning::
-
-   **The obvious guard passes on every one of those rows.**  Summing the
-   flavor probabilities and checking they come to one holds to 1e-16 even
-   where the survival probability reaches 2.83.  That is not a bug in the
-   guard: nuSQuIDS evolves the density matrix in an SU(3) basis whose identity
-   component is the trace, so the flavor sum is conserved *by construction*
-   however badly the traceless components are integrated.  **A structural
-   invariant cannot test the thing it is built into.**  The check that does
-   bite is each probability lying in :math:`[0, 1]`.
-
-Neither of the other codes offers an averaging flag.  This is a different
-algorithm for the question a solar experiment actually asks, not the same
-algorithm run faster.
-
-A supernova shock: the width of the front decides
-----------------------------------------------------
-
-The same physics, the same codes, and one parameter — how sharp the front is —
-decides what each method can reach:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 20 24 36
-
-   * - Front width
-     - Magνs
-     - NuOscProbExact
-     - Cost of one probability
-   * - 0.07 km (sharp)
-     - 8.9e-10
-     - 1.6e-08
-     - 194 000 µs vs 2 400
-   * - 70 km (smooth)
-     - **1.9e-11**
-     - 5.1e-06
-     - 178 000 µs vs 2 300
-
-**Read the cost column first.**  The closed form is about eighty times cheaper
-at either width, and the front does not change that.  What the front changes is
-how much accuracy it gives up for the saving: a factor of eighteen when the
-front is sharp, five orders of magnitude when it is wide.
-
-A sharp front *is* piecewise constant, which is the closed form's home ground,
-and it stops there at 1.6e-08.  Widen the front and the same closed form is
-approximating a smooth function with steps, so it stops five orders of
-magnitude higher, at 5.1e-06 — anything finer than that on a wide front is
-Magνs's alone.  Neither result is about implementation quality; both are about
-which method the problem belongs to.
-
-Below about 1e-6 the trade is not available at all: on a profile resolved to no
-better than that, the closed form is the cheapest thing here.
-
-Summary
----------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 42 58
-
-   * - Case
-     - Outcome
-   * - Constant density, exactness
-     - Both ~1e-16
-   * - Constant density, speed
-     - Comparable batched; both ~10× slower called one energy at a time
-   * - PREM 3ν, cost
-     - NuOscProbExact by ~20×
-   * - PREM 3ν, accuracy reachable
-     - Magνs to 3e-10; the closed form was swept only to 16 slabs, still
-       improving, and reaches about 2e-10 when pushed (see above)
-   * - PREM 3+1, cost
-     - NuOscProbExact by ~400×, and Magνs *warns*
-   * - PREM 3+1, accuracy reachable
-     - Magνs, to the referee's own floor (4e-07); the closed form stalls near
-       3e-04, non-monotonically
-   * - Smooth profile, reach
-     - Slab product floors at 2.5e-11 and then rises; Magνs continues to 2.9e-13
-   * - Five flavors
-     - Magνs only — NuOscProbExact has no route
-   * - Solar averaged observable
-     - Magνs returns it directly; nothing else here offers it
-   * - Supernova shock
-     - The closed form is ~80× cheaper at either width; the width decides how
-       much reach that costs — 18× sharp, 5 orders wide
-
-The table has no winner in it.  It has a **boundary**.
+     - Twenty times cheaper per slab; Magνs overtakes it below about :math:`10^{-6}`
+       (:math:`10^{-5}` at 3+1), because its error falls as the fourth power of the slab
+       width against the second
+   * - Decay, decoherence, collective effects
+     - nuSQuIDS
+     - They need a density matrix; no unitary solver here, Magνs included, represents them
 
 Before comparing any two codes' numbers
 ------------------------------------------
@@ -455,6 +157,7 @@ reads exactly like an accuracy difference until you look.
 
 .. seealso::
 
-   :doc:`notebook 25 <tutorials>` runs all of it, including the sections not
-   summarized here: the six-code speed/accuracy sweep, what batching and the
-   compiled kernel are each worth, and the same shock at 3+1 and with NSI.
+   Notebook 28 computes every figure on this page.  :doc:`Notebook 25 <tutorials>`
+   compares Magνs with NuOscProbExact and nuSQuIDS in more detail, from the frozen
+   datasets in ``notebooks/external_*.json``: batching, the compiled kernel, the solar
+   average in nuSQuIDS, and a supernova shock at 3+1 and with NSI.

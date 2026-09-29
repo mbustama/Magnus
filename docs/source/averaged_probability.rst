@@ -30,18 +30,18 @@ A neutrino from an astrophysical source arrives with an oscillation phase
 .. math::
 
    \Delta \phi = \frac{\Delta m^2 L}{2E}
-   \simeq 1.27 \times \frac{\Delta m^2/\text{eV}^2 \times L/\text{km}}
+   \simeq 2.53 \times \frac{\Delta m^2/\text{eV}^2 \times L/\text{km}}
    {E/\text{GeV}}
 
-of order :math:`10^{15}` for a TeV neutrino from 100 Mpc away.  No
+of order :math:`10^{16}` for a TeV neutrino from 100 Mpc away.  No
 ingredient of that number is known to anything close to the precision the
-phase would demand: not the source distance, not the size of the
-production region, and not the detector's energy resolution.  Whatever
+phase would demand: not the distance, not the size of the source, and not
+the energy of the neutrino.  Whatever
 the true phase is, the measurement integrates over many complete cycles
 of it.
 
 Computing such a probability by propagation is therefore doubly
-unattractive.  It is expensive -- resolving :math:`10^{15}` radians is
+unattractive.  It is expensive -- resolving :math:`10^{16}` radians is
 exactly the regime that defeats slab refinement -- and it is pointless,
 because every oscillatory term is about to be averaged away by the
 integration the measurement performs anyway.
@@ -75,13 +75,16 @@ because each surprises someone eventually, and none survives away from it:
 
 * The result is **symmetric** in :math:`\alpha \leftrightarrow \beta`, so
   the averaged probability is the same in both directions.
-* It is **identical for neutrinos and antineutrinos**, since
-  :math:`|V^*|^2 = |V|^2`.  CP violation does not survive the average,
-  even though :math:`\delta_{\rm CP}` still enters through the
-  magnitudes :math:`|V_{\alpha i}|`.
-* For **vacuum** oscillations it does not depend on energy or baseline at
-  all: scaling :math:`H` by :math:`1/E` leaves its eigenvectors
-  untouched, so a single matrix serves an entire flux calculation.
+* In **vacuum** it is **identical for neutrinos and antineutrinos**,
+  since the antineutrino replaces :math:`V` by :math:`V^*` and
+  :math:`|V^*|^2 = |V|^2`.  :math:`\delta_{\rm CP}` still enters through the
+  magnitudes :math:`|V_{\alpha i}|`, but produces no difference between the
+  two.  In matter they differ, because the potential changes sign.
+* It does **not depend on the baseline**, and depends on the energy only
+  through the eigenvectors.  In vacuum those do not change with energy,
+  since :math:`H \propto 1/E`, so the result is a constant and a single
+  matrix serves an entire flux calculation; in matter it changes with the
+  energy, through the competition between the potential and the vacuum term.
 
 .. _avg-phase-average:
 
@@ -542,7 +545,7 @@ over a long trajectory returns perfectly correct numbers, and they can
 still be the wrong quantity, because the observable is an average over a
 phase nobody resolves.
 
-Every ``osc_prob_*`` entry point that accepts ``strategy_info`` now
+Every ``osc_prob_*`` entry point that accepts ``strategy_info``
 reports how coarsely the request samples the oscillation it is
 computing::
 
@@ -653,6 +656,12 @@ Limitations and scope
   geometry.
 * The Earth/PREM path is a windowed average of the probability, as
   described above.
+* Both eigenbases, at production and at detection, come from the one
+  Hamiltonian given.  The limit of `Position-dependent Hamiltonians`_ also
+  describes mixing that differs between the two ends for other reasons -- a
+  non-unitary mixing matrix, or parameters that run with energy -- with
+  :math:`P^{\rm cross}` the identity and the two matrices supplied directly,
+  but Magνs does not yet take them that way.
 
 See :doc:`functions` and the API reference for the full listing of
 :mod:`magnus.avgprob`.

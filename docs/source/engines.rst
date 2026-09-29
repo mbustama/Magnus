@@ -23,64 +23,81 @@ The engines
    whatever no other engine takes.  Each row sketches what its engine does along the
    trajectory; shading is the matter density.  From the Magνs paper.
 
-Seven engines can answer a request, and each declines the ones it cannot serve
-honestly. Several of them share machinery, which is what makes the section after the
-table necessary.
+Seven engines can answer a request.  They are tried in a fixed order, from the most
+specialized to the most general, and the first whose conditions the request meets answers
+it; an engine whose conditions are not met declines, and the request passes to the next.
+The general Magnus ladder, last, accepts every request.  Several engines share machinery,
+which is why `Independence, and why it matters`_ follows the table.
 
 .. list-table::
    :header-rows: 1
-   :widths: 18 30 28 24
+   :widths: 4 18 30 24 24
 
-   * - Engine
-     - What it assumes
+   * -
+     - Engine (name in ``strategy_info``)
+     - What it does
      - When it applies
      - When it declines
-   * - **General Magnus ladder**
-       (:func:`magnus.oscprob.osc_prob`)
-     - Nothing beyond a Hermitian ``H(l)``.
-     - Always. Every other engine falls back to it.
-     - Never -- it is the terminal path.
-   * - **Two-flavor interaction picture**
-       (``_osc_prob_ip_exp_dispatch``)
-     - A genuine exponential profile, built by
-       :func:`magnus.matter.exp_density_profile`; exactly two flavors.
-     - Single points and multi-energy scans at one baseline.
-     - Non-exponential profiles, :math:`d > 2`, LIV, breakpoints, and whenever its own
-       iteration fails to converge (typically near an MSW resonance).
-   * - **Constant Hamiltonian**
-       (``_osc_prob_scan_constant_h``)
-     - ``V_CC`` does not depend on position, so neither does ``H``.
-     - Vacuum and constant density, at any flavor count, for a single point or a scan,
-       with per-point baselines allowed.
-     - A position-dependent potential; user slab edges; parallel, logged or verbose runs.
-   * - **Energy-batched separable scan**
-       (``_osc_prob_scan_separable``)
-     - ``H`` separates into an energy-dependent part and ``V_CC(l)`` times a constant
-       matrix.
-     - Many energies sharing one baseline.
-     - Per-point baselines, user slab edges, parallel or logged runs, a constant
-       potential (which the constant engine takes instead).
-   * - **Cumulative baseline scan**
-       (``_osc_prob_cumulative_scan``)
-     - Baselines nest: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
-     - A baseline scan at a **single** energy, with a position-dependent ``H``.
-     - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
-   * - **Phase average**
-       (:mod:`magnus.avgprob`)
-     - The observable averages over the energy resolution; every interference term keeps
-       its phase, weighted by the spread of that phase across ``average_spread``, from
-       the flavor state or, with ``average_initial_state='decohered'``, a decohered start.
+   * - 1
+     - **Averaged probability** (``'average'``; :mod:`magnus.avgprob`)
+     - The phase average, by one of three routes: in closed form from one eigenbasis when
+       ``H`` does not depend on position; transported along the instantaneous eigenstates,
+       with a Magnus patch across each non-adiabatic crossing, when ``H`` varies smoothly;
+       the mean over an energy window across declared discontinuities
+       (:doc:`averaged_probability`).
      - ``average=True``, on every entry point that takes the keyword.
-     - Nothing -- but it warns where the result depends on the spread, and where the
-       profile has a feature narrower than its 200-probe grid that could move
-       probability, it takes the windows from the hybrid's refinement, or warns that
-       none resolves it.
-   * - **Adiabatic + Magnus hybrid**
-       (:func:`magnus.adiabatic.hybrid_propagator`)
-     - ``H`` is smooth at the scale of a 200-point probe grid.
-     - Any dimension, any smooth position-dependent profile, with a requested tolerance.
-     - Breakpoints or slab edges supplied, a constant potential, no requested tolerance,
-       a profile that fails the resolution test, or failure to self-certify.
+     - Never; it warns where the result depends on the spread, and where the profile has a
+       feature narrower than its 200-probe grid that no refinement resolves.
+   * - 2
+     - **Adiabatic + Magnus** (``'hybrid'``; :func:`magnus.adiabatic.hybrid_propagator`)
+     - Transport along the instantaneous eigenstates, with a Magnus patch across each
+       non-adiabatic window (:doc:`adiabatic_strategy`).
+     - Any smooth position-dependent ``H``, any number of flavors, with a requested tolerance.
+     - Breakpoints or slab edges supplied, no requested tolerance, a profile it does not
+       resolve on its probe grid; under ``'auto'``, a failed certification and the requests
+       the rules below send elsewhere.
+   * - 3
+     - **Interaction picture** (``'ip_exp'``)
+     - Factors out the vacuum phase (and the LIV term, if present) analytically and
+       integrates the exponential matter envelope exactly over each slab, to first order.
+     - Two flavors, a profile built by :func:`magnus.matter.exp_density_profile`, one
+       baseline (a single point or an energy scan).
+     - More than two flavors, any other profile (a tabulated solar model included),
+       breakpoints or slab edges, and a failure to converge, as near an MSW resonance.
+   * - 4
+     - **Constant Hamiltonian** (``'constant'``)
+     - One exponential, exact: the Magnus series terminates at its first term.
+     - ``H`` does not vary along the path; any number of flavors, a single point or a scan,
+       with per-point baselines allowed.
+     - A position-dependent potential; user slab edges; parallel, logged or verbose runs; a
+       refinement value ``osc_prob`` would reject (other refinement keywords are ignored).
+   * - 5
+     - **Energy-batched scan** (``'separable'``)
+     - One set of slabs shared by every energy: the potential is sampled once per refinement
+       level, and the energy is a batch dimension.
+     - Many energies at one baseline, with ``H`` = energy-dependent part + ``V_CC(l)`` times a
+       fixed matrix.
+     - Per-point baselines, user slab edges, parallel or logged runs, a constant potential
+       (engine 4 takes it).
+   * - 6
+     - **Cumulative scan** (``'cumulative'``)
+     - One pass along the longest baseline, recording the running product at every requested
+       baseline: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
+     - Many baselines at one energy, with a position-dependent ``H``.
+     - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
+   * - 7
+     - **General Magnus ladder** (``'magnus'``; :func:`magnus.oscprob.osc_prob`)
+     - Slabs refined until two successive levels agree (:doc:`methodology`).
+     - Always.
+     - Never; it is the last engine.
+
+Not every entry point tries every engine.  The matter scenario functions try the first five,
+in order; ``osc_prob_energy_baseline`` tries the cumulative scan; ``osc_prob`` is the ladder
+itself.  ``osc_prob_vacuum`` needs only the averaged probability and the constant engine.  A
+Hamiltonian of your own, through ``osc_prob_earth`` or ``osc_prob_sun``, can reach the
+averaged probability, the adiabatic engine, the cumulative scan and the ladder.  A request
+for the evolution operator (``return_evolution_operator=True``) goes to the ladder, the only
+engine that forms it.
 
 The eighth entry in the registry, ``scipy.linalg.expm``, never answers a request; it is
 used as an oracle by
@@ -118,7 +135,7 @@ disagreement is informative; their agreement is not.
 Dispatch
 ----------
 
-Every scenario wrapper (:func:`magnus.oscprob.osc_prob_matter_std_potential`,
+Each matter scenario function (:func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi`, :func:`magnus.oscprob.osc_prob_liv`) tries the
 engines in a fixed order, falling through on ``NotImplemented``:
 
@@ -129,11 +146,11 @@ engines in a fixed order, falling through on ``NotImplemented``:
    * - Taken when
      - Engine
      - Why it is first
-   * - ``average=True`` and the Hamiltonian is position-independent
-       (on every entry point, ``osc_prob_energy_baseline`` and the
+   * - ``average=True`` (on every entry point, ``osc_prob_energy_baseline`` and the
        Earth and Sun routes included)
-     - closed-form phase average (``magnus.avgprob``)
-     - No propagation at all; the phase average of a constant ``H`` is algebraic
+     - averaged probability, by one of its three routes
+     - It answers a different question from the other engines: the average, not the
+       probability at one energy
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
        the scan is shorter than
        :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`,
@@ -296,9 +313,9 @@ and 26 to the cumulative scan (it is now 8, and the same step sits between 7 and
      - 2.80e-11
      - 1.0× (cumulative from N = 2)
 
-The jump is always *toward* the truth, so this is a documentation matter rather than a
-numerical one -- but a user scanning N and watching their answer move by five orders of
-magnitude in accuracy will otherwise assume something is broken.
+In the cases measured, the step was toward the more accurate answer.  A user who adds one
+point to a scan and sees the answer move by more than the tolerance is seeing a change of
+engine, not a fault; ``strategy_info`` names it.
 
 **Seeing which engine answered.** The fallbacks are silent by design: they happen on
 ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any scenario
@@ -312,5 +329,7 @@ function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
     info['certified']   # for the hybrid strategy
     info['declined']    # [(engine, why it gave up)], for engines that tried
 
-This is the answer to "why did my result move?" and "why did this call get slow?", both of
-which were previously unanswerable from outside the package.
+A result that moves when a point is added to a scan, or a call that suddenly costs more, is
+often a change of engine, and the dictionary names it.  The one fallback that warns is the
+adiabatic engine declining a profile with a jump, or a feature too narrow for its grid, once
+per session.
