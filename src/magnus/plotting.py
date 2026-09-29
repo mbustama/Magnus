@@ -61,6 +61,8 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
+from magnus import _validate as _v
+
 __all__ = [
     'MatplotlibNotFoundError',
     'HOUSE_FIGSIZE',
@@ -178,6 +180,7 @@ _FLAVOR_TEX = {
 }
 
 
+@_v.validated(dict(nu_i=_v.r_int(lo=0), nu_f=_v.r_int(lo=0), nubar=_v.r_bool))
 def prob_label(nu_i: int, nu_f: int, nubar: Optional[bool] = False) -> str:
     r"""Return the LaTeX label for an oscillation probability.
 
@@ -256,6 +259,174 @@ def _as_curve_list(curves):
     return out
 
 
+# ---------------------------------------------------------------------------------------------
+# Argument rules (issue #160 §12).  Applied once per figure, to calls from outside the package;
+# the presets forward to plot_curves with arguments already checked.  Each names the routine
+# the user called and the argument at fault, where Matplotlib would otherwise fail several
+# calls later with a message about its own internals -- or draw something meaningless.
+# ---------------------------------------------------------------------------------------------
+
+_SCALES = ('linear', 'log', 'symlog', 'logit')
+_ENERGY_UNITS = ('eV', 'keV', 'MeV', 'GeV', 'TeV', 'PeV', 'EeV')
+# Set by the routines themselves, so a value in subplots_kw would collide with theirs.
+_RESERVED_SUBPLOTS_KW = ('nrows', 'ncols', 'figsize')
+
+
+def _r_pair(positive=False):
+    def rule(name, x, where, a):
+        if x is None:
+            return
+        try:
+            lo, hi = x
+        except (TypeError, ValueError):
+            raise ValueError(_v._msg(where, name + " must be a pair of numbers; got " +
+                                     repr(x) + ".")) from None
+        _v.check_real(name + "[0]", lo, where, positive=positive)
+        _v.check_real(name + "[1]", hi, where, positive=positive)
+        if not positive and lo == hi:
+            raise ValueError(_v._msg(where, name + " must span a range; both ends are " +
+                                     repr(lo) + "."))
+    return rule
+
+
+_TICK = _v.r_real(positive=True, allow_none=True)
+_FONT = _v.r_real(positive=True)
+_OPEN_UNIT = _v.r_real(lo=0.0, hi=1.0, lo_open=True, hi_open=True, what="in (0, 1)")
+_BOOL_OR_NONE = lambda name, x, where, a: _v.check_bool(name, x, where, allow_none=True)  # noqa: E731
+
+
+def _r_subplots_kw(name, x, where, a):
+    _v.check_dict(name, x, where)
+    for key in _RESERVED_SUBPLOTS_KW:
+        if x and key in x:
+            raise ValueError(_v._msg(where, name + " must not set " + repr(key) + ", which "
+                                     "this routine sets itself" + (" (use figsize=)"
+                                     if key == 'figsize' else "") + "."))
+
+
+def _r_abscissa(name, x, where, a):
+    _v.check_real_array(name, x, where, allow_scalar=False)
+    scale = a.get('xscale')
+    if scale == 'log' and np.min(np.asarray(x, dtype=float)) <= 0.0:
+        raise ValueError(_v._msg(where, name + " has entries <= 0, which a log axis cannot "
+                                 "show and would drop without a word; pass xscale='linear'."))
+
+
+def _r_curves(xname, probability=False):
+    r"""Each curve 1-D, finite, as long as the abscissa; in [0, 1] if a probability."""
+    def rule(name, x, where, a):
+        n = len(np.atleast_1d(a[xname]))
+        for i, (y, _) in enumerate(_as_curve_list(x)):
+            _v.check_real_array(name + "[" + str(i) + "]", y, where, allow_scalar=False)
+            if len(y) != n:
+                raise ValueError(_v._msg(where, name + "[" + str(i) + "] has " + str(len(y)) +
+                                         " points and " + xname + " has " + str(n) + "."))
+            if probability:
+                _check_probability(name + "[" + str(i) + "]", y, where)
+    return rule
+
+
+def _check_probability(name, y, where):
+    y = np.asarray(y, dtype=float)
+    if np.any(y < -1e-9) or np.any(y > 1.0 + 1e-9):
+        raise ValueError(_v._msg(where, name + " is a probability, so it must lie in [0, 1]; "
+                                 "its range is [" + format(float(np.min(y)), '.4g') + ", " +
+                                 format(float(np.max(y)), '.4g') + "]."))
+
+
+def _r_probability_array(name, x, where, a):
+    if x is None:
+        return
+    arr = np.asarray(x)
+    if arr.dtype.kind not in 'iuf':
+        raise _v.InputTypeError(_v._msg(where, name + " must hold real numbers."))
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(_v._msg(where, name + " must be finite."))
+    _check_probability(name, arr, where)
+
+
+def _r_channel(name, x, where, a):
+    if x is None:
+        return
+    x = _v.check_int(name, x, where, lo=0)
+    n = a.get('num_flavors')
+    if n is not None and x >= n:
+        raise ValueError(_v._msg(where, name + " = " + str(x) + " is not a flavor at " +
+                                 str(n) + " flavors (indices run from 0 to " + str(n - 1) +
+                                 ")."))
+
+
+def _r_grid(name, x, where, a):
+    _v.check_real_array(name, x, where, allow_scalar=False)
+    if len(x) < 2:
+        raise ValueError(_v._msg(where, name + " must have at least two entries to draw a "
+                                 "contour; got " + str(len(x)) + "."))
+    if name == 'costhz' and (np.min(x) < -1.0 or np.max(x) > 1.0):
+        raise ValueError(_v._msg(where, "costhz must lie in [-1, 1]."))
+
+
+def _r_oscillogram_probability(name, x, where, a):
+    if x is None:
+        return
+    shape = (len(a['log10_energy']), len(a['costhz']))
+    if np.shape(x) != shape:
+        raise ValueError(_v._msg(where, name + " must have shape (len(log10_energy), "
+                                 "len(costhz)) = " + str(shape) + "; got " +
+                                 str(np.shape(x)) + "."))
+    _r_probability_array(name, x, where, a)
+
+
+# The rules shared by every routine, by argument name; each routine adds its data rules.
+_COMMON_RULES = dict(
+    xlim=_r_pair(), ylim=_r_pair(), residual_ylim=_r_pair(), profile_ylim=_r_pair(),
+    panel_ylim=_r_pair(), figsize=_r_pair(positive=True), panel_label_xy=_r_pair(),
+    panel_annotation_xy=_r_pair(),
+    xscale=_v.r_choice(_SCALES), yscale=_v.r_choice(_SCALES), panel_yscale=_v.r_choice(_SCALES),
+    xmajor=_TICK, xminor=_TICK, ymajor=_TICK, yminor=_TICK, residual_ymajor=_TICK,
+    residual_yminor=_TICK, profile_ymajor=_TICK, profile_yminor=_TICK, panel_ymajor=_TICK,
+    panel_yminor=_TICK,
+    title_fontsize=_FONT, cbar_fontsize=_FONT, cbar_labelsize=_FONT,
+    annotation_fontsize=_FONT, panel_annotation_fontsize=_FONT,
+    ylabel_labelpad=_v.r_real(), shared_ylabel_labelpad=_v.r_real(),
+    residual_height=_OPEN_UNIT, profile_height=_OPEN_UNIT,
+    legend=_v.r_bool, grid=_v.r_bool, tight_layout=_v.r_bool, return_probability=_v.r_bool,
+    show_profile=_BOOL_OR_NONE, panel_per_trajectory=_BOOL_OR_NONE, nubar=_v.r_bool,
+    legend_panel=_v.r_int(lo=0), legend_on_panel=_v.r_int(lo=-1), levels=_v.r_int(lo=1),
+    num_flavors=_v.r_int(allow_none=True), nu_i=_r_channel, nu_f=_r_channel,
+    energy_unit=_v.r_choice(_ENERGY_UNITS),
+    x_unit=_v.r_real(positive=True, allow_none=True),
+    energy=_v.r_real(positive=True, allow_none=True),
+    electron_fraction=_v.r_real(lo=0.0, hi=1.0, lo_open=True, allow_none=True),
+    electron_fraction_core=_v.r_real(lo=0.0, hi=1.0, lo_open=True, allow_none=True),
+    electron_fraction_mantle=_v.r_real(lo=0.0, hi=1.0, lo_open=True, allow_none=True),
+    electron_fraction_crust=_v.r_real(lo=0.0, hi=1.0, lo_open=True, allow_none=True),
+    electron_fraction_ocean=_v.r_real(lo=0.0, hi=1.0, lo_open=True, allow_none=True),
+    ratio_number_neutrons_to_protons=_v.r_real(nonnegative=True, allow_none=True),
+    dcp=_v.r_real_array(), subplots_kw=_r_subplots_kw, legend_kw=_v.r_dict,
+    grid_kw=_v.r_dict, savefig_kw=_v.r_dict, residual_kw=_v.r_dict, contourf_kw=_v.r_dict,
+    wrapper_kw=_v.r_dict, osc_params=_v.r_dict,
+)
+
+
+def _rules(**data_rules):
+    return dict(_COMMON_RULES, **data_rules)
+
+
+def _check_forwarded(where: str, kw: dict) -> None:
+    r"""Refuse, naming the preset, a keyword :func:`plot_curves` does not take (#146 §2).
+
+    Without this the TypeError came from plot_curves, a function the caller never called.
+    """
+    import inspect
+    known = inspect.signature(plot_curves).parameters
+    unknown = [k for k in kw if k not in known]
+    if unknown:
+        raise TypeError("Error in magnus: plotting." + where + "() got unexpected keyword "
+                        "argument" + ("s " if len(unknown) > 1 else " ") +
+                        ", ".join(repr(k) for k in unknown) + (".  Each call makes its own "
+                        "figure, so there is no ax= to draw into." if 'ax' in unknown else "."))
+
+
 def _apply_locators(axis, major, minor):
     r"""Set major/minor :class:`~matplotlib.ticker.MultipleLocator` spacings.
 
@@ -283,6 +454,7 @@ def _finish(fig, savefig, savefig_kw, tight):
     return fig
 
 
+@_v.validated(_rules(x=_r_abscissa, curves=_r_curves('x'), residual=_v.r_real_array(allow_scalar=False)))
 def plot_curves(
     x: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -515,6 +687,7 @@ def plot_curves(
     return fig, ax
 
 
+@_v.validated(_rules(x=_r_abscissa))
 def plot_curves_stacked(
     x: Sequence[float],
     panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
@@ -778,6 +951,7 @@ def plot_curves_stacked(
     return fig, ax
 
 
+@_v.validated(_rules(distances=_r_abscissa, curves=_r_curves('distances', probability=True)))
 def plot_probability_vs_baseline(
     distances: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -854,6 +1028,7 @@ def plot_probability_vs_baseline(
         )
         print(ax.get_xlabel())
     """
+    _check_forwarded('plot_probability_vs_baseline', _forbidden)
     if ylabel is None and nu_i is not None and nu_f is not None:
         ylabel = _probability_ylabel(nu_i, nu_f, num_flavors)
     return plot_curves(
@@ -861,6 +1036,7 @@ def plot_probability_vs_baseline(
         xscale=xscale, ymajor=ymajor, yminor=yminor, **_forbidden)
 
 
+@_v.validated(_rules(energies=_r_abscissa, curves=_r_curves('energies', probability=True)))
 def plot_probability_vs_energy(
     energies: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -935,6 +1111,7 @@ def plot_probability_vs_energy(
         )
         print(ax.get_xlabel())
     """
+    _check_forwarded('plot_probability_vs_energy', _forbidden)
     if xlabel is None:
         xlabel = r'Neutrino energy, $E_\nu$ [%s]' % energy_unit
     if ylabel is None and nu_i is not None and nu_f is not None:
@@ -963,6 +1140,7 @@ def _probability_ylabel(nu_i, nu_f, num_flavors):
     return f'{_FLAVOR_WORD[num_flavors]}-neutrino probability, ' + label
 
 
+@_v.validated(_rules(x=_r_abscissa))
 def plot_probability_with_profile(
     x: Sequence[float],
     profiles: Optional[Sequence[Union[Sequence[float], Dict[str, Any]]]] = None,
@@ -1510,6 +1688,7 @@ def _profile_through_earth_wrappers(x, trajectories, x_axis, x_unit, energy, nu_
     return profiles, panels, probability, xlabel
 
 
+@_v.validated(_rules(x=_r_abscissa, probabilities=_r_probability_array, averages=_r_probability_array))
 def plot_probability_with_average(
     x: Sequence[float],
     probabilities: Union[Sequence[float], Sequence[Sequence[float]]],
@@ -1585,6 +1764,7 @@ def plot_probability_with_average(
         fig, ax = plot_probability_with_average(L, P, 0.5, xscale='linear')
         print(len(ax.get_lines()))
     """
+    _check_forwarded('plot_probability_with_average', _forbidden)
     _, plt = _mpl()
     import matplotlib.lines as mlines
 
@@ -1646,6 +1826,7 @@ def plot_probability_with_average(
     return fig, ax
 
 
+@_v.validated(_rules(prob_nu=_r_probability_array, prob_nubar=_r_probability_array))
 def plot_biprobability(
     prob_nu: Optional[Sequence[Sequence[float]]] = None,
     prob_nubar: Optional[Sequence[Sequence[float]]] = None,
@@ -2038,6 +2219,7 @@ def _biprobability_through_earth_wrappers(configurations, markers, channel, dcp,
     return prob_nu, prob_nubar, points
 
 
+@_v.validated(_rules(costhz=_r_grid, log10_energy=_r_grid, probability=_r_oscillogram_probability))
 def plot_oscillogram(
     costhz: Sequence[float],
     log10_energy: Sequence[float],

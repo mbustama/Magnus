@@ -446,6 +446,8 @@ def validated(spec: dict):
     def deco(func):
         sig = _inspect.signature(func)
         where = func.__module__.replace('magnus.', '', 1) + '.' + func.__name__
+        # Keywords collected by a **kwargs parameter are checked by the same rules.
+        var_kw = next((n for n, p in sig.parameters.items() if p.kind is p.VAR_KEYWORD), None)
 
         @_functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -456,8 +458,11 @@ def validated(spec: dict):
                     return func(*args, **kwargs)
                 bound.apply_defaults()
                 a = bound.arguments
+                if var_kw is not None and a.get(var_kw):
+                    a = dict(a, **a[var_kw])
                 for name, rule in spec.items():
-                    rule(name, a.get(name), where, a)
+                    if name in a:
+                        rule(name, a[name], where, a)
             return func(*args, **kwargs)
         return wrapper
     return deco
