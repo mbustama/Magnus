@@ -10,6 +10,11 @@ The warning changes no result and no work.
 
 The reference is the same scan with ``'gl'`` at rtol = atol = 1e-10 and a cap far above what it
 needs.
+
+``'gl'`` fixes the points per slab, so at the cap it stops with the refinement-caps warning.  Its
+last step onto the cap is clamped, though, and can refine the grid by a sliver.  An agreement
+across such a step now counts only within the fraction of the tolerance that the step can vouch
+for (issue #122); ``test_separable_breakpoints.py`` keeps a capped step that does certify.
 """
 
 import warnings
@@ -72,3 +77,26 @@ def test_gl_at_its_cap_keeps_its_own_warning():
     _, warned = scan(1e-6, max_n_slabs=8)
     assert len(warned) == 1
     assert 'refinement caps reached' in str(warned[0].message)
+
+
+def test_gl_refuses_an_agreement_across_the_clamped_step_onto_the_cap():
+    r"""On three energies of the paper's five-flavor Listing 1 scan at rtol = 5e-13, floors of 13
+    and 19 slabs take the ladder to 19 926 and 18 346 slabs, then clamp it to the cap of 20 000.
+    The two grids agreed to 0.4 and 0.8 of the tolerance, beyond the 0.015 and 0.41 that steps
+    this short can vouch for, and the scan returned a probability 6.6 times outside the
+    tolerance with no warning (issue #122); it now ends in the caps warning."""
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    sterile = dict(osc, s14=np.sqrt(0.1), s24=np.sqrt(0.1), s15=np.sqrt(0.06),
+                   s25=np.sqrt(0.06), D41=1.0, D51=1.7)
+    energies = np.logspace(np.log10(2.0), np.log10(20.0), 26)[1:4]*gd.UNIT_GEV
+    for floor in (13, 19):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter('always')
+            op.osc_prob_5nu_matter_exp_density(
+                energies, L=25.0*gd.UNIT_KM, L0=0.0, rho_central=3.0e3,
+                l_scale=10.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True, nu_i=gd.NUE,
+                nu_f=gd.NUE, strategy='magnus', magnus_exp_order=4, rtol=5e-13, atol=5e-15,
+                n_slabs=floor, **sterile)
+        warned = [w for w in caught if issubclass(w.category, op.ToleranceNotAchievedWarning)]
+        assert len(warned) == 1
+        assert 'refinement caps reached' in str(warned[0].message)

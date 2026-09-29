@@ -443,7 +443,32 @@ on a PREM chord at two flavors and rtol = atol = 1e-3, two of twelve energies st
 within tolerance and faster (0.7 of the time at two flavors, 0.8 at three from 1e-4 on; 1.2 at
 three flavors and 1e-3, where the old ladder stopped on a false agreement).
 
+Without breakpoints the engine checks one step only: on ``'gl'``, the last step onto
+``max_n_slabs``, which is clamped and so can refine the grid by a sliver.  Its agreement is held
+to what such a step can vouch for rather than refused outright.  At order ``p`` a real refinement
+``r`` bounds the finer grid's error by ``|dP|/(r**p - 1)``, so for ``r**p - 1 < 1`` the
+difference must lie within that fraction of the tolerance:
+
+==========================  ================  ===========  ===========================
+clamped step (slabs)        ``r**p - 1``      agreement    error of the answer
+==========================  ================  ===========  ===========================
+108 -> 115 (issue #94)      0.28              0.14         0.49: still certifies
+18 346 -> 20 000            0.41              0.79         6.6: refused
+19 926 -> 20 000            0.015             0.40         6.6: refused
+==========================  ================  ===========  ===========================
+
+Agreement and error are in units of the tolerance, at order 4.  The first row is a smooth
+three-flavor profile with the cap lowered to 115 slabs at ``rtol = atol = 1e-6``.  The other two
+are the five-flavor scan of the paper's Listing 1 at ``rtol = 5e-13`` from floors of 19 and 13
+slabs, scored against DOP853 at ``rtol = 1e-13``.  Both returned their probabilities with no
+warning (issue #122).  Refused, they end in the existing refinement-caps warning on the same
+probabilities: ``'gl'`` fixes the points per slab, so no further level is computed.
+
 .. versionadded:: 1.0.0
+
+.. versionchanged:: 1.1.1
+   The energy-batched engine holds an agreement across the clamped last step onto the slab cap
+   on ``'gl'`` to the fraction of the tolerance that step can vouch for.
 """
 
 
@@ -5379,7 +5404,8 @@ def _osc_prob_scan_separable_ladder(
              if t_breakpoints is not None else np.zeros(0))
     bp_in = bp_in[(bp_in > L0) & (bp_in < L_val)]
     # Refinement of the previous level's real grid (grid points times points per slab); see
-    # MIN_EFFECTIVE_REFINEMENT.  Only used with breakpoints.
+    # MIN_EFFECTIVE_REFINEMENT.  Checked at every level with breakpoints; without them, only
+    # for the clamped last step onto the slab cap on 'gl' (issue #122).
     r_prev = None
     # The previous level's slab count, to tell a level that refined only the points per slab.
     n_slabs_prev_level = None
@@ -5453,13 +5479,25 @@ def _osc_prob_scan_separable_ladder(
         have_prev = ~np.isnan(prev[:, 0, 0])
         conv = have_prev & np.all(np.abs(P_new - prev) <= atol + rtol*np.abs(prev),
                                   axis=(-1, -2))
-        if bp_in.size:
-            # As in osc_prob: two grids that differ by a few breakpoint-dominated percent agree
-            # without having converged, so their agreement does not count.
-            r_level = len(grid)*n_tpts_per_slab
-            if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
+        r_level = len(grid)*n_tpts_per_slab
+        if (r_prev is not None) and (r_level < MIN_EFFECTIVE_REFINEMENT*r_prev):
+            if bp_in.size:
+                # As in osc_prob: two grids that differ by a few breakpoint-dominated percent
+                # agree without having converged, so their agreement does not count.
                 conv[:] = False
-            r_prev = r_level
+            elif (integration_method == 'gl') and (n_slabs >= max_n_slabs):
+                # The last step onto the slab cap is clamped, so it can refine the grid by a
+                # sliver: 19 926 -> 20 000 slabs agreed to 0.4 of the tolerance on
+                # probabilities 6.6x outside it, with no warning (issue #122).  A real
+                # refinement r bounds the finer grid's error at order p by |dP|/(r**p - 1), so
+                # the agreement counts only within that fraction of the tolerance; the capped
+                # 108 -> 115 step of issue #94 (fraction 0.28, agreement 0.14) still certifies.
+                # An energy refused ends in the caps warning below on the same probabilities:
+                # 'gl' fixes the points per slab, so no further level runs.
+                shrink = min(1.0, (r_level/r_prev)**magnus_exp_order - 1.0)
+                conv &= np.all(np.abs(P_new - prev) <= shrink*(atol + rtol*np.abs(prev)),
+                               axis=(-1, -2))
+        r_prev = r_level
         if gl_gate and conv.any() and (n_slabs < max_n_slabs) and (loop_count < max_num_loops):
             # A chance agreement between two coarse grids (issue #71): refused for the energies
             # whose own slabs are still wide, which go one level further.
