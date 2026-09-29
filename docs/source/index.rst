@@ -1,7 +1,7 @@
 .. Magnus documentation master file
 
-Magνs: Neutrino Oscillations via the Magnus Expansion
-========================================================
+Magνs: neutrino oscillations via the Magnus expansion
+=====================================================
 
 .. image:: https://github.com/mbustama/Magnus/actions/workflows/tests.yml/badge.svg
    :target: https://github.com/mbustama/Magnus/actions/workflows/tests.yml
@@ -405,7 +405,7 @@ runs once at the grid you specify.
 :doc:`performance` reports where the time goes, and what was tried and
 rejected.
 
-Salient Features
+Salient features
 -----------------
 
 * **Two ways to use it**: as an importable Python module (the full API --
@@ -452,7 +452,6 @@ Salient Features
 
    recipes
    tutorials
-   comparison
    functions
    conventions
    solar_models
@@ -471,6 +470,7 @@ Salient Features
    engines
    performance
    diagnostics
+   comparison
 
 .. toctree::
    :maxdepth: 2

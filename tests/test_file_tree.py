@@ -509,7 +509,7 @@ def _readme_block(text):
 
 def _install_block(text):
     lines = text.split('\n')
-    start = next(i for i, l in enumerate(lines) if l.startswith('File Tree'))
+    start = next(i for i, l in enumerate(lines) if l.startswith('File tree'))
     fence = [i for i, l in enumerate(lines[start:], start)
              if l.strip() == '.. code-block:: text']
     begin = fence[0] + 2

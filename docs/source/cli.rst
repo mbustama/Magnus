@@ -1,5 +1,5 @@
-Command-Line Calculator
-=========================
+Command-line calculator
+=======================
 
 .. contents::
    :local:

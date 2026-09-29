@@ -1,4 +1,4 @@
-Phase-Averaged Probabilities
+Phase-averaged probabilities
 ============================
 
 This page documents the ``average`` keyword, the ``average_spread`` keyword that sets its
@@ -13,6 +13,14 @@ them -- together with the module that implements them,
 :mod:`magnus.avgprob`. See :doc:`adiabatic_strategy` for the
 position-dependent machinery this reuses, and :doc:`methodology` for the
 plain Magnus engine both sit alongside.
+
+.. tip::
+   **In short.**  ``average=True`` returns the probability averaged over an energy
+   spread, 10% by default (``average_spread``).  When every oscillation phase is
+   large -- the Sun, astrophysical sources -- the result does not depend on the
+   spread.  When some phase is not -- a beam experiment at its first oscillation
+   maximum, for instance -- it does, and a ``PhaseAveragingWarning`` says so: set
+   ``average_spread`` to the energy resolution of the measurement.
 
 The problem: a phase nobody can resolve
 ------------------------------------------
@@ -123,8 +131,10 @@ minus the phase of its pair, its value in vacuum.  Without that, a pseudo-Dirac 
 result depends on the spread although the pair is coherent.
 
 A Hamiltonian that does not depend on energy -- a matrix, or a function of position alone,
-passed on the direct route below -- has no slope for a spread to act on, and ``average=True``
-returns the limit for it.  Away from the limit, the three properties above fail:
+passed on the direct route below -- has no slope for a spread to act on.  ``average=True``
+then averages the pairs of levels whose phase has grown large and keeps the others
+coherent: at a short baseline, where no phase has grown, it returns the coherent
+probability.  Away from the limit, the three properties above fail:
 :math:`P_{\alpha\beta} \neq P_{\beta\alpha}` in general, and CP violation survives in the
 terms that do.
 
@@ -386,8 +396,17 @@ routes sample nothing and refuse ``average_n_samples``.
 
 .. code-block:: python
 
+    import magnus.globaldefs as gd
+    import magnus.oscprob as oscprob
+
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    edges = [1000.0*gd.UNIT_KM]                      # a density jump at 1000 km
+
+    def ne(l):                                       # electron density [eV^3]
+        return (100.0 if l < edges[0] else 10.0)*gd.N_AV*gd.UNIT_PER_CM3
+
     P = oscprob.osc_prob_matter_std_potential(
-        3, ne, energy, L, osc, t_breakpoints=edges,
+        3, ne, 10.0*gd.UNIT_MEV, 2000.0*gd.UNIT_KM, osc, L0=0.0, t_breakpoints=edges,
         average=True, average_spread=0.05, average_n_samples=161,
         density_is_of_number_of_electrons=True)
 
@@ -475,8 +494,9 @@ form when the Hamiltonian does not depend on position, adiabatic transport when
 it does and the profile is smooth, and an energy-window average when
 ``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  The Hamiltonian
 is passed as ``H(E, l)``, or as ``H(E)`` with
-``H_func_is_function_only_of_energy=True``, or as a matrix; a matrix, or a
-function of position alone, does not depend on energy and returns the limit.
+``H_func_is_function_only_of_energy=True``, or as a matrix.  A matrix, or a
+function of position alone, does not depend on energy, so no spread acts on it;
+see above.
 
 .. jupyter-execute::
 

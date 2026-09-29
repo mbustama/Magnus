@@ -1,5 +1,5 @@
-Pre-Packaged Plotting Tools
-=============================
+Pre-packaged plotting tools
+===========================
 
 This page documents :mod:`magnus.plotting`, a small set of functions that
 produce the figures the example notebooks use, so that a plot costs one call

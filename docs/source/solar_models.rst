@@ -65,7 +65,17 @@ From the command line, ``magnus --environment sun`` takes the same names through
 ``--density-profile`` (see :doc:`cli`).  `Notebook 13
 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
 compares all twelve on the averaged observable: they agree to :math:`2.4\times10^{-3}`,
-and the exponential fit is off by 0.1.
+and the exponential fit is off by up to 0.1, at 2.5 MeV (0.02 at 10 MeV, as above).
+
+.. figure:: ../../img/paper/solar_models.png
+   :width: 90%
+   :alt: Two tabulated solar models and the exponential fit, and their averaged survival probabilities
+
+   Top: the tabulated BS2005-AGS,OP and B16-GS98 models and the exponential fit the
+   Sun functions use by default, with the ratio of each to BS2005-AGS,OP.  Bottom:
+   :math:`\langle P_{\nu_e \to \nu_e}\rangle` at three flavors on each profile, and
+   its difference from the BS2005-AGS,OP result.  The two tables agree to
+   :math:`1.3 \times 10^{-3}`; the fit is low by up to 0.1.  From the Magνs paper.
 
 
 What is tabulated, and what is computed from it
@@ -123,9 +133,10 @@ and the others are computed as usual:
     print(P_ee)
     print(caught[0].category.__name__)
 
-A path that starts past the last row has nothing inside the table to compute, and is
-refused with a ``ValueError``; so is ``stop_at_table_edge`` with the exponential fit, which
-has no last row.  :func:`magnus.solarmodels.table_edge` gives the edge in the units of
+With ``stop_at_table_edge=True``, a path that starts past the last row has nothing
+inside the table to compute, and is refused with a ``ValueError``; without it, the
+profile is continued and a number is returned.  ``stop_at_table_edge`` with the
+exponential fit, which has no last row, is refused as well.  :func:`magnus.solarmodels.table_edge` gives the edge in the units of
 ``L``.
 
 

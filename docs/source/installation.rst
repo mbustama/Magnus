@@ -1,5 +1,5 @@
-Installation & Requirements
-============================
+Installation and requirements
+=============================
 
 Requirements
 ------------
@@ -78,7 +78,7 @@ belong on the path:
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-Verifying the Installation
+Verifying the installation
 ---------------------------
 
 After installing the dependencies, run the test suite to confirm everything
@@ -163,7 +163,7 @@ coverage overhead, and it is what one would expect here, since the cost is
 dominated by a per-slab Python loop rather than by time spent inside numpy.
 Run it when you want the number, not on every iteration.
 
-File Tree
+File tree
 ---------
 
 .. code-block:: text

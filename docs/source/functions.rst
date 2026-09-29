@@ -1,5 +1,5 @@
-Available Oscillation-Probability Functions
-==============================================
+Available probability functions
+===============================
 
 .. contents::
    :local:

@@ -1,5 +1,5 @@
-Code Architecture
-===================
+Code architecture
+=================
 
 .. contents::
    :local:

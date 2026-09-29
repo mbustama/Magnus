@@ -1,5 +1,5 @@
-Quick Start Guide
-==================
+Quick start guide
+=================
 
 This page takes you from installation to the probabilities most users need: vacuum,
 constant-density matter, the Earth and the Sun, for neutrinos and antineutrinos.

@@ -1,5 +1,5 @@
-Adiabatic + Magnus Hybrid Strategy
-=====================================
+Adiabatic + Magnus hybrid strategy
+==================================
 
 .. contents::
    :local:

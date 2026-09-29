@@ -1,5 +1,5 @@
-Magnus Expansion Terms to Any Order
-=====================================
+Magnus expansion terms to any order
+===================================
 
 The numerical core evaluates the Magnus expansion with the coefficient of every
 commutator group written out explicitly in Python.  That is fast, and it keeps the
