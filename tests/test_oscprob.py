@@ -3247,13 +3247,13 @@ def test_return_evolution_operator_refuses_average_and_hybrid():
     import magnus.earth as earth
     costhz = -0.8
     L = earth.distance_traveled_inside_earth(costhz)*gd.UNIT_KM
-    # The error names the entry point that dispatches, which for a thin wrapper is the
-    # middle-layer function it delegates to, as every error raised below it does.
+    # The error names the function the caller called, not the scenario function a thin
+    # wrapper delegates to (issue #160).
     for bad, word in ((dict(average=True), 'average'), (dict(strategy='hybrid'), 'hybrid')):
-        with pytest.raises(ValueError, match='osc_prob_matter_std_potential.*' + word):
+        with pytest.raises(ValueError, match='osc_prob_3nu_earth.*' + word):
             op.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=costhz, L=L,
                                   return_evolution_operator=True, **bad)
-    with pytest.raises(ValueError, match='osc_prob_vacuum.*average'):
+    with pytest.raises(ValueError, match='osc_prob_3nu_vacuum.*average'):
         op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, average=True,
                                return_evolution_operator=True)
     H = np.asarray(hams.hamiltonian_3nu_vacuum(1.0*gd.UNIT_GEV, s12=S12, s23=S23, s13=S13,
