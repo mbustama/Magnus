@@ -103,6 +103,10 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
        Added ``density_matter_ocean``, which replaces the density of
        PREM's outermost shell.  Left as None, the profile is unchanged.
 
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -962,6 +966,10 @@ def electron_fraction_func_prem(
 
     .. versionadded:: 1.0.0
 
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -994,6 +1002,15 @@ def electron_fraction_func_prem(
     return out
 
 
+
+def _ye_rule(name, x, where, a):
+    _v.check_real_array(name, x, where, positive=True)
+    if np.any(np.asarray(x, dtype=float) > 1.0):
+        raise ValueError(_v._msg(where, name + " must be in (0, 1], being an electron "
+                                 "fraction; got " + repr(x) + "."))
+
+
+@_v.validated(dict(electron_fraction=_ye_rule))
 def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     r"""The neutron-to-proton ratio implied by an electron fraction.
 

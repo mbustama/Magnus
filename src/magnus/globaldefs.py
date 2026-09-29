@@ -38,6 +38,8 @@ __email__ = "mbustamante@gmail.com"
 # from numpy import *
 import numpy as np
 
+from magnus import _validate as _v
+
 import os
 import platform
 
@@ -284,6 +286,10 @@ def set_color_output(enabled: bool) -> None:
         gd.set_color_output(False)
         gd.WARNING_MSG_IN_COLOR
     """
+    # A flag, not a truth test: 'no' is a non-empty string (issue #160 §4).
+    if not isinstance(enabled, (bool, np.bool_)):
+        raise _v.InputTypeError("Error in magnus: globaldefs.set_color_output: enabled must be True "
+                        "or False; got %r." % (enabled,))
     global WARNING_MSG_IN_COLOR, ERROR_MSG_IN_COLOR, TOL_MSG_IN_COLOR
     if enabled:
         WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
@@ -1250,6 +1256,13 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
 
     .. versionadded:: 1.0.0
     """
+    # Matched without regard to case or surrounding space, as solar-model names are:
+    # 'nufit 6.1' was refused while 'b16-gs98' was accepted (issue #160 §3).
+    if not isinstance(version, str):
+        raise _v.InputTypeError("Error in magnus: globaldefs.load_nufit_params: version must be a "
+                        "string such as 'NuFIT 6.1'; got %r." % (version,))
+    _by_key = {k.lower(): k for k in NUFIT_GLOBAL_FITS}
+    version = _by_key.get(' '.join(version.split()).lower(), version)
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())
         raise ValueError(

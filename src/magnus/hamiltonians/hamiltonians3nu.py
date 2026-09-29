@@ -39,6 +39,7 @@ import numpy as np
 
 from magnus.hamiltonians import _angles
 from typing import Optional, Callable
+from magnus import _validate as _v
 
 # import cmath
 # import cmath as cmath
@@ -96,6 +97,10 @@ def pmns_mixing_matrix(s12: float, s23: float, s13:float, dCP: float,
                                                          p['s12']**2))
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(3))))
 """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.pmns_mixing_matrix', {'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP})
     _r, _p = _angles.resolve('hamiltonians.pmns_mixing_matrix', angles,
                              {'s12': s12, 's23': s23, 's13': s13}, {'dCP': dCP})
     s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
@@ -155,6 +160,10 @@ def mixing_matrix_3x3(s12: float, s23: float, s13:float, dCP: float,
     np.ndarray
         3x3 PMNS mixing matrix.
     """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.mixing_matrix_3x3', {'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP})
     return pmns_mixing_matrix(s12, s23, s13, dCP, angles=angles)
 
 
@@ -235,6 +244,10 @@ def hamiltonian_3nu_vacuum_energy_independent(s12: float, s23: float, s13: float
     The eigenvalues are :math:`(0, \Delta m^2_{21}, \Delta m^2_{31})`: only
     mass-squared *differences* appear, which is why the first is zero.
 """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_3nu_vacuum_energy_independent', {'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31, 'nubar': nubar, 'compute_matrix_multiplication': compute_matrix_multiplication})
     # BEFORE the cache key is built, deliberately.  The key is made of the numbers, so if a
     # raw 0.554 could arrive meaning either a sine or 0.554 radians, the two would collide on
     # one entry and the second caller would get the first one's Hamiltonian -- silently, and
@@ -411,6 +424,11 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_3nu_vacuum', {'energy': energy})
     return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
         nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
         angles=angles)
@@ -587,6 +605,11 @@ def hamiltonian_3nu_nsi(
     ``eps_ee = 0.1`` is a ten-per-cent correction to the standard potential and
     ``eps_em`` is an off-diagonal one the Standard Model does not have.
 """
+    # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
+    # float cannot get wrong is left to check, in one comparison per coupling: a
+    # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
+    if type(eps_ee) is not float or type(eps_mm) is not float or type(eps_tt) is not float:
+        _v.check_physics_params('hamiltonians.hamiltonian_3nu_nsi', {'eps_ee': eps_ee, 'eps_mm': eps_mm, 'eps_tt': eps_tt})
     return VCC * np.array([
         [eps_ee, eps_em, eps_et],
         [np.conj(eps_em), eps_mm, eps_mt],
@@ -687,6 +710,11 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_3nu_liv', {'energy': energy})
     return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         b1, b2, b3, Lambda, n_liv, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
@@ -744,6 +772,10 @@ def hamiltonian_3nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     np.ndarray
         Hamiltonian 3x3 matrix.
     """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_3nu_liv_energy_independent', {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv, 'nubar': nubar, 'compute_matrix_multiplication': compute_matrix_multiplication})
     # The LIV angles went through no guard at all before this: only the vacuum builders
     # validated their sines.  Converting here gives them the same protection.
     _r, _p = _angles.resolve(

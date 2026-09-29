@@ -518,3 +518,53 @@ def r_hamiltonian(name, x, where, a):
 def r_real_array(**kw):
     return lambda name, x, where, a: (None if x is None else
                                       check_real_array(name, x, where, **kw))
+
+
+# Diagonal NSI couplings are real by hermiticity; the off-diagonal ones may be complex.
+NSI_DIAGONAL = frozenset(('eps_aa', 'eps_ee', 'eps_mm', 'eps_tt', 'eps_ss', 'eps_s1s1',
+                          'eps_s2s2'))
+_BUILDER_FLAGS = frozenset(('nubar', 'compute_matrix_multiplication'))
+_INF = float('inf')
+
+
+def check_physics_params(where: str, values: dict) -> None:
+    r"""Check the physics arguments of a Hamiltonian builder, by name.
+
+    Energies and ``Lambda`` are positive; ``n_liv`` is an integer >= 0; off-diagonal NSI
+    couplings may be complex; every other sine, phase, splitting, coupling and LIV
+    coefficient is a finite real; the two flags are bools.  A finite plain float passes in
+    one comparison, so a builder called once per quadrature node inside a user Hamiltonian
+    pays well under a microsecond (issue #160 §11).
+    """
+    for k, x in values.items():
+        if k in _BUILDER_FLAGS:
+            if x is not True and x is not False:
+                check_bool(k, x, where)
+            continue
+        if k == 'energy' or k == 'Lambda':
+            if not (type(x) is float and 0.0 < x < _INF):
+                check_real(k, x, where, positive=True)
+            continue
+        if k == 'n_liv':
+            check_int(k, x, where, lo=0, what="an integer >= 0 (the operator dimension "
+                      "minus 3)")
+            continue
+        if k.startswith('eps_') and k not in NSI_DIAGONAL:
+            if type(x) is float and -_INF < x < _INF:
+                continue
+            if isinstance(x, (complex, np.complexfloating)) and not isinstance(x, bool):
+                if not (np.isfinite(x.real) and np.isfinite(x.imag)):
+                    raise ValueError(_msg(where, k + " must be finite; got " + repr(x) + "."))
+                continue
+            check_real(k, x, where)
+            continue
+        if k[:1] in ('s', 'd', 'D', 'b') or k.startswith('eps_'):
+            if type(x) is float and -_INF < x < _INF:
+                continue
+            if isinstance(x, (complex, np.complexfloating)) and x.imag == 0:
+                continue
+            if isinstance(x, (complex, np.complexfloating)):
+                raise InputTypeError(_msg(where, k + " must be real" +
+                    (" (a diagonal NSI coupling is real by hermiticity)"
+                     if k in NSI_DIAGONAL else "") + "; got " + repr(x) + "."))
+            check_real(k, x, where)

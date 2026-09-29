@@ -37,6 +37,7 @@ import numpy as np
 
 from magnus.hamiltonians import _angles
 from typing import Optional, Callable
+from magnus import _validate as _v
 # from globaldefs import *
 
 
@@ -79,6 +80,10 @@ def mixing_matrix_2nu(sth: float, angles: Optional[str]='sin') -> np.ndarray:
     are usually quoted as the latter -- pass ``angles='sin2'`` and hand the fitted
     value straight in, rather than taking the square root yourself.
 """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.mixing_matrix_2nu', {'sth': sth})
     sines, _ = _angles.resolve('hamiltonians.mixing_matrix_2nu', angles, {'sth': sth})
     sth = sines['sth']
     cth = np.sqrt(1.0-sth*sth)
@@ -138,6 +143,10 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     The energy is divided out separately, which is what makes this the piece to
     build once and reuse across a scan over energies.
 """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_vacuum_energy_independent', {'sth': sth, 'Dm2': Dm2, 'compute_matrix_multiplication': compute_matrix_multiplication})
     sines, _ = _angles.resolve(
         'hamiltonians.hamiltonian_2nu_vacuum_energy_independent', angles, {'sth': sth})
     sth = sines['sth']
@@ -238,6 +247,11 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_vacuum', {'energy': energy})
     return (1/energy)*hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
@@ -393,6 +407,11 @@ def hamiltonian_2nu_nsi(VCC: float, eps_aa: float, eps_ab: complex) -> np.ndarra
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
+    # float cannot get wrong is left to check, in one comparison per coupling: a
+    # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
+    if type(eps_aa) is not float:
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_nsi', {'eps_aa': eps_aa})
     return VCC * np.array([[eps_aa, eps_ab], [np.conj(eps_ab), 0.0]], dtype=np.complex128)
 
 
@@ -466,6 +485,11 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_liv', {'energy': energy})
     return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(
         sxi, b1, b2, Lambda, n_liv, angles=angles)
 
@@ -502,6 +526,10 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     np.ndarray
         Hamiltonian 2x2 matrix.
     """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_liv_energy_independent', {'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv})
     # Until now the LIV angle went through no guard at all: only the vacuum builders
     # validated their sines, so an out-of-range sxi reached np.sqrt(1 - sxi*sxi) and
     # became a NaN Hamiltonian in silence.  resolve() closes that as a side effect of

@@ -41,6 +41,32 @@ import numpy as np
 from typing import Optional, Callable, Union
 
 import magnus.globaldefs as gd
+from magnus import _validate as _v
+
+
+# Argument rules for the factories and helpers below (issue #160 §11), applied to calls from
+# outside the package.  The per-position profile functions (density_matter_func_const,
+# density_matter_func_exp, VCC_func) are not checked: they run on the hot path, and their
+# parameters are checked where they are set.
+def _density_or_profile(name, x, where, a):
+    if callable(x):
+        return
+    _v.check_real(name, x, where, nonnegative=True)
+
+
+def _ratio_rule(name, x, where, a):
+    if x is None or callable(x):
+        return
+    _v.check_real_array(name, x, where, nonnegative=True)
+
+
+def _fraction_rule(name, x, where, a):
+    if x is None:
+        return
+    _v.check_real_array(name, x, where, nonnegative=True)
+    if np.any(np.asarray(x, dtype=float) > 1.0):
+        raise ValueError(_v._msg(where, name + " must be between 0 and 1 (the number of "
+                                 "electrons per nucleon); got " + repr(x) + "."))
 
 
 class DensityUnitWarning(UserWarning):
@@ -73,6 +99,10 @@ def density_matter_func_const(l: float,
     constant density. Used for testing purposes.
 
     .. versionadded:: 1.0.0
+
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
 
     Parameters
     ----------
@@ -110,6 +140,10 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
 
     .. versionadded:: 1.0.0
 
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
+
     Parameters
     ----------
     l : int, float, or np.ndarray
@@ -133,6 +167,7 @@ def density_matter_func_exp(l: float, density_matter_central:float , l_scale: fl
     return density_matter_central*np.exp(-l/l_scale)
 
 
+@_v.validated(dict(density_matter_central=_v.r_real(nonnegative=True), l_scale=_v.r_real(positive=True)))
 def exp_density_profile(density_matter_central: float, l_scale: float) -> Callable:
     r"""Builds an exponential density-profile callable tagged for the fast interaction-picture
     integrator.
@@ -276,6 +311,7 @@ def _warn_if_density_is_probably_in_g_per_cm3(
         "session.", DensityUnitWarning, stacklevel=3)
 
 
+@_v.validated(dict(num_flavors=_v.r_int(lo=2), ratio_number_neutrons_to_protons=_ratio_rule))
 def matter_potential_projector(
     num_flavors: int,
     ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]] = 1.0
@@ -494,6 +530,7 @@ def _warn_if_density_was_probably_already_converted(
         "session.", DensityUnitWarning, stacklevel=3)
 
 
+@_v.validated(dict(density_matter_func=_v.r_callable, ratio_number_neutrons_to_protons=_ratio_rule, electron_fraction=_fraction_rule, density_matter_is_in_g_per_cm3=_v.r_bool))
 def num_density_e_func(l: float, density_matter_func: Callable,
     ratio_number_neutrons_to_protons: Optional[float]=1.0,
     electron_fraction: Optional[float]=0.5,
@@ -574,6 +611,10 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
 
     .. versionadded:: 1.0.0
 
+    .. note::
+       Its arguments are not validated: it runs at every quadrature node, and they are
+       checked where they are set, by the wrappers and the factories (issue #160).
+
     Parameters
     ----------
     l : float
@@ -603,6 +644,7 @@ def VCC_func(l: float, num_density_e_func: Callable) -> float:
     return gd.SQRT_OF_2 * gd.GF * num_density_e_func(l) # VCC [eV]
 
 
+@_v.validated(dict(rho_func=_density_or_profile, L0=_v.r_real(allow_none=True), ratio_number_neutrons_to_protons=_ratio_rule, electron_fraction=_fraction_rule, nubar=_v.r_bool, density_matter_is_in_g_per_cm3=_v.r_bool, density_is_of_number_of_electrons=_v.r_bool))
 def vcc_func_from_rho_func(
     rho_func: Union[Callable, int, float],
     L0: Optional[Union[int, float]]=0.0,

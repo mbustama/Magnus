@@ -77,6 +77,7 @@ from typing import Callable, Dict, Tuple
 import numpy as np
 
 import magnus.globaldefs as gd
+from magnus import _validate as _v
 
 
 EXPONENTIAL = 'exp'
@@ -141,7 +142,13 @@ def canonical_name(name: str) -> str:
     ValueError
         If the name is not one of the shipped models; the message lists them.
     """
-    key = str(name).strip().lower()
+    # A string: str(None) and str(1) used to be looked up, and refused as unknown models
+    # (issue #160 §3).
+    if not isinstance(name, str):
+        raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " solarmodels: a solar model is named by a "
+            "string, such as " + repr(SOLAR_MODELS[0]) + "; got " + type(name).__name__ + " " +
+            repr(name) + ".")
+    key = name.strip().lower()
     if key not in _BY_KEY:
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " solarmodels: unknown solar model " + repr(name) +
             ".  The models that ship with the package are " + ", ".join(SOLAR_MODELS) +
