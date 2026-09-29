@@ -17141,7 +17141,7 @@ save(fig, 'solar_production.pdf')'''),
 
 Most solar analyses solve the 1-2 sector alone on a density scaled by $\cos^2\theta_{13}$
 and fold $\theta_{13}$ back in as
-$\langle P\rangle^{\rm approx}_{2\nu} = \sin^4\theta_{13} + \cos^4\theta_{13}\,P^{2\nu}$
+$\langle P^{3\nu}_{\nu_e \to \nu_e} \rangle_{\rm approx} = \sin^4\theta_{13} + \cos^4\theta_{13}\,\langle P^{2\nu}_{\nu_e \to \nu_e} \rangle$
 (Kuo & Pantaleone 1989).  Exact in vacuum; in matter it drops terms of relative size
 $2EV_{\rm CC}/\Delta m^2_{31}$ times the $\sin^2\theta_{13}$ admixture.  This cell evaluates
 them on the three profiles of Figure 5c: the two-flavor side is the averaged scenario call at
@@ -17186,8 +17186,9 @@ logx(ax); logy(ax); snug(ax, E_AVG/gd.UNIT_MEV); xticks_at(ax, (0.1, 0.3, 1, 3, 
 # the tables' curves are still legible.
 ax.set_ylim(2e-5, 1e-2)
 ax.set_xlabel(r'Neutrino energy, $E$ [MeV]')
-ax.set_ylabel(r'$(\langle P\rangle^{\rm approx}_{2\nu} - \langle P\rangle_{3\nu})'
-              r'/\langle P\rangle_{3\nu}$', fontsize=8.5)
+ax.set_ylabel(r'$(\langle P^{3\nu}_{\nu_e \to \nu_e} \rangle_{\rm approx}'
+              r' - \langle P^{3\nu}_{\nu_e \to \nu_e} \rangle)'
+              r'/\langle P^{3\nu}_{\nu_e \to \nu_e} \rangle$', fontsize=8.5)
 ax.legend(loc='lower right', handlelength=1.6)
 corner(ax, r'Sun', loc='upper left', x=0.035, y=0.94)
 fig.subplots_adjust(left=0.20)
