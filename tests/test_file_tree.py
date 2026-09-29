@@ -415,6 +415,7 @@ TREE = [
      'This file: generates the tree above and checks it against git'),
     ('tests/test_globaldefs.py', 'NuFIT historical parameter dict/loader'),
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
+    ('tests/test_input_fuzz.py', 'Issue #160: each bad argument refused by name, each valid edge accepted'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),
     ('tests/test_magnus_expansion.py', 'Magnus-core correctness (terms, orders, GL rates, unitarity)'),
     ('tests/test_one_sided_breakpoints.py',

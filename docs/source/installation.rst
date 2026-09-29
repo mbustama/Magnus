@@ -419,6 +419,7 @@ File tree
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
        ├── test_globaldefs.py          # NuFIT historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
+       ├── test_input_fuzz.py          # Issue #160: each bad argument refused by name, each valid edge accepted
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
        ├── test_one_sided_breakpoints.py  # 'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values
