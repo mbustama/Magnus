@@ -22,6 +22,7 @@ Routine listings
     * hamiltonian_5nu_matter - Returns H_matter
     * hamiltonian_5nu_matter_td - Returns H_matter, as a function of position
     * hamiltonian_5nu_nsi - Returns H_NSI
+    * hamiltonian_5nu_nsi_td - Returns H_NSI, as a function of position
     * hamiltonian_5nu_liv - Returns H_LIV
     * hamiltonian_5nu_liv_energy_independent - Returns H_LIV (no energy
            dependence)
@@ -41,7 +42,8 @@ import magnus.matter as matter
 from typing import Optional, Callable, Union
 
 
-def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float, d14: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def mixing_matrix_5x5(s12: float, s23: float, s13:float, dCP: float, s14: float, d14: float,
     s15: float, d15: float, s24: float, d24: float, s25: float, s34: float, s35: float, d35: float,
     compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -72,8 +74,10 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
         Mixing angle :math:`\theta_{23}`, in the convention set by ``angles`` (default: its sine).
     s13 : float
         Mixing angle :math:`\theta_{13}`, in the convention set by ``angles`` (default: its sine).
-    d13 : float
-        :math:`\delta_{13}` [radian, or degree if ``angles='deg'``].
+    dCP : float
+        :math:`\delta_{\rm CP}`, the phase of the 1-3 rotation [radian, or degree if
+        ``angles='deg'``].  Formerly ``d13``, which is still accepted as a keyword, with a
+        :class:`FutureWarning`.
     s14 : float
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine).
     d14 : float
@@ -133,11 +137,11 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
         'hamiltonians.mixing_matrix_5x5', angles,
         {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's15': s15,
          's24': s24, 's25': s25, 's34': s34, 's35': s35},
-        {'d13': d13, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
+        {'dCP': dCP, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
     s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
     s14, s15, s24 = _r['s14'], _r['s15'], _r['s24']
     s25, s34, s35 = _r['s25'], _r['s34'], _r['s35']
-    d13, d14, d15 = _p['d13'], _p['d14'], _p['d15']
+    dCP, d14, d15 = _p['dCP'], _p['d14'], _p['d15']
     d24, d35 = _p['d24'], _p['d35']
 
     c12 = np.sqrt(1.0-s12*s12)
@@ -149,8 +153,8 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
     c25 = np.sqrt(1.0-s25*s25)
     c34 = np.sqrt(1.0-s34*s34)
     c35 = np.sqrt(1.0-s35*s35)
-    cd13 = np.cos(d13)
-    sd13 = np.sin(d13)
+    cd13 = np.cos(dCP)
+    sd13 = np.sin(dCP)
     exp_d13_p = complex(cd13, sd13)
     exp_d13_m = np.conj(exp_d13_p)
     cd14 = np.cos(d14)
@@ -286,7 +290,8 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, d13: float, s14: float,
         return np.linalg.multi_dot([R35, R34, R25, R24, R23, R15, R14, R13, R12])
 
 
-def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float, d13: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float, dCP: float,
     s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float, s34: float,
     s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
@@ -303,8 +308,9 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     Parameters
     ----------
-    s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
-        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
+    s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
+        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -338,16 +344,16 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
         'hamiltonians.hamiltonian_5nu_vacuum_energy_independent', angles,
         {'s12': s12, 's23': s23, 's13': s13, 's14': s14, 's15': s15,
          's24': s24, 's25': s25, 's34': s34, 's35': s35},
-        {'d13': d13, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
+        {'dCP': dCP, 'd14': d14, 'd15': d15, 'd24': d24, 'd35': d35})
     s12, s23, s13 = _r['s12'], _r['s23'], _r['s13']
     s14, s15, s24 = _r['s14'], _r['s15'], _r['s24']
     s25, s34, s35 = _r['s25'], _r['s34'], _r['s35']
-    d13, d14, d15 = _p['d13'], _p['d14'], _p['d15']
+    dCP, d14, d15 = _p['dCP'], _p['d14'], _p['d15']
     d24, d35 = _p['d24'], _p['d35']
     # 5x5 mixing matrix
-    R = mixing_matrix_5x5(s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35,
+    R = mixing_matrix_5x5(s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35,
         compute_matrix_multiplication=compute_matrix_multiplication) if not nubar else \
-            np.conj(mixing_matrix_5x5(s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34,
+            np.conj(mixing_matrix_5x5(s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34,
                 s35, d35, compute_matrix_multiplication=compute_matrix_multiplication))
     # Mass matrix
     M2 = np.diag([0.0, D21, D31, D41, D51])
@@ -356,8 +362,9 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     # return 0.5 * R @ M2 @ np.conj(R.T)
 
 
+@_angles.renamed_keyword('d13', 'dCP')
 def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: float, s13:float,
-    d13: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
+    dCP: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
     s34: float, s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -373,8 +380,9 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     ----------
     l : float
         Position at which the Hamiltonian is evaluated.
-    s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
-        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
+    s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
+        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -399,12 +407,13 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
-    return hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15, d15, s24,
+    return hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15, d15, s24,
         d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
-def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13: float, s14: float,
+@_angles.renamed_keyword('d13', 'dCP')
+def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP: float, s14: float,
     d14: float, s15: float, d15: float, s24: float, d24: float, s25: float, s34: float, s35: float,
     d35: float, D21: float, D31: float, D41: float, D51: float, nubar: Optional[bool]=False,
     compute_matrix_multiplication: Optional[bool]=False,
@@ -419,8 +428,9 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     ----------
     energy : float
         Neutrino energy.
-    s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
-        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
+    s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
+        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -445,13 +455,14 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, d13
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
-    return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, d13, s14, d14, s15,
+    return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15,
         d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
+@_angles.renamed_keyword('d13', 'dCP')
 def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s13:float,
-    d13: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
+    dCP: float, s14: float, d14: float, s15: float, d15: float, s24: float, d24: float, s25: float,
     s34: float, s35: float, d35: float, D21: float, D31: float, D41: float, D51: float,
     nubar: Optional[bool]=False, compute_matrix_multiplication: Optional[bool]=False,
     angles: Optional[str]='sin') -> np.ndarray:
@@ -469,8 +480,9 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
         Position at which the Hamiltonian is evaluated.
     energy : float
         Neutrino energy.
-    s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
-        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.
+    s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
+        3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
+        1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
     D21 : float
         Mass-squared difference :math:`\Delta m_{21}^2`.
     D31 : float
@@ -495,7 +507,7 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
-    return hamiltonian_5nu_vacuum(energy, s12, s23, s13, d13, s14, d14, s15, d15, s24, d24, s25,
+    return hamiltonian_5nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25,
         s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
@@ -551,7 +563,9 @@ def hamiltonian_5nu_matter(VCC: float,
     return VCC[..., None, None] * proj
 
 
-def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
+def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
+    ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]] = 1.0
+) -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for matter oscillations, as a function of distance.
 
     Computes and returns the 5x5 real five-neutrino Hamiltonian for oscillations in matter with a
@@ -566,13 +580,25 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
+    ratio_number_neutrons_to_protons : int, float or Callable, optional
+        :math:`r = n_n/n_p` of the medium, as in :func:`hamiltonian_5nu_matter`: a number, or
+        a function of position, evaluated at ``l``.  Default: 1.0 (isoscalar matter).
+
+        .. versionchanged:: 1.1.1
+           Added (issue #121).  Without it, this function equalled
+           :func:`hamiltonian_5nu_matter` only at :math:`r = 1`.
 
     Returns
     -------
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
-    return hamiltonian_5nu_matter(VCC_func(l))
+    if callable(ratio_number_neutrons_to_protons):
+        # The projector of a position-dependent ratio is itself a function of position.
+        VCC = np.asarray(VCC_func(l), dtype=float)
+        proj = matter.matter_potential_projector(5, ratio_number_neutrons_to_protons)(l)
+        return VCC[..., None, None] * proj
+    return hamiltonian_5nu_matter(VCC_func(l), ratio_number_neutrons_to_protons)
 
 
 def hamiltonian_5nu_nsi(
@@ -650,7 +676,40 @@ def hamiltonian_5nu_nsi(
         ], dtype=np.complex128)
 
 
-def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, dxi13: float,
+def hamiltonian_5nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: complex,
+    eps_et: complex, eps_es1: complex, eps_es2: complex, eps_mm: float, eps_mt: complex,
+    eps_ms1: complex, eps_ms2: complex, eps_tt: float, eps_ts1: complex, eps_ts2: complex,
+    eps_s1s1: float, eps_s1s2: complex, eps_s2s2: float) -> np.ndarray:
+    r"""Returns the five-neutrino NSI Hamiltonian as a function of position.
+
+    Same as :func:`hamiltonian_5nu_nsi`, but evaluates the position-dependent matter potential
+    ``VCC_func(l)`` first.
+
+    .. versionadded:: 1.1.1
+       Issue #121: every other builder existed at two to five flavors; this one existed only up
+       to four.
+
+    Parameters
+    ----------
+    l : float
+        Position at which the Hamiltonian is evaluated.
+    VCC_func : Callable
+        Potential due to charged-current interactions of nu_e with electrons, as a function of
+        position, l.
+    eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm, eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 :
+        NSI coupling parameters; see :func:`hamiltonian_5nu_nsi`.
+
+    Returns
+    -------
+    np.ndarray
+        Hamiltonian 5x5 matrix.
+    """
+    return hamiltonian_5nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm,
+        eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2)
+
+
+@_angles.renamed_keyword('dxi13', 'dxiCP')
+def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, dxiCP: float,
     sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float,
     sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float,
     b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
@@ -672,8 +731,9 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B5
         and the flavor states, parametrized as in :func:`mixing_matrix_5x5`.
-    dxi13, dxi14, dxi15, dxi24, dxi35 : float
-        CP-violation phases of the LIV operator B5 [radian].
+    dxiCP, dxi14, dxi15, dxi24, dxi35 : float
+        CP-violation phases of the LIV operator B5 [radian].  ``dxiCP`` is the
+        phase of the 1-3 rotation, formerly ``dxi13``, which is still accepted as a keyword.
     b1 : float
         Eigenvalue b1 of the LIV operator B5.
     b2 : float
@@ -706,13 +766,14 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
         Hamiltonian 5x5 matrix.
     """
 
-    return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxi13,
+    return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5,
         Lambda, n_liv, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
 
-def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:float, dxi13: float,
+@_angles.renamed_keyword('dxi13', 'dxiCP')
+def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:float, dxiCP: float,
     sxi14: float, dxi14: float, sxi15: float, dxi15: float, sxi24: float, dxi24: float,
     sxi25: float, sxi34: float, sxi35: float, dxi35: float, b1: float, b2: float, b3: float,
     b4: float, b5: float, Lambda: float, n_liv: int, nubar: Optional[bool]=False,
@@ -730,8 +791,9 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B5
         and the flavor states, parametrized as in :func:`mixing_matrix_5x5`.
-    dxi13, dxi14, dxi15, dxi24, dxi35 : float
-        CP-violation phases of the LIV operator B5 [radian].
+    dxiCP, dxi14, dxi15, dxi24, dxi35 : float
+        CP-violation phases of the LIV operator B5 [radian].  ``dxiCP`` is the
+        phase of the 1-3 rotation, formerly ``dxi13``, which is still accepted as a keyword.
     b1 : float
         Eigenvalue b1 of the LIV operator B5.
     b2 : float
@@ -769,20 +831,20 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
         'hamiltonians.hamiltonian_5nu_liv_energy_independent', angles,
         {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'sxi14': sxi14, 'sxi15': sxi15,
          'sxi24': sxi24, 'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35},
-        {'dxi13': dxi13, 'dxi14': dxi14, 'dxi15': dxi15, 'dxi24': dxi24, 'dxi35': dxi35})
+        {'dxiCP': dxiCP, 'dxi14': dxi14, 'dxi15': dxi15, 'dxi24': dxi24, 'dxi35': dxi35})
     sxi12, sxi23, sxi13 = _r['sxi12'], _r['sxi23'], _r['sxi13']
     sxi14, sxi15, sxi24 = _r['sxi14'], _r['sxi15'], _r['sxi24']
     sxi25, sxi34, sxi35 = _r['sxi25'], _r['sxi34'], _r['sxi35']
-    dxi13, dxi14, dxi15 = _p['dxi13'], _p['dxi14'], _p['dxi15']
+    dxiCP, dxi14, dxi15 = _p['dxiCP'], _p['dxi14'], _p['dxi15']
     dxi24, dxi35 = _p['dxi24'], _p['dxi35']
 
     # 5x5 mixing matrix
 
     if not nubar:
-        R = mixing_matrix_5x5(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24,
+        R = mixing_matrix_5x5(sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi15, dxi15, sxi24, dxi24,
             sxi25, sxi34, sxi35, dxi35, compute_matrix_multiplication=compute_matrix_multiplication)
     else:
-        R = np.conj(mixing_matrix_5x5(sxi12, sxi23, sxi13, dxi13, sxi14, dxi14, sxi15, dxi15, sxi24,
+        R = np.conj(mixing_matrix_5x5(sxi12, sxi23, sxi13, dxiCP, sxi14, dxi14, sxi15, dxi15, sxi24,
             dxi24, sxi25, sxi34, sxi35, dxi35,
             compute_matrix_multiplication=compute_matrix_multiplication))
 

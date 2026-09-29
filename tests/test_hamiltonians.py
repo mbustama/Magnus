@@ -10,6 +10,8 @@ re-derivation, or a Hermiticity/reference-formula check), not merely by
 asserting the code equals itself.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -172,6 +174,124 @@ def test_nsi_td_functions_match_their_non_td_counterparts():
     H4 = h4.hamiltonian_4nu_nsi_td(l, VCC_func, *args4)
     assert maxabs(H4 - h4.hamiltonian_4nu_nsi(VCC_func(l), *args4)) == 0.0
 
+    # Issue #121: the five-flavor one was missing.
+    args5 = (0.1, 0.2j, 0.01 - 0.02j, 0.03j, 0.0, 0.05, 0.01j, 0.0, 0.02, 0.0, 0.0, 0.01j,
+             0.02, 0.005 + 0.001j, 0.01)
+    H5 = h5.hamiltonian_5nu_nsi_td(l, VCC_func, *args5)
+    assert maxabs(H5 - h5.hamiltonian_5nu_nsi(VCC_func(l), *args5)) == 0.0
+    assert hams.hamiltonian_5nu_nsi_td is h5.hamiltonian_5nu_nsi_td
+
+
+# ----------------------------------------------------------------------
+# Issue #121: one name for each parameter across the flavor counts
+# ----------------------------------------------------------------------
+
+_STERILE4 = dict(s14=0.1, d14=0.3, s24=0.05, d24=0.7, s34=0.02, D41=1.0)
+_STERILE5 = dict(s14=0.1, d14=0.3, s15=0.05, d15=0.2, s24=0.05, d24=0.7, s25=0.02,
+                 s34=0.02, s35=0.01, d35=1.1, D41=1.0, D51=2.0)
+_VACUUM_FORMS = ('vacuum', 'vacuum_td', 'vacuum_energy_independent',
+                 'vacuum_energy_independent_td')
+
+
+def _vacuum_call(num_flavors, form, **params):
+    """Call a vacuum builder with the positional arguments its form needs first."""
+    f = getattr(hams, 'hamiltonian_%dnu_%s' % (num_flavors, form))
+    lead = {'vacuum': (1.0 * gd.UNIT_GEV,), 'vacuum_td': (0.0, 1.0 * gd.UNIT_GEV),
+            'vacuum_energy_independent': (), 'vacuum_energy_independent_td': (0.0,)}[form]
+    return f(*lead, **params)
+
+
+@pytest.mark.parametrize('form', _VACUUM_FORMS)
+@pytest.mark.parametrize('num_flavors', [3, 4, 5])
+def test_a_loaded_parameter_set_goes_straight_into_every_vacuum_builder(num_flavors, form):
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    extra = {3: {}, 4: _STERILE4, 5: _STERILE5}[num_flavors]
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        H = _vacuum_call(num_flavors, form, **osc, **extra)
+    assert np.asarray(H).shape == (num_flavors, num_flavors)
+
+
+@pytest.mark.parametrize('form', _VACUUM_FORMS)
+@pytest.mark.parametrize('num_flavors', [4, 5])
+def test_the_former_phase_name_d13_still_works_with_a_warning(num_flavors, form):
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    extra = {4: _STERILE4, 5: _STERILE5}[num_flavors]
+    H_new = _vacuum_call(num_flavors, form, **osc, **extra)
+    old = dict(osc)
+    old['d13'] = old.pop('dCP')
+    with pytest.warns(FutureWarning, match="'d13' is deprecated; use 'dCP'"):
+        H_old = _vacuum_call(num_flavors, form, **old, **extra)
+    assert maxabs(np.asarray(H_new) - np.asarray(H_old)) == 0.0
+    with pytest.raises(TypeError, match="both 'dCP' and its former name 'd13'"):
+        _vacuum_call(num_flavors, form, **osc, d13=0.0, **extra)
+
+
+_LIV4 = dict(sxi12=0.2, sxi23=0.1, sxi13=0.05, sxi14=0.05, dxi14=0.4, sxi24=0.03,
+             dxi24=0.9, sxi34=0.02, b1=gd.B1, b2=gd.B2, b3=gd.B3, b4=3.0e-9,
+             Lambda=gd.LAMBDA, n_liv=1)
+_LIV5 = dict(_LIV4, sxi15=0.03, dxi15=0.6, sxi25=0.02, sxi35=0.01, dxi35=1.5, b5=4.0e-9)
+
+
+@pytest.mark.parametrize('num_flavors', [3, 4, 5])
+def test_the_liv_phase_is_dxiCP_at_every_flavor_count(num_flavors):
+    params = {3: dict(sxi12=0.2, sxi23=0.1, sxi13=0.05, b1=gd.B1, b2=gd.B2, b3=gd.B3,
+                      Lambda=gd.LAMBDA, n_liv=1),
+              4: _LIV4, 5: _LIV5}[num_flavors]
+    for form, lead in (('liv', (1.0 * gd.UNIT_GEV,)), ('liv_energy_independent', ())):
+        f = getattr(hams, 'hamiltonian_%dnu_%s' % (num_flavors, form))
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            H = f(*lead, dxiCP=1.3, **params)
+        if num_flavors > 3:
+            with pytest.warns(FutureWarning, match="'dxi13' is deprecated; use 'dxiCP'"):
+                H_old = f(*lead, dxi13=1.3, **params)
+            assert maxabs(np.asarray(H) - np.asarray(H_old)) == 0.0
+
+
+@pytest.mark.parametrize('num_flavors', [4, 5])
+def test_liv_wrappers_and_liv_params_take_dxiCP_and_still_accept_dxi13(num_flavors):
+    import magnus.oscprob as oscprob
+    params = {4: _LIV4, 5: _LIV5}[num_flavors]
+    wrapper = getattr(oscprob, 'osc_prob_%dnu_vacuum_liv' % num_flavors)
+    E, L = 1.0 * gd.UNIT_GEV, 1300.0 * gd.UNIT_KM
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')
+        P = wrapper(E, L, dxiCP=1.3, **params)
+    with pytest.warns(FutureWarning, match="'dxi13' is deprecated"):
+        P_old = wrapper(E, L, dxi13=1.3, **params)
+    assert np.array_equal(P, P_old)
+    # The same through the scenario function's parameter dictionary.
+    osc = dict(gd.load_nufit_params('NuFIT 6.1'), **{k: v for k, v in
+               ({4: _STERILE4, 5: _STERILE5}[num_flavors]).items()})
+    P_dict = oscprob.osc_prob_liv(num_flavors, E, L, osc, dict(params, dxiCP=1.3))
+    with pytest.warns(FutureWarning, match="'dxi13' is deprecated"):
+        P_dict_old = oscprob.osc_prob_liv(num_flavors, E, L, osc, dict(params, dxi13=1.3))
+    assert np.array_equal(P_dict, P_dict_old)
+    with pytest.raises(ValueError, match="both 'dxiCP' and its former name 'dxi13'"):
+        oscprob.osc_prob_liv(num_flavors, E, L, osc, dict(params, dxiCP=1.3, dxi13=1.3))
+
+
+@pytest.mark.parametrize('num_flavors', [4, 5])
+def test_matter_td_takes_the_neutron_to_proton_ratio(num_flavors):
+    matter_td = getattr(hams, 'hamiltonian_%dnu_matter_td' % num_flavors)
+    matter_const = getattr(hams, 'hamiltonian_%dnu_matter' % num_flavors)
+    VCC_func = lambda l: 1.0e-13 * (1.0 + 0.1 * np.asarray(l))
+    l = 2.0
+    # The default is unchanged: isoscalar matter.
+    assert maxabs(matter_td(l, VCC_func) - matter_const(VCC_func(l))) == 0.0
+    # A number.
+    assert maxabs(matter_td(l, VCC_func, 0.8) - matter_const(VCC_func(l), 0.8)) == 0.0
+    # A function of position, evaluated at l, and at an array of positions.
+    r_func = lambda x: 0.8 + 0.05 * np.asarray(x)
+    assert maxabs(matter_td(l, VCC_func, r_func) - matter_const(VCC_func(l), r_func(l))) \
+        < 1e-30
+    ls = np.array([0.0, 1.0, 2.0])
+    H = matter_td(ls, VCC_func, r_func)
+    assert H.shape == (3, num_flavors, num_flavors)
+    for k, x in enumerate(ls):
+        assert maxabs(H[k] - matter_const(VCC_func(x), r_func(x))) < 1e-30
+
 
 # ----------------------------------------------------------------------
 # General: no name collisions across the wildcard-imported split modules
@@ -209,12 +329,12 @@ BUILDER_ARGS = {
     'l': 100.0*gd.UNIT_KM, 'energy': 1.0*gd.UNIT_GEV,
     'VCC': 1.0e-13, 'VCC_func': lambda l: 1.0e-13,
     'sth': 0.4, 'Dm2': 2.5e-3,
-    's12': 0.55, 's23': 0.68, 's13': 0.15, 'dCP': 3.7, 'd13': 3.7,
+    's12': 0.55, 's23': 0.68, 's13': 0.15, 'dCP': 3.7,
     's14': 0.10, 'd14': 1.1, 's24': 0.05, 'd24': 2.2, 's34': 0.02,
     's15': 0.05, 'd15': 0.7, 's25': 0.02, 's35': 0.01, 'd35': 1.9,
     'D21': 7.5e-5, 'D31': 2.5e-3, 'D41': 1.0, 'D51': 2.0,
     'sxi': 0.2, 'sxi12': 0.2, 'sxi23': 0.1, 'sxi13': 0.05,
-    'dxiCP': 1.3, 'dxi13': 1.3, 'sxi14': 0.05, 'dxi14': 0.4,
+    'dxiCP': 1.3, 'sxi14': 0.05, 'dxi14': 0.4,
     'sxi24': 0.03, 'dxi24': 0.9, 'sxi34': 0.02,
     'sxi15': 0.03, 'dxi15': 0.6, 'sxi25': 0.02, 'sxi35': 0.01, 'dxi35': 1.5,
     'b1': gd.B1, 'b2': gd.B2, 'b3': gd.B3, 'b4': 3.0e-9, 'b5': 4.0e-9,

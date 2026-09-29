@@ -14092,12 +14092,12 @@ def vacuum_hamiltonian(d):
             D21=OSC['D21'], D31=OSC['D31'])
     if d == 4:
         return hamiltonians.hamiltonian_4nu_vacuum_energy_independent(
-            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], d13=OSC['dCP'],
+            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], dCP=OSC['dCP'],
             s14=STERILE4['s14'], d14=0.0, s24=STERILE4['s24'], d24=0.0,
             s34=STERILE4['s34'], D21=OSC['D21'], D31=OSC['D31'], D41=STERILE4['D41'])
     if d == 5:
         return hamiltonians.hamiltonian_5nu_vacuum_energy_independent(
-            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], d13=OSC['dCP'],
+            s12=OSC['s12'], s23=OSC['s23'], s13=OSC['s13'], dCP=OSC['dCP'],
             s14=STERILE5['s14'], d14=0.0, s15=STERILE5['s15'], d15=0.0,
             s24=STERILE5['s24'], d24=0.0, s25=STERILE5['s25'],
             s34=STERILE5['s34'], s35=STERILE5['s35'], d35=0.0,

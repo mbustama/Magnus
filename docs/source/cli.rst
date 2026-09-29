@@ -456,10 +456,9 @@ configures):
      --sxi12 SXI12         LIV mixing angle xi_12, per --angles.
      --sxi23 SXI23         LIV mixing angle xi_23, per --angles.
      --sxi13 SXI13         LIV mixing angle xi_13, per --angles.
-     --dxicp DXICP         (3nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg].
-     --dxi13 DXI13         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg] (replaces --dxicp).
+     --dxicp DXICP         (3/4/5nu) LIV CP-violation phase of the 1-3 rotation [radian, or
+                           degree with --angles deg].
+     --dxi13 DXI13         (4/5nu) Former name of --dxicp; still accepted, with a warning.
      --sxi14 SXI14         (4/5nu) LIV mixing angle xi_14, per --angles.
      --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
                            deg].

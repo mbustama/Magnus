@@ -7,6 +7,28 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The 1-3 CP phase is `dCP`, and the Lorentz-violating one `dxiCP`, at every flavor count**
+  (issue #121).  The four- and five-flavor builders called the phase `d13` (and `dxi13`), where
+  the three-flavor ones, the wrappers and `load_nufit_params` say `dCP` (and `dxiCP`), so a
+  loaded parameter set could not be passed straight into a 4ν or 5ν builder.  Renamed in
+  `mixing_matrix_4x4` and `mixing_matrix_5x5`, the 4ν and 5ν vacuum builders (all four forms),
+  the 4ν and 5ν LIV builders (both forms), the ten 4ν and 5ν LIV wrappers, the `liv_params`
+  dictionary of `osc_prob_liv`, and the command line (`--dxicp`).  **The former names still
+  work**: `d13=`, `dxi13=`, the key `'dxi13'` and `--dxi13` give the same result, with a
+  `FutureWarning`; passing both names raises.  Positions are unchanged, so positional calls are
+  unaffected.  The keyword check costs about 0.1 µs per builder call.
+
+### Added
+
+- **`hamiltonian_5nu_nsi_td`** (issue #121), the one builder that existed at two to four flavors
+  but not at five; `magnus.hamiltonians` now has 43 builders.
+- **`ratio_number_neutrons_to_protons` in `hamiltonian_4nu_matter_td` and
+  `hamiltonian_5nu_matter_td`** (issue #121), a number or a function of position, as in
+  `hamiltonian_4nu_matter`.  Without it, the `_td` form equalled the constant one only at
+  `r = 1`.  The default, 1.0, is unchanged.
+
 ### Fixed
 
 - **Default axis labels in `magnus.plotting` no longer print a literal `~`** (issue #124).  The
