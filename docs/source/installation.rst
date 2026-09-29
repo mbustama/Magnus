@@ -42,15 +42,23 @@ calculator (see :doc:`cli`).
    only because ``magnus`` was already taken on PyPI by an unrelated project.
    The command-line tool is ``magnus`` as well.
 
-To work from a checkout instead -- to follow development, or to modify the
-code -- install it in editable mode using the ``pyproject.toml`` at the
-repository root:
+For most users that is the whole installation.  A dedicated virtual environment
+(``conda`` or ``venv``) is supported but not required.
+
+The PyPI package does not include the notebooks or the test suite.  The notebooks have
+saved output and can be read in the repository; to run or modify them, or to get changes
+not yet released, clone the repository and install from it:
 
 .. code-block:: bash
 
    git clone https://github.com/mbustama/Magnus.git
    cd Magnus
-   pip install -e .
+   pip install -e .                  # the package
+   pip install -e ".[notebooks]"     # plus what the notebooks need
+   pip install -e ".[test]"          # plus what the tests need
+
+The notebooks are in ``notebooks/``; opening them interactively also needs a Jupyter front
+end, such as JupyterLab.  Only contributors typically need the test suite.
 
 Either way, one command confirms it worked:
 
@@ -81,8 +89,8 @@ belong on the path:
 Verifying the installation
 ---------------------------
 
-After installing the dependencies, run the test suite to confirm everything
-is configured correctly for your system:
+From a clone, the test suite confirms that everything is configured correctly for your
+system:
 
 .. code-block:: bash
 

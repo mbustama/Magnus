@@ -5,11 +5,28 @@ Performance
    :local:
    :depth: 2
 
-Where the time goes, what was tried and rejected, and the population every
-tuned constant was measured on.
+What a probability costs, what sets that cost, and the population every tuned constant was
+measured on.  The first sections follow Secs. 5.5, 7.1 and 7.3 of the Magνs paper.
 
 Speed
 -------
+
+A single three-flavor probability through the Earth takes about 2 ms at the default tolerance
+of ``rtol = atol = 1e-3``.  Across 164 Earth and solar configurations -- two to five flavors,
+standard and non-standard Hamiltonians, neutrinos and antineutrinos -- the median call takes
+2 ms and the slowest under a second.
+
+**How these times are measured.**  Every timing in the paper comes from one machine and one
+software stack; absolute times mean little on their own, so ratios are quoted where possible.
+A comparison of two code paths runs on a harness that interleaves them round-robin and carries
+a control workload the change cannot touch (``docs/dev/adversarial_batteries/timing.py``).  A
+factor of two or more survives a change of machine; a few percent belongs to the machine.  The
+first call on a machine compiles the Numba kernels, which takes about 2 s; they are cached on
+disk, but each later session still spends about 0.1 s loading them.  So the first call is
+discarded, and each setting is timed in blocks of at least 50 ms, the fastest of three.
+
+Batching and parallelization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../../img/paper/batching.png
    :width: 90%
@@ -22,59 +39,45 @@ Speed
    (d) ``n_jobs=3``: the first point in the calling process, the rest shared among
    three workers.  From the Magνs paper.
 
+A request for many probabilities can be made faster in two ways, which act differently and
+mostly do not combine.
+
+**Batching** means passing an array in one call.  Computed one point at a time, a scan of
+:math:`N` energies runs :math:`N` refinement ladders; the energy-batched scan runs one ladder
+for all of them, sampling the profile once per slab, and the cumulative scan covers every
+baseline at one energy in a single pass.  Where the potential does not vary, the
+constant-Hamiltonian engine computes the whole scan as one batch of exponentials.  Against the
+same points one at a time this is worth about an order of magnitude at two and three flavors,
+and several-fold at four and five, where the exponential goes through an eigensolver.  Batched
+answers are bit-identical to point-by-point ones where ``H`` does not vary; where it varies,
+both meet the tolerance, and with the grid fixed they agree to 1e-12.  Equal-length arrays of
+energies and baselines are paired point by point and computed one at a time; for every energy
+at each of several baselines, make one call per baseline.
+
+**Parallelization** means computing points in several processes, with ``n_jobs``.  The first
+point runs in the calling process and the rest are shared among the workers, each on the
+per-point path, so all :math:`N` ladders still run, several at a time.  A parallel scan agrees
+with a serial one to the tolerance, not bit for bit.
+
 .. figure:: ../../img/paper/njobs_scaling.png
    :width: 70%
    :alt: Parallel speed-up of an energy scan
 
    Speed-up against ``n_jobs``, for scans of 1 000, 5 000 and 20 000 energies along an
    Earth chord at :math:`\cos\theta_z = -0.9`, each energy with its own baseline so
-   that every run takes the per-point path.  Starting the workers costs time once per
-   call, so a short scan gains little or loses.  From the Magνs paper.
+   that every run takes the per-point path.  From the Magνs paper.
 
-Measured by an alternating harness (``docs/dev/adversarial_batteries/timing.py``) that
-interleaves the trees round-robin and carries two workloads the change cannot touch as
-controls. **Ratios survive a loaded machine; absolute times do not** -- the controls came
-back at exactly 1.00× while a fuzzer pegged a core, which is what makes the ratios below
-usable at all.
+On ten cores, ten processes finish scans of 1 000, 5 000 and 20 000 energies 1.9, 2.5 and 2.8
+times as fast as one: the gain grows with the scan and stays far from ten.  The two do not
+combine: the energy-batched scan and the constant-Hamiltonian engine answer only at
+``n_jobs=1``, and any other value sends the scan to the per-point path.  On 5 000 energies
+along the chord at :math:`\cos\theta_z = -0.9`, the batched path takes 0.11 s in one process,
+and ten processes take 1.1 s.  So pass arrays and leave ``n_jobs=1``; raise it only for a scan
+no batched engine accepts, such as one where every energy has its own baseline.
 
-.. list-table::
-   :header-rows: 1
-   :widths: 46 27 27
-
-   * - Workload
-     - Versus the previous release
-     - Note
-   * - solar baseline scan, N = 400
-     - **0.01×** (79× faster)
-     - the cumulative scan; 8.1 s → 0.10 s
-   * - single point, solar (hybrid)
-     - **0.79×**
-     - 21 % faster
-   * - single point, 3ν solar
-     - **0.83×**
-     -
-   * - single point, multi-resonance
-     - **0.76×**
-     -
-   * - solar scan, N = 8 (hybrid)
-     - **0.78×**
-     -
-   * - CONTROL: vacuum scan, N = 300
-     - 1.00×
-     - untouched by any change
-   * - CONTROL: constant-density scan, N = 300
-     - 1.00×
-     - untouched by any change
-
-Across 164 Earth and solar configurations spanning d = 2…5, standard/NSI/LIV, ν and ν̄, the
-**median call is 2 ms** and the slowest is 0.90 s.
-
-One lesson from that table is worth keeping, because it was nearly missed: an earlier
-version of the γ sweep carried a comment claiming it *"reuses the eigendecomposition already
-needed"* while in fact rebuilding it -- 600 extra Hamiltonian evaluations and a second
-``eigh``, costing 1.4× at the entry point. **A claim in a comment about what code reuses is
-not evidence that it reuses it.**
-
+**The refinement ladder works against these savings.**  It computes every slab count below the
+one that converges and discards them: on an Earth chord, about four times the cost of a call
+given the right slab count in advance (:doc:`methodology`).
 
 The palindrome, and what it is worth
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -214,7 +217,7 @@ disappointment.** The exponential is roughly a third of a slab pass, so removing
 sevenths of a third is about what the table shows.  Anyone quoting the 6.8× as a package
 speed-up is quoting the wrong number.
 
-A caution about the PREM row, because the first version of this table got it wrong.
+A caution about measuring the PREM row.
 :func:`magnus.earth.distance_traveled_inside_earth` returns **kilometers**, while every
 ``osc_prob`` baseline is in natural units, and passing the raw value does not raise: it
 returns a converged, unitary answer for a chord a few meters long, on which the refinement
@@ -228,10 +231,9 @@ difference is the anti-Hermiticity test and the temporaries around it, which do 
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
 above.
 
-**Dimensions 4 and 5 no longer keep ``eigh``, and an earlier version of this paragraph
-said they always would.**  The reasoning was that a 4×4 or 5×5 Hermitian eigenproblem has
-no practical closed form -- true, and beside the point, because the closed form was never
-what the speed-up came from: ``eigh``'s fixed per-matrix LAPACK overhead (~2.3 µs on a
+**Dimensions 4 and 5 use a compiled Jacobi eigensolver, not ``eigh``.**  A 4×4 or 5×5
+Hermitian eigenproblem has no practical closed form, but the closed form was never what the
+speed-up came from: ``eigh``'s fixed per-matrix LAPACK overhead (~2.3 µs on a
 4×4, two thirds of a d = 4 call) was, and a batched Jacobi eigensolver that warm-starts
 each matrix from its predecessor's eigenvectors removes it with no closed form at all --
 2.6× on the exponential stage at 4ν and 1.7× at 5ν, measured against ``eigh`` plus
@@ -241,16 +243,15 @@ backend swap is not bit-identical; it is held instead to ``eigh``'s accuracy cla
 admits the closed forms.  :func:`magnus.expmkernels.supports_dim` is still the only place
 that decides this.
 
-Neither backend is exactly unitary, and a previous version of ``_expm_stack``'s docstring
-claimed the ``eigh`` one was.  It is not: :math:`U^\dagger U - I` measures 4e-16 for a
+Neither backend is unitary to the last bit: :math:`U^\dagger U - I` measures 4e-16 for a
 single 3×3 and 4e-15 for a stack of 4096, growing with stack size and never reaching zero.
 Against a 40-digit reference the kernel is the same order or slightly better at every norm
 from :math:`\lVert K \rVert` = 1 to 1e5 **on unclustered spectra**, and both degrade linearly
 in that norm, which is the conditioning of the problem rather than a property of either route.
-Probabilities sum to 1 to about 1e-15; they do not do so by construction.
+A whole probability, built from many such factors, deviates by :math:`3\times10^{-12}` to
+:math:`1.6\times10^{-11}` at worst.
 
-That qualifier was missing from an earlier version of this page, and it mattered.  The closed
-form was verified against random spectra at many norms, and separately at many eigenvalue
+The qualifier "on unclustered spectra" matters.  The closed form was verified against random spectra at many norms, and separately at many eigenvalue
 separations at norm ~1; where those two conditions hold *together* it reached 2.7e-07 against
 ``eigh``'s 3.0e-11, a factor of 7440, because :math:`\arccos` has infinite derivative at
 :math:`u = \pm 1`.  Neither single-axis sweep visits that corner.  It is now closed by
@@ -264,8 +265,9 @@ NSI resonances, constant density and vacuum -- except on a solar profile at
 :math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
 
 numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
-ordinary install.  It costs about 90 ms of ``import magnus``, and the first call to each
-kernel pays a one-off ~0.7 s compile that is then cached to disk.
+ordinary install.  It costs about 90 ms of ``import magnus``; the first call on a machine
+compiles the kernels, about 2 s, and later sessions load them from the disk cache in about
+0.1 s.
 
 The ``'eigh'`` fallback is still there and still correct -- ``'auto'`` degrades to it if
 the import fails for any reason, and nothing but speed changes, every result agreeing to
@@ -303,12 +305,7 @@ series **terminates at its first term**: :math:`\Omega_1 = -iH\Delta`, and every
 :math:`U = \exp(-iH\Delta)` is not an approximation to be refined but the exact answer, and an
 entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
 
-This case used to be turned away deliberately -- the separable dispatcher bailed out on a
-non-callable potential, its docstring saying "a constant potential falls back to the generic
-path" -- so the easiest Hamiltonian there is took the slowest route available: a 60-energy scan
-made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the same constancy.
-
-.. list-table:: Against the per-point route it replaces (interleaved; control 1.00×)
+.. list-table:: Against the per-point route (interleaved; control 1.00×)
    :header-rows: 1
    :widths: 16 22 22 20
 
@@ -333,17 +330,11 @@ made 18,000 ``osc_prob`` calls per 300 repetitions, each one rediscovering the s
      - 6.2×
      - 1.4×
 
-4ν and 5ν gained less here because they exponentiated through ``eigh``: the
-Cayley-Hamilton kernel covers dimensions 2 and 3 only, and it still does.  That is no
-longer the whole story -- those dimensions now go to the Jacobi eigensolver instead of
-``eigh``, worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  The table above
-predates it.  In absolute terms a 3ν constant-density scan costs 1.10 µs per
-energy, against NuOscProbExact's 1.44 µs batched and 13.25 µs looped; a single point is 33.8 µs
-against its 19.9 µs, and **what remains is wrapper parameter resolution rather than
-arithmetic** -- the exponential itself is under a tenth of it.  Part of that resolution
-cost has since been removed: the accepted pass-through keyword names were rebuilt by
-``inspect.signature`` on every public call, twice per call, and are now cached.  The
-figures in this paragraph predate that change and were not re-measured for it.
+4ν and 5ν gained less here because they exponentiated through ``eigh``; they now go to the
+Jacobi eigensolver, worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  The table
+predates that.  In absolute terms a 3ν constant-density probability costs 3.9 µs under the
+paper's protocol (:doc:`comparison`), and what remains is wrapper parameter resolution rather
+than arithmetic: a code built for the constant case alone, such as NuFast-LBL, is cheaper.
 
 Results are bit-identical to the per-point route on every flavor count and both neutrino signs.
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
@@ -354,16 +345,6 @@ keep ``separable``, ``ip_exp`` or ``hybrid``.  A constant-H engine that captured
 propagate a whole chord with a single exponential of a single Hamiltonian: wrong by O(1) and
 still perfectly unitary, which is why ``tests/test_engines.py`` asserts the engine *identity*
 for PREM and the Sun rather than only comparing numbers.
-
-Two traps this engine paid for, both recorded because neither was visible in the answer.
-``h_matt`` meant different things on different branches -- two of the three dispatch call sites
-had folded :math:`V_\text{CC}` into it already, and the engine multiplied by
-:math:`V_\text{CC}` again, giving :math:`V_\text{CC}^2 \sim` 1e-25 instead of 1e-13: the matter
-term all but vanished and, because a square has no sign, the neutrino and antineutrino answers
-came back *bit-identical*.  And a new engine absent from ``_CROSS_CHECK_FORCING``'s forbid lists
-answers before the payload the independent ``expm`` oracle is built from is ever recorded, which
-silently removed the only non-Magnus reference from the cross-check.
-
 
 .. _how-constants-were-set:
 

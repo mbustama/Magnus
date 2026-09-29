@@ -191,8 +191,9 @@ Patching, and composing the pieces exactly
 Inside a non-adiabatic window :math:`[l_b, l_c]`, adiabatic transport is
 simply not trusted; instead, the package's own Magnus kernel
 (:func:`magnus.magnus.magnus_expansion_multislab`) computes the evolution
-operator there directly, doubling the number of slabs until two successive
-levels agree. Since :math:`[l_b, l_c]` is narrow by construction (that is
+operator there directly, at order 6 by default, doubling the number of slabs until
+two successive levels agree to a tenth of the requested tolerance, or to
+:math:`10^{-7}` if that is tighter. Since :math:`[l_b, l_c]` is narrow by construction (that is
 exactly what "window" means here), this exact computation is cheap even
 though the plain Magnus method would be slow over the *whole* trajectory.
 
@@ -248,7 +249,10 @@ own error, so every patch is converged on its own to
 :math:`\min(10^{-7}, (\text{atol} + \text{rtol})/10)`. If a local patch itself fails to converge
 within its own slab cap, or the refinement loop exhausts its iteration
 budget without two levels agreeing, the propagator returns its best
-estimate (still exactly unitary) but reports it as **not** certified.
+estimate (still exactly unitary) but reports it as **not** certified.  The limits are
+``min_threshold``, ``max_n_probe`` and ``max_n_points`` for the threshold and the two grids,
+and twelve passes (``max_iters``); they are arguments of
+:func:`magnus.adiabatic.hybrid_propagator`, and ``osc_prob`` uses their defaults.
 
 The ``strategy`` parameter
 --------------------------------
