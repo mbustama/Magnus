@@ -206,11 +206,12 @@ File Tree
    │       ├── changelog.rst           # Renders the root CHANGELOG.md via myst-parser
    │       ├── citing.rst              # How to cite the software, and what to state in the text
    │       ├── cli.rst                 # Command-line calculator: flag reference and examples
-   │       ├── comparison.rst          # Against NuOscProbExact and nuSQuIDS: where each method wins, from notebook 25
+   │       ├── comparison.rst          # Against other codes: the paper's eight-code comparison, then NuOscProbExact and nuSQuIDS in detail
    │       ├── conf.py                 # Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)
    │       ├── diagnostics.rst         # What rtol really controls, what each safeguard cannot do, every warning
    │       ├── engines.rst             # Which engine answers a call, and how the dispatch order is decided
    │       ├── expansion_terms.rst     # The Omega_k terms to any order, and how they are generated
+   │       ├── conventions.rst         # Flavor order, signs, mass ordering, parameters and units, in one place
    │       ├── functions.rst           # Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario
    │       ├── index.rst               # Master documentation page: overview, features, when Magnus wins
    │       ├── installation.rst        # Requirements, install instructions, file tree
@@ -232,7 +233,8 @@ File Tree
    │   ├── anim_solar_nsi.gif          # Animated: the Sun, with a non-standard interaction dialed up
    │   ├── anim_sterile.gif            # Animated: a sterile state as its mass splitting grows
    │   ├── anim_wave.gif               # Animated: a density crest traveling along the baseline
-   │   └── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
+   │   ├── gallery/                    # Figures lifted from the executed notebooks, embedded in the docs
+   │   └── paper/                      # Figures from the paper, as PNG, embedded in the docs
    ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
    │   ├── 01_magnus_introduction.ipynb  # The shortest path to a probability
    │   ├── 02_magnus_2nu_vacuum_matter.ipynb  # Two flavors, across seven matter profiles

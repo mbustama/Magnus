@@ -39,31 +39,36 @@ Magνs: Neutrino Oscillations via the Magnus Expansion
    :target: https://github.com/astral-sh/ruff
    :alt: Code style: ruff
 
-.. hint::
-   **How do I say that?** Just like the name **Magnus** — the Greek letter
-   **ν** (nu), the neutrino's symbol, simply stands in for the "nu"
-   syllable.  (And since most of this package was written while the author
-   was based in Denmark, you are equally welcome to say it `the Danish way
-   <https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate>`_.)
+**Magνs** computes neutrino oscillation probabilities for two to five flavors, or
+for any Hamiltonian you write, in vacuum, in matter, through the Earth and through
+the Sun.  Its evolution operator is exactly unitary by construction, so every
+probability is non-negative and every row sums to one, at any accuracy setting.
+
+.. tip::
+   **New here?**  Install it with ``pip install magnuspy``, then compute your first
+   probability:
+
+   .. code-block:: python
+
+      import magnus.oscprob as oscprob
+      import magnus.globaldefs as gd
+
+      P = oscprob.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM)
+      print(P[gd.NUMU][gd.NUE])        # P(nu_mu -> nu_e) = 0.0313
+
+   Energies and distances are in natural units, hence ``gd.UNIT_GEV`` and
+   ``gd.UNIT_KM``.  The :doc:`quickstart` continues from here: matter, the Earth,
+   the Sun, antineutrinos, new physics and a Hamiltonian of your own.
 
 .. important::
    **Important Links:**
 
+   * :doc:`Quick start <quickstart>` and :doc:`installation`
    * :doc:`What it can compute, with code <recipes>`
    * `GitHub Repository <https://github.com/mbustama/Magnus>`_
    * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
    * :doc:`How to cite <citing>`
    * :doc:`changelog`
-
-**Magνs** computes neutrino oscillation probabilities between an arbitrary
-number of flavors, for any given Hamiltonian, time-dependent or
--independent.  Internally, it propagates the neutrino evolution operator
-using the **Magnus expansion**: rather than integrating the Schrödinger
-equation step by step, it exponentiates truncated time-ordered integrals of
-the Hamiltonian over a chain of position slabs.  Any truncation of the
-Magnus series lives in the Lie algebra, so the resulting evolution operator
-is **exactly unitary by construction** — probabilities are non-negative and
-sum to one at machine precision, at any accuracy setting.
 
 **Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
 oscillations, non-standard interactions, Lorentz-invariance violation, sterile
@@ -71,15 +76,23 @@ states, pseudo-Dirac pairs and a model of your own all go through the same call.
 Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
-**Fast.**  A scan over energy or arrival direction is one batched call rather than
-a loop, worth one to two orders of magnitude per probability.  The median call
-over 164 Earth and solar configurations is **2 ms**; a 200-energy Earth-crossing
-scan takes 76 ms, and a 100x100 oscillogram about 2 s.
+**Fast.**  An energy scan is one batched call rather than a loop, worth one to two
+orders of magnitude per probability; an oscillogram is one such call per zenith
+angle.  The median call over 164 Earth and solar configurations is **2 ms**;
+:doc:`performance` has the rest.
 
-**Accurate.**  Probabilities are unitary by construction at every setting, not by
-refinement, and on a smooth profile Magνs reaches **2.9e-13** where a composition
-of constant slabs floors at 2.5e-11.  Where it cannot certify its own answer, it
-says so.
+**Accurate.**  Internally, Magνs propagates the evolution operator with the
+**Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
+a chain of position slabs, and every truncation is exactly unitary.  On a smooth
+profile it reaches **2.9e-13**, where a composition of constant slabs floors at
+2.5e-11.  Where it cannot certify its own answer, it says so.
+
+.. hint::
+   **How do I say that?** Just like the name **Magnus** — the Greek letter
+   **ν** (nu), the neutrino's symbol, simply stands in for the "nu"
+   syllable.  (And since most of this package was written while the author
+   was based in Denmark, you are equally welcome to say it `the Danish way
+   <https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate>`_.)
 
 What it can compute
 --------------------
@@ -102,8 +115,8 @@ Each of these is one call with a different Hamiltonian, profile or observable.
 * **Beam experiments** — appearance probabilities along the DUNE, T2K, Hyper-K and
   ESS chords, from two named sites (`notebook 04
   <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_).
-* **Atmospheric oscillograms** — probability over zenith angle and energy in a
-  single batched call (`notebook 06
+* **Atmospheric oscillograms** — probability over zenith angle and energy, one
+  batched energy scan per zenith angle (`notebook 06
   <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_).
 * **Solar neutrinos** — twelve standard solar models, taken by name, and the
   averaged probability an experiment sees (`notebook 13
@@ -441,6 +454,7 @@ Salient Features
    tutorials
    comparison
    functions
+   conventions
    solar_models
    cli
    plotting

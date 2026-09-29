@@ -46,7 +46,7 @@ COMMENT_COLUMN = 36
 # reader needs named: developer findings and adversarial batteries, figures
 # lifted out of the executed notebooks, notebook output, and the solar-model
 # tables.  Listing them would triple the tree without telling anyone anything.
-COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
+COLLAPSED = ('docs/dev/', 'img/gallery/', 'img/paper/', 'fig/', 'resources/paper/figs/',
              'resources/benchmarks/', 'src/magnus/data/solar_models/', 'tools/trailer/',
              'tools/auto_tight/')
 
@@ -100,13 +100,14 @@ TREE = [
     ('docs/source/citing.rst', 'How to cite the software, and what to state in the text'),
     ('docs/source/cli.rst', 'Command-line calculator: flag reference and examples'),
     ('docs/source/comparison.rst',
-     'Against NuOscProbExact and nuSQuIDS: where each method wins, from notebook 25'),
+     "Against other codes: the paper's eight-code comparison, then NuOscProbExact and nuSQuIDS in detail"),
     ('docs/source/conf.py', 'Sphinx build configuration (autoapi + napoleon + bibtex + mermaid + myst)'),
     ('docs/source/diagnostics.rst',
      'What rtol really controls, what each safeguard cannot do, every warning'),
     ('docs/source/engines.rst',
      'Which engine answers a call, and how the dispatch order is decided'),
     ('docs/source/expansion_terms.rst', 'The Omega_k terms to any order, and how they are generated'),
+    ('docs/source/conventions.rst', 'Flavor order, signs, mass ordering, parameters and units, in one place'),
     ('docs/source/functions.rst', 'Full osc_prob_{2,3,4,5}nu_* listing, grouped by environment/scenario'),
     ('docs/source/index.rst', 'Master documentation page: overview, features, when Magnus wins'),
     ('docs/source/installation.rst', 'Requirements, install instructions, file tree'),
@@ -133,6 +134,7 @@ TREE = [
     ('img/anim_sterile.gif', 'Animated: a sterile state as its mass splitting grows'),
     ('img/anim_wave.gif', 'Animated: a density crest traveling along the baseline'),
     ('img/gallery/', 'Figures lifted from the executed notebooks, embedded in the docs'),
+    ('img/paper/', 'Figures from the paper, as PNG, embedded in the docs'),
     ('notebooks/', 'Numbered Jupyter notebooks -- see docs/source/tutorials.rst'),
     ('notebooks/01_magnus_introduction.ipynb',
      'The shortest path to a probability'),
