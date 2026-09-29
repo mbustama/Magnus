@@ -314,8 +314,9 @@ point:
    condition alone keeps the full Sun on the hybrid.
 
    Below :data:`~magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` (1e-6, as
-   ``min(rtol, atol)``) the hand-over needs ``integration_method='gl'`` and a
-   phase within a limit that shrinks with the tolerance and the order,
+   ``min(rtol, atol)``) the hand-over needs ``integration_method='gl'``, a
+   single baseline and a phase within a limit that shrinks with the tolerance
+   and the order,
    capped at :data:`~magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` (2 000 rad),
    for an energy scan as well; the ladder then runs at the requested
    tolerance itself (issue #120). The paper's Listing 1, at

@@ -11,9 +11,9 @@ ladder then runs at a tenth of the tolerance, above a slab floor, and without th
 interaction-picture fast path.
 
 Below ``AUTO_LADDER_MIN_TOLERANCE`` the route used to close.  It now stays open on
-``integration_method='gl'`` for a phase within a limit that shrinks with the tolerance and the
-order, capped at ``AUTO_LADDER_TIGHT_MAX_PHASE``, and the ladder runs at the tolerance itself
-(issue #120).  That is what lets the paper's Listing 1 drop ``strategy='magnus'``.
+``integration_method='gl'`` at a single baseline, for a phase within a limit that shrinks with the
+tolerance and the order, capped at ``AUTO_LADDER_TIGHT_MAX_PHASE``, and the ladder runs at the
+tolerance itself (issue #120).  That is what lets the paper's Listing 1 drop ``strategy='magnus'``.
 
 The reference throughout is the hybrid strategy at a tolerance of 1e-12, which the paper checks
 against independent codes.
@@ -221,6 +221,18 @@ def test_the_full_sun_is_not_rerouted_at_a_tight_tolerance():
                             sth=0.55, Dm2=7.5e-5, nu_i=gd.NUE, nu_f=gd.NUE, rtol=1e-9, atol=1e-9,
                             strategy_info=info)
     assert 'hybrid' in declined(info) or info['engine'] == 'hybrid'
+    assert 'auto prefers the ladder' not in declined(info).values()
+
+
+def test_a_tight_baseline_scan_keeps_the_hybrid():
+    """A baseline scan at a small phase would go to the cumulative scan, which issue #120 did not
+    measure at tight tolerances; it keeps the hybrid there, as before, until issue #125 does."""
+    info = {}
+    op.osc_prob_3nu_matter_exp_density(
+        np.full(3, 0.02)*gd.UNIT_GEV, L=np.array([5.0, 10.0, 25.0])*gd.UNIT_KM, L0=0.0,
+        rho_central=3.e3, l_scale=10.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True,
+        nu_i=gd.NUE, nu_f=gd.NUE, **OSC, rtol=1e-8, atol=1e-8, strategy_info=info)
+    assert info['engine'] == 'hybrid'
     assert 'auto prefers the ladder' not in declined(info).values()
 
 

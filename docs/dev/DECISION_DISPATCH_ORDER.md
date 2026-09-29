@@ -323,6 +323,8 @@ dispatcher hands a request to the ladder when:
 
 - `integration_method == 'gl'` and `p` is an integer from 1 to 8 (any other order keeps the
   hybrid's path and the error it raises there);
+- the request has a single baseline: a baseline scan would go to the cumulative scan, which B1
+  did not measure at these tolerances, so it keeps the hybrid (issue #125 is to measure it);
 - the estimated phase is at most `min(AUTO_LADDER_TIGHT_MAX_PHASE, AUTO_LADDER_MAX_PHASE *
   (tol/1e-6)**(1/p))`, for an energy scan as well (#84's exemption was measured at loose
   tolerances only);

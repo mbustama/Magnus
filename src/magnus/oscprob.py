@@ -1014,9 +1014,11 @@ r"""float: Module-level constant
 Tolerance, ``min(rtol, atol)``, below which ``strategy='auto'`` tightens its route to the Magnus
 ladder (issue #120).  At it and looser, the route of :data:`AUTO_LADDER_MAX_PHASE` applies as
 measured for issue #70, with the ladder at a tenth of the tolerance
-(:data:`AUTO_LADDER_TOLERANCE_MARGIN`).  Below it, and only with ``integration_method='gl'``,
-the phase limit shrinks with the tolerance and the order, capped at
-:data:`AUTO_LADDER_TIGHT_MAX_PHASE`, and the ladder runs at the requested tolerance itself.
+(:data:`AUTO_LADDER_TOLERANCE_MARGIN`).  Below it, and only with ``integration_method='gl'`` at
+a single baseline, the phase limit shrinks with the tolerance and the order, capped at
+:data:`AUTO_LADDER_TIGHT_MAX_PHASE`, and the ladder runs at the requested tolerance itself.  A
+baseline scan keeps the hybrid strategy there: the cumulative scan that would answer it was not
+measured at such tolerances (issue #125).
 
 Until issue #120 this was a cut-off: no tighter request went to the ladder, because at 1e-9 the
 ladder, run at a tenth of the tolerance, cost 0.9 to 1.3 times the hybrid strategy at four and
@@ -6696,10 +6698,11 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.  ``rtol`` and
     ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of the nonzero
     ones is the tolerance.  Below :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120) only with
-    ``integration_method='gl'`` and an order it supports (an integer from 1 to 8; any other
-    order keeps the hybrid strategy's path and its errors), and the ladder then runs at the
-    requested tolerance rather than a tenth of it.  Records the decision in ``strategy_info``
-    when it is taken.
+    ``integration_method='gl'``, an order it supports (an integer from 1 to 8; any other order
+    keeps the hybrid strategy's path and its errors) and a single baseline, and the ladder then
+    runs at the requested tolerance rather than a tenth of it.  A baseline scan, which the
+    cumulative scan would answer, was not measured there and keeps the hybrid strategy (issue
+    #125).  Records the decision in ``strategy_info`` when it is taken.
 
     With ``batched_scan`` -- several energies at one shared baseline, which the energy-batched
     engine answers in one pass -- the phase condition is dropped at
@@ -6731,7 +6734,8 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     tight = tol < AUTO_LADDER_MIN_TOLERANCE
     order_ok = (isinstance(magnus_exp_order, numbers.Integral)
                 and not isinstance(magnus_exp_order, bool) and (1 <= magnus_exp_order <= 8))
-    if tight and not ((integration_method == 'gl') and order_ok):
+    one_baseline = np.unique(np.asarray(L_arr, dtype=float)).size == 1
+    if tight and not ((integration_method == 'gl') and order_ok and one_baseline):
         return None
     phase, n_floor = _estimated_phase(H_at_energy, energy_arr, L_arr, L0)
     phase_limit = _auto_ladder_max_phase(tol, magnus_exp_order, batched_scan)
@@ -8861,9 +8865,10 @@ def osc_prob_matter_std_potential(
           whatever its phase (issue #84): that engine shares its slabs across the energies, so
           the phase limit, which prices the ladder point by point, does not apply to it.  Below
           :data:`AUTO_LADDER_MIN_TOLERANCE`, as ``min(rtol, atol)``, the hand-over needs
-          ``integration_method='gl'`` and a phase within a limit that shrinks with the
-          tolerance and the order, capped at :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, for a scan as
-          well; the ladder then runs at the requested tolerance itself (issue #120).  The
+          ``integration_method='gl'``, a single baseline and a phase within a limit that
+          shrinks with the tolerance and the order, capped at
+          :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, for an energy scan as well; the ladder then runs
+          at the requested tolerance itself (issue #120).  The
           paper's Listing 1, at ``rtol = 1e-12``, ``atol = 1e-14`` and
           ``magnus_exp_order = 8``, is handed over this way.  ``strategy_info`` reports the
           handoff as the hybrid declining, with the reason ``'auto prefers the ladder'``; the

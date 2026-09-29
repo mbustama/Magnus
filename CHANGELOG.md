@@ -370,7 +370,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   phase limit prices the ladder point by point, and applied to a scan it sent
   one three-flavor, two-resonance scan of 100 energies to the hybrid, 62 s
   against 0.4 s.  Below 1e-6 (issue #120) the route stays open on
-  `integration_method='gl'`, for a phase within a limit that shrinks as
+  `integration_method='gl'` at a single baseline, for a phase within a limit that shrinks as
   `(tol/1e-6)**(1/p)` with the requested order `p`, capped at
   `AUTO_LADDER_TIGHT_MAX_PHASE` (2 000 rad) and applied to energy scans as
   well; the ladder then runs at the tolerance itself.  This is what lets the
@@ -381,9 +381,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   missed no tolerance without a warning and never warned where the hybrid
   had certified.  At order 4, four workloads at 1e-12 came back 1.01 to 1.15
   times outside it; the hybrid misses four there too, by up to 1.3 times.
-  Every solar path, other quadratures below 1e-6, an invalid order (same
-  error), `strategy='hybrid'` and `strategy='magnus'` are unchanged, and no
-  notebook's engine changes.
+  Every solar path, baseline scans and other quadratures below 1e-6, an
+  invalid order (same error), `strategy='hybrid'` and `strategy='magnus'` are
+  unchanged, and no notebook's engine changes.
 
 - **`average=True` returns the phase average** (issue #64), with the spread
   set by a new keyword, `average_spread` (default 0.1), on every entry point

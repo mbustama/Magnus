@@ -192,8 +192,8 @@ undeclared density jump still runs, and still warns.  Over 20 smooth workloads w
 profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
 default tolerance of 1e-3, where the hybrid took 8 s.
 
-**At a tighter tolerance** (issue #120) the route stays open on ``integration_method='gl'``, with
-a phase limit that shrinks with the tolerance and the order:
+**At a tighter tolerance** (issue #120) the route stays open on ``integration_method='gl'`` at a
+single baseline, with a phase limit that shrinks with the tolerance and the order:
 ``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
 capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad.  The ladder's slab
 count grows as ``tol**(-1/p)``, while the hybrid's window search does not follow the tolerance.
@@ -205,7 +205,8 @@ The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
 the ladder answers them in 0.015 to 0.13 of the hybrid's time.  Over the 139 workloads measured
 at 1e-7, 1e-9 and 1e-12 against DOP853, the ladder at order 8 missed no tolerance without a
 warning and never warned where the hybrid had certified; the cap keeps the partial solar chords
-from 2 217 rad on, where it did, on the hybrid.
+from 2 217 rad on, where it did, on the hybrid.  A baseline scan keeps the hybrid at such
+tolerances: the cumulative scan that would answer it was not measured there (issue #125).
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.
