@@ -7,6 +7,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The command-line error for `--costhz` without a length names every way to give one**
+  (issue #136).  It said that only `--loc-ini`/`--loc-fin` compute the baseline, but
+  `--detector-depth` and `--source-depth` do too; the message for `--environment earth` with
+  neither a direction nor a pair of locations now lists them as well.
+
 ### Changed
 
 - **The 1-3 CP phase is `dCP`, and the Lorentz-violating one `dxiCP`, at every flavor count**
