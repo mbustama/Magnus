@@ -9,6 +9,19 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An energy-batched `'gl'` scan no longer certifies a sliver of a step onto its slab cap**
+  (issue #122).  The last refinement is clamped to `max_n_slabs`, so it can add only a sliver of
+  slabs: on the paper's five-flavor Listing 1 scan at `rtol=5e-13`, ladders that had reached
+  19 926 and 18 346 slabs (floors of 13 and 19) compared them with 20 000 and found agreement to
+  0.4 and 0.8 of the tolerance; the probability returned was 6.6 times outside it, with no
+  warning.  Such an agreement now counts only within the fraction of the tolerance that the step
+  can vouch for, `r**p - 1` for a real refinement `r` at order `p` (0.015 and 0.41 here), so both
+  scans end in the refinement-caps `ToleranceNotAchievedWarning`.  The capped step that issue #94
+  keeps certifying (108 -> 115 slabs, agreement 0.14 of the tolerance against 0.28, answer 0.49
+  of it off) still does.  Only the warning changes: across 42 batched scans from 1e-3 to 5e-13,
+  every probability is identical bit for bit; those two scans alone gained the warning.  No
+  further level is computed.
+
 - **Keywords that were accepted and then ignored now work or raise.**
   - `default_osc_params_set_name` on a two-flavor call (issue #110), where no parameter set
     applies since `sth` and `Dm2` are required, now raises a `ValueError`; so does a set name
