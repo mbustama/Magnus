@@ -1989,6 +1989,8 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
 
 _ENTRY_DEFAULTS = {}
 _NO_DEFAULT = object()
+_SCENARIO_FUNCTION_NAMES = frozenset(('osc_prob_vacuum', 'osc_prob_matter_std_potential',
+                                      'osc_prob_matter_nsi', 'osc_prob_liv'))
 
 
 def _entry_defaults(func) -> dict:
@@ -2036,8 +2038,26 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(_v._msg(where, lo_key + " (" + str(lo) + ") must be <= " +
                                      hi_key + " (" + str(hi) + ")."))
-    if kw and 't_breakpoints' in kw and kw['t_breakpoints'] is not None:
-        _v.check_real_array('t_breakpoints', kw['t_breakpoints'], where, allow_empty=True)
+    _bp = merged.get('t_breakpoints')
+    if _bp is not None:
+        _bp = _v.check_real_array('t_breakpoints', _bp, where, allow_empty=True)
+        # Breakpoints in raw kilometers lie far outside the path, so the jumps they mark go
+        # undeclared and nothing warns (issue #141): the same test as for a baseline.
+        _bpa = np.abs(np.asarray(_bp, dtype=float))
+        if _bpa.size and 0.0 < float(_bpa.max()) < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
+            warnings.warn(gd.WARNING_MSG_NO_COLOR + " " + where + ": t_breakpoints up to " +
+                format(float(_bpa.max()), '.4g') + " were given.  Every length crossing this "
+                "API is in natural units, so these were most likely kilometers left "
+                "unconverted, and they mark nothing on the path.  Multiply by gd.UNIT_KM.",
+                gd.BaselineUnitWarning, stacklevel=3)
+    # Slab edges given for a single baseline are checked here, where the message can name the
+    # function the caller called; osc_prob checks them again for its own direct callers.
+    _te = merged.get('t_slab_edges')
+    if _te is not None:
+        _Lv, _L0v = merged.get('L'), merged.get('L0', 0.0)
+        _L0v = 0.0 if _L0v is None else _L0v
+        if _v.is_real_scalar(_Lv) and _v.is_real_scalar(_L0v):
+            _v.check_slab_edges(_te, float(_L0v), float(_Lv), where)
 
 
 def _as_float(x):
@@ -2179,6 +2199,17 @@ def validate_input_battery(
 
     if validate_energy_and_L:
 
+        # An energy that looks like MeV or GeV left unconverted (issue #160 §1); see
+        # globaldefs.EnergyUnitWarning.
+        _smallest_E = energy if _fast else float(np.min(np.asarray(energy, dtype=float)))
+        if _smallest_E < gd.IMPLAUSIBLE_ENERGY_NATURAL_UNITS:
+            warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
+                ": an energy of " + format(_smallest_E, '.4g') + " eV was given.  Energies "
+                "crossing this API are in eV, so this was most likely MeV or GeV left "
+                "unconverted; multiply by gd.UNIT_MEV or gd.UNIT_GEV.  Silence with "
+                "warnings.filterwarnings('ignore', category=gd.EnergyUnitWarning).",
+                gd.EnergyUnitWarning, stacklevel=3)
+
         # A baseline that looks like kilometers.  This does not fail on its own: the call
         # returns a converged, unitary probability for a baseline a few meters long, which
         # is why it is worth a warning.  See globaldefs.BaselineUnitWarning.
@@ -2305,6 +2336,20 @@ def validate_input_battery(
         if (rho_test < 0.0):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
                 _rho_what + " must be non-negative; got " + str(rho_test) + ".")
+
+        # Two more samples of a callable profile, at the middle and the far end of the path: a
+        # profile that turns NaN partway used to surface as a raw LinAlgError from the
+        # eigensolver (issue #160 §7).  Two evaluations per call, never per node.
+        if callable(rho_func) and L is not None and _v.is_real_scalar(L0):
+            _Lend = float(np.max(np.asarray(L, dtype=float)))
+            for _pos in (0.5*(float(L0) + _Lend), _Lend):
+                _r = rho_func(_pos)
+                if np.ndim(_r) != 0 or not _v.is_real_scalar(_r) or not np.isfinite(float(_r)) \
+                        or _r < 0.0:
+                    raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                        ": rho_func must return a finite, non-negative real number along the "
+                        "whole path; at position " + format(_pos, '.6g') + " it returned " +
+                        repr(_r) + ".")
 
 
 def _warn_if_sterile_projector_disagrees_with_composition(
@@ -2482,14 +2527,15 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
     for name, value in list(layered.items()) + [('electron_fraction', electron_fraction)]:
         if value is None:
             continue
-        try:
-            value = float(value)
-        except TypeError:
-            raise _not_a_single_number(source_func_name, [name]) from None
-        if not (0.0 < value <= 1.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
-                name + " is an electron fraction, Y_e = <Z/A>, so it must be in (0, 1]; "
-                "got " + str(value) + ".")
+        # A real number, not a bool (True was read as 1) and not complex (issue #160 §1).
+        _v.check_real(name, value, "oscprob." + source_func_name, lo=0.0, hi=1.0,
+                      lo_open=True, what="in (0, 1], being an electron fraction, "
+                      "Y_e = <Z/A>")
+    _ratio('ratio_number_neutrons_to_protons', ratio_number_neutrons_to_protons,
+           "oscprob." + source_func_name)
+    if density_matter_ocean is not None:
+        density_matter_ocean = _v.check_real('density_matter_ocean', density_matter_ocean,
+                                             "oscprob." + source_func_name, nonnegative=True)
 
     if electron_fraction is not None:
         def ye_of_r(r):
@@ -2608,6 +2654,12 @@ def validate_input_osc_prob_earth(
     # Both depths are declared Optional, so None has to mean "no depth"; see
     # earth._depths_or_zero for why normalizing beats letting float(None) surface.
     source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+    _where = "oscprob." + source_func_name
+    if type(source_depth) is not float:
+        source_depth = _v.check_real('source_depth', source_depth, _where, nonnegative=True)
+    if type(detector_depth) is not float:
+        detector_depth = _v.check_real('detector_depth', detector_depth, _where,
+                                       nonnegative=True)
 
     buried = (source_depth != 0.0) or (detector_depth != 0.0)
 
@@ -2661,6 +2713,14 @@ def validate_input_osc_prob_earth(
                     "location (loc_fin) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
 
+        # Each coordinate a (degrees, minutes, seconds) triple in range (issue #160 §3): a
+        # latitude of 146 degrees shifted P by 0.56, and decimal pairs failed as a raw TypeError.
+        for _name, _dms, _lo, _hi in (('loc_ini latitude', lat_ini, -90.0, 90.0),
+                                      ('loc_ini longitude', lon_ini, -180.0, 360.0),
+                                      ('loc_fin latitude', lat_fin, -90.0, 90.0),
+                                      ('loc_fin longitude', lon_fin, -180.0, 360.0)):
+            earth._check_dms(_name, _dms, _where, _lo, _hi)
+
         # We use the function earth.costhz_between_points_on_surface to compute the cosine of the
         # zenith angle of the chord that joins two locations on the surface of the Earth, measured 
         # at one position (any of the two locations will give the same result).
@@ -2681,6 +2741,12 @@ def validate_input_osc_prob_earth(
         if (not isinstance(costhz, (int, float))) and (costhz is not None) and \
                 (np.ndim(costhz) != 0):
             raise _not_a_single_number(source_func_name, ['costhz'])
+        if costhz is not None:
+            # Checked by name before anything samples the profile: a NaN or out-of-range
+            # costhz used to reach the user as "rho_func must be finite" or "value of r cannot
+            # exceed EARTH_RADIUS" (issue #160 §3).
+            costhz = _v.check_real('costhz', costhz, _where, lo=-1.0, hi=1.0,
+                                   what="in [-1, 1] (the cosine of the zenith angle)")
         if costhz is None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": no" + \
                 " initial and final locations on the surface of the Earth given, and no " + \
@@ -2700,6 +2766,20 @@ def validate_input_osc_prob_earth(
                 ": since two locations on the surface of the Earth have not been given, " + \
                 "the value of costhz will be used to define the chord length, but the" + \
                 " baseline, L, cannot be None.")
+
+        # A baseline longer than the chord leaves the Earth; named here rather than several
+        # layers down as "value of l cannot be larger ..." (issue #160 §3).  A shorter one is
+        # a partial path, which is allowed.
+        if _v.is_real_scalar(L) or isinstance(L, (list, tuple, np.ndarray)):
+            _v.check_real_array('L', L, _where)
+            _chord = earth.distance_traveled_inside_earth(
+                costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM)
+            _Lmax = float(np.max(np.asarray(L, dtype=float)))/gd.UNIT_KM
+            if _Lmax > _chord*(1.0 + 1e-9) + 1e-9:
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                    ": L = " + format(_Lmax, '.6g') + " km is longer than the chord through "
+                    "the Earth at costhz = " + format(costhz, '.6g') + ", which is " +
+                    format(_chord, '.6g') + " km.")
 
         return costhz, L
 
@@ -2948,6 +3028,120 @@ def values_to_unspecified_osc_params(
     return s12, s23, s13, dCP, D21, D31
 
 
+# The keys each parameter dict takes, per flavor count (issue #160 §2).  A key outside the set
+# for the flavor count in use was ignored in silence: a typo'd 'dcp' left dCP at its previous
+# value, and 's14' at three flavors changed nothing.
+_OSC_KEYS = {
+    2: ('sth', 'Dm2'),
+    3: ('s12', 's23', 's13', 'dCP', 'D21', 'D31'),
+    4: ('s12', 's23', 's13', 'dCP', 's14', 'd14', 's24', 'd24', 's34', 'D21', 'D31', 'D41'),
+    5: ('s12', 's23', 's13', 'dCP', 's14', 'd14', 's15', 'd15', 's24', 'd24', 's25', 's34', 's35',
+        'd35', 'D21', 'D31', 'D41', 'D51'),
+}
+_NSI_KEYS = {
+    2: ('eps_aa', 'eps_ab'),
+    3: ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt'),
+    4: ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm', 'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts',
+        'eps_ss'),
+    5: ('eps_ee', 'eps_em', 'eps_et', 'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt', 'eps_ms1',
+        'eps_ms2', 'eps_tt', 'eps_ts1', 'eps_ts2', 'eps_s1s1', 'eps_s1s2', 'eps_s2s2'),
+}
+# Diagonal couplings are real by hermiticity; the off-diagonal ones may be complex.
+_NSI_DIAGONAL = frozenset(('eps_aa', 'eps_ee', 'eps_mm', 'eps_tt', 'eps_ss', 'eps_s1s1',
+                           'eps_s2s2'))
+_LIV_KEYS = {
+    2: ('sxi', 'b1', 'b2', 'Lambda', 'n_liv'),
+    3: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'b1', 'b2', 'b3', 'Lambda', 'n_liv'),
+    4: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'sxi14', 'dxi14', 'sxi24', 'dxi24', 'sxi34', 'b1',
+        'b2', 'b3', 'b4', 'Lambda', 'n_liv', 'dxi13'),
+    5: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'sxi14', 'dxi14', 'sxi15', 'dxi15', 'sxi24', 'dxi24',
+        'sxi25', 'sxi34', 'sxi35', 'dxi35', 'b1', 'b2', 'b3', 'b4', 'b5', 'Lambda', 'n_liv',
+        'dxi13'),
+}
+_DICT_METADATA_KEYS = frozenset(('name', 'description'))
+
+
+def _check_param_dict(source_func_name: str, params, dict_name: str, num_flavors: int,
+                      table: dict) -> dict:
+    r"""Check a parameter dict's keys and values once; return it with the values normalized.
+
+    Unknown keys are refused, with the nearest valid name, or with the flavor count a key
+    belongs to.  Every value is ``None`` or a finite number: real, except the off-diagonal NSI
+    couplings; ``Lambda`` above zero; ``n_liv`` an integer >= 0.  A complex value with a zero
+    imaginary part is accepted where a real one is required, and converted (issue #160 §2).
+
+    .. versionadded:: 1.2.0
+    """
+    import collections.abc
+    import difflib
+    where = "oscprob." + source_func_name
+    if not isinstance(params, collections.abc.Mapping):
+        raise _v.InputTypeError(_v._msg(where, dict_name + " must be a dict (a mapping from "
+            "parameter names to values); got " + type(params).__name__ + "."))
+    allowed = table.get(num_flavors)
+    if allowed is None:
+        return params
+    allowed_set = frozenset(allowed)
+    unknown = [k for k in params if k not in allowed_set and k not in _DICT_METADATA_KEYS]
+    if unknown:
+        notes = []
+        for k in unknown:
+            other = [n for n, keys in sorted(table.items()) if k in keys and n != num_flavors]
+            if other:
+                notes.append(repr(k) + " is a " + str(other[0]) + "-flavor parameter, and with "
+                             "num_flavors=" + str(num_flavors) + " it would be ignored")
+            else:
+                near = ([a for a in allowed if a.lower() == str(k).lower()] or
+                        difflib.get_close_matches(str(k), allowed, n=1))
+                notes.append(repr(k) + " is not one" + (" (did you mean " + repr(near[0]) +
+                                                         "?)" if near else ""))
+        raise ValueError(_v._msg(where, dict_name + " has unknown key" +
+            ("s" if len(unknown) > 1 else "") + ": " + "; ".join(notes) + ".  The keys at " +
+            str(num_flavors) + " flavors are " + ", ".join(allowed) + "."))
+    # Every array at once, as before: a caller scanning two parameters hears about both.
+    _arrays = [k for k, x in params.items() if k not in _DICT_METADATA_KEYS and x is not None
+               and type(x) is not float and not isinstance(x, (str, bytes)) and np.ndim(x) != 0]
+    if _arrays:
+        raise _not_a_single_number(source_func_name, _arrays)
+    out = None
+    for k, x in params.items():
+        if x is None or k in _DICT_METADATA_KEYS:
+            continue
+        # The common case, a finite plain float, is valid for every key but these two.
+        if (type(x) is float and k != 'n_liv' and math.isfinite(x)
+                and (k != 'Lambda' or x > 0.0)):
+            continue
+        # A wrapper takes these as keywords, so its caller knows them by the bare name.
+        name = (k if (dict_name == 'osc_params' or _WRAPPER_NAME_PREFIX(source_func_name))
+                else dict_name + "['" + k + "']")
+        if table is _NSI_KEYS and k not in _NSI_DIAGONAL:
+            if isinstance(x, (complex, np.complexfloating)) and not isinstance(x, bool):
+                if not (math.isfinite(x.real) and math.isfinite(x.imag)):
+                    raise ValueError(_v._msg(where, name + " must be finite; got " + repr(x) +
+                                             "."))
+                continue
+            y = _v.check_real(name, x, where)
+        else:
+            if isinstance(x, (complex, np.complexfloating)) and x.imag == 0:
+                x = x.real
+            if k == 'n_liv':
+                y = _v.check_int(name, x, where, lo=0, what="an integer >= 0 (the operator "
+                                 "dimension minus 3)")
+            elif k == 'Lambda':
+                y = _v.check_real(name, x, where, positive=True)
+            else:
+                if isinstance(x, (complex, np.complexfloating)):
+                    raise _v.InputTypeError(_v._msg(where, name + " must be real" +
+                        (" (a diagonal NSI coupling is real by hermiticity)"
+                         if k in _NSI_DIAGONAL else "") + "; got " + repr(x) + "."))
+                y = _v.check_real(name, x, where)
+        if y is not x:
+            if out is None:
+                out = dict(params)
+            out[k] = y
+    return params if out is None else out
+
+
 def unpack_oscillation_params_from_dict(
     source_func_name: str,
     num_flavors: int,
@@ -2985,6 +3179,8 @@ def unpack_oscillation_params_from_dict(
         The unpacked oscillation parameters, in the order expected by the matching
         ``hamiltonian_{N}nu_vacuum_energy_independent`` function.
     """
+
+    osc_params = _check_param_dict(source_func_name, osc_params, 'osc_params', num_flavors, _OSC_KEYS)
 
     if (num_flavors == 2):
         try:
@@ -3130,6 +3326,8 @@ def unpack_nsi_params_from_dict(
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_nsi`` directly).
     """
 
+    nsi_params = _check_param_dict(source_func_name, nsi_params, 'nsi_params', num_flavors, _NSI_KEYS)
+
     if (num_flavors == 2):
         try:
             eps_aa = nsi_params['eps_aa']
@@ -3265,6 +3463,8 @@ def unpack_liv_params_from_dict(
         ``hamiltonian_{N}nu_liv_energy_independent`` function; or None if ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_liv`` directly).
     """
+
+    liv_params = _check_param_dict(source_func_name, liv_params, 'liv_params', num_flavors, _LIV_KEYS)
 
     if (num_flavors == 2):
         try:
@@ -3949,9 +4149,27 @@ def osc_prob(
     max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     if validate_input:
 
-        if (t_fin < t_ini): 
+        t_ini = _v.check_real('t_ini', t_ini, "oscprob.osc_prob")
+        t_fin = _v.check_real('t_fin', t_fin, "oscprob.osc_prob")
+        if (t_fin < t_ini):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
                 " t_ini.")
+
+        # Types and ranges, by the rules the scenario functions apply (issue #160 §5): the
+        # comparisons below accepted n_slabs=2.5, rtol=nan and magnus_exp_order=True.
+        _v.check_refinement("oscprob.osc_prob", dict(
+            n_slabs=n_slabs, n_tpts_per_slab=n_tpts_per_slab, magnus_exp_order=magnus_exp_order,
+            n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
+            growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+            verbose=verbose))
+
+        # A gap, an overlap, a zero-width slab or a grid stopping short of t_fin used to be
+        # integrated as given, off by up to 9.4e-2; NaN edges returned NaN (issue #160 §6).
+        if t_slab_edges is not None:
+            t_slab_edges = _v.check_slab_edges(t_slab_edges, t_ini, t_fin, "oscprob.osc_prob")
 
         if (magnus_exp_order < 1):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
@@ -7848,7 +8066,9 @@ def osc_prob_energy_baseline(
     # energy and L entry by entry, and the Hamiltonian itself -- callable, or a square matrix.
     # A string or None used to fail as a raw IndexError, a masked L had its mask ignored, and
     # L=True was a baseline of 1 eV^-1.
-    if validate_input:
+    # Skipped when a scenario function is the caller: it has run the same checks already.
+    _direct = sys._getframe(1).f_code.co_name not in _SCENARIO_FUNCTION_NAMES
+    if validate_input and _direct:
         _where = "oscprob.osc_prob_energy_baseline"
         _validate_entry('osc_prob_energy_baseline', locals(), osc_prob_energy_baseline)
         _v.check_real_array('energy', energy, _where, positive=True)
@@ -7957,7 +8177,7 @@ def osc_prob_energy_baseline(
     # failed later as a raw TypeError from the probe), square, finite (a NaN ran the whole
     # refinement ladder before returning NaN), and Hermitian (a non-Hermitian H returned
     # probabilities above 1 without a word).  One evaluation, at L0.
-    if validate_input and callable(H_func):
+    if validate_input and _direct and callable(H_func):
         _where = "oscprob.osc_prob_energy_baseline"
         _H0 = H_first(L0) if callable(H_first) else H_first
         if not isinstance(_H0, np.ndarray):

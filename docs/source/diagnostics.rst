@@ -314,6 +314,13 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - Yes, entirely. One eV⁻¹ is about 2e-7 m, so the call propagates a chord a few
        meters long and returns a converged, unitary probability for it.
      - Multiply by ``gd.UNIT_KM`` (or ``gd.CONV_KM_TO_INV_EV``).
+       The same warning covers ``t_breakpoints`` given in kilometers.
+   * - :class:`magnus.globaldefs.EnergyUnitWarning`
+     - An energy is below 1 keV, small enough to have been read in MeV or GeV and left
+       unconverted.
+     - Yes, entirely. The call computes at that energy in eV and returns a plausible
+       probability for it.
+     - Multiply by ``gd.UNIT_MEV`` or ``gd.UNIT_GEV``.
    * - :class:`magnus.globaldefs.MixingAngleConventionWarning`
      - ``angles='deg'`` was declared, but the values are the size of sines -- every
        measured angle read as degrees would be about fifty times too small.

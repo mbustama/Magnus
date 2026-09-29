@@ -42,6 +42,11 @@ _BOOL_TYPES = (bool, np.bool_)
 _INT_TYPES = (int, np.integer)
 
 
+# The oscillation functions take arrays for energy and L only; said where it applies.
+_SCAN_HINT = {'oscprob.': "  Only energy and L take arrays; to scan another parameter, make "
+                          "one call per value."}
+
+
 def _msg(where: str, text: str) -> str:
     return gd.ERROR_MSG_NO_COLOR + " " + where + ": " + text
 
@@ -79,8 +84,7 @@ def check_real(name: str, x, where: str, *, positive: bool = False, nonnegative:
                                      _show(x) + ")."))
             if np.ndim(x) != 0:
                 raise ValueError(_msg(where, name + " must be a single number, not an array "
-                                      "or a list.  Only energy and L take arrays; to scan "
-                                      "another parameter, make one call per value."))
+                                      "or a list." + _SCAN_HINT.get(where[:8], "")))
             if isinstance(x, (complex, np.complexfloating)) or (
                     isinstance(x, np.ndarray) and x.dtype.kind == 'c'):
                 raise InputTypeError(_msg(where, name + " must be real; got " + _show(x) + "."))
@@ -118,8 +122,7 @@ def check_int(name: str, x, where: str, *, lo=None, hi=None, allow_none: bool = 
                 x = int(x)
             elif not isinstance(x, (str, bytes)) and np.ndim(x) != 0:
                 raise ValueError(_msg(where, name + " must be a single number, not an array "
-                                      "or a list.  Only energy and L take arrays; to scan "
-                                      "another parameter, make one call per value."))
+                                      "or a list." + _SCAN_HINT.get(where[:8], "")))
             else:
                 raise InputTypeError(_msg(where, name + " must be an integer; got " +
                                      type(x).__name__ + " " + _show(x) + "."))

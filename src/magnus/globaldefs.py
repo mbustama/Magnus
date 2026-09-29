@@ -190,6 +190,29 @@ class BaselineUnitWarning(UserWarning):
 IMPLAUSIBLE_BASELINE_NATURAL_UNITS = 1.0e7
 
 
+class EnergyUnitWarning(UserWarning):
+    r"""An energy was passed that looks like MeV or GeV rather than eV.
+
+    Energies crossing this API are in eV, so 10 MeV is ``10*gd.UNIT_MEV``, 1e7.  Passing the
+    raw number does not fail: ``osc_prob_3nu_sun(10.0, ...)`` computes at 10 eV and returns
+    0.548 without a word.  Warned when an energy lies below
+    :data:`IMPLAUSIBLE_ENERGY_NATURAL_UNITS`, 1 keV, which no oscillation experiment reaches.
+
+    Its own class so it can be silenced deliberately::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('ignore', category=gd.EnergyUnitWarning)
+
+    .. versionadded:: 1.2.0
+    """
+
+
+#: Below this, an energy in eV is almost certainly MeV or GeV left unconverted: 1 keV.
+IMPLAUSIBLE_ENERGY_NATURAL_UNITS = 1.0e3
+
+
 class SterileMatterCompositionWarning(UserWarning):
     r"""A caller's scalar builds the sterile matter entry from a different medium than the
     density.

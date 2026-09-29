@@ -42,6 +42,7 @@ import numpy as np
 from typing import Optional, Union
 
 import magnus.globaldefs as gd
+from magnus import _validate as _v
 
 # Predefined locations in ISO 6709:
 # North latitudes are positive, South latitudes are negative
@@ -200,6 +201,71 @@ def _depths_or_zero(source_depth: Optional[float],
             0.0 if detector_depth is None else detector_depth)
 
 
+def _check_costhz(costhz, source_func_name: str) -> float:
+    r"""``costhz`` as a float in [-1, 1]; refused by name otherwise (issue #160 §3).
+
+    A cosine outside [-1, 1] is not a direction.  The surface formulas used to return a
+    number for one anyway -- 19 113 km at -1.5, longer than the Earth's diameter -- and a NaN
+    came back as NaN.  One comparison on the common path.
+
+    .. versionadded:: 1.2.0
+    """
+    if type(costhz) is float and -1.0 <= costhz <= 1.0:
+        return costhz
+    return _v.check_real('costhz', costhz, 'earth.' + source_func_name, lo=-1.0, hi=1.0,
+                         what="in [-1, 1] (the cosine of the zenith angle)")
+
+
+def _check_depths(source_depth, detector_depth, source_func_name: str):
+    r"""Both depths as non-negative floats (None read as zero).
+
+    .. versionadded:: 1.2.0
+    """
+    source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
+    where = 'earth.' + source_func_name
+    if type(source_depth) is not float or not source_depth >= 0.0:
+        source_depth = _v.check_real('source_depth', source_depth, where, nonnegative=True)
+    if type(detector_depth) is not float or not detector_depth >= 0.0:
+        detector_depth = _v.check_real('detector_depth', detector_depth, where,
+                                       nonnegative=True)
+    return source_depth, detector_depth
+
+
+def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
+    r"""A (degrees, minutes, seconds) triple, returned in decimal degrees within [lo, hi].
+
+    Minutes and seconds lie in (-60, 60).  The sign is the first nonzero part's, as in
+    :func:`dms_to_decimal`, so both (-88, 15, 26) and (-88, -15, -26) are 88 deg 15 min 26 s
+    west; a negative part after a positive one, (46, 14, -5), is ambiguous and refused
+    (issue #160 §3).
+
+    .. versionadded:: 1.2.0
+    """
+    try:
+        d, m, s = dms
+    except (TypeError, ValueError):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " must be a "
+            "(degrees, minutes, seconds) triple, e.g. (46, 12, 0); got " + repr(dms) +
+            ".") from None
+    d = _v.check_real(name + ' degrees', d, where)
+    m = _v.check_real(name + ' minutes', m, where, lo=-60.0, hi=60.0, lo_open=True,
+                      hi_open=True)
+    s = _v.check_real(name + ' seconds', s, where, lo=-60.0, hi=60.0, lo_open=True,
+                      hi_open=True)
+    parts = (d, m, s)
+    first = next((i for i, x in enumerate(parts) if x != 0.0), 3)
+    if first < 3 and parts[first] > 0.0 and any(x < 0.0 for x in parts[first + 1:]):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " = " +
+            repr(tuple(dms)) + " is ambiguous: the sign goes on the first nonzero part only, "
+            "e.g. (-46, 12, 0) for 46 deg 12 min south or west.")
+    value = dms_to_decimal(d, m, s)
+    if not (lo <= value <= hi):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " must lie in [" +
+            format(lo, 'g') + ", " + format(hi, 'g') + "] degrees; got " + repr(tuple(dms)) +
+            ", which is " + format(value, '.6g') + ".")
+    return value
+
+
 def _validated_endpoint_radii(costhz: float, source_depth: float, detector_depth: float,
     source_func_name: str) -> tuple[float, float]:
     r"""Returns (r_source, r_detector) [km] for two depths below the surface.
@@ -209,12 +275,11 @@ def _validated_endpoint_radii(costhz: float, source_depth: float, detector_depth
     endpoint at the center, where the zenith angle no longer names a direction, so the
     interval is half open.
 
-    The cosine is checked here too, and only here, which means only on the buried branch.
-    A cosine outside [-1, 1] is not a direction, and the general trajectory formulas take
-    the square root of :math:`1 - \cos^2\theta_z` and would return NaN for one -- quietly,
-    since NaN propagates all the way to a probability.  The surface branch keeps its own
-    long-standing behavior of returning a number for such input rather than raising,
-    because tightening it would change results that already exist.
+    The cosine is checked here too.  A cosine outside [-1, 1] is not a direction, and the
+    general trajectory formulas take the square root of :math:`1 - \cos^2\theta_z` and would
+    return NaN for one -- quietly, since NaN propagates all the way to a probability.  Since
+    1.2.0 the public entry points refuse it on the surface branch as well, through
+    :func:`_check_costhz` (issue #160 §3).
 
     .. versionadded:: 1.1.1
     """
@@ -319,6 +384,9 @@ def distance_traveled_inside_earth(costhz: float, source_depth: Optional[float]=
                   % (costhz, earth.distance_traveled_inside_earth(
                       costhz, detector_depth=2.0)))
 """
+    costhz = _check_costhz(costhz, 'distance_traveled_inside_earth')
+    source_depth, detector_depth = _check_depths(source_depth, detector_depth,
+                                                 'distance_traveled_inside_earth')
     source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
 
     # The default geometry returns through the expression this function has always used,
@@ -426,6 +494,9 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
                   % (l, earth.earth_radial_distance_from_depth(
                       -0.8, l, detector_depth=2.0)))
     """
+    # One comparison on the common path: this runs inside the Earth density profile, once
+    # per batch of quadrature nodes.
+    costhz = _check_costhz(costhz, 'earth_radial_distance_from_depth')
     source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
 
     scalar_input = (np.ndim(l) == 0)
@@ -553,6 +624,9 @@ def prem_layer_edges_along_chord(costhz: float, source_depth: Optional[float]=0.
                      len(earth.prem_layer_edges_along_chord(-1.0, detector_depth=depth)),
                      len(earth.prem_layer_edges_along_chord(1.0, detector_depth=depth))))
 """
+    costhz = _check_costhz(costhz, 'prem_layer_edges_along_chord')
+    source_depth, detector_depth = _check_depths(source_depth, detector_depth,
+                                                 'prem_layer_edges_along_chord')
     source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
 
     # The default geometry keeps the expression this function has always used, for the
@@ -635,6 +709,14 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     float
         Coordinate in decimal degrees.
     """
+    # Finite reals, minutes and seconds within (-60, 60) (issue #160 §3).  Range of the
+    # degrees is the caller's to set: a latitude and a longitude differ.
+    _where = 'earth.dms_to_decimal'
+    degrees = _v.check_real('degrees', degrees, _where)
+    minutes = _v.check_real('minutes', minutes, _where, lo=-60.0, hi=60.0, lo_open=True,
+                            hi_open=True)
+    seconds = _v.check_real('seconds', seconds, _where, lo=-60.0, hi=60.0, lo_open=True,
+                            hi_open=True)
     sign = 1.0
     for part in (degrees, minutes, seconds):
         if part != 0 or np.copysign(1.0, part) < 0:
@@ -685,11 +767,13 @@ def chord_length_inside_earth(lat1_dms: tuple[float, float, float],
                                                 sanford[0], sanford[1]))
 """
 
-    # Convert DMS to decimal degrees
-    lat1 = dms_to_decimal(*lat1_dms)
-    lon1 = dms_to_decimal(*lon1_dms)
-    lat2 = dms_to_decimal(*lat2_dms)
-    lon2 = dms_to_decimal(*lon2_dms)
+    # Convert DMS to decimal degrees, each checked for form and range (issue #160 §3): a
+    # latitude of 100 degrees or 70 minutes used to give a chord length without a word.
+    _where = 'earth.chord_length_inside_earth'
+    lat1 = _check_dms('lat1_dms', lat1_dms, _where, -90.0, 90.0)
+    lon1 = _check_dms('lon1_dms', lon1_dms, _where, -180.0, 360.0)
+    lat2 = _check_dms('lat2_dms', lat2_dms, _where, -90.0, 90.0)
+    lon2 = _check_dms('lon2_dms', lon2_dms, _where, -180.0, 360.0)
 
     # Convert decimal degrees to radians
     lat1_rad = np.radians(lat1)
@@ -783,6 +867,10 @@ def coordinates_of_named_location(source_func_name: str, loc_name: str) -> np.nd
     """
     # The latitude and longitude are each returned in day-minute-second format, (dd, mm, ss)
 
+    if not isinstance(loc_name, str):
+        raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob." + str(source_func_name) +
+            ": a named location must be a string; got " + type(loc_name).__name__ + " " +
+            repr(loc_name) + ".")
     try:
         lat = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lat']
         lon = loc_coords_dms[loc_name.lower().replace(" ", "_")]['lon']
