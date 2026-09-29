@@ -31,6 +31,7 @@ Routine listings
     * check_slab_edges - A gap-free partition of the path into [start, end] pairs
     * check_hamiltonian_sample - A finite, square, Hermitian matrix (or stack)
     * check_refinement - The tolerance, slab and engine keywords, by one rule table
+    * check_physics_params - A Hamiltonian builder's physics arguments, by name
     * validated - Decorator applying a rule table to calls from outside the package
     * r_real - Rule factory: a real number
     * r_int - Rule factory: an integer
