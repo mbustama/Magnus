@@ -348,8 +348,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
   3.13, which CI has tested and passed on `main`; they listed only 3.10-3.12 before,
   so PyPI did not show 3.13 as supported.
 
-- **`strategy='auto'` hands a moderate phase at a loose tolerance to the
-  Magnus ladder** (issue #70).  On a smooth profile it used to run the hybrid
+- **`strategy='auto'` hands a moderate phase to the Magnus ladder**
+  (issues #70 and #120).  On a smooth profile it used to run the hybrid
   strategy at every tolerance, and the hybrid's cost is its window search,
   which does not follow the tolerance: the four scans of the paper's Fig. 1
   took 8 s at the default of 1e-3.  Now the ladder answers instead when `min(rtol, atol)` is
@@ -369,8 +369,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
   energy-batched scan will take goes to it whatever its phase (issue #84): the
   phase limit prices the ladder point by point, and applied to a scan it sent
   one three-flavor, two-resonance scan of 100 energies to the hybrid, 62 s
-  against 0.4 s.  Every solar path, tolerances tighter than 1e-6,
-  `strategy='hybrid'` and `strategy='magnus'` are unchanged.
+  against 0.4 s.  Below 1e-6 (issue #120) the route stays open on
+  `integration_method='gl'` at a single baseline, for a phase within a limit that shrinks as
+  `(tol/1e-6)**(1/p)` with the requested order `p`, capped at
+  `AUTO_LADDER_TIGHT_MAX_PHASE` (2 000 rad) and applied to energy scans as
+  well; the ladder then runs at the tolerance itself.  This is what lets the
+  paper's Listing 1 (`rtol=1e-12`, `atol=1e-14`, `magnus_exp_order=8`) drop
+  `strategy='magnus'`: its four curves go to the ladder, which answers them
+  in 0.015 to 0.13 of the hybrid's time, 2.3e-14 from DOP853 at the worst
+  point.  Over 139 workloads at 1e-7, 1e-9 and 1e-12 the ladder at order 8
+  missed no tolerance without a warning and never warned where the hybrid
+  had certified.  At order 4, four workloads at 1e-12 came back 1.01 to 1.15
+  times outside it; the hybrid misses four there too, by up to 1.3 times.
+  Every solar path, baseline scans and other quadratures below 1e-6, an
+  invalid order (same error), `strategy='hybrid'` and `strategy='magnus'` are
+  unchanged, and no notebook's engine changes.
 
 - **`average=True` returns the phase average** (issue #64), with the spread
   set by a new keyword, `average_spread` (default 0.1), on every entry point

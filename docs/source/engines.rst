@@ -167,10 +167,10 @@ Two thresholds decide the seams, and both are constants with docstrings of their
 
 **The ladder route of** ``'auto'`` (issue #70).  On a smooth profile the hybrid strategy's cost
 is its window search, which does not follow the tolerance.  At a loose tolerance on a moderate
-phase that makes it the slower route, so ``'auto'`` hands a request to the ladder ahead of the
-hybrid when all three of these hold:
+phase that makes it the slower route.  So, at a tolerance ``min(rtol, atol)`` of
+:data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6 or looser, ``'auto'`` hands a request to
+the ladder ahead of the hybrid when both of these hold:
 
-* ``min(rtol, atol)`` is at least :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6;
 * the estimated accumulated phase (the integral of the spread of ``H``'s eigenvalues up to the
   longest baseline) is at most :data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE` = 1e4 rad;
 * the ladder's starting slab count is at most
@@ -192,11 +192,29 @@ undeclared density jump still runs, and still warns.  Over 20 smooth workloads w
 profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
 default tolerance of 1e-3, where the hybrid took 8 s.
 
+**At a tighter tolerance** (issue #120) the route stays open on ``integration_method='gl'`` at a
+single baseline, with a phase limit that shrinks with the tolerance and the order:
+``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
+capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad.  The ladder's slab
+count grows as ``tol**(-1/p)``, while the hybrid's window search does not follow the tolerance.
+The limit applies to an energy scan as well, and the ladder runs at the tolerance itself: its
+rungs are then deep in the asymptotic regime, where the difference between two of them already
+overestimates the finer one's error, and a tenth of the tolerance had made it the slower route.
+The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
+``magnus_exp_order = 8``: the limit there is 1 000 rad, its four curves estimate 10 to 78, and
+the ladder answers them in 0.015 to 0.13 of the hybrid's time.  Over the 139 workloads measured
+at 1e-7, 1e-9 and 1e-12 against DOP853, the ladder at order 8 missed no tolerance without a
+warning and never warned where the hybrid had certified; the cap keeps the partial solar chords
+from 2 217 rad on, where it did, on the hybrid.  A baseline scan keeps the hybrid at such
+tolerances: the cumulative scan that would answer it was not measured there (issue #125).
+
 **Which engine answers a request.**  Put together, the rules above give the engine that
 answers each kind of request under ``strategy='auto'``, by the shape of the request and the
 tolerance, ``min(rtol, atol)``.  "Many energies" are at one baseline, and "baselines" are at
 one energy.  "Too many slabs" means that the ladder would start with more than a quarter of its
-slab cap, as across the Sun.  ``strategy_info`` reports the engine that answered.
+slab cap, as across the Sun.  "The tightened limit" is the phase limit of the paragraph above,
+on ``integration_method='gl'``; other quadratures keep the adiabatic engine first below 1e-6.
+``strategy_info`` reports the engine that answered.
 
 .. list-table::
    :header-rows: 1
@@ -213,11 +231,13 @@ slab cap, as across the Sun.  ``strategy_info`` reports the engine that answered
      - constant Hamiltonian
    * - Smooth ``H``, one point
      - general ladder; adiabatic if the phase exceeds 1e4 or with too many slabs
-     - adiabatic; if it cannot certify, the ladder (the interaction picture for an
-       exponential profile at two flavors)
+     - general ladder if the phase is within the tightened limit; otherwise, or with too many
+       slabs, adiabatic, and if that cannot certify, the ladder (the interaction picture for
+       an exponential profile at two flavors)
    * - Smooth ``H``, many energies
      - energy-batched scan; adiabatic with too many slabs
-     - adiabatic; if it cannot certify, the energy-batched scan
+     - energy-batched scan if the phase is within the tightened limit; otherwise, or with too
+       many slabs, adiabatic, and if that cannot certify, the energy-batched scan
    * - Smooth ``H``, 2 to 7 baselines
      - cumulative scan; adiabatic if the phase exceeds 1e4 or with too many slabs
      - adiabatic; if it cannot certify, the cumulative scan
@@ -228,11 +248,13 @@ slab cap, as across the Sun.  ``strategy_info`` reports the engine that answered
      - ladder, energy-batched scan, or cumulative scan, by the shape of the request
      - the same
 
-At a tolerance tighter than 1e-6, a smooth-profile energy scan goes to the adiabatic engine,
-which is the slower route for a scan: on 300 energies through an exponential profile at 1e-8,
-7.1 s against 0.06 s for the energy-batched scan, both within the tolerance.  Passing
-``strategy='magnus'`` keeps an energy scan on the energy-batched scan; it also turns off the
-cumulative scan, so it is not the choice for a baseline scan.  Issue #125 tracks whether the
+At a tolerance tighter than 1e-6, a smooth-profile energy scan whose phase exceeds the tightened
+limit still goes to the adiabatic engine, which is the slower route for a scan.  Within the limit
+it now takes the energy-batched scan (issue #120): on 300 energies from 3 to 100 MeV over 200 km
+of an exponential profile (418 rad) at 1e-8, 0.1 s where the adiabatic engine took 11 s.  A
+baseline scan of 2 to 7 points keeps the adiabatic engine at such tolerances whatever its phase.
+Passing ``strategy='magnus'`` keeps an energy scan on the energy-batched scan; it also turns off
+the cumulative scan, so it is not the choice for a baseline scan.  Issue #125 tracks whether the
 tolerance condition should apply to scans at all.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**

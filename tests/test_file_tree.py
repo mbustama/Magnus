@@ -47,7 +47,8 @@ COMMENT_COLUMN = 36
 # lifted out of the executed notebooks, notebook output, and the solar-model
 # tables.  Listing them would triple the tree without telling anyone anything.
 COLLAPSED = ('docs/dev/', 'img/gallery/', 'fig/', 'resources/paper/figs/',
-             'resources/benchmarks/', 'src/magnus/data/solar_models/', 'tools/trailer/')
+             'resources/benchmarks/', 'src/magnus/data/solar_models/', 'tools/trailer/',
+             'tools/auto_tight/')
 
 TREE = [
     ('.github/', 'GitHub Actions workflows: tests, lint, notebooks, docs, publishing'),
@@ -321,6 +322,8 @@ TREE = [
     ('resources/paper/elsarticle-num.bst', None),
     ('resources/paper/figs/', 'Its twenty-three figures, written by notebook 28'),
     ('tools/', 'Standalone utilities that are not part of the package'),
+    ('tools/auto_tight/',
+     "Issue #120's measurement of 'auto' at tight tolerances, with its DOP853 references"),
     ('tools/build_solar_model_tables.py',
      "Trims the authors' solar-model files to the shipped tables, checking each hash"),
     ('tools/lint_notebook_cells.py',

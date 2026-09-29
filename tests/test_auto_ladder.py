@@ -10,6 +10,11 @@ estimated phase is at most ``AUTO_LADDER_MAX_PHASE`` and its tolerance no tighte
 ladder then runs at a tenth of the tolerance, above a slab floor, and without the
 interaction-picture fast path.
 
+Below ``AUTO_LADDER_MIN_TOLERANCE`` the route used to close.  It now stays open on
+``integration_method='gl'`` at a single baseline, for a phase within a limit that shrinks with the
+tolerance and the order, capped at ``AUTO_LADDER_TIGHT_MAX_PHASE``, and the ladder runs at the
+tolerance itself (issue #120).  That is what lets the paper's Listing 1 drop ``strategy='magnus'``.
+
 The reference throughout is the hybrid strategy at a tolerance of 1e-12, which the paper checks
 against independent codes.
 """
@@ -18,7 +23,9 @@ import warnings
 
 import numpy as np
 import pytest
+from scipy.integrate import solve_ivp
 
+import magnus.adiabatic as ad
 import magnus.globaldefs as gd
 import magnus.magnus as mg
 import magnus.oscprob as op
@@ -76,13 +83,165 @@ def test_the_decision_is_reported():
 
 
 @pytest.mark.parametrize('tol', [1e-9, 1e-12])
-def test_a_tight_tolerance_keeps_the_hybrid(tol):
-    """Below AUTO_LADDER_MIN_TOLERANCE the hybrid reaches the tolerance at no extra cost, and
-    the ladder's cost grows with it."""
+def test_a_tight_tolerance_takes_the_ladder_on_a_small_phase(tol):
+    """Replaces the test that a tolerance below AUTO_LADDER_MIN_TOLERANCE keeps the hybrid.  The
+    ladder had cost more there only because it ran at a tenth of the tolerance; at the tolerance
+    itself it is the faster route on this profile (78 rad) at every tolerance measured for issue
+    #120."""
     info = {}
     p3(ENERGIES[:2], rtol=tol, atol=tol, strategy_info=info)
+    assert info['engine'] == 'separable'
+    note = [t for t in info['trace'] if t.get('reason') == 'auto prefers the ladder'][0]
+    assert note['tolerance_margin'] == 1.0
+    assert note['estimated_phase'] <= note['phase_limit'] == op._auto_ladder_max_phase(tol, 4, True)
+
+
+def _listing1_curves():
+    """The four calls of the paper's Listing 1, four energies per curve instead of 140."""
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    s14 = s24 = np.sqrt(0.10)
+    s15 = s25 = np.sqrt(0.06)
+    return (('2nu', op.osc_prob_2nu_matter_exp_density, 0.0005, 0.05,
+             dict(sth=osc['s12'], Dm2=osc['D21'])),
+            ('3nu', op.osc_prob_3nu_matter_exp_density, 0.002, 0.2, dict(osc)),
+            ('4nu', op.osc_prob_4nu_matter_exp_density, 2.0, 20.0,
+             dict(osc, s14=s14, s24=s24, D41=1.0)),
+            ('5nu', op.osc_prob_5nu_matter_exp_density, 2.0, 20.0,
+             dict(osc, s14=s14, s15=s15, s24=s24, s25=s25, D41=1.0, D51=1.7)))
+
+
+@pytest.mark.parametrize('order', [8, None])
+def test_listing_1_without_a_strategy_meets_its_tolerance(monkeypatch, order):
+    """The paper's Listing 1 without ``strategy='magnus'`` (issue #120), at rtol = 1e-12 and
+    atol = 1e-14.  At order 8, as printed, every curve goes to the energy-batched ladder.  With
+    the order left at its default, whatever the rule decides, the worst point (3nu, 2 MeV) is
+    checked against DOP853 at 1e-13 on the Hamiltonian the wrapper builds: 2.3e-14 off at order
+    8 and 3.1e-14 at order 4, against a tolerance of 7.1e-13 there."""
+    osc_kw = dict(rtol=1e-12, atol=1e-14)
+    if order is not None:
+        osc_kw['magnus_exp_order'] = order
+    for name, fn, lo, hi, ex in _listing1_curves():
+        info = {}
+        P = np.asarray(fn(np.logspace(np.log10(lo), np.log10(hi), 4)*gd.UNIT_GEV, **PROFILE,
+                          **ex, **osc_kw, strategy_info=info)).ravel()
+        if order == 8:
+            assert info['engine'] == 'separable', name
+            assert declined(info).get('hybrid') == 'auto prefers the ladder', name
+        if name == '3nu':
+            P_worst = P[0]
+            osc3 = ex
+
+    captured = {}
+    real = ad.hybrid_propagator
+
+    def hp(H_func, *args, **kwargs):
+        captured['H'] = H_func
+        return real(H_func, *args, **kwargs)
+
+    monkeypatch.setattr(ad, 'hybrid_propagator', hp)
+    op.osc_prob_3nu_matter_exp_density(np.array([0.002])*gd.UNIT_GEV, **PROFILE, **osc3,
+                                       rtol=1e-3, atol=1e-3, strategy='hybrid')
+    H_func = captured['H']
+    sol = solve_ivp(lambda l, y: (-1j*np.asarray(H_func(l)) @ y.reshape(3, 3)).ravel(),
+                    (0.0, 25.0*gd.UNIT_KM), np.eye(3, dtype=complex).ravel(), rtol=1e-13,
+                    atol=1e-15, method='DOP853')
+    P_ref = abs(sol.y[0, -1])**2
+    assert abs(P_worst - P_ref) <= 1e-14 + 1e-12*P_ref
+
+
+@pytest.mark.parametrize('strategy', ['hybrid', 'magnus'])
+def test_an_explicit_strategy_is_not_rerouted_at_a_tight_tolerance(strategy):
+    """The tightened route is 'auto''s alone as well."""
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', mg.MagnusConvergenceWarning)
+        p3(ENERGIES[:2], rtol=1e-12, atol=1e-12, strategy=strategy, strategy_info=info)
+    assert (info['engine'] == 'hybrid') == (strategy == 'hybrid')
+    assert 'auto prefers the ladder' not in declined(info).values()
+
+
+def test_a_tight_tolerance_runs_the_ladder_at_the_tolerance_itself(monkeypatch):
+    """At a tenth of the tolerance the ladder was the slower route below
+    AUTO_LADDER_MIN_TOLERANCE; at the tolerance itself its deep rungs already overestimate the
+    error, by about 1.5**p - 1."""
+    seen = {}
+    real = op._osc_prob_scan_separable_dispatch
+
+    def spy(*args):
+        seen.update(args[-1])
+        return real(*args)
+
+    monkeypatch.setattr(op, '_osc_prob_scan_separable_dispatch', spy)
+    p3(ENERGIES, rtol=1e-9, atol=2e-9)
+    assert seen['rtol'] == 1e-9 and seen['atol'] == 2e-9
+    assert op._PreferLadder(40, 1.0).request(1e-12, 1e-14, None, None, 'gl') == (1e-12, 1e-14, 40)
+
+
+def test_the_tight_phase_limit():
+    """AUTO_LADDER_MAX_PHASE at AUTO_LADDER_MIN_TOLERANCE, shrinking as tol**(1/p) below it and
+    capped at AUTO_LADDER_TIGHT_MAX_PHASE: 1 000 rad for the paper's Listing 1 at order 8, 100 at
+    the default order 4.  Only a scan at a loose tolerance goes without a limit (issue #84)."""
+    f = op._auto_ladder_max_phase
+    assert f(1e-3, 4, False) == op.AUTO_LADDER_MAX_PHASE
+    assert f(1e-3, 4, True) == np.inf
+    assert f(1e-14, 8, True) == pytest.approx(1000.0)
+    assert f(1e-14, 4, False) == pytest.approx(100.0)
+    assert f(1e-9, 8, False) == op.AUTO_LADDER_TIGHT_MAX_PHASE
+
+
+def test_a_tight_energy_scan_obeys_the_phase_limit(monkeypatch):
+    """At a loose tolerance an energy scan goes to the ladder whatever its phase (issue #84; see
+    test_an_energy_scan_ignores_the_phase_threshold).  That was measured at loose tolerances
+    only, so below AUTO_LADDER_MIN_TOLERANCE the tightened limit applies to a scan as well."""
+    monkeypatch.setattr(op, 'AUTO_LADDER_TIGHT_MAX_PHASE', 1.0)
+    info = {}
+    p3(ENERGIES[:2], rtol=1e-9, atol=1e-9, strategy_info=info)
     assert info['engine'] == 'hybrid'
-    assert 'hybrid' not in declined(info)
+
+
+@pytest.mark.parametrize('method', ['simpson', 'trapezoid'])
+def test_a_tight_tolerance_off_gauss_legendre_is_not_rerouted(method):
+    """Issue #120 measured the ladder on 'gl' only, so below AUTO_LADDER_MIN_TOLERANCE the other
+    quadratures keep what 'auto' did before: the hybrid is tried first."""
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', mg.MagnusConvergenceWarning)
+        p3(ENERGIES[:2], rtol=1e-9, atol=1e-9, integration_method=method, strategy_info=info)
+    assert 'auto prefers the ladder' not in declined(info).values()
+
+
+def test_the_full_sun_is_not_rerouted_at_a_tight_tolerance():
+    """The slab-count condition keeps it off the ladder at any tolerance: the core density sets a
+    starting count near the cap.  Two flavors at 10 MeV over 0.9 R_sun, the case of
+    AUTO_LADDER_MAX_FLOOR_FRACTION.  At 1e-9 the hybrid is tried first, as before."""
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob_2nu_sun(np.array([10.0e-3])*gd.UNIT_GEV, 0.9*gd.SUN_RADIUS*gd.UNIT_KM, 0.0,
+                            sth=0.55, Dm2=7.5e-5, nu_i=gd.NUE, nu_f=gd.NUE, rtol=1e-9, atol=1e-9,
+                            strategy_info=info)
+    assert 'hybrid' in declined(info) or info['engine'] == 'hybrid'
+    assert 'auto prefers the ladder' not in declined(info).values()
+
+
+def test_a_tight_baseline_scan_keeps_the_hybrid():
+    """A baseline scan at a small phase would go to the cumulative scan, which issue #120 did not
+    measure at tight tolerances; it keeps the hybrid there, as before, until issue #125 does."""
+    info = {}
+    op.osc_prob_3nu_matter_exp_density(
+        np.full(3, 0.02)*gd.UNIT_GEV, L=np.array([5.0, 10.0, 25.0])*gd.UNIT_KM, L0=0.0,
+        rho_central=3.e3, l_scale=10.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True,
+        nu_i=gd.NUE, nu_f=gd.NUE, **OSC, rtol=1e-8, atol=1e-8, strategy_info=info)
+    assert info['engine'] == 'hybrid'
+    assert 'auto prefers the ladder' not in declined(info).values()
+
+
+@pytest.mark.parametrize('order', [0, 10])
+def test_an_invalid_order_at_a_tight_tolerance_raises_as_before(order):
+    """The tightened limit divides by the order, so it is taken only for the orders 'gl'
+    supports; any other keeps the hybrid strategy's path and the error it raises there."""
+    with pytest.raises(ValueError, match='order'):
+        p3(ENERGIES[:2], rtol=1e-9, atol=1e-11, magnus_exp_order=order)
 
 
 def test_a_phase_above_the_threshold_keeps_the_hybrid(monkeypatch):

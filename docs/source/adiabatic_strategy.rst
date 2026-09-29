@@ -302,8 +302,6 @@ point:
    strategy is the cheaper of the two and keeps the scan.
 
    Ahead of the hybrid, it hands a request to the Magnus ladder when the
-   tolerance is no tighter than
-   :data:`~magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` (1e-6) and the
    estimated accumulated phase is at most
    :data:`~magnus.oscprob.AUTO_LADDER_MAX_PHASE` (1e4 rad), provided the
    ladder can start well below its slab cap, which no solar path does. The
@@ -314,6 +312,16 @@ point:
    that the energy-batched scan will take is handed over whatever its phase,
    since that engine shares its slabs across the energies; the slab-count
    condition alone keeps the full Sun on the hybrid.
+
+   Below :data:`~magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` (1e-6, as
+   ``min(rtol, atol)``) the hand-over needs ``integration_method='gl'``, a
+   single baseline and a phase within a limit that shrinks with the tolerance
+   and the order,
+   capped at :data:`~magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` (2 000 rad),
+   for an energy scan as well; the ladder then runs at the requested
+   tolerance itself (issue #120). The paper's Listing 1, at
+   ``rtol = 1e-12`` and ``magnus_exp_order = 8``, is handed over this way;
+   solar paths and long baselines stay on the hybrid.
 
 Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
