@@ -15,6 +15,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   as a fraction of the energy, and must lie strictly between 0 and 1.  The
   `PhaseAveragingWarning` of that route quotes the width and the number of samples actually
   used, and `strategy_info` records them.  Results at the defaults are unchanged.
+- **The command-line error for `--costhz` without a length names every way to give one**
+  (issue #136).  It said that only `--loc-ini`/`--loc-fin` compute the baseline, but
+  `--detector-depth` and `--source-depth` do too; the message for `--environment earth` with
+  neither a direction nor a pair of locations now lists them as well.
 
 ### Changed
 

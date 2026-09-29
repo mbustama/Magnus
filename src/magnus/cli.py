@@ -623,10 +623,13 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
         if not using_locations:
             if args.costhz is None:
                 raise SystemExit("magnus prob: --environment earth requires either --costhz "
-                                  "(together with --baseline) or both --loc-ini and --loc-fin.")
+                                  "(with --baseline, --detector-depth or --source-depth) or "
+                                  "both --loc-ini and --loc-fin.")
             if baseline_ev is None and not buried:
-                raise SystemExit("magnus prob: --baseline is required together with --costhz "
-                                  "(only --loc-ini/--loc-fin compute the baseline automatically).")
+                raise SystemExit("magnus prob: --costhz fixes the direction of the chord but "
+                                  "not its length: give --baseline, or --detector-depth or "
+                                  "--source-depth, from which the length is computed. "
+                                  "--loc-ini/--loc-fin compute it without --costhz.")
         return {'costhz': args.costhz, 'loc_ini': args.loc_ini, 'loc_fin': args.loc_fin,
                 'L': baseline_ev, 'source_depth': source_depth,
                 'detector_depth': detector_depth}

@@ -343,6 +343,34 @@ def test_a_library_validation_error_becomes_an_argument_error():
     assert excinfo.value.code == 2
 
 
+def test_costhz_without_a_length_names_every_way_to_give_one():
+    """Issue #136: the message said only --loc-ini/--loc-fin compute the baseline, but the two
+    depths do as well."""
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['prob', '--environment', 'earth', '--energy', '2.5', '--costhz', '-0.5'])
+    message = str(excinfo.value.code)
+    assert message.startswith('magnus prob: ')
+    for option in ('--baseline', '--detector-depth', '--source-depth', '--loc-ini/--loc-fin'):
+        assert option in message
+    assert 'only --loc-ini' not in message
+
+
+def test_earth_without_a_direction_names_every_way_to_give_a_length():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(['prob', '--environment', 'earth', '--energy', '2.5'])
+    message = str(excinfo.value.code)
+    for option in ('--costhz', '--baseline', '--detector-depth', '--source-depth', '--loc-ini'):
+        assert option in message
+
+
+@pytest.mark.parametrize('depth', ['--detector-depth', '--source-depth'])
+def test_costhz_with_a_depth_computes_the_length(depth, capsys):
+    code = cli.main(['prob', '--environment', 'earth', '--energy', '2.5', '--costhz', '-0.5',
+                     depth, '1', '--nu-i', 'mu', '--nu-f', 'e', '--json'])
+    assert code in (0, None)
+    assert 0.0 <= json.loads(capsys.readouterr().out)['probability'] <= 1.0
+
+
 # ------------------------------------------------------------------ prob is optional (#138)
 
 _MATRIX = ['--flavors', '3', '--environment', 'matter', '--density-profile', 'constant',
