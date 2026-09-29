@@ -46,6 +46,8 @@ exactly the regime that defeats slab refinement -- and it is pointless,
 because every oscillatory term is about to be averaged away by the
 integration the measurement performs anyway.
 
+.. _avg-limit:
+
 The averaged limit
 ---------------------
 
@@ -80,6 +82,8 @@ because each surprises someone eventually, and none survives away from it:
 * For **vacuum** oscillations it does not depend on energy or baseline at
   all: scaling :math:`H` by :math:`1/E` leaves its eigenvectors
   untouched, so a single matrix serves an entire flux calculation.
+
+.. _avg-phase-average:
 
 The phase average
 -------------------
@@ -141,6 +145,8 @@ terms that do.
 Every point is computed as the limit first, and returned as such, bit for bit, wherever the
 phase average agrees with it to 1e-4 (on a profile, to the tighter of ``rtol`` and ``atol`` if
 that is smaller), so a result that was right before stays exactly what it was.
+
+.. _avg-coherence:
 
 Coherence, and where the spread matters
 -----------------------------------------
@@ -207,6 +213,8 @@ tolerance.  The number is then the average over the spread asked for.  Asking
 for the average at a 1000 km beamline does exactly this: at 1 GeV,
 :math:`P_{\mu\mu}` is 0.91 at a 10% spread and 0.97 at 5%.
 
+.. _avg-initial-state:
+
 The initial state
 -----------------
 
@@ -244,6 +252,8 @@ declared discontinuities the average is over an energy window started in flavor,
            density_matter_is_in_g_per_cm3=True, nu_i=gd.NUMU, nu_f=gd.NUMU, average=True,
            average_initial_state=start, **osc)
        print(start, float(np.ravel(P)[0]))      # 0.3626 and 0.4528
+
+.. _avg-varying:
 
 Position-dependent Hamiltonians
 -----------------------------------

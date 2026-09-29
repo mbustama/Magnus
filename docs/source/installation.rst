@@ -87,9 +87,10 @@ is configured correctly for your system:
 .. code-block:: bash
 
    pip install -e '.[test]'
-   pytest tests/ -v
+   pytest tests/ -n auto
 
-It is about 1400 tests and takes a few minutes with ``-n auto``; the same suite
+It is about 1900 tests and takes a few minutes spread over all cores (``-n auto``,
+from ``pytest-xdist``, which the ``test`` extra installs); the same suite
 runs in CI on Python 3.10-3.13 on every push, so the badge on the :doc:`index`
 page tells you whether it passes there.
 
@@ -105,9 +106,11 @@ knowing what it establishes:
 * **Against an independently coded recursion.**  The Magnus terms at orders
   1--6, and the Gauss--Legendre convergence rates under slab halving (error
   ratios 4, 16, 64).
-* **Properties that must hold exactly.**  Unitarity, and one *bit-identity*
-  assertion rather than a tolerance: ``n_jobs > 1`` against serial, which an
-  optimization that changed an answer fails rather than passing quietly.  The
+* **Properties that must hold exactly.**  Unitarity, and *bit-identity*
+  assertions rather than tolerances: repeated calls, and a baseline scan given in
+  shuffled order, return the same answer to the last bit, so an optimization that
+  changed an answer fails rather than passing quietly.  A parallel scan is held to
+  the tolerance against a serial one, not to the last bit.  The
   energy-batched scan is held to 1e-12 against the per-point path, with the
   grid and tolerances pinned so that the two are arithmetically the same
   problem.

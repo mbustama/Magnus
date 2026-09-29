@@ -15,6 +15,8 @@ you inspect an order beyond the implemented ceiling without running anything.
    :local:
    :depth: 2
 
+.. _magnus-recursion:
+
 The recursion
 ---------------
 
@@ -67,7 +69,7 @@ parts, of which there are :math:`\binom{n-2}{j-1}`.  So
    \#\,\Omega_n = \sum_{j\,:\,B_j \neq 0} \binom{n-2}{j-1} ,
 
 which is what the implementation for orders 7 and above iterates over directly,
-rather than storing 129 expressions.
+rather than storing the 244 expressions of orders 7 to 10.
 
 How many terms there are
 --------------------------
@@ -144,8 +146,9 @@ group factors:
 
 ``tests/test_expansionterms.py`` goes further: it evaluates the generated terms
 numerically on a sampled :math:`A(t)` and compares them, order by order, against
-what :func:`magnus.magnus.magnus_expansion` produces internally.  Agreement is at
-machine precision for every order from 1 to 10, which covers both the hand-written
+what :func:`magnus.magnus.magnus_expansion` produces internally.  They agree to a
+relative 1e-11 at every order from 1 to 10, the round-off of the quadrature that
+evaluates them, which covers both the hand-written
 low orders and the generated high ones in a single check.
 
 Choosing an order

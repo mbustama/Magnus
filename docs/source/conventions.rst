@@ -48,6 +48,65 @@ At a glance
      - Natural units: energies in eV, distances in eV\ :sup:`-1`, densities in
        eV\ :sup:`4`; see :ref:`units-table`
 
+.. _conv-hamiltonian:
+
+The Hamiltonian and the probability
+-----------------------------------
+
+The state of :math:`n` flavors evolves under an :math:`n \times n` Hermitian
+Hamiltonian :math:`\mathbb{H}`.  Its solution defines the evolution operator
+:math:`\mathbb{U}(l_1, l_0)`, and the probability that a neutrino born as
+:math:`\nu_\alpha` is detected as :math:`\nu_\beta` is
+
+.. math::
+   :label: conv-probability
+
+   P_{\nu_\alpha \to \nu_\beta}(l_1, l_0)
+   = \left\lvert \left[\mathbb{U}(l_1,l_0)\right]_{\beta\alpha} \right\rvert^2 .
+
+In vacuum,
+
+.. math::
+   :label: conv-h-vacuum
+
+   \mathbb{H}^{\rm vac}(E) = \frac{1}{2E}\, \mathbb{R}\, \mathbb{M}^2\, \mathbb{R}^\dagger ,
+   \qquad \mathbb{M}^2 = {\rm diag}(0, \Delta m^2_{21}, \Delta m^2_{31}, \ldots) ,
+
+with the mixing matrix :math:`\mathbb{R}` a product of rotations.  Each
+:math:`\mathbb{R}_{ij}` rotates by :math:`\theta_{ij}` in the :math:`(i,j)` plane, with
+:math:`\sin\theta_{ij}\,e^{-i\delta_{ij}}` in entry :math:`(i,j)`:
+
+.. math::
+   :label: conv-mixing-matrix
+
+   \mathbb{R} =
+   \begin{cases}
+    \mathbb{R}_{12} , & n = 2 , \\
+    \mathbb{R}_{23}\, \mathbb{R}_{13}\, \mathbb{R}_{12} , & n = 3 , \\
+    \mathbb{R}_{34}\, \mathbb{R}_{24}\, \mathbb{R}_{14}\, \mathbb{R}_{23}\, \mathbb{R}_{13}\, \mathbb{R}_{12} , & n = 4 , \\
+    \mathbb{R}_{35}\, \mathbb{R}_{25}\, \mathbb{R}_{15}\, \mathbb{R}_{34}\, \mathbb{R}_{24}\, \mathbb{R}_{14}\, \mathbb{R}_{23}\, \mathbb{R}_{13}\, \mathbb{R}_{12} , & n = 5 .
+   \end{cases}
+
+At three flavors this is the PMNS matrix, and the phase of :math:`\mathbb{R}_{13}` is
+:math:`\delta_{\rm CP}`.  Of the sterile rotations only :math:`\mathbb{R}_{14}`,
+:math:`\mathbb{R}_{24}`, :math:`\mathbb{R}_{15}` and :math:`\mathbb{R}_{35}` carry a phase.
+
+In matter, the charged-current potential enters through a diagonal projector
+:math:`\mathbb{P}`:
+
+.. math::
+   :label: conv-h-matter
+
+   \mathbb{H}(E, l) = \mathbb{H}^{\rm vac}(E) + V_{\rm CC}(l)\, \mathbb{P}(l) ,
+   \qquad V_{\rm CC} = \sqrt{2}\, G_F\, n_e(l) .
+
+At three flavors :math:`\mathbb{P} = {\rm diag}(1, 0, 0)`.  With sterile states,
+:math:`\mathbb{P} = {\rm diag}(1, 0, 0, r/2, \ldots)`, with :math:`r = n_n/n_p`
+(``ratio_number_neutrons_to_protons``): the neutral-current potential, common to the
+active flavors, is subtracted from the whole diagonal, and what it leaves on a sterile
+state is :math:`(r/2)\,V_{\rm CC}`.  :func:`magnus.matter.matter_potential_projector`
+builds :math:`\mathbb{P}` for every flavor count.
+
 Ordering of the probabilities
 -----------------------------
 
