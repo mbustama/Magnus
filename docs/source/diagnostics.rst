@@ -11,7 +11,7 @@ and cannot catch, and what every warning means.
 Accuracy
 ----------
 
-.. figure:: ../../img/paper/validation.png
+.. figure:: ../../img/paper/validation.svg
    :width: 100%
    :alt: Accuracy at two to five flavors against an independent solver
 

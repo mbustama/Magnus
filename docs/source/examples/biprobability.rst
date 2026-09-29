@@ -5,7 +5,7 @@ Bi-probability plot
 
 .. _ex-fig-biprobability:
 
-.. figure:: ../../../img/paper/biprobability.png
+.. figure:: ../../../img/paper/biprobability.svg
    :width: 95%
    :alt: Bi-probability plot at the DUNE baseline
 

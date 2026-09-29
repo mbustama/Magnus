@@ -28,7 +28,7 @@ discarded, and each setting is timed in blocks of at least 50 ms, the fastest of
 Batching and parallelization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. figure:: ../../img/paper/batching.png
+.. figure:: ../../img/paper/batching.svg
    :width: 90%
    :alt: Four ways a scan is computed
 
@@ -59,7 +59,7 @@ point runs in the calling process and the rest are shared among the workers, eac
 per-point path, so all :math:`N` ladders still run, several at a time.  A parallel scan agrees
 with a serial one to the tolerance, not bit for bit.
 
-.. figure:: ../../img/paper/njobs_scaling.png
+.. figure:: ../../img/paper/njobs_scaling.svg
    :width: 70%
    :alt: Parallel speed-up of an energy scan
 

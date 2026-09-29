@@ -9,7 +9,7 @@ The Earth
 
 .. _ex-fig-prem:
 
-.. figure:: ../../../img/paper/prem_profile.png
+.. figure:: ../../../img/paper/prem_profile.svg
    :width: 95%
    :alt: The Earth’s density profile
 
@@ -75,7 +75,7 @@ Neutrinos & antineutrinos, 2–5 flavors
 
 .. _ex-fig-nu-nubar:
 
-.. figure:: ../../../img/paper/nu_nubar_earth.png
+.. figure:: ../../../img/paper/nu_nubar_earth.svg
    :width: 95%
    :alt: Neutrinos and antineutrinos through the Earth
 
@@ -142,7 +142,7 @@ Probabilities between two locations
 
 .. _ex-fig-named-baselines:
 
-.. figure:: ../../../img/paper/named_baselines.png
+.. figure:: ../../../img/paper/named_baselines.svg
    :width: 95%
    :alt: Four chords from Fermilab
 
@@ -255,7 +255,7 @@ New physics
 
 .. _ex-fig-bsm:
 
-.. figure:: ../../../img/paper/bsm.png
+.. figure:: ../../../img/paper/bsm.svg
    :width: 95%
    :alt: New physics along an Earth chord
 
@@ -307,7 +307,7 @@ Figure :ref:`A scan of the sterile-state parameters <ex-fig-sterile-scan>` scans
 
 .. _ex-fig-sterile-scan:
 
-.. figure:: ../../../img/paper/sterile_scan.png
+.. figure:: ../../../img/paper/sterile_scan.svg
    :width: 95%
    :alt: A scan of the sterile-state parameters
 
@@ -355,7 +355,7 @@ Earth oscillograms
 
 .. _ex-fig-oscillogram:
 
-.. figure:: ../../../img/paper/earth_oscillogram.png
+.. figure:: ../../../img/paper/earth_oscillogram.svg
    :width: 95%
    :alt: Oscillograms through the Earth
 

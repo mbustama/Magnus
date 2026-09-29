@@ -7,7 +7,7 @@ Two plots appear in almost every study of neutrino oscillations: the probability
 
 .. _ex-fig-prob-vs:
 
-.. figure:: ../../../img/paper/prob_vs.png
+.. figure:: ../../../img/paper/prob_vs.svg
    :width: 95%
    :alt: Probability against distance and against energy
 

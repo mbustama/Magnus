@@ -9,7 +9,7 @@ The Sun
 
 .. _ex-fig-solar:
 
-.. figure:: ../../../img/paper/solar_averaged.png
+.. figure:: ../../../img/paper/solar_averaged.svg
    :width: 95%
    :alt: The averaged solar survival probability
 
@@ -98,7 +98,7 @@ Varying the production point
 
 .. _ex-fig-solar-production:
 
-.. figure:: ../../../img/paper/solar_production.png
+.. figure:: ../../../img/paper/solar_production.svg
    :width: 95%
    :alt: Dependence on the production point in the Sun
 
@@ -203,7 +203,7 @@ The solar density profiles that every Sun wrapper takes through ``density_profil
 
 .. _ex-fig-solar-models:
 
-.. figure:: ../../../img/paper/solar_models.png
+.. figure:: ../../../img/paper/solar_models.svg
    :width: 95%
    :alt: Three solar models compared
 
@@ -225,7 +225,7 @@ Comparing against approximations
 
 .. _ex-fig-solar-approx:
 
-.. figure:: ../../../img/paper/solar_approx.png
+.. figure:: ../../../img/paper/solar_approx.svg
    :width: 95%
    :alt: Error of the two-flavor solar approximation
 

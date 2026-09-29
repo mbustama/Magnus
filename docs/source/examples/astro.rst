@@ -5,7 +5,7 @@ High-energy astrophysical neutrinos
 
 .. _ex-fig-astro:
 
-.. figure:: ../../../img/paper/astro_composition.png
+.. figure:: ../../../img/paper/astro_composition.svg
    :width: 95%
    :alt: Flavor composition of an astrophysical flux
 
@@ -122,7 +122,7 @@ What separates the Lorentz-violating case from the others is that its term keeps
 
 .. _ex-fig-astro-ternary:
 
-.. figure:: ../../../img/paper/astro_ternary.png
+.. figure:: ../../../img/paper/astro_ternary.svg
    :width: 95%
    :alt: The flavor triangle of high-energy astrophysical neutrinos
 
