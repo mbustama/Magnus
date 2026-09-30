@@ -391,6 +391,12 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - The number is what was asked for; the *model* is the wrong one. At that size the
        two scales overlap and the pair is an ordinary sterile state.
      - The four- and five-flavor routines, which describe that spectrum properly.
+   * - :class:`magnus.oscprob.IgnoredQuadratureSettingWarning`
+     - A points-per-slab setting (``n_tpts_per_slab``, ``min_``/``max_n_tpts_per_slab``,
+       ``growth_factor_n_tpts_per_slab``) was passed with ``integration_method='gl'``.
+     - No. ``'gl'`` evaluates the Hamiltonian at its own nodes, so the setting was not used
+       and the result is what it would be without it.
+     - Drop the setting, or pass ``integration_method='trapezoid'`` or ``'simpson'`` to use it.
    * - :class:`magnus.magnus.MagnusHighOrderCostWarning`
      - ``magnus_exp_order`` above 6 on ``'trapezoid'``/``'simpson'``.
      - No -- it is a cost trade, not an error.

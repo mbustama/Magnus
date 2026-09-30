@@ -1948,7 +1948,7 @@ def test_cumulative_scan_agrees_with_the_per_point_path_on_an_identical_grid():
         k = out_idx[i]
         prefix = np.column_stack([edges[:k], edges[1:k + 1]])
         P_ref = op.osc_prob(H, 0.0, L[i], t_slab_edges=prefix, magnus_exp_order=4,
-                            rtol=None, atol=None, n_tpts_per_slab=2)
+                            rtol=None, atol=None)
         assert maxabs(np.asarray(P_ref) - P[i]) < 1e-12
 
 

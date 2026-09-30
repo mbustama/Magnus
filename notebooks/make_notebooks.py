@@ -166,7 +166,7 @@ where $P_{\mu e} = P_{e \mu}$.'''),
     code(r'''def H_2nu_vac(l, energy):
     return hamiltonians.hamiltonian_2nu_vacuum(energy, sth, Dm2)'''),
     md(r'''In this case, we need to pass a Hamiltonian that is a function *only* of position:'''),
-    code(r'''oscprob.osc_prob(lambda l: H_2nu_vac(l, energy), 0.0, baseline, magnus_exp_order=2, n_slabs=1, n_tpts_per_slab=2, rtol=None, atol=None)'''),
+    code(r'''oscprob.osc_prob(lambda l: H_2nu_vac(l, energy), 0.0, baseline, magnus_exp_order=2, n_slabs=1, rtol=None, atol=None)'''),
     md(r'''The resulting probability matrix is the same as before, but we had to manually set the run parameters to generate it with the same speed as when we simply passed the constant Hamiltonian `hamiltonian_2nu_vacuum(energy, sth, Dm2)` to `osc_prob`.  However, the recipe of defining a position-dependent Hamiltonian and passing it to `osc_prob` will be at the core of later calculations of probabilities for time-*dependent* Hamiltonians.
 
 For convenience, Mag$\nu$s includes a wrapper to return the probability matrix in vacuum for given values of the oscillation parameters, the neutrino baseline, and the neutrino energy, bypassing the more lengthy procedure above:'''),
@@ -610,11 +610,11 @@ Internally, `osc_prob` partitions the interval from `t_ini = 0` to `t_fin = base
 
 The number of slabs (`n_slabs`) grows from `min_n_slabs` (default `1`), multiplied at each pass by roughly `growth_factor_n_slabs` (default `1.5`), up to `max_n_slabs`.  That ceiling is **method-dependent**: `20000` for the default `'gl'` integrator and `2000` for `'trapezoid'`/`'simpson'` (see `oscprob.MAX_N_SLABS_DEFAULT`).  The split exists because the two families cost very different amounts per slab.  The loop also stops after `max_num_loops` passes (default `50`).
 
-The number of time points per slab (`n_tpts_per_slab`) at which the Hamiltonian is sampled to integrate it grows the same way — from `min_n_tpts_per_slab` (default `2`) to `max_n_tpts_per_slab` (default `500`), by `growth_factor_n_tpts_per_slab` (default `1.5`).  **With the default `'gl'` integrator this ladder is switched off entirely**: Gauss-Legendre collocation needs only 1-3 Hamiltonian evaluations per slab regardless, so accuracy is controlled by the slab count alone and `osc_prob` pins `n_tpts_per_slab = 2`.  These parameters matter only for `'trapezoid'` and `'simpson'`.
+The number of time points per slab (`n_tpts_per_slab`) at which the Hamiltonian is sampled to integrate it grows the same way — from `min_n_tpts_per_slab` (default `2`) to `max_n_tpts_per_slab` (default `500`), by `growth_factor_n_tpts_per_slab` (default `1.5`).  **With the default `'gl'` integrator this ladder is switched off entirely**: Gauss-Legendre collocation needs only 1-3 Hamiltonian evaluations per slab regardless, so accuracy is controlled by the slab count alone and `osc_prob` pins `n_tpts_per_slab = 2`.  These parameters matter only for `'trapezoid'` and `'simpson'`; passing one with `'gl'` does nothing, and raises an `IgnoredQuadratureSettingWarning` saying so.
 
 If we set the caps low and ask for high accuracy (`rtol = atol = 1.e-6`), `osc_prob` still returns a result, but warns that the requested tolerance could not be *verified* — at the ceiling there is no finer level left to compare against, so the check cannot be completed:'''),
     code(r'''oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, baseline*gd.UNIT_KM, verbose=2,
-                 max_n_slabs=10, max_n_tpts_per_slab=10, rtol=1.e-6, atol=1.e-6)[nu_i][nu_f]'''),
+                 max_n_slabs=10, rtol=1.e-6, atol=1.e-6)[nu_i][nu_f]'''),
     md(r'''If we use the default values of these run parameters, we will achieve the high accuracy we seek:'''),
     code(r'''oscprob.osc_prob(lambda l: H_exp_density(l, energy), 0, baseline*gd.UNIT_KM, verbose=1,
                  rtol=1.e-6, atol=1.e-6)[nu_i][nu_f]'''),
@@ -1237,21 +1237,21 @@ energy = 10.0*gd.UNIT_MEV # [eV]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, exponentially falling density
 # --------------------------------------------------------------
 prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, energy), 
                                                    0, l*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                   n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, Gaussian density
 # --------------------------------------------------------------
 prob_matt_gaussian_density = np.array([oscprob.osc_prob(lambda l: H_func_gaussian_density(l, energy), 
                                                         0, l*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=10, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                        n_slabs=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In vacuum
@@ -1259,7 +1259,7 @@ prob_matt_gaussian_density = np.array([oscprob.osc_prob(lambda l: H_func_gaussia
 H_vac = (1./energy)*H_vac_energy_indep # Can also call hamiltonians.hamiltonian_2nu_vacuum instead
 prob_vac = np.array([oscprob.osc_prob(lambda l: H_vac,
                                       0.0, l*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])'''),
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])'''),
     md(r'''There is no residual panel from here on, because there is nothing exact to subtract.
 What replaces it is convergence: the tolerance arguments tell the solver how hard to
 work, and notebook 21 shows what they do and do not promise.'''),
@@ -1299,14 +1299,14 @@ baseline = 1.e3 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV), 
                                                      0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, exponeitally falling density
 # --------------------------------------------------------------
 prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, enu*gd.UNIT_MEV), 
                                                    0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=20, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                   n_slabs=20, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                   for enu in energies])
 
 # --------------------------------------------------------------
@@ -1314,7 +1314,7 @@ prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(
 # --------------------------------------------------------------
 prob_matt_gaussian_density = np.array([oscprob.osc_prob(lambda l: H_func_gaussian_density(l, enu*gd.UNIT_MEV), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=20, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                        n_slabs=20, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                   for enu in energies])
 
 # --------------------------------------------------------------
@@ -1322,7 +1322,7 @@ prob_matt_gaussian_density = np.array([oscprob.osc_prob(lambda l: H_func_gaussia
 # --------------------------------------------------------------
 prob_vac = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_MEV))*H_vac_energy_indep, 
                                       0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
     md(r'''The exponential and Gaussian curves separate most where the density changes fastest.  A
 neutrino responds to how the matter is arranged along its path, not only to how much of
 it there is; notebook 18 makes that precise with five profiles of identical mean
@@ -1431,7 +1431,7 @@ energy = 50.*gd.UNIT_MEV # [eV] #10
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, narrow castle-wall density profile
@@ -1447,7 +1447,7 @@ prob_matt_castle_wall_narrow = oscprob.osc_prob_energy_baseline(
                                 num_density_e_high, n_castle_slabs_narrow,
                                 l_ini, l_fin), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4,
+    magnus_exp_order=4,
     t_breakpoints=castle_wall_breakpoints(n_castle_slabs_narrow, l_ini, l_fin))
 
 # --------------------------------------------------------------
@@ -1464,7 +1464,7 @@ prob_matt_castle_wall_wide = oscprob.osc_prob_energy_baseline(
                                 num_density_e_high, n_castle_slabs_wide,
                                 l_ini, l_fin), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4,
+    magnus_exp_order=4,
     t_breakpoints=castle_wall_breakpoints(n_castle_slabs_wide, l_ini, l_fin))'''),
     md(r'''Two slab widths are shown, narrow and wide.  Read them as the same physics sampled two
 ways rather than as two different systems.'''),
@@ -1503,7 +1503,7 @@ baseline = 1.e4 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV),
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 
 # --------------------------------------------------------------
@@ -1513,7 +1513,7 @@ prob_matt_castle_wall_narrow = np.array([oscprob.osc_prob(lambda l: H_func_castl
                                                                                        num_density_e_low, num_density_e_high, 
                                                                                        n_castle_slabs_narrow, l_ini, l_fin), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10,
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10,
                                                      t_breakpoints=castle_wall_breakpoints(n_castle_slabs_narrow, l_ini, l_fin))[nu_i][nu_f] \
                                           for enu in energies]) 
 
@@ -1524,7 +1524,7 @@ prob_matt_castle_wall_wide = np.array([oscprob.osc_prob(lambda l: H_func_castle_
                                                                                        num_density_e_low, num_density_e_high, 
                                                                                        n_castle_slabs_wide, l_ini, l_fin), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10,
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10,
                                                      t_breakpoints=castle_wall_breakpoints(n_castle_slabs_wide, l_ini, l_fin))[nu_i][nu_f] \
                                           for enu in energies])  '''),
     md(r'''The distance scan above uses `oscprob.osc_prob_energy_baseline` with `cumulative=True`,
@@ -1643,7 +1643,7 @@ energy = 50.*gd.UNIT_MEV # [eV] #10
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, constant density, high-amplitude noise
@@ -1658,7 +1658,7 @@ prob_matt_const_density_noisy_high_amplitude = oscprob.osc_prob_energy_baseline(
     lambda l: H_func_const_density_noisy(l, energy, num_density_e_center,
                                         l_ini, l_fin, noise_model='high-amplitude'), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # --------------------------------------------------------------
 # In matter, constant density, low-amplitude noise
@@ -1673,7 +1673,7 @@ prob_matt_const_density_noisy_low_amplitude = oscprob.osc_prob_energy_baseline(
     lambda l: H_func_const_density_noisy(l, energy, num_density_e_center,
                                         l_ini, l_fin, noise_model='low-amplitude'), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # # --------------------------------------------------------------
 # # In matter, exponentially falling density
@@ -1726,7 +1726,7 @@ baseline = 1.e5 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV),
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, constant density, high-amplitude noise
@@ -1736,7 +1736,7 @@ prob_matt_const_density_noisy_high_amplitude = np.array([oscprob.osc_prob(lambda
                                                                                                             l_ini, l_fin,
                                                                                                             noise_model='high-amplitude'), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                           for enu in energies]) 
 
 # --------------------------------------------------------------
@@ -1747,7 +1747,7 @@ prob_matt_const_density_noisy_low_amplitude = np.array([oscprob.osc_prob(lambda 
                                                                                                             l_ini, l_fin,
                                                                                                             noise_model='low-amplitude'), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                           for enu in energies]) '''),
     md(r'''Against energy, the noisy curve tracks the smooth one and departs from it where the
 oscillation length becomes comparable to the scale of the noise.'''),
@@ -1838,7 +1838,7 @@ for i in range(len(costhz_val)):
     # default 1e-3 tolerance without it (4.2e-3 -> 3.3e-6).
     prem_bp = earth.prem_layer_edges_along_chord(costhz_val[i])*gd.UNIT_KM
     prob = np.array([oscprob.osc_prob(lambda l: H_func_prem(costhz_val[i], l, energy), 0, l*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10,
+                                      n_slabs=100, magnus_exp_order=4, n_jobs=10,
                                       t_breakpoints=prem_bp)[nu_i][nu_f] for l in distances]) 
     prob_val.append(prob)'''),
     md(r'''The vertical structure in the curve is the core-mantle boundary.  A neutrino whose chord
@@ -1885,7 +1885,7 @@ for i in range(len(costhz_val)):
     prem_bp = earth.prem_layer_edges_along_chord(costhz_val[i])*gd.UNIT_KM
     prob = np.array([oscprob.osc_prob(lambda l: H_func_prem(costhz_val[i], l, enu*gd.UNIT_MEV), 
                                       0, l_max_val[i]*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10,
+                                      n_slabs=100, magnus_exp_order=4, n_jobs=10,
                                       t_breakpoints=prem_bp)[nu_i][nu_f] for enu in energies]) 
     prob_val.append(prob)'''),
     md(r'''Against energy, the same geometry produces the pattern an atmospheric detector measures.
@@ -1952,7 +1952,7 @@ H_func_const_density = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth
                                       + hamiltonians.hamiltonian_2nu_matter(VCC_func_const_density_sun(l))
 prob_matt_const_density = np.array([oscprob.osc_prob(H_func_const_density, 
                                                      0, l*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, solar matter density profile
@@ -1970,7 +1970,7 @@ H_func_exp_density = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth, 
 prob_matt_exp_density = oscprob.osc_prob_energy_baseline(
     H_func_exp_density, energy, distances*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # --------------------------------------------------------------
 # In vacuum
@@ -1979,7 +1979,7 @@ prob_matt_exp_density = oscprob.osc_prob_energy_baseline(
 H_func = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth, Dm2)
 prob_vac = np.array([oscprob.osc_prob(H_func,
                                       0.0, l*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 # # Using standard formula
 # prob_std = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, energy, l*gd.CONV_KM_TO_INV_EV)[nu_i][nu_f] for l in distances])'''),
     md(r'''The scan above prints a `ToleranceNotAchievedWarning`, and so does the energy scan in
@@ -2031,7 +2031,7 @@ def H_func_const_density(l, energy):
     return (1/energy)*H_vac_energy_indep+H_matt
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV), 
                                                      0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, solar matter density profile
@@ -2040,7 +2040,7 @@ def H_func_exp_density(l, energy):
     return (1/energy)*H_vac_energy_indep+hamiltonians.hamiltonian_2nu_matter(VCC_func_exp_sun(l)) 
 prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, enu*gd.UNIT_MEV), 
                                                    0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=200, n_tpts_per_slab=100, magnus_exp_order=2, n_jobs=10)[nu_i][nu_f] \
+                                                   n_slabs=200, magnus_exp_order=2, n_jobs=10)[nu_i][nu_f] \
                                                    # n_slabs=200, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=8)[nu_i][nu_f] \
                                   for enu in energies])
 
@@ -2049,7 +2049,7 @@ prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(
 # --------------------------------------------------------------
 prob_vac = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_MEV))*H_vac_energy_indep, 
                                       0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
     md(r'''Against energy, the survival probability falls with energy: low-energy neutrinos leave
 the Sun as they were produced, and high-energy ones leave in a single matter eigenstate.
 That crossover is the MSW effect, and notebook 13 does it properly with a tabulated solar
@@ -2467,21 +2467,21 @@ energy = 10.0*gd.UNIT_MEV # [eV]
 # --------------------------------------------------------------
 prob_matt_const_density_all = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2) for l in distances])
 
 # --------------------------------------------------------------
 # In matter, exponentially falling density
 # --------------------------------------------------------------
 prob_matt_exp_density_all = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, energy), 
                                                    0, l*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10)for l in distances])
+                                                   n_slabs=100, magnus_exp_order=4, n_jobs=10)for l in distances])
 
 # --------------------------------------------------------------
 # In matter, Gaussian density
 # --------------------------------------------------------------
 prob_matt_gaussian_density_all = np.array([oscprob.osc_prob(lambda l: H_func_gaussian_density(l, energy), 
                                                         0, l*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10) for l in distances])
+                                                        n_slabs=100, magnus_exp_order=4, n_jobs=10) for l in distances])
 
 # --------------------------------------------------------------
 # In vacuum
@@ -2489,7 +2489,7 @@ prob_matt_gaussian_density_all = np.array([oscprob.osc_prob(lambda l: H_func_gau
 H_vac = (1./energy)*H_vac_energy_indep # Can also call hamiltonians.hamiltonian_2nu_vacuum instead
 prob_vac_all = np.array([oscprob.osc_prob(lambda l: H_vac,
                                       0.0, l*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2, n_jobs=1) for l in distances])'''),
+                                      n_slabs=1, magnus_exp_order=2, n_jobs=1) for l in distances])'''),
     code(r'''channels = [(gd.NUE, gd.NUE), (gd.NUE, gd.NUMU),
             (gd.NUMU, gd.NUMU), (gd.NUMU, gd.NUTAU)]
 norm = (gd.N_AV/pow(gd.CONV_CM_TO_INV_EV, 3.0))
@@ -2529,14 +2529,14 @@ baseline = 1.e3 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density_all = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV), 
                                                      0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, exponentially falling density
 # --------------------------------------------------------------
 prob_matt_exp_density_all = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, enu*gd.UNIT_MEV), 
                                                    0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10) \
+                                                   n_slabs=100, magnus_exp_order=4, n_jobs=10) \
                                   for enu in energies])
 
 # --------------------------------------------------------------
@@ -2544,7 +2544,7 @@ prob_matt_exp_density_all = np.array([oscprob.osc_prob(lambda l: H_func_exp_dens
 # --------------------------------------------------------------
 prob_matt_gaussian_density_all = np.array([oscprob.osc_prob(lambda l: H_func_gaussian_density(l, enu*gd.UNIT_MEV), 
                                                         0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                        n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10) \
+                                                        n_slabs=100, magnus_exp_order=4, n_jobs=10) \
                                   for enu in energies])
 
 # --------------------------------------------------------------
@@ -2552,7 +2552,7 @@ prob_matt_gaussian_density_all = np.array([oscprob.osc_prob(lambda l: H_func_gau
 # --------------------------------------------------------------
 prob_vac_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_MEV))*H_vac_energy_indep, 
                                       0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                      n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''channels = [(gd.NUE, gd.NUE), (gd.NUE, gd.NUMU),
             (gd.NUMU, gd.NUMU), (gd.NUMU, gd.NUTAU)]
 fig, ax = plotting.plot_probability_with_profile(
@@ -2663,7 +2663,7 @@ energy = 50.*gd.UNIT_MEV # [eV] #10
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, narrow castle-wall density profile
@@ -2679,7 +2679,7 @@ prob_matt_castle_wall_narrow = oscprob.osc_prob_energy_baseline(
                                 num_density_e_high, n_castle_slabs_narrow,
                                 l_ini, l_fin), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4,
+    magnus_exp_order=4,
     t_breakpoints=castle_wall_breakpoints(n_castle_slabs_narrow, l_ini, l_fin))
 
 # --------------------------------------------------------------
@@ -2696,7 +2696,7 @@ prob_matt_castle_wall_wide = oscprob.osc_prob_energy_baseline(
                                 num_density_e_high, n_castle_slabs_wide,
                                 l_ini, l_fin), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4,
+    magnus_exp_order=4,
     t_breakpoints=castle_wall_breakpoints(n_castle_slabs_wide, l_ini, l_fin))'''),
     code(r'''norm = (gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0))
 fig, ax = plotting.plot_probability_with_profile(
@@ -2733,7 +2733,7 @@ baseline = 1.e4 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV),
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 
 # --------------------------------------------------------------
@@ -2743,7 +2743,7 @@ prob_matt_castle_wall_narrow = np.array([oscprob.osc_prob(lambda l: H_func_castl
                                                                                        num_density_e_low, num_density_e_high, 
                                                                                        n_castle_slabs_narrow, l_ini, l_fin), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10,
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10,
                                                      t_breakpoints=castle_wall_breakpoints(n_castle_slabs_narrow, l_ini, l_fin))[nu_i][nu_f] \
                                           for enu in energies]) 
 
@@ -2754,7 +2754,7 @@ prob_matt_castle_wall_wide = np.array([oscprob.osc_prob(lambda l: H_func_castle_
                                                                                        num_density_e_low, num_density_e_high, 
                                                                                        n_castle_slabs_wide, l_ini, l_fin), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10,
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10,
                                                      t_breakpoints=castle_wall_breakpoints(n_castle_slabs_wide, l_ini, l_fin))[nu_i][nu_f] \
                                           for enu in energies])  '''),
     code(r'''smooth = lambda y: sp.signal.savgol_filter(y, window_length=301, polyorder=1)
@@ -2869,7 +2869,7 @@ energy = 50.*gd.UNIT_MEV # [eV] #10
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, energy), 
                                                      0, l*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, constant density, high-amplitude noise
@@ -2884,7 +2884,7 @@ prob_matt_const_density_noisy_high_amplitude = oscprob.osc_prob_energy_baseline(
     lambda l: H_func_const_density_noisy(l, energy, num_density_e_center,
                                         l_ini, l_fin, noise_model='high-amplitude'), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # --------------------------------------------------------------
 # In matter, constant density, low-amplitude noise
@@ -2899,7 +2899,7 @@ prob_matt_const_density_noisy_low_amplitude = oscprob.osc_prob_energy_baseline(
     lambda l: H_func_const_density_noisy(l, energy, num_density_e_center,
                                         l_ini, l_fin, noise_model='low-amplitude'), energy, distances*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # # --------------------------------------------------------------
 # # In matter, exponentially falling density
@@ -2949,7 +2949,7 @@ baseline = 1.e5 # [km]
 # --------------------------------------------------------------
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV),
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, constant density, high-amplitude noise
@@ -2959,7 +2959,7 @@ prob_matt_const_density_noisy_high_amplitude = np.array([oscprob.osc_prob(lambda
                                                                                                             l_ini, l_fin,
                                                                                                             noise_model='high-amplitude'), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                           for enu in energies]) 
 
 # --------------------------------------------------------------
@@ -2970,7 +2970,7 @@ prob_matt_const_density_noisy_low_amplitude = np.array([oscprob.osc_prob(lambda 
                                                                                                             l_ini, l_fin,
                                                                                                             noise_model='low-amplitude'), 
                                                      0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=150, n_tpts_per_slab=100, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
+                                                     n_slabs=150, magnus_exp_order=4, n_jobs=10)[nu_i][nu_f] \
                                           for enu in energies]) '''),
     code(r'''smooth = lambda y, po=1: sp.signal.savgol_filter(y, window_length=301, polyorder=po)
 fig, ax = plotting.plot_probability_with_profile(
@@ -3057,7 +3057,7 @@ for i in range(len(costhz_val)):
     # default 1e-3 tolerance without it (4.2e-3 -> 3.3e-6).
     prem_bp = earth.prem_layer_edges_along_chord(costhz_val[i])*gd.UNIT_KM
     prob = np.array([oscprob.osc_prob(lambda l: H_func_prem(costhz_val[i], l, energy), 0, l*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10,
+                                      n_slabs=100, magnus_exp_order=4, n_jobs=10,
                                       t_breakpoints=prem_bp)[nu_i][nu_f] for l in distances]) 
     prob_val.append(prob)'''),
     code(r'''lc = ['C0', 'C2', 'C3']
@@ -3104,7 +3104,7 @@ for i in range(len(costhz_val)):
     prem_bp = earth.prem_layer_edges_along_chord(costhz_val[i])*gd.UNIT_KM
     prob = np.array([oscprob.osc_prob(lambda l: H_func_prem(costhz_val[i], l, enu*gd.UNIT_MEV), 
                                       0, l_max_val[i]*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=100, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=10,
+                                      n_slabs=100, magnus_exp_order=4, n_jobs=10,
                                       t_breakpoints=prem_bp)[nu_i][nu_f] for enu in energies]) 
     prob_val.append(prob)'''),
     code(r'''smooth = lambda y: sp.signal.savgol_filter(y, window_length=201, polyorder=1)
@@ -3176,7 +3176,7 @@ H_func_const_density = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth
                                       + hamiltonians.hamiltonian_2nu_matter(VCC_func_const_density_sun(l))
 prob_matt_const_density = np.array([oscprob.osc_prob(H_func_const_density, 
                                                      0, l*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 
 # --------------------------------------------------------------
 # In matter, solar matter density profile
@@ -3194,7 +3194,7 @@ H_func_exp_density = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth, 
 prob_matt_exp_density = oscprob.osc_prob_energy_baseline(
     H_func_exp_density, energy, distances*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV,
     0.0, nu_i, nu_f, cumulative=True,
-    n_tpts_per_slab=100, magnus_exp_order=4)
+    magnus_exp_order=4)
 
 # --------------------------------------------------------------
 # In vacuum
@@ -3203,7 +3203,7 @@ prob_matt_exp_density = oscprob.osc_prob_energy_baseline(
 H_func = lambda l: hamiltonians.hamiltonian_2nu_vacuum(energy, sth, Dm2)
 prob_vac = np.array([oscprob.osc_prob(H_func,
                                       0.0, l*gd.SUN_RADIUS*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for l in distances])
 # # Using standard formula
 # prob_std = np.array([oscprobstd.osc_prob_2nu_vacuum_std(sth, Dm2, energy, l*gd.CONV_KM_TO_INV_EV)[nu_i][nu_f] for l in distances])'''),
     code(r'''norm = (gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0))
@@ -3251,7 +3251,7 @@ def H_func_const_density(l, energy):
     return (1/energy)*H_vac_energy_indep+H_matt
 prob_matt_const_density = np.array([oscprob.osc_prob(lambda l: H_func_const_density(l, enu*gd.UNIT_MEV), 
                                                      0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                     n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
+                                                     n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])
 
 # --------------------------------------------------------------
 # In matter, solar matter density profile
@@ -3260,7 +3260,7 @@ def H_func_exp_density(l, energy):
     return (1/energy)*H_vac_energy_indep+hamiltonians.hamiltonian_2nu_matter(VCC_func_exp_sun(l)) 
 prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(l, enu*gd.UNIT_MEV), 
                                                    0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                                   n_slabs=200, n_tpts_per_slab=100, magnus_exp_order=2, n_jobs=10)[nu_i][nu_f] \
+                                                   n_slabs=200, magnus_exp_order=2, n_jobs=10)[nu_i][nu_f] \
                                                    # n_slabs=200, n_tpts_per_slab=20, magnus_exp_order=4, n_jobs=8)[nu_i][nu_f] \
                                   for enu in energies])
 
@@ -3269,7 +3269,7 @@ prob_matt_exp_density = np.array([oscprob.osc_prob(lambda l: H_func_exp_density(
 # --------------------------------------------------------------
 prob_vac = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_MEV))*H_vac_energy_indep, 
                                       0.0, baseline*gd.CONV_KM_TO_INV_EV, 
-                                      n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
+                                      n_slabs=1, magnus_exp_order=2)[nu_i][nu_f] for enu in energies])'''),
     code(r'''norm = (gd.N_AV/pow(gd.CONV_CM_TO_INV_EV,3.0))
 fig, ax = plotting.plot_probability_vs_energy(
     energies,
@@ -4518,14 +4518,14 @@ H_3nu_vac_en_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12,
                                                                                compute_matrix_multiplication=False) # Vacuum H without (1/E)
 prob_3nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_3nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # 3+1 probabilities
 H_4nu_vac_en_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, 
                                                                                compute_matrix_multiplication=False) 
 prob_4nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_4nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
                                            title=r'3+1 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
     code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUMU, gd.NUTAU, energies, prob_4nu_all, prob_3nu_all, N=1,
@@ -4610,7 +4610,7 @@ def H_3nu(energy, l):
     return (1/energy)*H_3nu_vac_en_indep + H_3nu_matt
 prob_3nu_all = np.array([oscprob.osc_prob(lambda l: H_3nu(enu*gd.UNIT_GEV, l), 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # 3+1 probabilities
 H_4nu_vac_en_indep = hamiltonians.hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31, D41, 
@@ -4620,7 +4620,7 @@ def H_4nu(energy, l):
     return (1/energy)*H_4nu_vac_en_indep + H_4nu_matt
 prob_4nu_all = np.array([oscprob.osc_prob(lambda l: H_4nu(enu*gd.UNIT_GEV, l), 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_4nu_all, prob_3nu_all, N=1,
                                            title=r'3+1 oscillations in constant-density matter (3~g~cm$^{-3}$), ' +
                                                  r'$L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
@@ -4894,7 +4894,7 @@ H_3nu_vac_en_indep = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(s12,
                                                                                compute_matrix_multiplication=False) # Vacuum H without (1/E)
 prob_3nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_3nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # 3+2 probabilities
 H_5nu_vac_en_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34,
@@ -4902,7 +4902,7 @@ H_5nu_vac_en_indep = hamiltonians.hamiltonian_5nu_vacuum_energy_independent(s12,
                                                                                compute_matrix_multiplication=False) 
 prob_5nu_all = np.array([oscprob.osc_prob(lambda l: (1/(enu*gd.UNIT_GEV))*H_5nu_vac_en_indep, 
                                           0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                          n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                          n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''fig, ax = make_plot_prob_Nnu_3nu_vs_energy(gd.NUE, gd.NUE, energies, prob_5nu_all, prob_3nu_all, N=2,
                                            title=r'3+2 oscillations in vacuum, $L = $~{:.2f}~km'.format(baseline), save_plot=False)'''),
     ])
@@ -5079,14 +5079,14 @@ def H_matt_std(energy, l):
     return (1/energy)*H_vac_en_indep + H_matt
 prob_matt_std_all = np.array([oscprob.osc_prob(lambda l: H_matt_std(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                               n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                               n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # Total Hamiltonian, NSI matter effects
 def H_matt_nsi(energy, l):
     return (1/energy)*H_vac_en_indep + H_matt + H_nsi
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                               n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                               n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=2,
                                                    title=r'$2\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
                                                          r'$L = $~{:.2f}~km'.format(baseline),
@@ -5176,14 +5176,14 @@ def H_matt_std(energy, l):
     return (1/energy)*H_vac_en_indep + H_matt
 prob_matt_std_all = np.array([oscprob.osc_prob(lambda l: H_matt_std(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                               n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])
+                                               n_slabs=1, magnus_exp_order=2) for enu in energies])
 
 # Total Hamiltonian, NSI matter effects
 def H_matt_nsi(energy, l):
     return (1/energy)*H_vac_en_indep + H_matt + H_nsi
 prob_matt_nsi_all = np.array([oscprob.osc_prob(lambda l: H_matt_nsi(enu*gd.UNIT_GEV, l), 
                                                0.0, gd.CONV_KM_TO_INV_EV*baseline, 
-                                               n_slabs=1, n_tpts_per_slab=10, magnus_exp_order=2) for enu in energies])'''),
+                                               n_slabs=1, magnus_exp_order=2) for enu in energies])'''),
     code(r'''fig, ax = make_plot_prob_matt_std_vs_nsi_vs_energy(gd.NUE, gd.NUE, energies, prob_matt_nsi_all, prob_matt_std_all, N=3,
                                                    title=r'$3\nu$ oscillations with NSI in constant-density matter (3~g~cm$^{-3}$), ' + \
                                                          r'$L = $~{:.2f}~km'.format(baseline),

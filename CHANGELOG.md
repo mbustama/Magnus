@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A points-per-slab setting passed with `integration_method='gl'` warns that it does nothing**
+  (issue #160 §5).  `n_tpts_per_slab`, `min_n_tpts_per_slab`, `max_n_tpts_per_slab` and
+  `growth_factor_n_tpts_per_slab` are used by `'trapezoid'` and `'simpson'` only; `'gl'`
+  evaluates the Hamiltonian at its own nodes and overrode them silently.  A value the caller
+  passes now raises the new `IgnoredQuadratureSettingWarning`, once per call, at the caller's
+  line; defaults forwarded between layers never do.  The result is unchanged.  The docstrings,
+  `methodology.rst` and `diagnostics.rst` say so, and the notebooks no longer pass these
+  settings with `'gl'` (68 calls; outputs unchanged).
 - **An odd `magnus_exp_order` with `integration_method='gl'` is refused** (issue #160 §5).  The
   Gauss-Legendre schemes have even orders only, and an odd order ran the next even one bit for
   bit (checked on main at orders 1, 3, 5 and 7 through every engine): `magnus_exp_order=3` was

@@ -413,3 +413,34 @@ def test_constant_hamiltonian_shortcut_is_unchanged_at_order_two():
     H = hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)/1.0e9
     assert np.array_equal(op.osc_prob(H, 0.0, 1000.*KM),
                           op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **OSC))
+
+
+def _quadrature_warnings(call):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        result = call()
+    return result, [w for w in caught
+                    if type(w.message).__name__ == 'IgnoredQuadratureSettingWarning']
+
+
+@pytest.mark.parametrize('setting, value', [('n_tpts_per_slab', 50), ('min_n_tpts_per_slab', 5),
+                                            ('max_n_tpts_per_slab', 10),
+                                            ('growth_factor_n_tpts_per_slab', 2.0)])
+def test_points_per_slab_under_gl_warns_once_and_changes_nothing(setting, value):
+    plain = op.osc_prob(_castle, 0.0, 3000.*KM)
+    got, caught = _quadrature_warnings(
+        lambda: op.osc_prob(_castle, 0.0, 3000.*KM, **{setting: value}))
+    assert len(caught) == 1 and setting in str(caught[0].message)
+    assert caught[0].filename == __file__
+    assert np.array_equal(got, plain)
+    _, caught = _quadrature_warnings(lambda: _exp(**{setting: value}))
+    assert len(caught) == 1 and 'osc_prob_3nu_matter_exp_density' in str(caught[0].message)
+
+
+def test_points_per_slab_is_quiet_where_it_is_used_or_not_given():
+    for call in (lambda: op.osc_prob(_castle, 0.0, 3000.*KM),
+                 lambda: op.osc_prob(_castle, 0.0, 3000.*KM, n_tpts_per_slab=50,
+                                     integration_method='simpson'),
+                 lambda: _exp(),
+                 lambda: _exp(n_tpts_per_slab=20, integration_method='trapezoid')):
+        assert _quadrature_warnings(call)[1] == []

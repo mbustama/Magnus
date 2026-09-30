@@ -107,7 +107,11 @@ order-8 schemes.  No collocation scheme of this form is known at order 10 or abo
 
 Because ``'gl'`` uses a fixed 1, 2, 3, or 4 nodes per slab, ``n_tpts_per_slab``
 plays no role for it: accuracy is controlled by the slab count alone, and the
-adaptive refinement below grows only ``n_slabs``.  The physics-informed
+adaptive refinement below grows only ``n_slabs``.  The four points-per-slab
+settings (``n_tpts_per_slab``, ``min_n_tpts_per_slab``, ``max_n_tpts_per_slab``,
+``growth_factor_n_tpts_per_slab``) do nothing with ``'gl'``; a value passed with it
+raises :class:`~magnus.oscprob.IgnoredQuadratureSettingWarning`, and the result is
+the same as without it.  The physics-informed
 starting slab count is applied for ``'gl'`` everywhere.  For the quadrature
 methods, whose accuracy is governed jointly by ``n_slabs`` and
 ``n_tpts_per_slab``, the per-point ladder does not seed, and the

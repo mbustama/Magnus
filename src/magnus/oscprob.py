@@ -1688,6 +1688,43 @@ class SolarModelRangeWarning(UserWarning):
     """
 
 
+class IgnoredQuadratureSettingWarning(UserWarning):
+    r"""Warns that a points-per-slab setting was given to the Gauss-Legendre method, which ignores it.
+
+    ``n_tpts_per_slab``, ``min_n_tpts_per_slab``, ``max_n_tpts_per_slab`` and
+    ``growth_factor_n_tpts_per_slab`` set how many points per slab the ``'trapezoid'`` and
+    ``'simpson'`` quadratures sample the Hamiltonian at, and how that number is refined.  The
+    default ``integration_method='gl'`` evaluates the Hamiltonian at its own fixed nodes, one to
+    four per slab by order, so it overrides all four: a value passed with it changed nothing,
+    silently (issue #160 §5).  The result is unaffected; the warning says the setting was not
+    used.  Only a value the caller passed is reported, never a default forwarded between layers.
+
+    .. versionadded:: 1.2.0
+    """
+
+
+#: The points-per-slab settings that only ``'trapezoid'`` and ``'simpson'`` use.
+_TPTS_SETTINGS = ('n_tpts_per_slab', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
+                  'growth_factor_n_tpts_per_slab')
+
+
+def _warn_ignored_quadrature_settings(where: str, given) -> None:
+    r"""Raises :class:`IgnoredQuadratureSettingWarning` naming ``given``, at the caller's line.
+
+    .. versionadded:: 1.2.0
+    """
+    frame, level = sys._getframe(0), 1
+    while frame is not None and frame.f_globals.get('__name__', '').startswith('magnus'):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "oscprob." + where + ": " + ", ".join(given) + (" has" if len(given) == 1 else " have") +
+        " no effect with integration_method='gl', which evaluates the Hamiltonian at its own "
+        "Gauss-Legendre nodes; the points per slab apply to 'trapezoid' and 'simpson' only.  "
+        "The result is unaffected.  Drop the setting, or pass "
+        "integration_method='trapezoid' or 'simpson' to use it.",
+        IgnoredQuadratureSettingWarning, stacklevel=level)
+
+
 #-----------------------------------------------------------------------
 # Helper functions
 #-----------------------------------------------------------------------
@@ -2088,6 +2125,12 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     if merged.get('magnus_exp_order') is not None:
         _v.check_gl_order(merged['magnus_exp_order'], merged.get('integration_method', 'gl'),
                           where)
+    if merged.get('integration_method', 'gl') == 'gl':
+        _given = [k for k in _TPTS_SETTINGS
+                  if k in merged and merged[k] is not None
+                  and merged[k] is not defaults.get(k, _NO_DEFAULT)]
+        if _given:
+            _warn_ignored_quadrature_settings(source_func_name, _given)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
@@ -3978,6 +4021,9 @@ def osc_prob(
         H_func in order to numerically compute the integrals over time 
         required by the Magnus expansion. A higher value of 
         ``n_tpts_per_slab`` yields a more accurate probability.
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     t_slab_edges : list or np.ndarray, optional
         Optional list of pairs [[t0, t1], [t1, t2], ...] with the edges
         of each time slab.  If given, it overrides ``n_slabs`` and the
@@ -4046,6 +4092,9 @@ def osc_prob(
     growth_factor_n_tpts_per_slab : int or float, optional
         Factor by which ``n_tpts_per_slab`` is multiplied on each
         refinement loop (used only when a tolerance is requested).
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     max_num_loops : int, optional
         Maximum number of refinement loops.
     min_n_slabs : int, optional
@@ -4060,8 +4109,14 @@ def osc_prob(
         budget buys it far more slabs.  An explicit value is always used as given.
     min_n_tpts_per_slab : int, optional
         Number of time points per slab in the first refinement loop.
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     max_n_tpts_per_slab : int, optional
         Maximum allowed number of time points per slab.
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     validate_input : bool, optional
         If True, validate the input parameters (set to False for a
         small speed-up once a call is known to be well-formed).
@@ -4278,6 +4333,18 @@ def osc_prob(
             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
             verbose=verbose))
+        # A caller's points-per-slab setting under 'gl' is overridden below; said once, at
+        # the entry point the caller used, so an internal call does not repeat it.
+        if integration_method == 'gl' and not _v._called_from_inside(2):
+            _d = _entry_defaults(osc_prob)
+            _given = [k for k, x in (('n_tpts_per_slab', n_tpts_per_slab),
+                                     ('min_n_tpts_per_slab', min_n_tpts_per_slab),
+                                     ('max_n_tpts_per_slab', max_n_tpts_per_slab),
+                                     ('growth_factor_n_tpts_per_slab',
+                                      growth_factor_n_tpts_per_slab))
+                      if x is not None and x is not _d[k]]
+            if _given:
+                _warn_ignored_quadrature_settings('osc_prob', _given)
 
         # A gap, an overlap, a zero-width slab or a grid stopping short of t_fin used to be
         # integrated as given, off by up to 9.4e-2; NaN edges returned NaN (issue #160 §6).
@@ -25572,4 +25639,5 @@ __all__ = [
     'PARAMETER_SET_METADATA_KEYS',
     'PASSTHROUGH_KWARGS_DOCUMENTED',
     'PhaseAveragingWarning',
+    'IgnoredQuadratureSettingWarning',
 ]
