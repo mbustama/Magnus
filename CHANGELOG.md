@@ -221,6 +221,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`diagnostics.rst` measures how the true error compares with `rtol` on smooth profiles**
+  (issue #161).  The page said an answer that stopped at a tolerance is "typically better" than
+  it, without a number.  It now quotes 48 calls on two PREM chords, under three quadrature
+  methods, Magnus orders 2 to 8 and tolerances 1e-4 and 1e-8, against the DOP853 oracle.  None
+  was outside the tolerance, the worst was 0.85 times it, and the median 0.014.  A reported
+  1.7x exceedance did not reproduce against that oracle.  The script and its output are in
+  `docs/dev/measurements/issue161_rtol_gap/`.
 - **Every Hamiltonian builder takes an array for its varying argument** (issue #155 §2).  The
   vacuum, `*_td`, NSI and LIV builders at two to five flavors and
   `hamiltonian_pseudo_dirac_vacuum` now accept `energy`, `VCC` or `l` as a number or an array,

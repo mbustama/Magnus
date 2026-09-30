@@ -76,7 +76,12 @@ formula.  Magnus forms no such estimate; it infers convergence from agreement.
 
 Usually that is conservative.  For a sequence converging as :math:`C n^{-p}` the
 level-to-level gap overstates the error of the finer level, so an answer that stopped at
-``rtol=1e-3`` is typically better than 1e-3.
+``rtol=1e-3`` is typically better than 1e-3.  Measured on two PREM chords at 3 GeV under
+``strategy='magnus'`` (``costhz`` = -0.8 and -1; ``'gl'``, ``'trapezoid'`` and ``'simpson'``;
+``magnus_exp_order`` 2 to 8; ``rtol = atol`` = 1e-4 and 1e-8), against the DOP853 oracle
+described below, none of the 48 answers was outside the tolerance.  The worst was 0.85 times it
+(``'gl'`` at order 2 and 1e-8), and the median 0.014 times it
+(``docs/dev/measurements/issue161_rtol_gap/``).
 
 **But agreement is evidence, not proof.**  On a sequence that is still jumping around, two
 levels can agree by coincidence while both are far from the truth: measured on a sawtooth
