@@ -524,3 +524,14 @@ def test_n_jobs_none_is_refused_by_name(call):
 def test_n_jobs_docs_say_the_pool_outlives_the_call_until_idle():
     doc = ' '.join(op.osc_prob_energy_baseline.__doc__.split())
     assert 'until they have been idle' in doc and '300 s' in doc
+
+
+def test_average_with_cumulative_true_is_refused():
+    _refused('cumulative', _exp, average=True, cumulative=True)
+    _refused('cumulative', op.osc_prob_3nu_vacuum, 1.0e9, 1000.*KM, average=True,
+             cumulative=True, **OSC)
+
+
+def test_average_with_the_default_or_false_cumulative_still_runs():
+    _exp(average=True)
+    _exp(average=True, cumulative=False)

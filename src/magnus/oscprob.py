@@ -2150,6 +2150,12 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     if merged.get('magnus_exp_order') is not None:
         _v.check_gl_order(merged['magnus_exp_order'], merged.get('integration_method', 'gl'),
                           where)
+    # The phase average answers in closed form or by its own sampling, never by a baseline scan,
+    # so a cumulative=True beside it was accepted and ignored (issue #160 §5).
+    if merged.get('average') is True and merged.get('cumulative') is True:
+        raise ValueError(_v._msg(where, "cumulative=True asks for a baseline scan by one "
+                                 "traversal, and average=True returns the phase average, which "
+                                 "takes no such scan: pass one or the other."))
     if merged.get('save_log') is True and merged.get('file_log') is None:
         _check_log_path(merged.get('filename_log', './out.log'), where)
     if merged.get('integration_method', 'gl') == 'gl':

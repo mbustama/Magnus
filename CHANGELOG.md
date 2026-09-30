@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`average=True` with `cumulative=True` is refused** (issue #160 §5).  The phase average takes
+  no baseline scan, so the explicit request for one was accepted and ignored.
 - **The `n_jobs` docs say the worker pool outlives the call** (issue #160 §5).  joblib's loky
   workers stay alive until idle for 300 s, which looked like leaked processes.
 - **`n_jobs=None` is refused by name** (issue #160 §5).  It was let through the check and then
