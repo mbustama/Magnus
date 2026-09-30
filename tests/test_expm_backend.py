@@ -145,6 +145,21 @@ def test_explicit_numba_without_numba_raises(monkeypatch):
         mg._expm_stack(-1j*np.eye(3), expm_backend='numba')
 
 
+def test_a_missing_numba_is_described_as_the_dependency_it_is(monkeypatch):
+    r"""numba is a base dependency (pyproject.toml), so neither the error for a missing numba
+    nor HAVE_NUMBA's docstring may call it optional or send the user to the ``fast`` extra,
+    which installs nothing more (issue #164 §2)."""
+    monkeypatch.setattr(ek, 'HAVE_NUMBA', False)
+    with pytest.raises(ValueError) as err:
+        mg._expm_stack(-1j*np.eye(3), expm_backend='numba')
+    assert 'pip install numba' in str(err.value)
+    assert 'magnuspy[fast]' not in str(err.value)
+    import inspect
+    source = inspect.getsource(ek)
+    assert 'optional dependency' not in source
+    assert 'magnuspy[fast]' not in source
+
+
 def test_auto_falls_back_without_numba(monkeypatch):
     r"""'auto' still answers, correctly, on an install with no numba."""
     monkeypatch.setattr(ek, 'HAVE_NUMBA', False)

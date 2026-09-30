@@ -150,7 +150,8 @@ HAVE_NUMBA = nb is not None
 r"""bool: Whether numba imported, and so whether the compiled kernels exist.
 
 False leaves every backend decision to ``eigh``; nothing else in the package
-changes.  numba is an optional dependency (``pip install magnuspy[fast]``).
+changes.  numba is a base dependency, so this is False only where it could not be
+installed or imported, such as a Python release numba has no wheel for yet.
 """
 
 

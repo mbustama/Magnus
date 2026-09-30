@@ -19,6 +19,7 @@ measurement (runner, case list, DOP853 references).
 | `issue120_auto_tight/` | `AUTO_LADDER_TIGHT_MAX_PHASE` and the #120 text in `CHANGELOG.md`, `engines.rst` and `DECISION_DISPATCH_ORDER.md` (PR #128) |
 | `issue122_clamp_refusal/` | The clamp table in `MIN_EFFECTIVE_REFINEMENT`'s docstring and the #122 entry of `CHANGELOG.md` (PR #123) |
 | `issue160_audit/` | The #160 checklist run case by case; the reproducer table and "Closes" line of the bundled #155/#160 pull request |
+| `issue161_rtol_gap/` | The measured true-error-to-tolerance ratios on smooth PREM chords in `diagnostics.rst` ("What `rtol` and `atol` actually control") |
 | `listing1_timing/` | The paper's timing sentence for Listing 1 |
 
 The plan these came from is `docs/dev/HANDOVER_AUTO_TIGHT.md`.  Not kept, and archived outside

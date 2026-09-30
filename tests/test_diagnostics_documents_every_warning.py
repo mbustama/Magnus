@@ -63,3 +63,16 @@ def test_every_warning_class_is_in_the_catalogue():
     assert not stale, (
         "%s documents warnings the package no longer defines: %s"
         % (DIAGNOSTICS.relative_to(REPO), ', '.join(stale)))
+
+
+def test_the_rtol_section_quotes_a_measurement_that_is_kept():
+    r"""The "What rtol and atol actually control" section says how the true error compares
+    with the tolerance on smooth profiles, and points at the kept measurement that backs it
+    (issue #161)."""
+    text = (REPO / 'docs' / 'source' / 'diagnostics.rst').read_text(encoding='utf-8')
+    start = text.index('.. _what-rtol-atol-control:')
+    section = text[start:text.index('**The oracle discipline.**', start)]
+    folder = 'docs/dev/measurements/issue161_rtol_gap/'
+    assert folder in section
+    assert (REPO / folder / 'rtol_gap.py').is_file()
+    assert (REPO / folder / 'output.txt').is_file()

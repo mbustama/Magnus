@@ -2365,6 +2365,12 @@ do the same, or that path silently runs ``'auto'`` whatever this says.
 def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     r"""Validates a requested backend and falls back to the module default.
 
+    .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       The error for a missing numba says it is a dependency and points at numba itself, not
+       at the ``fast`` extra, which installs nothing more (issue #164 §2).
+
     Parameters
     ----------
     expm_backend : str or None
@@ -2392,7 +2398,7 @@ def _resolve_expm_backend(expm_backend: Optional[str]) -> str:
     if backend == 'numba' and not expmkernels.HAVE_NUMBA:
         raise ValueError(
             "Error in magnus: magnus._expm_stack: expm_backend='numba' was requested but numba is not "
-            "installed. Install it (pip install 'magnuspy[fast]', or pip install numba), "
+            "installed, although magnuspy depends on it. Install it (pip install numba), "
             "or use expm_backend='auto', which falls back to 'eigh' when numba is absent.")
     return backend
 

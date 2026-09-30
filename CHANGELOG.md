@@ -9,6 +9,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Nothing calls numba optional any more** (issue #164 §2).  numba and matplotlib have been
+  base dependencies since the `fast` and `plot` extras were emptied, but `HAVE_NUMBA`'s docstring
+  still called numba "an optional dependency (`pip install magnuspy[fast]`)", and the error for
+  `expm_backend='numba'` without numba pointed at that extra.  Both now say numba is a dependency
+  and name `pip install numba`.  The empty `plot` and `fast` extras are kept, so
+  `pip install 'magnuspy[plot]'` from older instructions still resolves.
+- **The plotting tests pass at the declared matplotlib floor, 3.5** (issue #164 §3).  Three
+  tests read API from later releases (`Figure.get_supylabel`, the `figure.labelsize` rcParam,
+  the legend's `_ncols`), and one relied on 3.6's legend keeping more columns than entries, so
+  they failed at matplotlib 3.5.0 while the library itself worked.  They now check the same
+  behaviour through what 3.5 has; the runtime floor is unchanged.
 - **Averaging an energy-independent Hamiltonian says why no average applies** (issue #144 §3).
   A matrix, or a function of position alone, has no energy dependence for a spread to act on,
   so a pair of levels neither decohered nor coherent stays that way; the warning said only
@@ -210,6 +221,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`diagnostics.rst` measures how the true error compares with `rtol` on smooth profiles**
+  (issue #161).  The page said an answer that stopped at a tolerance is "typically better" than
+  it, without a number.  It now quotes 48 calls on two PREM chords, under three quadrature
+  methods, Magnus orders 2 to 8 and tolerances 1e-4 and 1e-8, against the DOP853 oracle.  None
+  was outside the tolerance, the worst was 0.85 times it, and the median 0.014.  A reported
+  1.7x exceedance did not reproduce against that oracle.  The script and its output are in
+  `docs/dev/measurements/issue161_rtol_gap/`.
 - **Every Hamiltonian builder takes an array for its varying argument** (issue #155 §2).  The
   vacuum, `*_td`, NSI and LIV builders at two to five flavors and
   `hamiltonian_pseudo_dirac_vacuum` now accept `energy`, `VCC` or `l` as a number or an array,
