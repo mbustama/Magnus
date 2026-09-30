@@ -464,3 +464,17 @@ def test_osc_prob_accepts_a_positive_recursion_limit():
 ])
 def test_parameter_set_name_none_is_refused_by_name(call):
     _refused('default_osc_params_set_name', call, default_osc_params_set_name=None)
+
+
+@pytest.mark.parametrize('path', ['/nonexistent_dir_xyz/out.log', '/tmp'])
+def test_log_path_that_cannot_be_written_is_refused_by_name(path):
+    _refused('filename_log', op.osc_prob_3nu_vacuum, 1.0e9, 1000.*KM, save_log=True,
+             filename_log=path, **OSC)
+    _refused('filename_log', op.osc_prob, _castle, 0.0, 1000.*KM, save_log=True,
+             filename_log=path)
+
+
+def test_log_path_that_can_be_written_still_logs(tmp_path):
+    log = tmp_path/'run.log'
+    op.osc_prob(_castle, 0.0, 1000.*KM, save_log=True, filename_log=str(log))
+    assert log.exists()

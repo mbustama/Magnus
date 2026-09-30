@@ -1708,6 +1708,31 @@ _TPTS_SETTINGS = ('n_tpts_per_slab', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab
                   'growth_factor_n_tpts_per_slab')
 
 
+def _check_log_path(filename_log, where: str) -> None:
+    r"""Refuses a ``filename_log`` that cannot be opened for writing, before any work is done.
+
+    The log file used to be opened deep inside :func:`osc_prob`, so a missing directory or a
+    path naming a directory surfaced as a raw ``FileNotFoundError`` or ``IsADirectoryError``
+    after the call had started (issue #160 §4).
+
+    .. versionadded:: 1.2.0
+    """
+    import os
+    path = os.fspath(filename_log)
+    folder = os.path.dirname(os.path.abspath(path))
+    if os.path.isdir(path):
+        why = "it is a directory"
+    elif not os.path.isdir(folder):
+        why = "its directory " + repr(folder) + " does not exist"
+    elif not os.access(folder, os.W_OK):
+        why = "its directory " + repr(folder) + " is not writable"
+    else:
+        return
+    raise ValueError(_v._msg(where, "filename_log = " + repr(path) + " cannot be written: " +
+                             why + ".  Give a file path in an existing, writable directory, "
+                             "or pass save_log=False."))
+
+
 def _warn_ignored_quadrature_settings(where: str, given) -> None:
     r"""Raises :class:`IgnoredQuadratureSettingWarning` naming ``given``, at the caller's line.
 
@@ -2125,6 +2150,8 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     if merged.get('magnus_exp_order') is not None:
         _v.check_gl_order(merged['magnus_exp_order'], merged.get('integration_method', 'gl'),
                           where)
+    if merged.get('save_log') is True and merged.get('file_log') is None:
+        _check_log_path(merged.get('filename_log', './out.log'), where)
     if merged.get('integration_method', 'gl') == 'gl':
         _given = [k for k in _TPTS_SETTINGS
                   if k in merged and merged[k] is not None
@@ -4467,6 +4494,8 @@ def osc_prob(
 
     # If there is no file object given (i.e., if file_log is None), open a log file if requested
     if file_log is None:
+        if save_log:
+            _check_log_path(filename_log, "oscprob.osc_prob")
         file_log = open(filename_log, 'w') if save_log else None
 
     # Print a list of all the parameters passed to the osc_prob function and their values

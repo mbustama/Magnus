@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A `filename_log` that cannot be written is refused by name, before any work** (issue #160
+  §4).  With `save_log=True`, a missing directory or a path naming a directory surfaced as a
+  raw `FileNotFoundError` or `IsADirectoryError` from deep inside `osc_prob`.
 - **`default_osc_params_set_name=None` is refused by name** (issue #160 §4).  It failed as
   "can only concatenate str (not NoneType) to str"; the name of a parameter set is a string.
 - **`osc_prob` checks `new_recursion_limit`** (issue #160 §4).  The scenario functions already
