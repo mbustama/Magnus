@@ -51,8 +51,9 @@ model.
 
 *The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
-warnings, each shown once per session by default; ``warnings.simplefilter('always')`` shows
-every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
+warnings, so Python's default filter shows each distinct message once per place it is raised:
+a warning with fixed text once per session, and one that reports a count or a width once for
+each value it reports.  ``warnings.simplefilter('always')`` shows every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
 catches every warning that an answer may be outside the tolerance.  They err on the side of
 caution, firing often on answers that prove accurate, because most flag a property of the
 input rather than predict the error.  Less often an answer is inaccurate and none fires: on
@@ -391,6 +392,12 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - The number is what was asked for; the *model* is the wrong one. At that size the
        two scales overlap and the pair is an ordinary sterile state.
      - The four- and five-flavor routines, which describe that spectrum properly.
+   * - :class:`magnus.oscprob.IgnoredQuadratureSettingWarning`
+     - A points-per-slab setting (``n_tpts_per_slab``, ``min_``/``max_n_tpts_per_slab``,
+       ``growth_factor_n_tpts_per_slab``) was passed with ``integration_method='gl'``.
+     - No. ``'gl'`` evaluates the Hamiltonian at its own nodes, so the setting was not used
+       and the result is what it would be without it.
+     - Drop the setting, or pass ``integration_method='trapezoid'`` or ``'simpson'`` to use it.
    * - :class:`magnus.magnus.MagnusHighOrderCostWarning`
      - ``magnus_exp_order`` above 6 on ``'trapezoid'``/``'simpson'``.
      - No -- it is a cost trade, not an error.
@@ -418,8 +425,10 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
    * - :class:`magnus.magnus.MagnusConvergenceWarning`
      - :math:`\lVert\Omega\rVert_2 \geq \pi` on some slab.
      - **Unknown.** This reports a slab width, not an error.
-     - Narrower slabs (smaller ``rtol``/``atol``, larger ``n_slabs``); ``t_breakpoints`` at
-       any jump. Raising the order does not help.
+     - Narrower slabs: a larger ``n_slabs``, or ``min_n_slabs`` to start the refinement finer;
+       ``t_breakpoints`` at any jump. A smaller ``rtol``/``atol`` adds finer levels but a coarse
+       first level is still reported. Raising the order does not help. The norm excludes the
+       trace of :math:`\Omega`, a global phase.
    * - :class:`magnus.oscprob.CrossCheckInconclusiveWarning`
      - :func:`~magnus.oscprob.cross_check_strategies` compared nothing, so its spread is
        0.0 for want of a second opinion rather than because two engines agreed.
@@ -434,9 +443,11 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        to continue the profile past the table, or use a model tabulated to the surface
        (B16, B23); see :doc:`solar_models`.
 
-**Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168
-configurations across the profile families this package serves, d = 2-5, scored against
-``solve_ivp`` or -- for piecewise-constant profiles, where it is exact -- ``expm``):
+**Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its
+168 configurations that are valid input -- the other 8 are refused -- across the profile
+families this package serves, d = 2-3, scored against ``solve_ivp`` or -- for
+piecewise-constant profiles, where it is exact -- ``expm``; measured with issue #155 §1 in
+place):
 
 .. list-table::
    :header-rows: 1
@@ -448,39 +459,39 @@ configurations across the profile families this package serves, d = 2-5, scored 
      - FP
      - FP rate
    * - :class:`magnus.magnus.MagnusConvergenceWarning`
-     - 70
-     - 17
-     - 53
-     - **76 %**
+     - 19
+     - 7
+     - 12
+     - **63 %**
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - 56
-     - 23
      - 33
-     - 59 %
+     - 23
+     - 41 %
    * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`
-     - 37
-     - 16
-     - 21
-     - 57 %
+     - 42
+     - 29
+     - 13
+     - 31 %
 
-Silent misses across that whole population: **2 of 168 (1.2 %)**.
+Silent misses across that whole population: **none of 160**; all 33 answers outside the
+tolerance carry at least one warning.
 
-Read the 59 % carefully. ``UnmarkedDiscontinuityWarning`` reports a *condition about the input*,
-not a prediction about the error, and on all 33 the condition was real -- there was an undeclared
-discontinuity -- and the answer survived anyway. Declaring the edges would still have improved it
-by orders of magnitude. A warning whose claim is true and whose advice is worth taking is not
-made a false alarm by the answer surviving.
+``UnmarkedDiscontinuityWarning`` reports a *condition about the input*, not a prediction about
+the error: when it fires there is an undeclared discontinuity, and a false positive means only
+that the answer survived it.  Declaring the edges is still the advice worth taking.
 
-``MagnusConvergenceWarning``'s 76 % has a known cause and a **measured non-fix**. Of 66
-single-point calls, some refinement level exceeded :math:`\pi` in 46, but **the level whose
-answer was returned did so in only 7** -- so 85 % of its firings describe an intermediate grid
-nobody receives. Keying it to the returned level therefore looks obviously right, and was
-implemented. Re-measured over the same 168 configurations it made the warning *worse*: firings
-fell 70 to 53, but **true positives fell 17 to 4** while false positives fell only 53 to 49.
-"The ladder started far from convergence" predicts a bad answer better than "the final grid is
-coarse" does. Nothing became silent either way (2 of 168 in both), because the cases it stopped
-flagging are covered by :class:`magnus.oscprob.ToleranceNotAchievedWarning`. Reverted; the
-mechanism and the numbers are kept in ``magnus._deferred_slab_norm``.
+``MagnusConvergenceWarning`` measures the traceless part of :math:`\Omega` (issue #155 §1).  With
+the trace counted it fired 39 times on the same 160 configurations, 8 true and 31 false; the
+trace, a global phase, accounted for 19 of the false positives and one true positive.  Its
+remaining noise has a known cause and a **measured non-fix**.  Of 69 single-point calls, some
+refinement level exceeded :math:`\pi` in 19, but **the level whose answer was returned did so in
+only 4**, so most of its firings describe an intermediate grid nobody receives.  Keying it to
+the returned level therefore looks obviously right, and was implemented in an earlier version.
+Measured then over 168 configurations, it made the warning *worse*: firings fell 70 to 53, but
+**true positives fell 17 to 4** while false positives fell only 53 to 49.  "The ladder started
+far from convergence" predicts a bad answer better than "the final grid is coarse" does.  It was
+reverted; the mechanism and the numbers are kept in ``magnus._deferred_slab_norm``.
 
 Two of these deserve their honesty spelled out rather than buried:
 

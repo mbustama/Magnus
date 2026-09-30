@@ -1794,6 +1794,22 @@ def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: f
     return U_total, windows, all_patches_converged, gamma_max, gamma_unpatched
 
 
+def _refuse_non_finite_propagator(U, l0, l1) -> None:
+    r"""Refuses a propagator that came back NaN or infinite, naming ``H_func`` (issue #160 §7).
+
+    Only the first sample of ``H_func`` is checked on entry, so a Hamiltonian that turned NaN
+    partway along the path was integrated through and returned as a NaN propagator, silently.
+    One ``isfinite`` over a ``(d, d)`` matrix per refinement level.
+
+    .. versionadded:: 1.2.0
+    """
+    if not np.all(np.isfinite(U)):
+        raise ValueError(_v._msg("adiabatic.hybrid_propagator", "H_func is not finite "
+            "everywhere on [l0, l1] = [" + format(float(l0), '.6g') + ", " +
+            format(float(l1), '.6g') + "]: the propagator came back NaN or infinite.  Check "
+            "H_func along the whole path, not only at l0."))
+
+
 @_v.validated(dict(_INTERVAL, **_H_AT_L0, rtol=_POSITIVE, atol=_POSITIVE, magnus_exp_order=_ORDER, integration_method=_METHOD, threshold0=_POSITIVE, min_threshold=_POSITIVE, n_probe0=_PROBES, max_n_probe=_PROBES, n_points0=_v.r_int(lo=2), max_n_points=_v.r_int(lo=2), fd_step_frac=_FD_STEP, max_iters=_v.r_int(lo=1), info=_v.r_dict))
 def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[float] = 1.e-3,
     atol: Optional[float] = 1.e-3, magnus_exp_order: Optional[int] = 6,
@@ -1847,6 +1863,10 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
        ``min(1e-7, (atol + rtol)/10)`` instead of a fixed 1e-7, so a tolerance tighter than
        about 1e-6 now reaches the patches; before, the result was certified at the requested
        tolerance while each patch was converged only to 1e-7.
+
+    .. versionchanged:: 1.2.0
+       A Hamiltonian that turns NaN or infinite along the path is refused, naming H_func,
+       instead of returning a NaN propagator (issue #160 §7).
 
     Parameters
     ----------
@@ -2078,6 +2098,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     U_prev, windows_prev, ok_prev, gamma_prev, gu_prev = _hybrid_propagator_once(H_func, l0,
         l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order, integration_method,
         patch_atol, extra_points=_sharp_points)
+    _refuse_non_finite_propagator(U_prev, l0, l1)
     if not ok_prev or not resolved:
         report(len(windows_prev), gamma_prev, gu_prev, 1, ok_prev)
         return U_prev, windows_prev, False
@@ -2170,6 +2191,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         U_next, windows_next, ok_next, gamma_next, gu_next = _hybrid_propagator_once(H_func,
             l0, l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order,
             integration_method, patch_atol, extra_points=extra_points, probe_out=probe_next)
+        _refuse_non_finite_propagator(U_next, l0, l1)
         if not ok_next:
             report(len(windows_next), gamma_next, gu_next, iterations, False)
             return U_next, windows_next, False

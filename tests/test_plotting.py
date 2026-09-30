@@ -18,6 +18,8 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt  # noqa: E402
+import warnings  # noqa: E402
+
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
@@ -1262,3 +1264,101 @@ def test_importing_magnus_does_not_require_matplotlib():
     """The core package must stay installable and usable without the extra."""
     import magnus
     assert 'plotting' in magnus.submodules
+
+
+def test_oscillogram_computed_for_antineutrinos_is_labelled_as_such():
+    """#145 §1: a grid computed with wrapper_kw=dict(nubar=True) was labelled nu_mu -> nu_e."""
+    CZ = np.linspace(-1.0, -0.1, 4)
+    lg = np.linspace(0.0, 1.0, 4)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                      wrapper_kw=dict(nubar=True))
+    bar = mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    assert ax.texts[0].get_text() == bar
+    assert fig.axes[1].get_ylabel() == bar
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE)
+
+
+@pytest.mark.parametrize('routine', ['plot_probability_vs_energy', 'plot_probability_vs_baseline'])
+def test_curves_can_be_declared_antineutrino(routine):
+    """#145 §2: the curve routines had no way to label antineutrino probabilities."""
+    E = np.linspace(0.5, 5.0, 20)
+    y = np.full(20, 0.1)
+    f = getattr(mp, routine)
+    _, ax = f(E, [y], nu_i=gd.NUMU, nu_f=gd.NUE, nubar=True)
+    assert mp.prob_label(gd.NUMU, gd.NUE, nubar=True) in ax.get_ylabel()
+    _, ax = f(E, [y], nu_i=gd.NUMU, nu_f=gd.NUE)
+    assert mp.prob_label(gd.NUMU, gd.NUE) in ax.get_ylabel()
+    plt.close('all')
+
+
+def test_oscillogram_nubar_keyword_computes_and_labels_antineutrinos():
+    CZ = np.linspace(-1.0, -0.1, 4)
+    lg = np.linspace(0.0, 1.0, 4)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax, P = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                         nubar=True, return_probability=True)
+        _, _, Pk = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                       wrapper_kw=dict(nubar=True), return_probability=True)
+    assert np.array_equal(P, Pk)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    # plot-only mode labels, and a contradiction is refused
+    _, ax = mp.plot_oscillogram(CZ, lg, np.full((4, 4), 0.5), nu_i=gd.NUMU, nu_f=gd.NUE,
+                                nubar=True)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    with pytest.raises(ValueError, match='contradicts'):
+        mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=False,
+                            wrapper_kw=dict(nubar=True))
+    plt.close('all')
+
+
+def test_profile_plot_nubar_contradiction_is_refused():
+    with pytest.raises(ValueError, match='contradicts'):
+        mp.plot_probability_with_profile(np.linspace(1.0, 1000.0, 20),
+                                         trajectories=[dict(costhz=-0.5)], energy=1.0,
+                                         nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=True,
+                                         wrapper_kw=dict(nubar=False), xscale='linear')
+
+
+def test_oscillogram_computes_nsi_and_liv_through_the_earth():
+    """#146 §1: eps_* or b* keys in compute mode were refused by the standard Earth wrapper."""
+    import magnus.oscprob as op
+    CZ = np.linspace(-1.0, -0.2, 3)
+    lg = np.linspace(0.0, 1.0, 3)
+    for kw, fn in [(dict(eps_ee=0.1, eps_em=0.05), op.osc_prob_3nu_earth_nsi),
+                   (dict(b1=1e-23, b2=0.0, b3=0.0, Lambda=1e9, n_liv=0), op.osc_prob_3nu_earth_liv)]:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            _, _, P = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                          wrapper_kw=kw, return_probability=True)
+            import magnus.earth as earth
+            energy = 10.0**lg*gd.UNIT_GEV
+            ref = np.stack([np.asarray(fn(energy, costhz=float(c),
+                                          L=earth.distance_traveled_inside_earth(float(c))*gd.UNIT_KM,
+                                          nu_i=gd.NUMU, nu_f=gd.NUE, **kw), dtype=float)
+                            for c in CZ], axis=1)
+        assert np.array_equal(np.asarray(P), ref)
+    plt.close('all')
+    with pytest.raises(ValueError, match='no Earth wrapper takes both'):
+        mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                            wrapper_kw=dict(eps_ee=0.1, b1=1e-23, b2=0.0, b3=0.0, Lambda=1e9,
+                                            n_liv=0))
+
+
+@pytest.mark.parametrize('nubar', [False, True])
+def test_computed_profile_plot_labels_its_probability_panel(nubar):
+    """#146 §2: the probability panel of a computed profile plot had an empty label."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_probability_with_profile(
+            np.linspace(100.0, 3000.0, 30), trajectories=[dict(costhz=-0.3)],
+            energy=2.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=nubar,
+            xscale='linear')
+    labels = [a.get_ylabel() for a in fig.axes]
+    assert any(mp.prob_label(gd.NUMU, gd.NUE, nubar=nubar) in lab for lab in labels)
+    plt.close('all')

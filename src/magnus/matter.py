@@ -95,6 +95,9 @@ def density_matter_func_const(l: float,
     r"""Returns the matter density as a function of position, assuming a 
     constant density. Used for testing purposes.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Returns the matter density as a function of position, assuming a
     constant density. Used for testing purposes.
 
@@ -126,6 +129,9 @@ def density_matter_func_const(l: float,
 def density_matter_func_exp(l: float, density_matter_central:float , l_scale: float) -> float:
     r"""Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile of the form
@@ -549,6 +555,10 @@ def num_density_e_func(l: float, density_matter_func: Callable,
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
 
+    .. versionchanged:: 1.2.0
+       Called from outside the package, the electron fraction, the neutron-to-proton ratio and
+       density_matter_func are checked by name (issue #160 §11).
+
     Parameters
     ----------
     l : float or np.ndarray
@@ -581,6 +591,25 @@ def num_density_e_func(l: float, density_matter_func: Callable,
         :math:`\text{g cm}^{-3}` when that is declared, or far too small for natural
         units when it is not.
     """
+    # Runs at every quadrature node: plain floats in range cost one comparison each (issue
+    # #160 §11); anything else is checked in full for a caller from outside the package (inside
+    # it, the wrapper has already checked the values).
+    outside = None
+    if not (type(electron_fraction) is float and 0.0 < electron_fraction <= 1.0):
+        outside = not _v._called_from_inside(2)
+        if outside:
+            _v.check_unit_fraction('electron_fraction', electron_fraction,
+                                   'matter.num_density_e_func')
+    if not (type(ratio_number_neutrons_to_protons) is float
+            and 0.0 <= ratio_number_neutrons_to_protons < _v._INF) and (
+            outside if outside is not None else not _v._called_from_inside(2)):
+        _v.check_real_array('ratio_number_neutrons_to_protons', ratio_number_neutrons_to_protons,
+                            'matter.num_density_e_func', nonnegative=True,
+                            ndim=max(np.ndim(ratio_number_neutrons_to_protons), 1))
+    if not callable(density_matter_func):
+        raise _v.InputTypeError(_v._msg('matter.num_density_e_func', 'density_matter_func '
+                                        'must be callable (a function of position); got '
+                                        + type(density_matter_func).__name__ + '.'))
     avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
                         / (1.0+ratio_number_neutrons_to_protons)
 

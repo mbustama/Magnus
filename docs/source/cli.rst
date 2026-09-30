@@ -498,8 +498,8 @@ configures):
 
    Advanced numerics:
      --magnus-exp-order MAGNUS_EXP_ORDER
-                           Highest order of the Magnus expansion (1-10; 1-8 with the
-                           default --integration-method gl). Default: 4.
+                           Highest order of the Magnus expansion (1-10; an even order from
+                           2 to 8 with the default --integration-method gl). Default: 4.
      --integration-method {gl,trapezoid,simpson}
                            Quadrature method. 'gl' (Gauss-Legendre collocation) needs only
                            1-4 Hamiltonian evaluations per slab and matches its quadrature

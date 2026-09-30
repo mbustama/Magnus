@@ -69,9 +69,13 @@ def test_row_slab_norms_are_the_per_row_maximum_and_leave_the_warning_unchanged(
     assert np.array_equal(U0, U1)
     assert seen0 == seen1                     # MagnusConvergenceWarning sees the same value
     assert len(rows) == 1 and rows[0].shape == (6,)
-    expect = np.max(np.abs(np.linalg.eigvalsh(1j*Om)), axis=(-1, -2))
+    lam = np.linalg.eigvalsh(1j*Om)
+    expect = np.max(np.abs(lam), axis=(-1, -2))
     assert np.allclose(rows[0], expect, rtol=1e-12, atol=0.0)
-    assert float(rows[0].max()) == seen1[0]
+    # The gate keeps the full norm; the warning measures the traceless part (issue #155 §1).
+    traceless = np.max(np.abs(lam - lam.mean(axis=-1, keepdims=True)))
+    assert np.isclose(seen1[0], traceless, rtol=1e-12, atol=0.0)
+    assert seen1[0] <= float(rows[0].max()) + 1e-12
     # nothing is collected for a constant A, without warn_wide, and the sink is restored
     # after an exception
     with mg._row_slab_norms() as rows:

@@ -296,6 +296,7 @@ import os
 import numbers
 import numpy as np
 import sys
+import time
 import warnings
 import weakref
 from contextlib import contextmanager, nullcontext
@@ -804,6 +805,23 @@ milliseconds for that is the right way round.
 # adiabatic.find_hidden_features, which looks at the profile rather than at the answers.
 #
 # Reproduce: docs/dev/adversarial_batteries/crosscheck_benefit.py and weak_band.py.
+
+N_JOBS_MIN_PARALLEL_WORK_S = 1.0
+r"""float: Module-level constant
+
+Seconds of serial work below which ``n_jobs > 1`` finishes a per-point scan in the calling
+process instead of starting worker processes (issue #155 §3).
+
+:func:`osc_prob_energy_baseline` always computes the first point serially, to warm-start the
+rest.  Its time, multiplied by the points left, estimates what the rest would cost serially.  A
+process pool pays for starting its workers and importing Magnus in each before the first task
+runs: measured at 1.2 to 2.2 s for 2 to 4 workers on a 5-point scan whose serial cost was
+0.07 s (1.4 to 3 s in the beta test that reported it).  Below 1 s of serial work, then, the pool
+cannot win, and the scan runs serially: faster, never slower.  Above it the pool runs as
+before.
+
+.. versionadded:: 1.2.0
+"""
 
 HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8
 r"""int: Module-level constant
@@ -1402,8 +1420,9 @@ class ToleranceNotAchievedWarning(UserWarning):
     :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
     on this class catches all three.
 
-    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations):
-    fired 37 times, **16 true positives and 21 false positives -- a 57 % false-positive rate**.
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its 168
+    configurations that are valid input): fired 42 times, **29 true positives and 13 false
+    positives -- a 31 % false-positive rate**.
     A false positive here means the ladder genuinely ran out of room *and* the answer was
     nonetheless inside tolerance, which is the expected shape: a cap is reached before
     convergence has been *verified*, not before it has been *achieved*.
@@ -1488,12 +1507,12 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     :func:`magnus.magnus.magnus_expansion_multislab`, whose slabs are given, when a declared
     breakpoint lies strictly inside one of them.
 
-    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations
-    including 48 random piecewise-constant profiles with the edges deliberately left
-    undeclared): fired 56 times, **23 true positives and 33 false positives -- 59 %**.  Read
-    that number carefully: this reports a *condition about the input*, not a prediction about
-    the error, and on every one of those 33 the condition was real -- there was an undeclared
-    discontinuity -- and the answer happened to come out inside tolerance anyway.  Declaring the
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its 168
+    configurations that are valid input, including random piecewise-constant profiles with the
+    edges deliberately left undeclared): fired 56 times, **33 true positives and 23 false
+    positives -- 41 %**.  Read that number carefully: this reports a *condition about the
+    input*, not a prediction about the error, and a false positive means the undeclared
+    discontinuity was there but the answer happened to come out inside tolerance anyway.  Declaring the
     edges would still have improved it (median 7.8e-04 to 1.3e-12 in ``FINDINGS`` §9.2).  A
     warning whose claim is true and whose advice is worth taking is not made a false alarm by
     the answer surviving.
@@ -1667,6 +1686,68 @@ class SolarModelRangeWarning(UserWarning):
 
     .. versionadded:: 1.1.1
     """
+
+
+class IgnoredQuadratureSettingWarning(UserWarning):
+    r"""Warns that a points-per-slab setting was given to the Gauss-Legendre method, which ignores it.
+
+    ``n_tpts_per_slab``, ``min_n_tpts_per_slab``, ``max_n_tpts_per_slab`` and
+    ``growth_factor_n_tpts_per_slab`` set how many points per slab the ``'trapezoid'`` and
+    ``'simpson'`` quadratures sample the Hamiltonian at, and how that number is refined.  The
+    default ``integration_method='gl'`` evaluates the Hamiltonian at its own fixed nodes, one to
+    four per slab by order, so it overrides all four: a value passed with it changed nothing,
+    silently (issue #160 §5).  The result is unaffected; the warning says the setting was not
+    used.  Only a value the caller passed is reported, never a default forwarded between layers.
+
+    .. versionadded:: 1.2.0
+    """
+
+
+#: The points-per-slab settings that only ``'trapezoid'`` and ``'simpson'`` use.
+_TPTS_SETTINGS = ('n_tpts_per_slab', 'min_n_tpts_per_slab', 'max_n_tpts_per_slab',
+                  'growth_factor_n_tpts_per_slab')
+
+
+def _check_log_path(filename_log, where: str) -> None:
+    r"""Refuses a ``filename_log`` that cannot be opened for writing, before any work is done.
+
+    The log file used to be opened deep inside :func:`osc_prob`, so a missing directory or a
+    path naming a directory surfaced as a raw ``FileNotFoundError`` or ``IsADirectoryError``
+    after the call had started (issue #160 §4).
+
+    .. versionadded:: 1.2.0
+    """
+    import os
+    path = os.fspath(filename_log)
+    folder = os.path.dirname(os.path.abspath(path))
+    if os.path.isdir(path):
+        why = "it is a directory"
+    elif not os.path.isdir(folder):
+        why = "its directory " + repr(folder) + " does not exist"
+    elif not os.access(folder, os.W_OK):
+        why = "its directory " + repr(folder) + " is not writable"
+    else:
+        return
+    raise ValueError(_v._msg(where, "filename_log = " + repr(path) + " cannot be written: " +
+                             why + ".  Give a file path in an existing, writable directory, "
+                             "or pass save_log=False."))
+
+
+def _warn_ignored_quadrature_settings(where: str, given) -> None:
+    r"""Raises :class:`IgnoredQuadratureSettingWarning` naming ``given``, at the caller's line.
+
+    .. versionadded:: 1.2.0
+    """
+    frame, level = sys._getframe(0), 1
+    while frame is not None and frame.f_globals.get('__name__', '').startswith('magnus'):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "oscprob." + where + ": " + ", ".join(given) + (" has" if len(given) == 1 else " have") +
+        " no effect with integration_method='gl', which evaluates the Hamiltonian at its own "
+        "Gauss-Legendre nodes; the points per slab apply to 'trapezoid' and 'simpson' only.  "
+        "The result is unaffected.  Drop the setting, or pass "
+        "integration_method='trapezoid' or 'simpson' to use it.",
+        IgnoredQuadratureSettingWarning, stacklevel=level)
 
 
 #-----------------------------------------------------------------------
@@ -1982,7 +2063,7 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
     'strategy': lambda name, x, where: _v.check_choice(
         name, x, where, ('auto', 'hybrid', 'magnus')),
     'filename_log': _str,
-    'default_osc_params_set_name': _str_or_none,
+    'default_osc_params_set_name': _str,
     'angles': lambda name, x, where: _v.check_choice(
         name, x, where, ('sin', 'sin2', 'rad', 'deg')),
 })
@@ -1990,6 +2071,27 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
 
 _ENTRY_DEFAULTS = {}
 _NO_DEFAULT = object()
+# Arguments for which None is not a value: the flags, and the two settings whose None the
+# entry points used to pass on to code that could not take it (issue #160 §4).  Every other
+# argument's None means "not given" and is skipped, as before.
+_NONE_REFUSED = frozenset(('nubar', 'average', 'density_matter_is_in_g_per_cm3',
+                           'density_is_of_number_of_electrons', 'return_evolution_operator',
+                           'strict_convergence', 'validate_input', 'save_log',
+                           'close_file_log_upon_exit', 'H_func_is_function_only_of_energy',
+                           'cumulative', 'default_osc_params_set_name', 'n_jobs'))
+
+
+def _validation_requested(validate_input, where: str) -> bool:
+    r"""``validate_input``, checked before it decides whether anything else is (issue #160 §4).
+
+    Read as a truth value before any check ran, so ``None`` turned validation off silently and
+    an array raised NumPy's "truth value of an array is ambiguous".
+
+    .. versionadded:: 1.2.0
+    """
+    if validate_input is True or validate_input is False:
+        return validate_input
+    return bool(_v.check_bool('validate_input', validate_input, "oscprob." + where))
 _SCENARIO_FUNCTION_NAMES = frozenset(('osc_prob_vacuum', 'osc_prob_matter_std_potential',
                                       'osc_prob_matter_nsi', 'osc_prob_liv'))
 
@@ -2003,6 +2105,50 @@ def _entry_defaults(func) -> dict:
     return d
 
 
+def _exp_profile(rho_central, l_scale, source_func_name: str):
+    r"""``matter.exp_density_profile``, with its two arguments checked in the wrapper's name.
+
+    The factory checks its arguments only for callers outside the package, so a wrapper's
+    ``l_scale=nan`` used to surface as "rho_func must be finite; it returned nan at L0"
+    (issue #160 §1).
+
+    .. versionadded:: 1.2.0
+    """
+    where = "oscprob." + source_func_name
+    _ENTRY_RULES['rho_central']('rho_central', rho_central, where)
+    _ENTRY_RULES['l_scale']('l_scale', l_scale, where)
+    return matter.exp_density_profile(rho_central, l_scale)
+
+
+#: The arguments whose combinations _entry_combinations checks; only these are collected.
+_COMBINATION_KEYS = frozenset(('magnus_exp_order', 'integration_method', 'cumulative',
+                               'save_log', 'n_tpts_per_slab', 'min_n_tpts_per_slab',
+                               'max_n_tpts_per_slab', 'growth_factor_n_tpts_per_slab'))
+
+
+def _entry_combinations(source_func_name: str, where: str, merged: dict, given: list) -> None:
+    r"""The checks of :func:`_validate_entry` that involve an argument the caller set.
+
+    .. versionadded:: 1.2.0
+    """
+    if 'magnus_exp_order' in given or 'integration_method' in given:
+        _v.check_gl_order(merged.get('magnus_exp_order', 4),
+                          merged.get('integration_method', 'gl'), where)
+    # The phase average answers in closed form or by its own sampling, never by a baseline scan,
+    # so a cumulative=True beside it was accepted and ignored (issue #160 §5).
+    if 'cumulative' in given and merged.get('average') is True \
+            and merged.get('cumulative') is True:
+        raise ValueError(_v._msg(where, "cumulative=True asks for a baseline scan by one "
+                                 "traversal, and average=True returns the phase average, which "
+                                 "takes no such scan: pass one or the other."))
+    if 'save_log' in given and merged.get('save_log') is True \
+            and merged.get('file_log') is None:
+        _check_log_path(merged.get('filename_log', './out.log'), where)
+    tpts = [k for k in _TPTS_SETTINGS if k in given]
+    if tpts and merged.get('integration_method', 'gl') == 'gl':
+        _warn_ignored_quadrature_settings(source_func_name, tpts)
+
+
 def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     r"""Apply :data:`_ENTRY_RULES` to the arguments in ``values`` (a scenario function's locals).
 
@@ -2010,6 +2156,11 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     reach the scenario functions through it.  Once per call; never inside an engine.
 
     .. versionadded:: 1.2.0
+
+    .. versionchanged:: 1.2.0
+       Refuses flags given as None, a validate_input that is not a bool, t_breakpoints of which
+       none lies on the path, average with cumulative=True and an unwritable filename_log; warns
+       when a points-per-slab setting is given with 'gl' (issue #160 §4 to §6).
     """
     where = "oscprob." + source_func_name
     rules = _ENTRY_RULES
@@ -2017,21 +2168,30 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     # most arguments of most calls are; skipping them by identity keeps this pass to about a
     # microsecond on a single-point call.
     defaults = _entry_defaults(func) if func is not None else {}
+    # The arguments the caller actually set, collected on the way: the combination checks
+    # below look only at these, so a call that sets none of them pays nothing for them.
+    given = []
     for key, x in values.items():
-        if x is None or x is defaults.get(key, _NO_DEFAULT):
+        if x is defaults.get(key, _NO_DEFAULT) or (x is None and key not in _NONE_REFUSED):
             continue
+        if key in _COMBINATION_KEYS:
+            given.append(key)
         rule = rules.get(key)
         if rule is not None:
             rule(key, x, where)
     kw = values.get('kwargs')
     if kw:
         for key, x in kw.items():
+            if key in _COMBINATION_KEYS and (x is not None or key in _NONE_REFUSED):
+                given.append(key)
             rule = rules.get(key)
-            if rule is not None and x is not None:
+            if rule is not None and (x is not None or key in _NONE_REFUSED):
                 rule(key, x, where)
         merged = dict(values, **kw)
     else:
         merged = values
+    if given:
+        _entry_combinations(source_func_name, where, merged, given)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
@@ -2052,6 +2212,21 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
                 "API is in natural units, so these were most likely kilometers left "
                 "unconverted, and they mark nothing on the path.  Multiply by gd.UNIT_KM.",
                 gd.BaselineUnitWarning, stacklevel=3)
+        # Breakpoints of which none lies on the path mark nothing on it: a sign or a unit gone
+        # wrong, accepted and ignored (issue #160 §6).  Some off the path are fine -- the
+        # breakpoints of a whole profile reused for a shorter path, as solar_models.rst does
+        # with a table's rows -- since those on it still mark the jumps.  The path runs from
+        # L0 to the longest baseline.
+        _Lr, _L0r = _minmax_1d(merged.get('L')), merged.get('L0', 0.0)
+        _L0r = 0.0 if _L0r is None else _L0r
+        if _bpa.size and _Lr is not None and _v.is_real_scalar(_L0r):
+            _bpv = np.asarray(_bp, dtype=float)
+            _lo, _hi = min(float(_L0r), _Lr[0]), max(float(_L0r), _Lr[1])
+            if not np.any((_bpv >= _lo) & (_bpv <= _hi)):
+                raise ValueError(_v._msg(where, "none of the t_breakpoints lies on the path, "
+                    "between L0 = " + format(_lo, '.6g') + " and the longest baseline, " +
+                    format(_hi, '.6g') + " [eV^-1], so they mark nothing on it; the first is " +
+                    format(float(_bpv.ravel()[0]), '.6g') + ".  Check their sign and unit."))
     # Slab edges given for a single baseline are checked here, where the message can name the
     # function the caller called; osc_prob checks them again for its own direct callers.
     _te = merged.get('t_slab_edges')
@@ -2108,6 +2283,9 @@ def validate_input_battery(
     core.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A single-entry energy or L is accepted against a longer one (issue #160 §1).
 
     Parameters
     ----------
@@ -2212,12 +2390,14 @@ def validate_input_battery(
 
     if validate_energy_and_L:
 
+        # A single-entry array against a longer one is broadcast, as osc_prob_energy_baseline
+        # always did (issue #160 §1); the wrappers used to refuse it.
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-            (len(energy) != len(L)) ):
+            (len(energy) != len(L)) and len(energy) != 1 and len(L) != 1 ):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
-                "the same length.")
+                "the same length, or one of them a single entry.")
 
         # An energy that looks like MeV or GeV left unconverted (issue #160 §1); see
         # globaldefs.EnergyUnitWarning.
@@ -2520,6 +2700,10 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
        Returns ``(rho_func, ratio_resolved)`` instead of ``rho_func`` alone, and accepts
        ``ratio_number_neutrons_to_protons=None`` (the new wrapper default) meaning
        "follow the composition".
+
+    .. versionchanged:: 1.2.0
+       A ratio is refused at two and three flavors, where it has no effect, and a callable one
+       is checked at its first value (issue #160 §1).
     """
 
     # Both depths are declared Optional, so None has to mean "no depth".  Normalized
@@ -2557,6 +2741,21 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
                       "Y_e = <Z/A>")
     _ratio('ratio_number_neutrons_to_protons', ratio_number_neutrons_to_protons,
            "oscprob." + source_func_name)
+    # The caller's ratio enters only the sterile projector: the density derives its own from
+    # Y_e.  At two and three flavors there is no sterile block, so a ratio, scalar or callable,
+    # was accepted and ignored; above that a callable's first sample is checked, as rho_func's
+    # is, since a NaN one came back as NaN probabilities (issue #160 §1).
+    if ratio_number_neutrons_to_protons is not None:
+        if num_flavors in (2, 3):
+            raise ValueError(_v._msg("oscprob." + source_func_name,
+                "ratio_number_neutrons_to_protons has no effect here: the Earth wrappers "
+                "derive the density's ratio from Y_e, and at %d flavors the caller's ratio "
+                "enters nothing." % num_flavors))
+        if callable(ratio_number_neutrons_to_protons):
+            _first = ratio_number_neutrons_to_protons(0.0)
+            _v.check_real_array('ratio_number_neutrons_to_protons(0)',
+                                np.ravel(_first) if np.ndim(_first) else _first,
+                                "oscprob." + source_func_name, nonnegative=True)
     if density_matter_ocean is not None:
         density_matter_ocean = _v.check_real('density_matter_ocean', density_matter_ocean,
                                              "oscprob." + source_func_name, nonnegative=True)
@@ -3181,6 +3380,10 @@ def unpack_oscillation_params_from_dict(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       h_vac_energy_indep is refused up to MAGNUS_MAX_PREDEFINED_NUM_FLAVORS flavors, where it
+       was ignored (issue #160 §1).
+
     Parameters
     ----------
     source_func_name : str
@@ -3205,6 +3408,17 @@ def unpack_oscillation_params_from_dict(
     """
 
     osc_params = _check_param_dict(source_func_name, osc_params, 'osc_params', num_flavors, _OSC_KEYS)
+
+    # Up to MAGNUS_MAX_PREDEFINED_NUM_FLAVORS the Hamiltonian is built from osc_params, so a
+    # matrix given here was accepted and ignored (issue #160 §1).
+    if (h_vac_energy_indep is not None) and \
+            isinstance(num_flavors, (int, np.integer)) and \
+            (2 <= num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "h_vac_energy_indep has no effect at num_flavors = " + str(num_flavors) + ": up to " +
+            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + " flavors the vacuum Hamiltonian is "
+            "built from osc_params.  To propagate a Hamiltonian of your own, pass it to "
+            "osc_prob_energy_baseline as H_func.")
 
     if (num_flavors == 2):
         try:
@@ -3857,6 +4071,12 @@ def osc_prob(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
 
+    .. versionchanged:: 1.2.0
+       An odd magnus_exp_order is refused with 'gl'; a points-per-slab setting given with 'gl'
+       warns that it does nothing; new_recursion_limit is checked; an unwritable filename_log is
+       refused before any work; the rule for counts above their caps is documented (issue #160
+       §4, §5).
+
     Parameters
     ----------
     H_func : Callable or np.ndarray
@@ -3889,11 +4109,27 @@ def osc_prob(
         the phase-based estimate (:func:`magnus.magnus.suggest_n_slabs`),
         never below ``min_n_slabs``, and ``'trapezoid'``/``'simpson'``
         start at ``min_n_slabs``.
+
+        **The caps and the requested counts.**  ``max_n_slabs`` and
+        ``max_n_tpts_per_slab`` are ceilings on the *refinement*, so they apply
+        only when a tolerance is requested.  There, an ``n_slabs`` floor above
+        ``max_n_slabs`` is clipped to ``max_n_slabs``, and the points per slab
+        climb from ``min_n_tpts_per_slab`` and are clipped at
+        ``max_n_tpts_per_slab``; stopping at either cap without two levels
+        agreeing raises :class:`ToleranceNotAchievedWarning`.  On a fixed grid
+        (``rtol`` and ``atol`` both ``None``) nothing is refined, so
+        ``n_slabs`` and ``n_tpts_per_slab`` are used as given, above their caps
+        or not.
     n_tpts_per_slab : int, optional
         Number of time-points inside the slab at which to evaluate 
         H_func in order to numerically compute the integrals over time 
         required by the Magnus expansion. A higher value of 
-        ``n_tpts_per_slab`` yields a more accurate probability.
+        ``n_tpts_per_slab`` yields a more accurate probability.  Used on a
+        fixed grid; with a tolerance the points per slab climb from
+        ``min_n_tpts_per_slab`` instead (see ``n_slabs`` for the caps).
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     t_slab_edges : list or np.ndarray, optional
         Optional list of pairs [[t0, t1], [t1, t2], ...] with the edges
         of each time slab.  If given, it overrides ``n_slabs`` and the
@@ -3910,7 +4146,12 @@ def osc_prob(
         a shock front calls for.
     magnus_exp_order : int, optional
         Order at which the Magnus expansion is truncated (1 to
-        ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
+        ``globaldefs.MAGNUS_EXP_ORDER_MAX``).  With ``integration_method='gl'``, an even
+        order from 2 to 8: each Gauss-Legendre scheme has an even order, so an odd one is
+        refused rather than run as the next even scheme under another name.
+
+        .. versionchanged:: 1.2.0
+           An odd order with ``'gl'`` is refused; it ran the next even order, bit for bit.
     n_jobs : int, optional
         Accepted and ignored.  The per-slab parallelization it used to select was
         retired: every slab is now computed in a single vectorized call, which was
@@ -3957,6 +4198,9 @@ def osc_prob(
     growth_factor_n_tpts_per_slab : int or float, optional
         Factor by which ``n_tpts_per_slab`` is multiplied on each
         refinement loop (used only when a tolerance is requested).
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     max_num_loops : int, optional
         Maximum number of refinement loops.
     min_n_slabs : int, optional
@@ -3971,8 +4215,14 @@ def osc_prob(
         budget buys it far more slabs.  An explicit value is always used as given.
     min_n_tpts_per_slab : int, optional
         Number of time points per slab in the first refinement loop.
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     max_n_tpts_per_slab : int, optional
         Maximum allowed number of time points per slab.
+        Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
+        Hamiltonian at its own nodes and ignores it, and a value passed with it raises
+        :class:`IgnoredQuadratureSettingWarning`.
     validate_input : bool, optional
         If True, validate the input parameters (set to False for a
         small speed-up once a call is known to be well-formed).
@@ -4189,6 +4439,22 @@ def osc_prob(
             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
             verbose=verbose))
+        # A caller's points-per-slab setting under 'gl' is overridden below; said once, at
+        # the entry point the caller used, so an internal call does not repeat it.
+        if integration_method == 'gl':
+            _tp = (n_tpts_per_slab, min_n_tpts_per_slab, max_n_tpts_per_slab,
+                   growth_factor_n_tpts_per_slab)
+            _d = _OSC_PROB_TPTS_DEFAULTS
+            if (_tp[0] is not _d[0] or _tp[1] is not _d[1] or _tp[2] is not _d[2]
+                    or _tp[3] is not _d[3]) and not _v._called_from_inside(2):
+                _given = [k for k, x, d in zip(_TPTS_SETTINGS, _tp, _d)
+                          if x is not None and x is not d]
+                if _given:
+                    _warn_ignored_quadrature_settings('osc_prob', _given)
+        # Checked here rather than by the rule table, which costs a call on every point.
+        if new_recursion_limit is not None and not (type(new_recursion_limit) is int
+                                                    and new_recursion_limit >= 1):
+            _v.check_int('new_recursion_limit', new_recursion_limit, "oscprob.osc_prob", lo=1)
 
         # A gap, an overlap, a zero-width slab or a grid stopping short of t_fin used to be
         # integrated as given, off by up to 9.4e-2; NaN edges returned NaN (issue #160 §6).
@@ -4311,6 +4577,8 @@ def osc_prob(
 
     # If there is no file object given (i.e., if file_log is None), open a log file if requested
     if file_log is None:
+        if save_log:
+            _check_log_path(filename_log, "oscprob.osc_prob")
         file_log = open(filename_log, 'w') if save_log else None
 
     # Print a list of all the parameters passed to the osc_prob function and their values
@@ -4397,7 +4665,9 @@ def osc_prob(
         H_constant = H
         def H_func(l: float) -> np.ndarray:
             return H
-        magnus_exp_order = 1
+        # 2, not 1: the Gauss-Legendre schemes have even orders only (issue #160 §5), and on a
+        # constant Hamiltonian every order is exact on one slab anyway.
+        magnus_exp_order = 2
         n_slabs = 1
         n_tpts_per_slab = 2
         rtol = None
@@ -4416,7 +4686,7 @@ def osc_prob(
             for f in [None, file_log] if save_log else [None]:
                 warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
                 print("\n" + warn_msg + " The provided Hamiltonian is time-independent. " + \
-                    "Overwriting the run parameters to magnus_exp_order = 1, n_slabs = 1, " + \
+                    "Overwriting the run parameters to magnus_exp_order = 2, n_slabs = 1, " + \
                     "n_tpts_per_slab = 2, rtol = None, atol = None, and n_jobs = 1 for speed-up.",
                     file=f)
 
@@ -4758,6 +5028,11 @@ that was right before stays exactly what it was.
 """
 
 
+# osc_prob's own defaults for the points-per-slab settings, compared by identity on every call.
+_OSC_PROB_TPTS_DEFAULTS = tuple(signature(osc_prob).parameters[_k].default
+                                for _k in _TPTS_SETTINGS)
+
+
 def _avg_prob_dispatch(
     htot: Callable,
     htot_is_function_only_of_energy: bool,
@@ -4796,6 +5071,11 @@ def _avg_prob_dispatch(
 
     .. versionchanged:: 1.1.1
        Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
+
+    .. versionchanged:: 1.2.0
+       Refuses average_n_samples without average (issue #160 §1); the energy-window route raises
+       one warning per class (issue #144 §2); the warning for an energy-independent Hamiltonian
+       says no spread can decohere it (issue #144 §3).
 
     Parameters
     ----------
@@ -4850,6 +5130,13 @@ def _avg_prob_dispatch(
         ``NotImplemented`` if ``average`` is falsy.
     """
     if not average:
+        # Only the energy-window route samples, and a call without average takes no route at
+        # all, so the sample count was accepted and ignored there (issue #160 §1).  The spread
+        # and the initial state are documented as ignored without average, and stay so.
+        if average_n_samples is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                "average_n_samples is the number of energies the phase average samples, and "
+                "has no effect without average=True.")
         return NotImplemented
 
     spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
@@ -4991,16 +5278,29 @@ def _avg_prob_dispatch(
         eng = dict(engine_kwargs)
         extra = eng.pop('kwargs', None) or {}
         worst_sem = 0.0
-        for i in range(n_pts):
-            L_i = float(L_arr[i])
+        # Every sample is a full propagation, and each warned on its own: 41 samples gave 41
+        # MagnusConvergenceWarning and 41 ToleranceNotAchievedWarning to anything recording
+        # warnings (issue #144 §2).  Collected here and raised once per class below, with how
+        # many samples raised it; the caller's filters apply to that one, as they would have.
+        with warnings.catch_warnings(record=True) as _caught:
+            warnings.simplefilter('always')
+            for i in range(n_pts):
+                L_i = float(L_arr[i])
 
-            def prob_of_energy(enu, L_i=L_i):
-                return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
-                    htot_is_function_only_of_energy, **eng, **extra)
+                def prob_of_energy(enu, L_i=L_i):
+                    return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
+                        htot_is_function_only_of_energy, **eng, **extra)
 
-            P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
-                float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
-            worst_sem = max(worst_sem, sem)
+                P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
+                    float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
+                worst_sem = max(worst_sem, sem)
+        _by_class = {}
+        for _w in _caught:
+            _by_class.setdefault(_w.category, []).append(_w)
+        for _category, _ws in _by_class.items():
+            warnings.warn(str(_ws[0].message) + "  (Raised by " + str(len(_ws)) + " of the " +
+                str(n_pts*n_samples) + " propagations across the energy window of the average; "
+                "shown once here for all of them.)", _category, stacklevel=3)
 
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "on a profile with discontinuities has no closed form, so the probability was "
@@ -5011,7 +5311,7 @@ def _avg_prob_dispatch(
             "standard error of the mean here is " + format(worst_sem, '.2e') + ".  Pass "
             "average_spread to set the half-width of the window to the resolution of the "
             "measurement, and average_n_samples to reduce the error, which falls as the "
-            "inverse square root of the number of samples.  Shown once per session.",
+            "inverse square root of the number of samples.",
             PhaseAveragingWarning, stacklevel=3)
 
     else:
@@ -5079,15 +5379,15 @@ def _avg_prob_dispatch(
             "probability there ignores whatever the jump does and may be far off.  Pass "
             "t_breakpoints at the discontinuity: the call then averages over an energy window "
             "instead, measured within two standard errors of a decohered reference on a "
-            "supernova shock.  Shown once per session.",
+            "supernova shock.",
             UnmarkedDiscontinuityWarning, stacklevel=3)
     if uncertified_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the "
             "level-crossing probabilities could not be certified at " +
             str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s) -- a local "
             "Magnus patch across a crossing did not converge, or the refinement that located "
-            "the crossings did not certify them -- so they are not trustworthy there.  Shown "
-            "once per session.", HybridCertificationWarning, stacklevel=3)
+            "the crossings did not certify them -- so they are not trustworthy there.",
+            HybridCertificationWarning, stacklevel=3)
 
     if spread_sensitive_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase-averaged "
@@ -5096,22 +5396,24 @@ def _avg_prob_dispatch(
             "spread average_spread=" + format(spread, 'g') + ", so the result changes by more than "
             + format(avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD, 'g') + " per e-fold of it "
             "(largest " + format(largest_sensitivity, '.1e') + ").  It is the average over that "
-            "spread; pass average_spread to match the resolution of the measurement.  Shown once "
-            "per session.", PhaseAveragingWarning, stacklevel=3)
+            "spread; pass average_spread to match the resolution of the measurement.",
+            PhaseAveragingWarning, stacklevel=3)
     if unaveraged_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase "
             "average could not be formed at " + str(unaveraged_points) + " of " + str(n_pts) +
             " (energy, L) point(s), where too many interference terms survive across the "
-            "non-adiabatic windows; the decohered limit was returned there instead.  Shown once "
-            "per session.", PhaseAveragingWarning, stacklevel=3)
+            "non-adiabatic windows; the decohered limit was returned there instead.",
+            PhaseAveragingWarning, stacklevel=3)
 
     if undecided_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
             "probability was requested at " + str(undecided_points) + " of " +
             str(len(energy_arr)) + " (energy, L) point(s) where at least one pair of eigenvalues "
-            "has neither decohered nor stayed coherent, so no averaged expression describes it.  "
-            "The oscillation probability itself (average=False) is the meaningful quantity there. "
-            "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
+            "has neither decohered nor stayed coherent.  The Hamiltonian does not depend on "
+            "energy -- a matrix, or a function of position alone -- so no energy spread can "
+            "decohere that pair, and no averaged expression describes it: the oscillation "
+            "probability itself (average=False) is the meaningful quantity there.",
+            PhaseAveragingWarning, stacklevel=3)
 
     window_detail = (dict(window_half_width=window, n_samples=n_samples, largest_sem=worst_sem)
                      if sample_numerically else {})
@@ -5923,6 +6225,9 @@ def _osc_prob_scan_separable_ladder(
     warns once per call.
 
     .. versionadded:: 1.1.1
+
+    .. versionchanged:: 1.2.0
+       The slab-cap warning no longer claims to show once per session (issue #144 §1).
     """
     nE, dim = H_E.shape[0], H_E.shape[-1]
 
@@ -6042,7 +6347,7 @@ def _osc_prob_scan_separable_ladder(
                 "refined only the points per slab; that verifies the quadrature inside each "
                 "slab but not the number of slabs, so the returned probabilities may be "
                 "inaccurate. Raise max_n_slabs, or use integration_method='gl' (default cap " +
-                str(MAX_N_SLABS_DEFAULT['gl']) + "). Shown once per session.",
+                str(MAX_N_SLABS_DEFAULT['gl']) + ").",
                 ToleranceNotAchievedWarning, stacklevel=3)
             warned['slab_cap'] = True
         n_slabs_prev_level = n_slabs
@@ -7009,6 +7314,120 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
 
 
+def _earth_breakpoints(prem_breakpoints, user_breakpoints, L, source_func_name: str):
+    r"""The breakpoints an Earth entry point passes on: the PREM crossings on the path, and the
+    caller's own.
+
+    The crossings are computed along the whole chord, so a path that stops short of it (a
+    partial ``L``) used to carry crossings past its end.  Those mark nothing on the path, and
+    since breakpoints off the path are refused (issue #160 §6), the ones past the longest
+    baseline are dropped here; the caller's are kept as given, to be checked like any others.
+
+    .. versionadded:: 1.2.0
+    """
+    bp = np.atleast_1d(np.asarray(prem_breakpoints, dtype=float))
+    L_max = _minmax_1d(_as_float(L) if not isinstance(L, (list, np.ndarray)) else L)
+    if L_max is not None:
+        bp = bp[bp <= L_max[1]]
+    if user_breakpoints is None:
+        return bp
+    user = np.atleast_1d(_v.check_real_array('t_breakpoints', user_breakpoints,
+                                              "oscprob." + source_func_name, allow_empty=True))
+    user = np.asarray(user, dtype=float)
+    # Checked on their own: merged with the PREM crossings, which lie on the path, a set of
+    # which none does would pass the check the scenario function makes on the merged set.
+    if user.size and L_max is not None and not np.any((user >= 0.0) & (user <= L_max[1])):
+        raise ValueError(_v._msg("oscprob." + source_func_name, "none of the t_breakpoints "
+            "lies on the path, between 0 and the longest baseline, " + format(L_max[1], '.6g') +
+            " [eV^-1], so they mark nothing on it; the first is " + format(float(user[0]), '.6g') +
+            ".  Check their sign and unit."))
+    return np.unique(np.concatenate([bp, user]))
+
+
+def _array_capable_rho(rho_func, L0, L, where: str):
+    r"""``rho_func`` as a callable that takes an array of positions, warning if it could not.
+
+    A scalar-only ``rho_func`` -- ``lambda l: 3.0 if l < mid else 8.0`` -- makes the whole
+    Hamiltonian scalar-only, and the engine's :class:`magnus.magnus.ScalarHamiltonianWarning`
+    then told the caller to rewrite ``H_func``, a function they never wrote (issue #144 §4,
+    issue #160 §7).  Probed once here, at three points of the path: if the array call raises,
+    returns the wrong shape, or disagrees with the calls one position at a time, the warning
+    names ``rho_func`` and the fix, and ``rho_func`` is evaluated position by position here, so
+    the Hamiltonian built on it stays array-capable and the engine does not warn a second time.
+    The values are the ones the engine would have computed point by point.
+
+    .. versionadded:: 1.2.0
+    """
+    # Only a caller's own rho_func needs this: the wrappers pass profiles the package built,
+    # which take arrays, and probing them cost ~10% of a single Earth point.  A density reaches
+    # a scenario function from the caller only when the caller called it directly.
+    if not callable(rho_func) or _v._called_from_inside(3):
+        return rho_func
+    Lr = _minmax_1d(L)
+    if Lr is None or not _v.is_real_scalar(L0):
+        return rho_func
+    pts = np.array([float(L0), 0.5*(float(L0) + Lr[1]), Lr[1]])
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            vec = rho_func(pts)
+            one = [rho_func(float(x)) for x in pts]
+        ok = (np.ndim(vec) == 0 or np.shape(vec) == pts.shape) and np.allclose(
+            np.broadcast_to(np.asarray(vec, dtype=float), pts.shape),
+            np.asarray(one, dtype=float), rtol=1e-12, atol=0.0, equal_nan=True)
+    except Exception:
+        ok = False
+    if ok:
+        return rho_func
+    frame, level = sys._getframe(0), 1
+    while frame is not None and frame.f_globals.get('__name__', '').startswith('magnus'):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "oscprob." + where + ": rho_func could not be evaluated for several positions at once, "
+        "so it is being called one position at a time.  This is correct but slower, since the "
+        "engine samples the density at every quadrature node of every slab.  To take the fast "
+        "path, write rho_func with NumPy operations so that it accepts an array of positions: "
+        "np.where(l < mid, 3.0, 8.0) rather than '3.0 if l < mid else 8.0'.",
+        magnus.ScalarHamiltonianWarning, stacklevel=level)
+
+    def rho_one_at_a_time(l):
+        a = np.asarray(l, dtype=float)
+        if a.ndim == 0:
+            return rho_func(float(a))
+        return np.array([rho_func(float(x)) for x in a.ravel()], dtype=float).reshape(a.shape)
+    return functools.update_wrapper(rho_one_at_a_time, rho_func)
+
+
+def _refuse_start_keyword(where: str, kwargs: dict, environment: str) -> None:
+    r"""Refuses ``L0`` where the entry point fixes the start of the path itself (issue #160 §1).
+
+    The vacuum and Earth entry points declare no ``L0``: vacuum paths start at 0, and an Earth
+    path starts where ``costhz`` and the depths put it.  One passed anyway reached the engine
+    through ``**kwargs`` and collided with the start set there, as a ``TypeError`` naming a
+    function the caller never called -- or, on the vacuum LIV wrappers, was used as the start.
+
+    .. versionadded:: 1.2.0
+    """
+    if 'L0' in kwargs:
+        why = ("a vacuum path starts at 0: give its length as L" if environment == 'vacuum' else
+               "the start of an Earth path is fixed by costhz and source_depth, or by loc_ini")
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + where + ": L0 is not an argument "
+            "here; " + why + ".")
+
+
+def _refuse_breakpoints_in_vacuum(where: str, kwargs: dict) -> None:
+    r"""Refuses ``t_breakpoints`` on a vacuum call (issue #160 §1).
+
+    The vacuum Hamiltonian does not vary along the path, so there is no jump to mark: the
+    breakpoints were accepted and ignored.
+
+    .. versionadded:: 1.2.0
+    """
+    if kwargs.get('t_breakpoints') is not None:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + where + ": t_breakpoints marks "
+            "discontinuities of a profile, and has no effect in vacuum, where there is none.")
+
+
 def _resolve_cumulative_kwarg(kwargs, strategy):
     r"""Pops a caller-supplied ``cumulative`` out of ``kwargs`` and decides what to forward.
 
@@ -7174,7 +7593,7 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.  ``rtol`` and
     ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of the nonzero
     ones is the tolerance.  Below :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120) only with
-    ``integration_method='gl'``, an order it supports (an integer from 1 to 8; any other order
+    ``integration_method='gl'``, an order it supports (an even integer from 2 to 8; any other order
     keeps the hybrid strategy's path and its errors) and a single baseline, and the ladder then
     runs at the requested tolerance rather than a tenth of it.  A baseline scan, which the
     cumulative scan would answer, was not measured there and keeps the hybrid strategy (issue
@@ -7895,6 +8314,11 @@ def osc_prob_energy_baseline(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator`` and ``average``.
 
+    .. versionchanged:: 1.2.0
+       A scan with n_jobs > 1 that would finish within N_JOBS_MIN_PARALLEL_WORK_S runs in the
+       calling process (issue #155 §3); an H_func taking no argument or returning an object
+       array is refused by name (issue #160 §7).
+
     Parameters
     ----------
     H_func : Callable or np.ndarray
@@ -7920,7 +8344,19 @@ def osc_prob_energy_baseline(
     magnus_exp_order : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     n_jobs : int
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Number of worker processes over the (energy, L) points of a per-point scan: 1 (the
+        default) runs in the calling process, -1 uses every core, and any other positive value
+        is capped at the points left and the cores.  The first point is always computed here,
+        to warm-start the rest; if the rest would take under
+        :data:`N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that point's pace, they are computed here
+        too, since starting the workers costs more (issue #155 §3).  A scan that a batched
+        engine would answer takes the per-point path instead when ``n_jobs != 1``, which runs
+        one refinement ladder per point where the batched engine runs one for all of them: the
+        two agree to within the tolerance, not bit for bit (up to 3.7e-5 on a 40-energy Earth
+        chord at the default 1e-3; issue #166 §1).  The workers are joblib's reusable loky
+        pool: they stay alive after the call, so the next parallel call starts at once, until
+        they have been idle for joblib's timeout (300 s by default), and then exit.  A process
+        list shows them in that window; they hold no state from the call.
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
@@ -8072,7 +8508,8 @@ def osc_prob_energy_baseline(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -8120,7 +8557,8 @@ def osc_prob_energy_baseline(
     # L=True was a baseline of 1 eV^-1.
     # Skipped when a scenario function is the caller: it has run the same checks already.
     _direct = sys._getframe(1).f_code.co_name not in _SCENARIO_FUNCTION_NAMES
-    if validate_input and _direct:
+    if _direct and (validate_input is True
+                    or _validation_requested(validate_input, 'osc_prob_energy_baseline')):
         _where = "oscprob.osc_prob_energy_baseline"
         _validate_entry('osc_prob_energy_baseline', locals(), osc_prob_energy_baseline)
         _v.check_real_array('energy', energy, _where, positive=True)
@@ -8223,6 +8661,16 @@ def osc_prob_energy_baseline(
     # Probe once how the Hamiltonian can be evaluated (vectorized over an array of positions,
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
+    # A callable taking no argument, or more than two, fits none of the forms above and used
+    # to fail on its first call, as a TypeError naming a lambda (issue #160 §7).
+    if validate_input and _direct and callable(H_func):
+        _n_args = _n_required_params(H_func)
+        if isinstance(_n_args, int) and _n_args not in (1, 2):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "H_func must take (energy, l), (l), or (energy) with "
+                "H_func_is_function_only_of_energy=True; it requires " + str(_n_args) +
+                " argument" + ("" if _n_args == 1 else "s") + ".  A constant Hamiltonian can be "
+                "passed as the matrix itself.")
     H_first = H_at_energy(energy[0])
 
     # The first sample of a user Hamiltonian, checked once (issue #160 §7): an array (a list
@@ -8241,7 +8689,9 @@ def osc_prob_energy_baseline(
                                         at=('energy ' + format(float(energy[0]), '.4g') +
                                             (', position L0' if callable(H_first) else '')))
         except ValueError as _e:
-            if (not np.all(np.isfinite(_H0)) and _n_required_params(H_func) == 1
+            # An object array cannot be tested for finiteness, and is refused as it stands.
+            if (_H0.dtype.kind in 'iufc' and not np.all(np.isfinite(_H0))
+                    and _n_required_params(H_func) == 1
                     and not H_func_is_function_only_of_energy):
                 raise ValueError(str(_e) + "  H_func takes one argument, which is read as the "
                     "position; if it is a function of energy, pass "
@@ -8429,8 +8879,7 @@ def osc_prob_energy_baseline(
                     "this scan inherits that grid, so the whole scan is affected, not one "
                     "point. Raise max_n_slabs (currently "
                     + str(_resolve_max_n_slabs(max_n_slabs, integration_method))
-                    + "), or shorten the longest baseline, which is what sets the grid. Shown "
-                      "once per session.",
+                    + "), or shorten the longest baseline, which is what sets the grid.",
                     ToleranceNotAchievedWarning, stacklevel=2)
 
         # A jump the caller did not declare is the one way this grid goes wrong that adding
@@ -8529,13 +8978,23 @@ def osc_prob_energy_baseline(
             P = P[nu_i][nu_f]
         return (P, U) if return_evolution_operator else P
 
+    probs = None
     if parallelize_over_points:
         # Compute the first point serially to learn the refinement parameters, then distribute
         # the remaining points over the workers, warm-started from the first point.  (The shared
         # conv_info dict cannot be updated across processes, so it is dropped from the parallel
         # calls.)
+        _t_first = time.perf_counter()
         probs = [compute_single_point(energy[0], L[0])]
+        _t_first = time.perf_counter() - _t_first
         apply_warm_start()
+        # Too little work left to pay for starting the workers (issue #155 §3): finish here.
+        if _t_first*(len(energy) - 1) < N_JOBS_MIN_PARALLEL_WORK_S:
+            parallelize_over_points = False
+            for enu, baseline in zip(energy[1:], L[1:]):
+                apply_warm_start()
+                probs.append(compute_single_point(enu, baseline))
+    if parallelize_over_points:
         osc_prob_kwargs.pop('convergence_info', None)
 
         # A module global does not cross a process boundary: loky re-imports magnus in each
@@ -8558,7 +9017,7 @@ def osc_prob_energy_baseline(
         _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
         probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
             enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
-    else:
+    elif probs is None:
         probs = []
         for enu, baseline in zip(energy, L):
             apply_warm_start()
@@ -8995,6 +9454,9 @@ def osc_prob_vacuum(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator`` and ``strategy_info``.
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused, and flags given as None (issue #160 §1, §4).
+
     Parameters
     ----------
     num_flavors : int
@@ -9008,7 +9470,8 @@ def osc_prob_vacuum(
         keys for each ``num_flavors``.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
     average_spread : float, optional
@@ -9024,7 +9487,8 @@ def osc_prob_vacuum(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -9152,8 +9616,10 @@ def osc_prob_vacuum(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_vacuum')
-    if validate_input:
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_vacuum)
+    _refuse_start_keyword(_where, kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum(_where, kwargs)
     energy, L = _as_float(energy), _as_float(L)
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -9326,13 +9792,20 @@ def osc_prob_matter_std_potential(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
 
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
+
     Parameters
     ----------
     num_flavors : int
         Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep`` is given).
     rho_func : Callable, int, or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is
-        True), either as a function of position or as a constant.
+        True), either as a function of position or as a constant.  A function may take one
+        position or an array of them; the two give the same numbers, and the array form is
+        faster.  One written for a single position raises
+        :class:`magnus.magnus.ScalarHamiltonianWarning` naming ``rho_func``.
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : int, float, list, or np.ndarray
@@ -9343,7 +9816,8 @@ def osc_prob_matter_std_potential(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         Ratio of the number of neutrons to protons in matter.  Scales the sterile
         states' entry in the matter term (see
@@ -9390,7 +9864,8 @@ def osc_prob_matter_std_potential(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -9622,7 +10097,7 @@ def osc_prob_matter_std_potential(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_std_potential')
-    if validate_input:
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_std_potential)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -9690,6 +10165,8 @@ def osc_prob_matter_std_potential(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
+    if validate_input and callable(rho_func):
+        rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV]
@@ -9971,6 +10448,10 @@ def osc_prob_matter_nsi(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
 
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
+
     Parameters
     ----------
     num_flavors : int
@@ -9991,7 +10472,8 @@ def osc_prob_matter_nsi(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     h_nsi : list or np.ndarray, optional
         Precomputed NSI Hamiltonian, used instead of ``nsi_params`` when ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
@@ -10041,7 +10523,8 @@ def osc_prob_matter_nsi(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -10188,7 +10671,7 @@ def osc_prob_matter_nsi(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_nsi')
-    if validate_input:
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_nsi)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10309,6 +10792,8 @@ def osc_prob_matter_nsi(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
+    if validate_input and callable(rho_func):
+        rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV] 
@@ -10530,6 +11015,10 @@ def osc_prob_liv(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
 
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
+
     Parameters
     ----------
     num_flavors : int
@@ -10550,7 +11039,8 @@ def osc_prob_liv(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     h_liv_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent LIV Hamiltonian, used instead of ``liv_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
@@ -10599,7 +11089,8 @@ def osc_prob_liv(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -10748,7 +11239,7 @@ def osc_prob_liv(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_liv')
-    if validate_input:
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_liv)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10854,6 +11345,8 @@ def osc_prob_liv(
         # Build the coherent forward potential function, VCC_func, from the density function,
         # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert
         # rho_func to a function that returns the electron number density [eV^3].
+        if validate_input and callable(rho_func):
+            rho_func = _array_capable_rho(rho_func, L0, L, _where)
         VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
             electron_fraction, nubar, density_matter_is_in_g_per_cm3,
             density_is_of_number_of_electrons) # [eV]
@@ -11096,6 +11589,10 @@ def osc_prob_2nu_vacuum(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -11135,7 +11632,10 @@ def osc_prob_2nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -11273,6 +11773,10 @@ def osc_prob_3nu_vacuum(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -11325,7 +11829,10 @@ def osc_prob_3nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11509,6 +12016,10 @@ def osc_prob_4nu_vacuum(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -11573,7 +12084,10 @@ def osc_prob_4nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11764,6 +12278,10 @@ def osc_prob_5nu_vacuum(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -11842,7 +12360,10 @@ def osc_prob_5nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -12537,6 +13058,10 @@ def osc_prob_2nu_matter_exp_density(
         directly.  Requests it cannot certify go to the general
         slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -12621,7 +13146,7 @@ def osc_prob_2nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -12678,6 +13203,10 @@ def osc_prob_3nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -12771,7 +13300,7 @@ def osc_prob_3nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -12835,6 +13364,10 @@ def osc_prob_4nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -12940,7 +13473,7 @@ def osc_prob_4nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -13011,6 +13544,10 @@ def osc_prob_5nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -13128,7 +13665,7 @@ def osc_prob_5nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -13271,6 +13808,10 @@ def osc_prob_2nu_earth(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -13286,7 +13827,9 @@ def osc_prob_2nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -13306,15 +13849,19 @@ def osc_prob_2nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -13432,11 +13979,9 @@ def osc_prob_2nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth')
 
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -13610,6 +14155,10 @@ def osc_prob_3nu_earth(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -13621,7 +14170,9 @@ def osc_prob_3nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -13655,15 +14206,19 @@ def osc_prob_3nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -13782,11 +14337,9 @@ def osc_prob_3nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -13966,6 +14519,10 @@ def osc_prob_4nu_earth(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -13977,7 +14534,9 @@ def osc_prob_4nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -14023,15 +14582,19 @@ def osc_prob_4nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14150,11 +14713,9 @@ def osc_prob_4nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14343,6 +14904,10 @@ def osc_prob_5nu_earth(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -14354,7 +14919,9 @@ def osc_prob_5nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -14412,15 +14979,19 @@ def osc_prob_5nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14539,11 +15110,9 @@ def osc_prob_5nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14683,6 +15252,10 @@ def osc_prob_earth(
        they were: both endpoints on the surface, and PREM's own ocean.
        Added ``average``.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path (issue
+       #160 §1, §6).
+
     Parameters
     ----------
     H_func : Callable
@@ -14699,7 +15272,9 @@ def osc_prob_earth(
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``.
     L : float, list, or np.ndarray, optional
         Baseline(s) [:math:`\text{eV}^{-1}`]. Used together with ``costhz``, as an alternative to
-        ``loc_ini``/``loc_fin``.
+        ``loc_ini``/``loc_fin``.  The path length from the source along the chord: a value
+        shorter than the chord is a partial path, which stops inside the Earth; one longer than
+        the chord is refused.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the PREM-based
         matter potential passed to ``H_func``). Default: False.
@@ -14807,7 +15382,8 @@ def osc_prob_earth(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -14898,11 +15474,9 @@ def osc_prob_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_earth')
 
     # Charged-current potential along the chord from the PREM electron density; the antineutrino
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
@@ -14978,6 +15552,9 @@ def _osc_prob_with_potential(
         ``_osc_prob_hybrid_dispatch_generic`` and :doc:`/adiabatic_strategy`) whenever
         ``t_breakpoints`` is empty and a target tolerance is requested, before falling back to
         the general slab-refinement method.
+
+    .. versionchanged:: 1.2.0
+       H_func's first sample is checked: an array, square, finite and Hermitian (issue #160 §7).
 
     Parameters
     ----------
@@ -15062,7 +15639,8 @@ def _osc_prob_with_potential(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -15130,6 +15708,19 @@ def _osc_prob_with_potential(
     else:
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
             return H_func(enu, l)
+
+    # The first sample, checked as osc_prob_energy_baseline checks it for its direct callers
+    # (issue #160 §7): a list or an object array used to run here, and fail or not depending
+    # on which engine answered.  One evaluation, at L0 and the first energy.
+    if validate_input:
+        _e0 = float(np.atleast_1d(np.asarray(energy, dtype=float))[0])
+        _H0 = htot(_e0, L0)
+        if not isinstance(_H0, np.ndarray):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                ": H_func must return a NumPy array; it returned " + type(_H0).__name__ +
+                ".  Wrap its return value in np.array(..., dtype=complex).")
+        _v.check_hamiltonian_sample('H_func', _H0, "oscprob." + source_func_name,
+                                    at='energy ' + format(_e0, '.4g') + ', position L0')
 
     # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
     # _osc_prob_hybrid_dispatch_generic and :doc:`/adiabatic_strategy`). Falls back transparently
@@ -15225,6 +15816,32 @@ def _solar_profile(density_profile, ratio_number_neutrons_to_protons, source_fun
     ratio = (solarmodels.neutron_to_proton_ratio_profile(name)
              if ratio_number_neutrons_to_protons is None else ratio_number_neutrons_to_protons)
     return solarmodels.electron_density_profile(name), ratio
+
+
+def _sun_entry(source_func_name: str, L0, kwargs: dict, num_flavors) -> None:
+    r"""Checks shared by the Sun wrappers, before anything is built (issue #160 §1).
+
+    * ``L0`` is a radius, so it is 0 or more: a negative one was accepted.
+    * ``electron_fraction`` has no effect: every Sun wrapper hands the engine an electron
+      number density, so it was accepted and ignored.
+    * ``ratio_number_neutrons_to_protons`` acts only through the sterile neutral-current term,
+      so at two and three flavors it was accepted and ignored.
+
+    .. versionadded:: 1.2.0
+    """
+    where = "oscprob." + source_func_name
+    if not (type(L0) is float and L0 >= 0.0):
+        _v.check_real('L0', L0, where, nonnegative=True,
+                      what="0 or more: it is the radius where the path starts")
+    unused = [k for k in ('electron_fraction',) if kwargs.get(k) is not None]
+    if num_flavors in (2, 3) and kwargs.get('ratio_number_neutrons_to_protons') is not None:
+        unused.append('ratio_number_neutrons_to_protons')
+    if unused:
+        raise ValueError(_v._msg(where, ', '.join(unused) + " has no effect here: the Sun "
+                                 "wrappers use the solar model's electron density directly"
+                                 + ("" if unused == ['electron_fraction'] else
+                                    ", and at %d flavors the neutron-to-proton ratio enters "
+                                    "nothing" % num_flavors) + "."))
 
 
 def _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, source_func_name: str):
@@ -15376,6 +15993,10 @@ def osc_prob_2nu_sun(
         :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) first, before
         the interaction-picture integrator and the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -15383,7 +16004,8 @@ def osc_prob_2nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -15450,6 +16072,7 @@ def osc_prob_2nu_sun(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
+    _sun_entry('osc_prob_2nu_sun', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun')
     P = osc_prob_2nu_matter_exp_density(
@@ -15549,6 +16172,10 @@ def osc_prob_3nu_sun(
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -15556,7 +16183,8 @@ def osc_prob_3nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -15632,6 +16260,7 @@ def osc_prob_3nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun')
     P = osc_prob_3nu_matter_exp_density(
@@ -15747,6 +16376,10 @@ def osc_prob_4nu_sun(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -15754,7 +16387,8 @@ def osc_prob_4nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s14 : int or float, optional
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
@@ -15862,6 +16496,7 @@ def osc_prob_4nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun')
     P = osc_prob_4nu_matter_exp_density(
@@ -15993,6 +16628,10 @@ def osc_prob_5nu_sun(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -16000,7 +16639,8 @@ def osc_prob_5nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s14 : int or float, optional
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
@@ -16120,6 +16760,7 @@ def osc_prob_5nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun')
     P = osc_prob_5nu_matter_exp_density(
@@ -16226,6 +16867,10 @@ def osc_prob_sun(
     .. versionchanged:: 1.1.1
        Added ``average``, ``density_profile`` and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 and electron_fraction, which has no effect, are refused; H_func's first
+       sample is checked (issue #160 §1, §7).
+
     Parameters
     ----------
     H_func : Callable
@@ -16235,7 +16880,8 @@ def osc_prob_sun(
     L : float, list, or np.ndarray
         Final radial position(s) [:math:`\text{eV}^{-1}`], measured from the center of the Sun.
     L0 : int or float, optional
-        Initial radial position [:math:`\text{eV}^{-1}`]. Default: 0.0.
+        Initial radial position [:math:`\text{eV}^{-1}`], 0 or more.  A single number, not an
+        array: for several production points, loop over them.  Default: 0.0.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the solar matter
         potential passed to ``H_func``). Default: False.
@@ -16299,7 +16945,8 @@ def osc_prob_sun(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -16373,6 +17020,7 @@ def osc_prob_sun(
     """
     source_func_name = sys._getframe().f_code.co_name
 
+    _sun_entry(source_func_name, L0, kwargs, None)
     _rho, _ = _solar_profile(density_profile, None, source_func_name)
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0,
                                      source_func_name)
@@ -17115,6 +17763,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
         ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
         cannot certify go to the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -17203,7 +17855,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17268,6 +17920,10 @@ def osc_prob_3nu_matter_nsi_exp_density(
     non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -17373,7 +18029,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17450,6 +18106,10 @@ def osc_prob_4nu_matter_nsi_exp_density(
     including non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -17575,7 +18235,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17665,6 +18325,10 @@ def osc_prob_5nu_matter_nsi_exp_density(
     including non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -17812,7 +18476,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17959,6 +18623,10 @@ def osc_prob_2nu_earth_nsi(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -17978,7 +18646,9 @@ def osc_prob_2nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -17998,15 +18668,19 @@ def osc_prob_2nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18124,11 +18798,9 @@ def osc_prob_2nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth_nsi')
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -18307,6 +18979,10 @@ def osc_prob_3nu_earth_nsi(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -18318,7 +18994,9 @@ def osc_prob_3nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -18364,15 +19042,19 @@ def osc_prob_3nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18491,11 +19173,9 @@ def osc_prob_3nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -18685,6 +19365,10 @@ def osc_prob_4nu_earth_nsi(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -18696,7 +19380,9 @@ def osc_prob_4nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -18762,15 +19448,19 @@ def osc_prob_4nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18889,11 +19579,9 @@ def osc_prob_4nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19099,6 +19787,10 @@ def osc_prob_5nu_earth_nsi(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -19110,7 +19802,9 @@ def osc_prob_5nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -19198,15 +19892,19 @@ def osc_prob_5nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -19325,11 +20023,9 @@ def osc_prob_5nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19472,6 +20168,10 @@ def osc_prob_2nu_sun_nsi(
         ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
         cannot certify go to the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -19479,7 +20179,8 @@ def osc_prob_2nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -19548,6 +20249,7 @@ def osc_prob_2nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_2nu_sun_nsi', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_nsi')
     P = osc_prob_2nu_matter_nsi_exp_density(
@@ -19652,6 +20354,10 @@ def osc_prob_3nu_sun_nsi(
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -19659,7 +20365,8 @@ def osc_prob_3nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -19747,6 +20454,7 @@ def osc_prob_3nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun_nsi', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_nsi')
     P = osc_prob_3nu_matter_nsi_exp_density(
@@ -19876,6 +20584,10 @@ def osc_prob_4nu_sun_nsi(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -19883,7 +20595,8 @@ def osc_prob_4nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -20011,6 +20724,7 @@ def osc_prob_4nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun_nsi', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_nsi')
     P = osc_prob_4nu_matter_nsi_exp_density(
@@ -20165,6 +20879,10 @@ def osc_prob_5nu_sun_nsi(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -20172,7 +20890,8 @@ def osc_prob_5nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -20322,6 +21041,7 @@ def osc_prob_5nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun_nsi', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_nsi')
     P = osc_prob_5nu_matter_nsi_exp_density(
@@ -20412,6 +21132,9 @@ def osc_prob_2nu_vacuum_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -20457,7 +21180,10 @@ def osc_prob_2nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -20472,6 +21198,8 @@ def osc_prob_2nu_vacuum_liv(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
+    _refuse_start_keyword('osc_prob_2nu_vacuum_liv', kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum('osc_prob_2nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=2,
         rho_func=0.0,
@@ -20525,6 +21253,9 @@ def osc_prob_3nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -20589,7 +21320,10 @@ def osc_prob_3nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20603,6 +21337,8 @@ def osc_prob_3nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_3nu_vacuum_liv', kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum('osc_prob_3nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=3,
         rho_func=0.0,
@@ -20671,6 +21407,9 @@ def osc_prob_4nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -20761,7 +21500,10 @@ def osc_prob_4nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20775,6 +21517,8 @@ def osc_prob_4nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_4nu_vacuum_liv', kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum('osc_prob_4nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=4,
         rho_func=0.0,
@@ -20857,6 +21601,9 @@ def osc_prob_5nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -20971,7 +21718,10 @@ def osc_prob_5nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20985,6 +21735,8 @@ def osc_prob_5nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_5nu_vacuum_liv', kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum('osc_prob_5nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=5,
         rho_func=0.0,
@@ -21774,6 +22526,10 @@ def osc_prob_2nu_matter_liv_exp_density(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -21872,7 +22628,7 @@ def osc_prob_2nu_matter_liv_exp_density(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -21935,6 +22691,10 @@ def osc_prob_3nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -22049,7 +22809,7 @@ def osc_prob_3nu_matter_liv_exp_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22125,6 +22885,10 @@ def osc_prob_4nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -22267,7 +23031,7 @@ def osc_prob_4nu_matter_liv_exp_density(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22355,6 +23119,10 @@ def osc_prob_5nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -22523,7 +23291,7 @@ def osc_prob_5nu_matter_liv_exp_density(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22663,6 +23431,10 @@ def osc_prob_2nu_earth_liv(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -22688,7 +23460,9 @@ def osc_prob_2nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -22708,15 +23482,19 @@ def osc_prob_2nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -22834,11 +23612,9 @@ def osc_prob_2nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth_liv')
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -23022,6 +23798,10 @@ def osc_prob_3nu_earth_liv(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -23033,7 +23813,9 @@ def osc_prob_3nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -23085,15 +23867,19 @@ def osc_prob_3nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -23212,11 +23998,9 @@ def osc_prob_3nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -23412,6 +24196,10 @@ def osc_prob_4nu_earth_liv(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -23423,7 +24211,9 @@ def osc_prob_4nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -23501,15 +24291,19 @@ def osc_prob_4nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -23628,11 +24422,9 @@ def osc_prob_4nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -23843,6 +24635,10 @@ def osc_prob_5nu_earth_liv(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -23854,7 +24650,9 @@ def osc_prob_5nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -23956,15 +24754,19 @@ def osc_prob_5nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -24083,11 +24885,9 @@ def osc_prob_5nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -24196,6 +24996,10 @@ def osc_prob_2nu_sun_liv(
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -24203,7 +25007,8 @@ def osc_prob_2nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -24278,6 +25083,7 @@ def osc_prob_2nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_2nu_sun_liv', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_liv')
     P = osc_prob_2nu_matter_liv_exp_density(
@@ -24371,6 +25177,10 @@ def osc_prob_3nu_sun_liv(
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -24378,7 +25188,8 @@ def osc_prob_3nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -24470,6 +25281,7 @@ def osc_prob_3nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun_liv', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_liv')
     P = osc_prob_3nu_matter_liv_exp_density(
@@ -24587,6 +25399,10 @@ def osc_prob_4nu_sun_liv(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -24594,7 +25410,8 @@ def osc_prob_4nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -24732,6 +25549,7 @@ def osc_prob_4nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun_liv', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_liv')
     P = osc_prob_4nu_matter_liv_exp_density(
@@ -24873,6 +25691,10 @@ def osc_prob_5nu_sun_liv(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -24880,7 +25702,8 @@ def osc_prob_5nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -25042,6 +25865,7 @@ def osc_prob_5nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun_liv', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_liv')
     P = osc_prob_5nu_matter_liv_exp_density(
@@ -25226,6 +26050,7 @@ __all__ = [
     'BATCHED_PHASE_GROUPING',
     'BATCH_WORKING_ENTRIES',
     'CUMULATIVE_AUTO_MIN_POINTS',
+    'N_JOBS_MIN_PARALLEL_WORK_S',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
     'CUMULATIVE_N_ACC_SAFETY',
     'AUTO_LADDER_MAX_PHASE',
@@ -25239,4 +26064,5 @@ __all__ = [
     'PARAMETER_SET_METADATA_KEYS',
     'PASSTHROUGH_KWARGS_DOCUMENTED',
     'PhaseAveragingWarning',
+    'IgnoredQuadratureSettingWarning',
 ]

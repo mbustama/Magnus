@@ -92,6 +92,9 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     r"""Returns the matter density inside the Earth according to the
     Preliminary Reference Earth Model (PREM) [1]_.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Returns the matter density inside the Earth according to the PREM,
     for a given radial distance measured from the center of the Earth.
     Accepts a single radial distance or an array of radial distances;
@@ -244,6 +247,10 @@ def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
     (issue #160 §3).
 
     .. versionadded:: 1.2.0
+
+    .. versionchanged:: 1.2.0
+       Converts through the unchecked conversion, so a longitude beyond 360 degrees is refused
+       naming the caller's argument rather than 'degrees' (issue #160 §3).
     """
     try:
         d, m, s = dms
@@ -262,7 +269,7 @@ def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " = " +
             repr(tuple(dms)) + " is ambiguous: the sign goes on the first nonzero part only, "
             "e.g. (-46, 12, 0) for 46 deg 12 min south or west.")
-    value = dms_to_decimal(d, m, s)
+    value = _dms_value(d, m, s)
     if not (lo <= value <= hi):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " must lie in [" +
             format(lo, 'g') + ", " + format(hi, 'g') + "] degrees; got " + repr(tuple(dms)) +
@@ -455,6 +462,9 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
        zero reproduce the surface-to-surface chord bit for bit, through
        the same expression as before.
 
+    .. versionchanged:: 1.2.0
+       A NaN, negative or bool position ``l`` is refused (issue #160 §3).
+
     Parameters
     ----------
     costhz : float
@@ -504,7 +514,17 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
 
     scalar_input = (np.ndim(l) == 0)
+    if scalar_input and isinstance(l, (bool, np.bool_)):
+        raise _v.InputTypeError(_v._msg('earth.earth_radial_distance_from_depth',
+                                        'l must be a real number, not a bool.'))
     l = np.asarray(l, dtype=float)
+    # One comparison catches NaN, a negative position and -inf together (issue #160 §3); +inf
+    # is caught by the chord check below.
+    if not np.all(l >= -tol):
+        bad = np.ravel(l)[np.argmax(~(np.ravel(l) >= -tol))]
+        raise ValueError(_v._msg('earth.earth_radial_distance_from_depth', 'l must be a finite '
+                                 'position along the chord, 0 or more; got ' + repr(float(bad))
+                                 + '.'))
 
     d = distance_traveled_inside_earth(costhz, source_depth, detector_depth)
 
@@ -699,6 +719,10 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
        West or South site toward zero by up to one degree: the chord from
        Fermilab to Homestake was 1207 km instead of 1285 km.
 
+    .. versionchanged:: 1.2.0
+       Degrees outside [-360, 360] are refused, and so is a negative part after a positive one,
+       which was ambiguous (issue #160 §3).
+
     Parameters
     ----------
     degrees : float
@@ -713,14 +737,35 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     float
         Coordinate in decimal degrees.
     """
-    # Finite reals, minutes and seconds within (-60, 60) (issue #160 §3).  Range of the
-    # degrees is the caller's to set: a latitude and a longitude differ.
+    # Finite reals, minutes and seconds within (-60, 60) (issue #160 §3).  The degrees lie in
+    # [-360, 360], the widest range either coordinate takes; a latitude's tighter range is its
+    # caller's to set.  A negative part after a positive one is ambiguous, as in _check_dms.
     _where = 'earth.dms_to_decimal'
-    degrees = _v.check_real('degrees', degrees, _where)
+    degrees = _v.check_real('degrees', degrees, _where, lo=-360.0, hi=360.0)
     minutes = _v.check_real('minutes', minutes, _where, lo=-60.0, hi=60.0, lo_open=True,
                             hi_open=True)
     seconds = _v.check_real('seconds', seconds, _where, lo=-60.0, hi=60.0, lo_open=True,
                             hi_open=True)
+    _parts = (('degrees', degrees), ('minutes', minutes), ('seconds', seconds))
+    _first = next((i for i, (_, x) in enumerate(_parts) if x != 0.0), 3)
+    if _first < 3 and _parts[_first][1] > 0.0:
+        for _name, _x in _parts[_first + 1:]:
+            if _x < 0.0:
+                raise ValueError(_v._msg(_where, _name + " = " + repr(_x) + " is negative after "
+                                         "a positive " + _parts[_first][0] + ": the sign goes on "
+                                         "the first nonzero part only, e.g. (-46, 12, 0) for 46 "
+                                         "deg 12 min south or west."))
+    return _dms_value(degrees, minutes, seconds)
+
+
+def _dms_value(degrees: float, minutes: float, seconds: float) -> float:
+    r"""The decimal degrees of an already checked (degrees, minutes, seconds) triple.
+
+    Shared by :func:`dms_to_decimal` and ``_check_dms``, whose own range check names the
+    caller's argument (``lon1_dms``) rather than ``degrees``.
+
+    .. versionadded:: 1.2.0
+    """
     sign = 1.0
     for part in (degrees, minutes, seconds):
         if part != 0 or np.copysign(1.0, part) < 0:
@@ -970,6 +1015,10 @@ def electron_fraction_func_prem(
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
 
+    .. versionchanged:: 1.2.0
+       Called from outside the package, a fraction outside (0, 1], NaN, infinite or bool is
+       refused by name (issue #160 §11).
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -988,6 +1037,16 @@ def electron_fraction_func_prem(
     np.ndarray
         :math:`Y_e` at each radius, with the shape of ``r``.
     """
+    # Runs at every quadrature node, so a plain float in range costs one comparison each
+    # (issue #160 §11); anything else is checked in full for a caller from outside the package
+    # (inside it, the wrapper has already checked the value).
+    for _name, _value in (('electron_fraction_core', electron_fraction_core),
+                          ('electron_fraction_mantle', electron_fraction_mantle),
+                          ('electron_fraction_crust', electron_fraction_crust),
+                          ('electron_fraction_ocean', electron_fraction_ocean)):
+        if (_value is not None and not (type(_value) is float and 0.0 < _value <= 1.0)
+                and not _v._called_from_inside(2)):
+            _v.check_unit_fraction(_name, _value, 'earth.electron_fraction_func_prem')
     core = Y_E_CORE_PREM if electron_fraction_core is None else float(electron_fraction_core)
     mantle = (Y_E_MANTLE_PREM if electron_fraction_mantle is None
               else float(electron_fraction_mantle))
@@ -1024,6 +1083,10 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
 
+    .. versionchanged:: 1.2.0
+       Called from outside the package, an electron fraction outside (0, 1], NaN, infinite or
+       bool is refused (issue #160 §11).
+
     Parameters
     ----------
     electron_fraction : float or np.ndarray
@@ -1037,6 +1100,12 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     np.ndarray
         :math:`r = n_n/n_p`, with the shape of the input.
     """
+    # Inside the package this runs per node on values the wrapper has already checked, so only
+    # a caller from outside pays for the full check (a float in range costs one comparison).
+    if (not (type(electron_fraction) is float and 0.0 < electron_fraction <= 1.0)
+            and not _v._called_from_inside(2)):
+        _v.check_unit_fraction('electron_fraction', electron_fraction,
+                               'earth.neutron_to_proton_ratio_from_electron_fraction')
     ye = np.asarray(electron_fraction, dtype=float)
     return (1.0 - ye)/ye
 

@@ -313,7 +313,11 @@ def _r_abscissa(name, x, where, a):
 
 
 def _r_curves(xname, probability=False):
-    r"""Each curve 1-D, finite, as long as the abscissa; in [0, 1] if a probability."""
+    r"""Each curve 1-D, finite, as long as the abscissa; in [0, 1] if a probability.
+
+    .. versionchanged:: 1.2.0
+       A curve with no point above 0 is refused on a log y axis (issue #160 §12).
+    """
     def rule(name, x, where, a):
         n = len(np.atleast_1d(a[xname]))
         for i, (y, _) in enumerate(_as_curve_list(x)):
@@ -323,6 +327,25 @@ def _r_curves(xname, probability=False):
                                          " points and " + xname + " has " + str(n) + "."))
             if probability:
                 _check_probability(name + "[" + str(i) + "]", y, where)
+            # A curve with no positive point has nothing a log axis can show: it was drawn as
+            # an empty axis, without a word (issue #160 §12).
+            if a.get('yscale') == 'log' and not np.any(np.asarray(y, dtype=float) > 0.0):
+                raise ValueError(_v._msg(where, name + "[" + str(i) + "] has no entry above 0, "
+                                         "so a log y axis cannot show any of it; pass "
+                                         "yscale='linear'."))
+    return rule
+
+
+def _r_panels(xname):
+    r"""Each panel of :func:`plot_curves_stacked` checked as :func:`plot_curves` checks its curves.
+
+    .. versionadded:: 1.2.0
+    """
+    curves = _r_curves(xname)
+
+    def rule(name, x, where, a):
+        for j, panel in enumerate(x):
+            curves(name + "[" + str(j) + "]", panel, where, a)
     return rule
 
 
@@ -396,7 +419,7 @@ _COMMON_RULES = dict(
     ylabel_labelpad=_v.r_real(), shared_ylabel_labelpad=_v.r_real(),
     residual_height=_OPEN_UNIT, profile_height=_OPEN_UNIT,
     legend=_v.r_bool, grid=_v.r_bool, tight_layout=_v.r_bool, return_probability=_v.r_bool,
-    show_profile=_BOOL_OR_NONE, panel_per_trajectory=_BOOL_OR_NONE, nubar=_v.r_bool,
+    show_profile=_BOOL_OR_NONE, panel_per_trajectory=_BOOL_OR_NONE, nubar=_BOOL_OR_NONE,
     legend_panel=_v.r_int(lo=0), legend_on_panel=_v.r_int(lo=-1), levels=_v.r_int(lo=1),
     num_flavors=_v.r_int(allow_none=True), nu_i=_r_channel, nu_f=_r_channel,
     energy_unit=_v.r_choice(_ENERGY_UNITS),
@@ -693,7 +716,7 @@ def plot_curves(
     return fig, ax
 
 
-@_v.validated(_rules(x=_r_abscissa))
+@_v.validated(_rules(x=_r_abscissa, panels=_r_panels('x')))
 def plot_curves_stacked(
     x: Sequence[float],
     panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
@@ -745,6 +768,10 @@ def plot_curves_stacked(
     than another instance of the same plot.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Each panel's curves are checked as :func:`plot_curves` checks its curves: 1-D, finite,
+       as long as ``x``, and on a log y axis with at least one entry above 0 (issue #160 §12).
 
     Parameters
     ----------
@@ -964,6 +991,7 @@ def plot_probability_vs_baseline(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     xlabel: str = r'Baseline, $L$ [km]',
     ylabel: Optional[str] = None,
@@ -981,6 +1009,9 @@ def plot_probability_vs_baseline(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       Takes nubar, for the default ordinate label (issue #145 §2).
+
     Parameters
     ----------
     distances : sequence of float
@@ -993,6 +1024,9 @@ def plot_probability_vs_baseline(
     num_flavors : int, optional
         If given, prefixes the ordinate label with ``'Two-'``, ``'Three-'``,
         ``'Four-'`` or ``'Five-neutrino probability'``.
+    nubar : bool, optional
+        True if the curves are antineutrino probabilities, for the default ordinate label.
+        Default: None, read as False.
     xlabel : str, optional
         Abscissa label.
     ylabel : str, optional
@@ -1036,7 +1070,7 @@ def plot_probability_vs_baseline(
     """
     _check_forwarded('plot_probability_vs_baseline', _forbidden)
     if ylabel is None and nu_i is not None and nu_f is not None:
-        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors)
+        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors, nubar=bool(nubar))
     return plot_curves(
         distances, curves, xlabel=xlabel, ylabel=ylabel, ylim=ylim,
         xscale=xscale, ymajor=ymajor, yminor=yminor, **_forbidden)
@@ -1049,6 +1083,7 @@ def plot_probability_vs_energy(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     energy_unit: str = 'GeV',
     xlabel: Optional[str] = None,
@@ -1065,6 +1100,10 @@ def plot_probability_vs_energy(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       Takes nubar, for the default ordinate label (issue #145 §2); energies that look like eV
+       under a larger unit raise EnergyUnitWarning (issue #160 §12).
+
     Parameters
     ----------
     energies : sequence of float
@@ -1075,6 +1114,9 @@ def plot_probability_vs_energy(
         Flavor pair for the ordinate label.
     num_flavors : int, optional
         Flavor count, for the ordinate label prefix.
+    nubar : bool, optional
+        True if the curves are antineutrino probabilities, for the default ordinate label.
+        Default: None, read as False.
     energy_unit : str, optional
         Unit shown in the abscissa label. Default is ``'GeV'``.
     xlabel : str, optional
@@ -1118,10 +1160,24 @@ def plot_probability_vs_energy(
         print(ax.get_xlabel())
     """
     _check_forwarded('plot_probability_vs_energy', _forbidden)
+    # Energies left in eV, the package's own unit, under the default 'GeV' label: axis values
+    # a billion times too large, labelled as if right (issue #160 §12).  Read as eV-sized when
+    # the numbers reach 1e6 and would put the axis above 100 PeV in the unit named.
+    _e_max = float(np.max(np.asarray(energies, dtype=float)))
+    _scale = {'eV': 1.0, 'keV': 1e3, 'MeV': 1e6, 'GeV': 1e9, 'TeV': 1e12, 'PeV': 1e15,
+              'EeV': 1e18}[energy_unit]
+    if energy_unit != 'eV' and _e_max >= 1.0e6 and _e_max*_scale >= 1.0e17:
+        import warnings
+        import magnus.globaldefs as gd
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " plotting.plot_probability_vs_energy: the "
+            "energies reach " + format(_e_max, '.4g') + ", labelled as " + energy_unit + ", "
+            "which is " + format(_e_max*_scale, '.3g') + " eV.  They look like energies in eV, "
+            "the package's own unit, left unconverted: divide by gd.UNIT_" + energy_unit.upper() +
+            " or pass energy_unit='eV'.", gd.EnergyUnitWarning, stacklevel=2)
     if xlabel is None:
         xlabel = r'Neutrino energy, $E_\nu$ [%s]' % energy_unit
     if ylabel is None and nu_i is not None and nu_f is not None:
-        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors)
+        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors, nubar=bool(nubar))
     return plot_curves(
         energies, curves, xlabel=xlabel, ylabel=ylabel, ylim=ylim,
         xscale=xscale, ymajor=ymajor, yminor=yminor, **_forbidden)
@@ -1130,12 +1186,34 @@ def plot_probability_vs_energy(
 _FLAVOR_WORD = {2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five'}
 
 
-def _probability_ylabel(nu_i, nu_f, num_flavors):
+def _resolve_nubar(caller, nubar, wrapper_kw, computing):
+    r"""The ``nubar`` a figure is drawn and labelled for, and the ``wrapper_kw`` to compute with.
+
+    ``nubar=None`` means not given.  In compute mode a given ``nubar`` is also passed to the
+    wrapper, so that the grid and its label cannot disagree; one that contradicts
+    ``wrapper_kw['nubar']`` is refused (issue #145 §2).
+
+    .. versionadded:: 1.2.0
+    """
+    in_kw = (wrapper_kw or {}).get('nubar')
+    if nubar is not None and in_kw is not None and bool(in_kw) != bool(nubar):
+        raise ValueError('Error in magnus: plotting.%s: nubar=%r contradicts '
+                         'wrapper_kw[\'nubar\']=%r; give it once.' % (caller, nubar, in_kw))
+    if nubar is not None and computing:
+        wrapper_kw = dict(wrapper_kw or {}, nubar=bool(nubar))
+    effective = bool(nubar) if nubar is not None else bool(in_kw)
+    return effective, wrapper_kw
+
+
+def _probability_ylabel(nu_i, nu_f, num_flavors, nubar=False):
     r"""Build the notebooks' ordinate label for a probability panel.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Takes nubar and labels an antineutrino probability as such (issue #145).
     """
-    label = prob_label(nu_i, nu_f)
+    label = prob_label(nu_i, nu_f, nubar=bool(nubar))
     if num_flavors is None:
         return 'Probability, ' + label
     if num_flavors not in _FLAVOR_WORD:
@@ -1158,6 +1236,7 @@ def plot_probability_with_profile(
     energy: Optional[float] = None,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     osc_params: Optional[Dict[str, float]] = None,
     electron_fraction: Optional[float] = None,
@@ -1228,6 +1307,10 @@ def plot_probability_with_profile(
        Computes the probabilities through the Earth wrappers when given
        ``trajectories``; ``profiles`` and ``panels`` default to None.
 
+    .. versionchanged:: 1.2.0
+       Takes nubar (issue #145 §2), labels the computed probability panel (issue #146 §2), and
+       computes NSI and LIV through the Earth wrappers (issue #146 §1).
+
     Parameters
     ----------
     x : sequence of float
@@ -1275,6 +1358,10 @@ def plot_probability_with_profile(
         :data:`magnus.globaldefs.NUMU` and :data:`magnus.globaldefs.NUE`.
     num_flavors : int, optional
         2, 3, 4 or 5: which Earth wrapper computes the probabilities.
+    nubar : bool, optional
+        True for antineutrinos.  In compute mode it is also passed to the wrapper, so the
+        curves and their label agree; a value contradicting ``wrapper_kw['nubar']`` is refused.
+        Default: None, which reads ``wrapper_kw['nubar']`` in compute mode and False otherwise.
     osc_params : dict, optional
         Mixing parameters, passed to the wrapper as keywords: ``sth`` and
         ``Dm2`` (required) at two flavors; at three to five flavors any of the
@@ -1306,7 +1393,9 @@ def plot_probability_with_profile(
     profile_ylabel : str, optional
         Ordinate label of the density panel.
     panel_ylabels : sequence of str, optional
-        Ordinate labels for the probability panels. Entries may be ``None``.
+        Ordinate labels for the probability panels. Entries may be ``None``.  In compute
+        mode, when neither this nor ``shared_ylabel`` is given, every probability panel is
+        labelled with the channel of ``nu_i`` and ``nu_f`` (and ``nubar``).
     panel_annotations : sequence, optional
         Text placed inside each probability panel, one entry per panel, at
         ``panel_annotation_xy`` in axes coordinates. An entry is a string, or a
@@ -1444,6 +1533,8 @@ def plot_probability_with_profile(
             xscale='linear', return_probability=True)
         print(len(ax), P[0].shape)
     """
+    nubar_label, wrapper_kw = _resolve_nubar('plot_probability_with_profile', nubar,
+                                             wrapper_kw, trajectories is not None)
     computing = dict(x_axis=x_axis, x_unit=x_unit, energy=energy, nu_i=nu_i, nu_f=nu_f,
                      num_flavors=num_flavors, osc_params=osc_params,
                      electron_fraction=electron_fraction,
@@ -1464,6 +1555,12 @@ def plot_probability_with_profile(
             x, trajectories, **computing)
         if xlabel is None:
             xlabel = computed_xlabel
+        # The channel is known here, so the probability panels get the label the curve
+        # routines give (issue #146 §2); it used to be left empty.
+        if (panel_ylabels is None and shared_ylabel is None and nu_i is not None
+                and nu_f is not None):
+            panel_ylabels = [_probability_ylabel(nu_i, nu_f, num_flavors,
+                                                 nubar=nubar_label)]*len(panels)
     else:
         given = [name for name, value in computing.items() if value is not None]
         if return_probability:
@@ -2233,6 +2330,7 @@ def plot_oscillogram(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     osc_params: Optional[Dict[str, float]] = None,
     electron_fraction: Optional[float] = None,
@@ -2287,6 +2385,11 @@ def plot_oscillogram(
        the Earth wrappers.  Adds ``num_flavors``, ``osc_params``, the
        electron-fraction keywords, ``wrapper_kw`` and ``return_probability``.
 
+    .. versionchanged:: 1.2.0
+       Takes nubar and labels an antineutrino oscillogram as such (issue #145), computes NSI and
+       LIV through the Earth wrappers (issue #146 §1), and refuses log10_energy above 19 in
+       compute mode (issue #160 §12).
+
     Parameters
     ----------
     costhz : sequence of float
@@ -2307,6 +2410,10 @@ def plot_oscillogram(
         :math:`2 \times 2` matrix (0 or 1).
     num_flavors : int, optional
         2, 3, 4 or 5: which Earth wrapper computes the probability.
+    nubar : bool, optional
+        True for antineutrinos.  In compute mode it is also passed to the wrapper, so the
+        grid and its label agree; a value contradicting ``wrapper_kw['nubar']`` is refused.
+        Default: None, which reads ``wrapper_kw['nubar']`` in compute mode and False otherwise.
     osc_params : dict, optional
         Mixing parameters, passed to the wrapper by name (``sth`` and ``Dm2``
         at two flavors, where they are required; ``s12``, ..., ``D31`` and the
@@ -2434,7 +2541,18 @@ def plot_oscillogram(
                      electron_fraction_ocean=electron_fraction_ocean,
                      ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
                      wrapper_kw=wrapper_kw)
+    nubar_label, wrapper_kw = _resolve_nubar('plot_oscillogram', nubar, wrapper_kw,
+                                             probability is None)
+    computing['wrapper_kw'] = wrapper_kw
     if probability is None:
+        # 10^19 GeV is the Planck scale: above it no oscillation wrapper is meaningful, and a
+        # grid there was computed as if it were (issue #160 §12).
+        _lg = np.asarray(log10_energy, dtype=float)
+        if np.max(_lg) > 19.0:
+            raise ValueError(_v._msg('plotting.plot_oscillogram', "log10_energy is log10 of the "
+                                     "energy in GeV, so it must stay at or below 19, the Planck "
+                                     "scale; its largest entry is " + format(float(np.max(_lg)),
+                                                                              'g') + "."))
         probability = _oscillogram_through_earth_wrappers(costhz, log10_energy, nu_i, nu_f,
                                                           **computing)
     else:
@@ -2464,16 +2582,18 @@ def plot_oscillogram(
     ckw.update(contourf_kw or {})
     cs = ax.contourf(costhz, log10_energy, prob, **ckw)
 
+    # A grid computed with nubar=True is the antineutrino probability, and is labelled as one
+    # (issue #145 §1): the labels used to say nu whatever the grid held.
     label = cbar_label
     if label is None and nu_i is not None and nu_f is not None:
-        label = cbar_label_prefix + prob_label(nu_i, nu_f)
+        label = cbar_label_prefix + prob_label(nu_i, nu_f, nubar=nubar_label)
     cbar = fig.colorbar(cs, ax=ax)
     cbar.ax.tick_params(labelsize=cbar_labelsize)
     if label is not None:
         cbar.set_label(label=label, fontsize=cbar_fontsize)
 
     if annotation is None and nu_i is not None and nu_f is not None:
-        annotation = prob_label(nu_i, nu_f)
+        annotation = prob_label(nu_i, nu_f, nubar=nubar_label)
     if annotation:
         text = ax.text(0.96, 0.95, annotation, ha='right', va='center',
                        size=annotation_fontsize, color='k', rotation=0.0,
@@ -2534,6 +2654,10 @@ def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wr
     caller sets per call, which ``wrapper_kw`` and ``osc_params`` may not also set.  The
     composition keywords left at None are dropped, so the wrapper's own defaults (a
     layered electron fraction) apply.
+
+    .. versionchanged:: 1.2.0
+       Routes NSI and LIV parameters to the Earth wrapper that takes them (issue #146 §1), and
+       the wrapper it returns names the plotting routine in its errors (issue #160 §12).
     """
     where = 'Error in magnus: plotting.%s: ' % caller
     if nu_i is None or nu_f is None:
@@ -2553,6 +2677,48 @@ def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wr
                          'wrapper_kw or osc_params: ' % caller + ', '.join(clash) + '.')
     composition = {k: v for k, v in composition.items() if v is not None}
 
+    # NSI and LIV through the Earth (issue #146 §1): the wrapper follows the parameters given.
+    # Before, the standard wrapper was always chosen, and refused the eps_* or b* keys.
+    import re
+    given = set(wrapper_kw) | set(osc_params)
+    nsi = sorted(k for k in given if k.startswith('eps_'))
+    liv = sorted(k for k in given if re.fullmatch(r'b\d|sxi\d*|dxi\w*|Lambda|n_liv', k))
+    if nsi and liv:
+        raise ValueError(where + 'NSI (%s) and LIV (%s) parameters together: no Earth wrapper '
+                         'takes both.  Compute the grid yourself and pass it as probability.'
+                         % (', '.join(nsi), ', '.join(liv)))
+    suffix = '_nsi' if nsi else ('_liv' if liv else '')
+
     from magnus import oscprob
-    fn = getattr(oscprob, 'osc_prob_%dnu_earth' % num_flavors)
-    return fn, dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition, **wrapper_kw)
+    fn = getattr(oscprob, 'osc_prob_%dnu_earth%s' % (num_flavors, suffix), None)
+    if fn is None:
+        raise ValueError(where + 'there is no %d-flavor Earth wrapper for %s parameters.  '
+                         'Compute the grid yourself and pass it as probability.'
+                         % (num_flavors, 'NSI' if nsi else 'LIV'))
+    return _named_by(caller, fn), dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition,
+                                       **wrapper_kw)
+
+
+def _named_by(caller: str, fn):
+    r"""``fn``, with its argument errors prefixed by the plotting routine the caller called.
+
+    In compute mode the physics arguments reach an ``oscprob`` wrapper, and its refusals named
+    only that wrapper -- a function the caller never called (issue #160 §12).  The wrapper's
+    own message is kept whole after the plotting routine's name.
+
+    .. versionadded:: 1.2.0
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def named(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (TypeError, ValueError) as error:
+            text = str(error)
+            if 'Error in magnus' not in text:
+                raise
+            body = text.split('Error in magnus: ', 1)[1]
+            raise type(error)('Error in magnus: plotting.' + caller + ': computing the '
+                              'probability with ' + body) from error
+    return named

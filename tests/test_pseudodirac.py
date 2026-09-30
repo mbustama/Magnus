@@ -291,3 +291,16 @@ def test_a_genuinely_small_splitting_does_not_warn():
     with warnings.catch_warnings():
         warnings.simplefilter('error', hams.PseudoDiracSplittingWarning)
         hams.pseudo_dirac_mass_squared(_mass_squared(), {0: 1.0e-18})
+
+
+@pytest.mark.parametrize('state', [0, 1, 2])
+@pytest.mark.parametrize('delta', [1.0e-19, 1.0e-18, 1.0e-15])
+def test_small_splitting_is_not_lost_to_cancellation(state, delta):
+    """#165 §1: the delta-dependent entries were formed as (m2_j + delta) - m2_j at the scale of
+    m2_j ~ 2.5e-3 eV^2, so delta = 1e-18 kept one or two digits (0.24 off at 1e-19, state 2)."""
+    U = _pmns()
+    m2 = [0.0, 7.5e-5, 2.5e-3]
+    H = hams.hamiltonian_pseudo_dirac_vacuum_energy_independent(U, m2, {state: delta})
+    assert np.allclose(H, np.conj(H.T), rtol=0.0, atol=0.0)
+    recovered = -4.0*H[0, 3]/U[0, state]
+    assert abs(recovered/delta - 1.0) < 1.0e-12

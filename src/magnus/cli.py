@@ -211,6 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
     .. versionchanged:: 1.1.1
        The epilog names ``prob`` as the default subcommand, and ``magnus -h`` also prints
        the options of ``prob`` (issue #138).
+
+    .. versionchanged:: 1.2.0
+       The --magnus-exp-order help states that 'gl' takes the even orders from 2 to 8 (issue
+       #160 §5).
     """
     parser = argparse.ArgumentParser(
         prog='magnus',
@@ -422,8 +426,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     g_num = p.add_argument_group('Advanced numerics')
     g_num.add_argument('--magnus-exp-order', type=int, default=4, dest='magnus_exp_order',
-        help='Highest order of the Magnus expansion (1-10; 1-8 with the default '
-             '--integration-method gl). Default: 4.')
+        help='Highest order of the Magnus expansion (1-10; an even order from 2 to 8 with '
+             'the default --integration-method gl). Default: 4.')
     g_num.add_argument('--integration-method', choices=['gl', 'trapezoid', 'simpson'], default='gl',
         help="Quadrature method. 'gl' (Gauss-Legendre collocation) needs only 1-4 Hamiltonian "
              "evaluations per slab and matches its quadrature order to the expansion order, so "

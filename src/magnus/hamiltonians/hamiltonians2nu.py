@@ -36,6 +36,7 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 
 from magnus.hamiltonians import _angles
+from magnus.hamiltonians import _broadcast
 from typing import Optional, Callable
 from magnus import _validate as _v
 # from globaldefs import *
@@ -47,6 +48,9 @@ def mixing_matrix_2nu(sth: float, angles: Optional[str]='sin') -> np.ndarray:
     Computes and returns a 2x2 real rotation matrix parametrized by a single rotation angle theta.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
 
     Parameters
     ----------
@@ -102,6 +106,9 @@ def hamiltonian_2nu_vacuum_energy_independent(sth: float, Dm2: float,
     The multiplicative factor 1/E is not applied.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
 
     Parameters
     ----------
@@ -189,10 +196,15 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
+
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     sth : float
         Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
         default its sine.
@@ -209,11 +221,11 @@ def hamiltonian_2nu_vacuum_energy_independent_td(l: float, sth: float, Dm2: floa
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
 
-    return hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+    return _broadcast.over_positions(l, hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
@@ -225,10 +237,15 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
+
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sth : float
         Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
         default its sine.
@@ -245,13 +262,15 @@ def hamiltonian_2nu_vacuum(energy: float, sth: float, Dm2: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_2nu_vacuum', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return (1/energy)*hamiltonian_2nu_vacuum_energy_independent(sth, Dm2,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
 
@@ -271,12 +290,18 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
+
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
-    energy : float
+        An array returns a stack of matrices, one per position.
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sth : float
         Mixing angle :math:`\theta`, in whichever convention ``angles`` names -- by
         default its sine.
@@ -293,15 +318,18 @@ def hamiltonian_2nu_vacuum_td(l: float, energy: float, sth: float, Dm2: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
 
-    return hamiltonian_2nu_vacuum(energy, sth, Dm2,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+    return _broadcast.over_positions(l, hamiltonian_2nu_vacuum(energy, sth, Dm2,
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for matter oscillations.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in matter with
     constant density.
@@ -310,13 +338,13 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with electrons.
 
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     
     Examples
     --------
@@ -352,6 +380,9 @@ def hamiltonian_2nu_matter(VCC: float) -> np.ndarray:
 def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for matter oscillations, as a function of distance.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Computes and returns the 2x2 real two-neutrino Hamiltonian for
     oscillations in matter with a given density as a function of
     position.
@@ -360,8 +391,9 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -369,7 +401,7 @@ def hamiltonian_2nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
     return hamiltonian_2nu_matter(VCC_func(l))
 
@@ -392,9 +424,13 @@ def hamiltonian_2nu_nsi(VCC: float, eps_aa: float, eps_ab: complex) -> np.ndarra
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``VCC`` may be an array: the result is a stack of matrices, one per potential (issue #155
+       §2).
+
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with electrons.
     eps_aa : float
         Non-universal diagonal NSI coupling of nu_e (relative to nu_mu, whose diagonal coupling is
@@ -405,13 +441,15 @@ def hamiltonian_2nu_nsi(VCC: float, eps_aa: float, eps_ab: complex) -> np.ndarra
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
     # float cannot get wrong is left to check, in one comparison per coupling: a
     # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
     if type(eps_aa) is not float:
         _v.check_physics_params('hamiltonians.hamiltonian_2nu_nsi', {'eps_aa': eps_aa})
+    if type(VCC) not in _broadcast.SCALARS and np.ndim(VCC):
+        VCC = _broadcast.stacked(VCC)
     return VCC * np.array([[eps_aa, eps_ab], [np.conj(eps_ab), 0.0]], dtype=np.complex128)
 
 
@@ -426,8 +464,9 @@ def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, eps_aa: float,
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -439,7 +478,7 @@ def hamiltonian_2nu_nsi_td(l: float, VCC_func: Callable, eps_aa: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
     return hamiltonian_2nu_nsi(VCC_func(l), eps_aa, eps_ab)
 
@@ -455,10 +494,15 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
+
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sxi : float
         Rotation angle :math:`\xi` between the space of the eigenvectors of B2 and the
         flavor states, in whichever convention ``angles`` names -- by default its sine.
@@ -483,13 +527,15 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     Returns
     -------
     np.ndarray
-        Hamiltonian 2x2 matrix.
+        Hamiltonian 2x2 matrix, or a stack of them, shape ``(..., 2, 2)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_2nu_liv', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(
         sxi, b1, b2, Lambda, n_liv, angles=angles)
 
@@ -502,6 +548,10 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     invariance-violating background, without the energy-dependent prefactor.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A LIV mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160
+       §11).
 
     Parameters
     ----------

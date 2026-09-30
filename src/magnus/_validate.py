@@ -27,10 +27,12 @@ Routine listings
     * check_bool - True or False only
     * check_choice - One of a set of values, compared by type as well
     * check_real_array - A real scalar or 1-D array, every entry finite
+    * check_unit_fraction - A fraction in (0, 1], or an array of them
     * check_dict - None or a dict
     * check_slab_edges - A gap-free partition of the path into [start, end] pairs
     * check_hamiltonian_sample - A finite, square, Hermitian matrix (or stack)
     * check_refinement - The tolerance, slab and engine keywords, by one rule table
+    * check_gl_order - Refuse an odd Magnus order on the Gauss-Legendre method
     * check_physics_params - A Hamiltonian builder's physics arguments, by name
     * validated - Decorator applying a rule table to calls from outside the package
     * r_real - Rule factory: a real number
@@ -191,6 +193,30 @@ def check_choice(name: str, x, where: str, choices, *, allow_none: bool = False)
             return x
     raise ValueError(_msg(where, name + " must be one of " +
                           ", ".join(repr(c) for c in choices) + "; got " + _show(x) + "."))
+
+
+def check_unit_fraction(name: str, x, where: str, *, allow_zero: bool = False):
+    r"""A fraction in (0, 1] ([0, 1] with ``allow_zero``): a number or an array of them.
+
+    For the helpers that run at every quadrature node (issue #160 §11): a plain float in range
+    passes in one comparison; anything else, arrays included, gets the full check.  Returns
+    ``x`` unchanged.
+
+    .. versionadded:: 1.2.0
+    """
+    if type(x) is float and (0.0 <= x if allow_zero else 0.0 < x) and x <= 1.0:
+        return x
+    what = "in [0, 1]" if allow_zero else "in (0, 1]"
+    if np.ndim(x) == 0:
+        check_real(name, x, where, lo=0.0, lo_open=not allow_zero, hi=1.0, what=what)
+        return x
+    a = np.asarray(check_real_array(name, x, where, ndim=np.ndim(x)), dtype=float)
+    bad = ~((a >= 0.0 if allow_zero else a > 0.0) & (a <= 1.0))
+    if bad.any():
+        i = int(np.argmax(bad.ravel()))
+        raise ValueError(_msg(where, name + " must be " + what + "; entry " + str(i) + " is "
+                              + repr(float(a.ravel()[i])) + "."))
+    return x
 
 
 def check_real_array(name: str, x, where: str, *, positive: bool = False,
@@ -357,8 +383,12 @@ def _order(name, x, where):
 
 
 def _n_jobs(name, x, where):
-    if x is None:
-        return None
+    r"""A worker count: -1 (all cores) or a positive integer.
+
+    .. versionchanged:: 1.2.0
+       None is refused by name (issue #160 §5).
+    """
+    # None was let through here and then compared with an integer (issue #160 §5).
     x = check_int(name, x, where)
     if x == -1 or x >= 1:
         return x
@@ -407,6 +437,9 @@ def check_refinement(where: str, values: dict) -> None:
     r"""Apply :data:`REFINEMENT_RULES` to the entries of ``values`` that it names.
 
     Also refuses the combinations no single rule sees: a floor above its ceiling.
+
+    .. versionchanged:: 1.2.0
+       Refuses an odd magnus_exp_order with integration_method='gl' (issue #160 §5).
     """
     for key, x in values.items():
         rule = REFINEMENT_RULES.get(key)
@@ -414,12 +447,34 @@ def check_refinement(where: str, values: dict) -> None:
             rule(key, x, where)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
+    if 'magnus_exp_order' in values:
+        check_gl_order(values['magnus_exp_order'], values.get('integration_method', 'gl'), where)
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
                            ('min_n_tpts_per_slab', 'max_n_tpts_per_slab')):
         lo, hi = values.get(lo_key), values.get(hi_key)
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(_msg(where, lo_key + " (" + str(lo) + ") must be <= " + hi_key +
                                   " (" + str(hi) + ")."))
+
+
+def check_gl_order(order, integration_method, where: str) -> None:
+    r"""Refuses an odd Magnus order on the Gauss-Legendre method (issue #160 §5).
+
+    Each Gauss-Legendre scheme integrates to an even order: an odd request ran the scheme of the
+    next even order and returned its result bit for bit, so ``magnus_exp_order=3`` was order 4
+    under another name.  Refused, naming the order that was being computed.
+
+    .. versionadded:: 1.2.0
+    """
+    if type(order) is int and not order & 1:
+        return
+    if integration_method in (None, 'gl') and isinstance(order, (int, np.integer)) and \
+            not isinstance(order, bool) and order % 2 == 1:
+        raise ValueError(_msg(where, "magnus_exp_order=" + str(order) + " is odd, and the "
+                              "Gauss-Legendre schemes of integration_method='gl' have even "
+                              "orders only: this ran order " + str(order + 1) + ", bit for bit.  "
+                              "Pass magnus_exp_order=" + str(order + 1) + ", or "
+                              "integration_method='trapezoid' or 'simpson' for an odd order."))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -541,6 +596,10 @@ def check_physics_params(where: str, values: dict) -> None:
     coefficient is a finite real; the two flags are bools.  A finite plain float passes in
     one comparison, so a builder called once per quadrature node inside a user Hamiltonian
     pays well under a microsecond (issue #160 §11).
+
+    .. versionchanged:: 1.2.0
+       An array ``energy`` is checked entry by entry, since the builders now take one (issue
+       #155 §2).
     """
     for k, x in values.items():
         if k in _BUILDER_FLAGS:
@@ -549,7 +608,11 @@ def check_physics_params(where: str, values: dict) -> None:
             continue
         if k == 'energy' or k == 'Lambda':
             if not (type(x) is float and 0.0 < x < _INF):
-                check_real(k, x, where, positive=True)
+                if k == 'energy' and np.ndim(x) != 0:
+                    # The builders broadcast over an array of energies (issue #155 §2).
+                    check_real_array(k, x, where, positive=True, ndim=np.ndim(x))
+                else:
+                    check_real(k, x, where, positive=True)
             continue
         if k == 'n_liv':
             check_int(k, x, where, lo=0, what="an integer >= 0 (the operator dimension "

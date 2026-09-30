@@ -1669,7 +1669,7 @@ def test_requested_n_slabs_is_honoured_as_a_floor_under_a_tolerance():
     P_ref = castle_wall_reference(H, L)
 
     info = {}
-    P = op.osc_prob(H, 0.0, L, n_slabs=150, magnus_exp_order=3,
+    P = op.osc_prob(H, 0.0, L, n_slabs=150, magnus_exp_order=4,
                     convergence_info=info)
 
     assert info['n_slabs'] >= 150, \
@@ -1689,7 +1689,7 @@ def test_unfloored_ladder_is_what_the_floor_protects_against():
     L = CW_L_KM*gd.UNIT_KM
     P_ref = castle_wall_reference(H, L)
 
-    P = op.osc_prob(H, 0.0, L, magnus_exp_order=3)
+    P = op.osc_prob(H, 0.0, L, magnus_exp_order=4)
     assert maxabs(np.asarray(P) - P_ref) > 0.1
 
 
@@ -1712,9 +1712,9 @@ def test_default_n_slabs_leaves_the_ladder_untouched():
     H = castle_wall_H()
     L = CW_L_KM*gd.UNIT_KM
     info_default, info_explicit = {}, {}
-    P_default = op.osc_prob(H, 0.0, L, magnus_exp_order=3,
+    P_default = op.osc_prob(H, 0.0, L, magnus_exp_order=4,
                             convergence_info=info_default)
-    P_explicit = op.osc_prob(H, 0.0, L, n_slabs=1, magnus_exp_order=3,
+    P_explicit = op.osc_prob(H, 0.0, L, n_slabs=1, magnus_exp_order=4,
                              convergence_info=info_explicit)
     assert info_default == info_explicit
     assert np.array_equal(np.asarray(P_default), np.asarray(P_explicit))
@@ -1941,14 +1941,14 @@ def test_cumulative_scan_agrees_with_the_per_point_path_on_an_identical_grid():
 
     P = np.asarray(op.osc_prob_energy_baseline(
         H, CW_ENERGY, L, cumulative=True, rtol=None, atol=None, n_slabs=n_acc,
-        magnus_exp_order=3))
+        magnus_exp_order=4))
 
     edges, out_idx = op._cumulative_scan_grid(L, 0.0, n_acc, None)
     for i in range(0, len(L), 11):
         k = out_idx[i]
         prefix = np.column_stack([edges[:k], edges[1:k + 1]])
-        P_ref = op.osc_prob(H, 0.0, L[i], t_slab_edges=prefix, magnus_exp_order=3,
-                            rtol=None, atol=None, n_tpts_per_slab=2)
+        P_ref = op.osc_prob(H, 0.0, L[i], t_slab_edges=prefix, magnus_exp_order=4,
+                            rtol=None, atol=None)
         assert maxabs(np.asarray(P_ref) - P[i]) < 1e-12
 
 
@@ -1978,7 +1978,7 @@ def test_cumulative_scan_sizes_its_accuracy_grid_from_the_adaptive_path():
     L = np.linspace(200.0, 2000.0, 40)*gd.UNIT_KM
 
     info = {}
-    op.osc_prob(H, 0.0, L[-1], magnus_exp_order=3, convergence_info=info)
+    op.osc_prob(H, 0.0, L[-1], magnus_exp_order=4, convergence_info=info)
     edges, _ = op._cumulative_scan_grid(
         L, 0.0, info['n_slabs']*op.CUMULATIVE_N_ACC_SAFETY, None)
 

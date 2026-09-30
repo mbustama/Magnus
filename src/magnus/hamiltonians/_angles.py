@@ -142,12 +142,23 @@ def validate_convention(source_func_name: str, angles: str) -> str:
         " in radians, and 'deg' the angle in degrees.")
 
 
+#: The angles the heuristic below judges by: the three measured active angles, and the one
+#: angle of a two-flavor call.  Sterile and LIV angles have no measured scale to compare with.
+_ACTIVE_ANGLES = frozenset(('s12', 's13', 's23', 'sth'))
+
+
 def _warn_if_angles_are_probably_sines(source_func_name, values):
     r"""Warns when every angle declared to be in degrees is too small to be one.
 
-    Called only for ``angles='deg'``.  See :data:`IMPLAUSIBLE_MIXING_ANGLE_DEG`.
+    Called only for ``angles='deg'``, with the active angles of :data:`_ACTIVE_ANGLES` when
+    the call has any, so that sterile angles cannot hide sines in the active slots.  See
+    :data:`IMPLAUSIBLE_MIXING_ANGLE_DEG`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Judged by the active angles only, and the message says how to silence a false positive
+       (issue #160 §11).
     """
     import warnings
 
@@ -169,7 +180,9 @@ def _warn_if_angles_are_probably_sines(source_func_name, values):
         " degrees is about fifty times too small.  The call will return a converged,"
         " unitary, entirely wrong probability rather than an error.  Either drop"
         " angles='deg' (its default, 'sin', is what load_nufit_params returns), or pass"
-        " the angles themselves.",
+        " the angles themselves.  Genuinely tiny angles set this off too; if yours are,"
+        " silence it with warnings.filterwarnings('ignore',"
+        " category=gd.MixingAngleConventionWarning).",
         # 4, not matter.py's 3: this chain is one frame deeper -- warn, this function,
         # resolve, the builder -- so 4 is what attributes it to the builder's caller.
         gd.MixingAngleConventionWarning, stacklevel=4)
@@ -199,6 +212,9 @@ def resolve(source_func_name: str, angles: str, sines: dict, phases: dict = None
     this function at all.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       An angle with a negative cosine, beyond 90 degrees, is refused (issue #160 §11).
 
     Parameters
     ----------
@@ -240,18 +256,24 @@ def resolve(source_func_name: str, angles: str, sines: dict, phases: dict = None
                  for name, value in sines.items()}, dict(phases))
 
     if angles == 'rad':
-        # 2*pi, not pi/2: a mixing angle outside the first quadrant is unconventional
-        # rather than wrong, but a value above 2*pi is degrees in a radians slot.
+        # 2*pi for the range: a value above it is degrees in a radians slot.  Within it, an
+        # angle with a negative cosine is refused next (issue #160 §11).
         _validate_range(source_func_name, sines, -2.0*np.pi, 2.0*np.pi, 'rad',
                         "an angle in radians and must lie in [-2*pi, 2*pi]; a larger"
                         " value is degrees passed as radians")
+        _refuse_negative_cosine(source_func_name, sines, 'rad', lambda x: x)
         converted = {name: np.sin(np.asarray(value, dtype=float))
                      for name, value in sines.items()}
         return converted, dict(phases)
 
     _validate_range(source_func_name, sines, -360.0, 360.0, 'deg',
                     "an angle in degrees and must lie in [-360, 360]")
-    _warn_if_angles_are_probably_sines(source_func_name, list(sines.values()))
+    _refuse_negative_cosine(source_func_name, sines, 'deg', np.radians)
+    # The measured angles only (issue #160 §11): sterile or LIV angles of a few degrees made the
+    # largest angle look plausible while the active slots held sines.
+    active = [v for k, v in sines.items() if k in _ACTIVE_ANGLES]
+    _warn_if_angles_are_probably_sines(source_func_name,
+                                       active if active else list(sines.values()))
     return ({name: np.sin(np.radians(np.asarray(value, dtype=float)))
              for name, value in sines.items()},
             {name: np.radians(np.asarray(value, dtype=float))
@@ -298,6 +320,36 @@ def from_sines(angles: str, sines: dict, phases: dict = None):
         return theta, dict(phases)
     return ({k: np.degrees(v) for k, v in theta.items()},
             {k: np.degrees(np.asarray(v, dtype=float)) for k, v in phases.items()})
+
+
+def _refuse_negative_cosine(source_func_name, values, convention, to_radians):
+    r"""Raises :class:`ValueError` for an angle whose cosine is negative (issue #160 §11).
+
+    Every builder takes the cosine as :math:`+\sqrt{1 - s^2}`, so an angle in the second or
+    third quadrant was silently replaced by the one with the same sine and a positive cosine:
+    :math:`\theta_{12} = 2.0` rad gave the matrix of :math:`\pi - 2.0`, 0.0175 off in
+    probability.  That rotation differs from the requested one by the sign of the cosine, which
+    only a rephasing of the states can absorb, so it is refused rather than guessed.
+
+    .. versionadded:: 1.2.0
+    """
+    for name, value in values.items():
+        theta = to_radians(np.asarray(value, dtype=float))
+        bad = np.cos(theta) < -1.0e-12
+        if not np.any(bad):
+            continue
+        import magnus.globaldefs as gd
+        t = float(np.ravel(theta)[np.argmax(np.ravel(bad))])
+        v = float(np.ravel(np.asarray(value, dtype=float))[np.argmax(np.ravel(bad))])
+        same_sine = np.arcsin(np.sin(t))
+        shown = same_sine if convention == 'rad' else np.degrees(same_sine)
+        raise ValueError(
+            gd.ERROR_MSG_NO_COLOR + " " + source_func_name + ": with angles=" + repr(convention)
+            + ", " + name + " = " + repr(v) + " has a negative cosine, which the mixing matrix "
+            "cannot represent: its cosine is taken as +sqrt(1 - sin^2).  The angle in [-90, 90] "
+            "degrees with the same sine is " + format(shown, '.6g') + (" rad" if convention ==
+            'rad' else " degrees") + ", but it is a different rotation unless the states are "
+            "rephased; state the parameters in that convention.")
 
 
 def _validate_range(source_func_name, values, low, high, convention, what):

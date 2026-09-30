@@ -21,7 +21,9 @@ RHO = 3.0*gd.UNIT_G_PER_CM3
 
 FORMS = {
     'scalar_return': (lambda l: RHO, 'separable'),
-    'scalar_only': (lambda l: RHO*(1.0 if float(l) < 0.5*L else 2.0/3.0), 'magnus'),
+    # Evaluated position by position by the scenario function since issue #144 §4, so the
+    # Hamiltonian built on it is array-capable and the scan stays on the batched engine too.
+    'scalar_only': (lambda l: RHO*(1.0 if float(l) < 0.5*L else 2.0/3.0), 'separable'),
 }
 
 
@@ -38,6 +40,6 @@ def test_scan_matches_points(form, tol):
             3, rho_func, e, L, osc_params=OSC, **tol) for e in ENERGIES])
     assert scan.shape == points.shape
     assert np.max(np.abs(scan - points)) < 1.0e-12
-    # A constant written as a scalar stays on the batched engine; one that takes a single
-    # position at a time is declined to the per-point ladder.
+    # A constant written as a scalar stays on the batched engine, and so does one that takes a
+    # single position at a time.
     assert info['engine'] == engine

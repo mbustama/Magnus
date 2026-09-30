@@ -37,6 +37,7 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 
 from magnus.hamiltonians import _angles
+from magnus.hamiltonians import _broadcast
 
 import magnus.matter as matter
 from typing import Optional, Callable, Union
@@ -66,6 +67,9 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, dCP: float, s14: float,
     only relabels the sterile flavors, and is left out.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
 
     Parameters
     ----------
@@ -311,6 +315,9 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
+
     Parameters
     ----------
     s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
@@ -385,10 +392,15 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
+
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -414,11 +426,11 @@ def hamiltonian_5nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
-    return hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15, d15, s24,
+    return _broadcast.over_positions(l, hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15, d15, s24,
         d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 @_angles.renamed_keyword('d13', 'dCP')
@@ -433,10 +445,15 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
+
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -462,13 +479,15 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_5nu_vacuum', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15,
         d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
@@ -488,12 +507,18 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
+
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
-    energy : float
+        An array returns a stack of matrices, one per position.
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25, s34, s35, d35 : float
         3+2 mixing angles (sines) and CP phases; see :func:`mixing_matrix_5x5`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -519,17 +544,20 @@ def hamiltonian_5nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
-    return hamiltonian_5nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25,
+    return _broadcast.over_positions(l, hamiltonian_5nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s15, d15, s24, d24, s25,
         s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 def hamiltonian_5nu_matter(VCC: float,
     ratio_number_neutrons_to_protons: Optional[Union[int, float]] = 1.0
 ) -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for matter oscillations.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Computes and returns the 5x5 real five-neutrino Hamiltonian for
     oscillations in matter with constant density.
@@ -538,7 +566,7 @@ def hamiltonian_5nu_matter(VCC: float,
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with
         electrons.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -550,7 +578,7 @@ def hamiltonian_5nu_matter(VCC: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     
     Examples
     --------
@@ -582,6 +610,9 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
 ) -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for matter oscillations, as a function of distance.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Computes and returns the 5x5 real five-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.
 
@@ -589,8 +620,9 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -605,7 +637,7 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
     if callable(ratio_number_neutrons_to_protons):
         # The projector of a position-dependent ratio is itself a function of position.
@@ -641,9 +673,13 @@ def hamiltonian_5nu_nsi(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``VCC`` may be an array: the result is a stack of matrices, one per potential (issue #155
+       §2).
+
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with electrons.
     eps_ee : float
         Diagonal NSI coupling of nu_e.
@@ -679,13 +715,15 @@ def hamiltonian_5nu_nsi(
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
     # float cannot get wrong is left to check, in one comparison per coupling: a
     # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
     if type(eps_ee) is not float or type(eps_mm) is not float or type(eps_tt) is not float or type(eps_s1s1) is not float or type(eps_s2s2) is not float:
         _v.check_physics_params('hamiltonians.hamiltonian_5nu_nsi', {'eps_ee': eps_ee, 'eps_mm': eps_mm, 'eps_tt': eps_tt, 'eps_s1s1': eps_s1s1, 'eps_s2s2': eps_s2s2})
+    if type(VCC) not in _broadcast.SCALARS and np.ndim(VCC):
+        VCC = _broadcast.stacked(VCC)
     return VCC * np.array([
         [eps_ee, eps_em, eps_et, eps_es1, eps_es2],
         [np.conj(eps_em), eps_mm, eps_mt, eps_ms1, eps_ms2],
@@ -710,8 +748,9 @@ def hamiltonian_5nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -721,7 +760,7 @@ def hamiltonian_5nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
     return hamiltonian_5nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_es1, eps_es2, eps_mm,
         eps_mt, eps_ms1, eps_ms2, eps_tt, eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2)
@@ -743,10 +782,15 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
+
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sxi12, sxi23, sxi13, sxi14, sxi15, sxi24, sxi25, sxi34, sxi35 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B5
         and the flavor states, parametrized as in :func:`mixing_matrix_5x5`.
@@ -782,13 +826,15 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     Returns
     -------
     np.ndarray
-        Hamiltonian 5x5 matrix.
+        Hamiltonian 5x5 matrix, or a stack of them, shape ``(..., 5, 5)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_5nu_liv', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
 
     return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5,
@@ -809,6 +855,10 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A LIV mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160
+       §11).
 
     Parameters
     ----------

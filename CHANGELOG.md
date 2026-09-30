@@ -9,6 +9,190 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Averaging an energy-independent Hamiltonian says why no average applies** (issue #144 §3).
+  A matrix, or a function of position alone, has no energy dependence for a spread to act on,
+  so a pair of levels neither decohered nor coherent stays that way; the warning said only
+  that such a pair existed.  It now says the Hamiltonian does not depend on energy, that no
+  spread can decohere the pair, and that `average=False` is the meaningful quantity.
+- **The energy-window average raises one warning per class, not one per sample** (issue #144
+  §2).  On a profile with declared discontinuities, `average=True` propagates once per energy
+  sample, and each propagation warned: 41 `MagnusConvergenceWarning` and 41
+  `ToleranceNotAchievedWarning` records for one call.  They are collected and raised once per
+  class, saying how many of the propagations raised it; filters set by the caller still apply.
+- **"Shown once per session" is said only where it is true** (issue #144 §1).  Python's default
+  filter shows each distinct message once per call site, so a warning whose text reports a count,
+  a window, an error or a slab number shows again for each new value.  The phrase is gone from the
+  nine such warnings (the averaging, hybrid-certification, energy-batched and cumulative-scan
+  ones, and `MagnusHighOrderCostWarning`) and kept on the fixed-text ones and on those whose text
+  is one of a few fixed phrases by design.  `diagnostics.rst` says the same.
+- **Compute-mode plots name the plotting routine in a wrapper's error** (issue #160 §12).  A
+  mistyped physics argument was refused naming only `oscprob.osc_prob_3nu_earth`, a function
+  the caller never called; the message now starts with the plotting routine and keeps the
+  wrapper's own text.
+- **A computed oscillogram refuses `log10_energy` above 19, the Planck scale in GeV** (issue
+  #160 §12).  `[30, 31]` was computed as if meaningful.
+- **`plot_probability_vs_energy` warns when the energies look like eV under a larger unit**
+  (issue #160 §12).  Energies left in eV, the package's unit, were drawn under the default
+  `GeV` label a billion times too large.  `EnergyUnitWarning` fires when the values reach 1e6
+  and would put the axis above 100 PeV.
+- **A curve with nothing above 0 is refused on a log y axis** (issue #160 §12).
+  `plot_curves` and `plot_curves_stacked` drew an empty axis for it, without a word.
+  `plot_curves_stacked` now checks each panel's curves as `plot_curves` does.
+- **A scalar-only `rho_func` is warned about by name, once** (issues #144 §4, #160 §7).  The
+  engine's `ScalarHamiltonianWarning` told the caller to rewrite `H_func`, a function they never
+  wrote.  The scenario functions now probe `rho_func` at three points; if it cannot take an
+  array, the warning names `rho_func` and the NumPy fix, and it is evaluated position by position
+  so the Hamiltonian stays array-capable and the engine does not warn again.  Per-point results
+  are bit-identical (14 of 14 cases across the three scenario functions and both strategies).
+  An energy scan at one baseline now stays on the batched engine instead of falling back to one
+  ladder per energy: it moves within the tolerance (4.4e-15 at the default, 6.5e-8 at
+  rtol=1e-6 on a 40-energy scan) and runs about twice as fast at the default tolerance.
+- **`adiabatic.hybrid_propagator` refuses a Hamiltonian that turns NaN along the path** (issue
+  #160 §7).  Only the first sample was checked, so a NaN past it came back as a NaN propagator,
+  silently.
+- **A custom Sun or Earth Hamiltonian is checked at its first sample** (issue #160 §7).
+  `osc_prob_sun` ran an `H_func` returning a list; it is now refused by name, as it already was
+  by `osc_prob_energy_baseline`, and a non-square, non-finite or non-Hermitian first sample is
+  refused too.  One evaluation, at `L0` and the first energy.
+- **`osc_prob_energy_baseline` refuses an `H_func` taking no argument, or returning an object
+  array, by name** (issue #160 §7).  The first failed on its first call as a `TypeError` naming a
+  lambda, the second as NumPy's "ufunc 'isfinite' not supported".
+- **`t_breakpoints` of which none lies on the path are refused** (issue #160 §6).  Breakpoints
+  all before `L0` or past the longest baseline mark nothing -- a sign or a unit gone wrong --
+  and were accepted and ignored.  Some off the path stay accepted: a whole profile's breakpoints
+  reused for a shorter path, as `solar_models.rst` does with a table's rows, still mark the
+  jumps on it.  The Earth wrappers now drop the PREM crossings past the end of a partial path
+  themselves; results are bit-identical (30 of 30 Earth cases, full and partial paths, scans
+  and strategies).
+- **`average=True` with `cumulative=True` is refused** (issue #160 §5).  The phase average takes
+  no baseline scan, so the explicit request for one was accepted and ignored.
+- **The `n_jobs` docs say the worker pool outlives the call** (issue #160 §5).  joblib's loky
+  workers stay alive until idle for 300 s, which looked like leaked processes.
+- **`n_jobs=None` is refused by name** (issue #160 §5).  It was let through the check and then
+  compared with an integer, as "'<' not supported between instances of 'int' and 'NoneType'";
+  on single-point calls it was accepted.  `n_jobs` is -1 or a positive integer.
+- **`osc_prob` documents what happens to a count above its cap** (issue #160 §5).  With a
+  tolerance, an `n_slabs` floor above `max_n_slabs` is clipped to it and the points per slab
+  are clipped at `max_n_tpts_per_slab`, with `ToleranceNotAchievedWarning` if a cap stops the
+  refinement; on a fixed grid (`rtol=atol=None`) both counts are used as given.  This was the
+  behavior already, undocumented; it is unchanged.
+- **A `filename_log` that cannot be written is refused by name, before any work** (issue #160
+  §4).  With `save_log=True`, a missing directory or a path naming a directory surfaced as a
+  raw `FileNotFoundError` or `IsADirectoryError` from deep inside `osc_prob`.
+- **`default_osc_params_set_name=None` is refused by name** (issue #160 §4).  It failed as
+  "can only concatenate str (not NoneType) to str"; the name of a parameter set is a string.
+- **`osc_prob` checks `new_recursion_limit`** (issue #160 §4).  The scenario functions already
+  refused a non-positive or non-integer value; `osc_prob` accepted `0`, `-1`, `2.5` and `'a'`.
+  It is still otherwise ignored.
+- **A points-per-slab setting passed with `integration_method='gl'` warns that it does nothing**
+  (issue #160 §5).  `n_tpts_per_slab`, `min_n_tpts_per_slab`, `max_n_tpts_per_slab` and
+  `growth_factor_n_tpts_per_slab` are used by `'trapezoid'` and `'simpson'` only; `'gl'`
+  evaluates the Hamiltonian at its own nodes and overrode them silently.  A value the caller
+  passes now raises the new `IgnoredQuadratureSettingWarning`, once per call, at the caller's
+  line; defaults forwarded between layers never do.  The result is unchanged.  The docstrings,
+  `methodology.rst` and `diagnostics.rst` say so, and the notebooks no longer pass these
+  settings with `'gl'` (68 calls; outputs unchanged).
+- **An odd `magnus_exp_order` with `integration_method='gl'` is refused** (issue #160 §5).  The
+  Gauss-Legendre schemes have even orders only, and an odd order ran the next even one bit for
+  bit (checked on main at orders 1, 3, 5 and 7 through every engine): `magnus_exp_order=3` was
+  order 4 under another name.  The error names the even order.  Odd orders still run on
+  `'trapezoid'` and `'simpson'`.  A constant Hamiltonian's single-slab shortcut now runs at
+  order 2 instead of 1, with results bit-identical to before.  The notebooks that passed odd
+  orders now pass the even order they were running, so their outputs are unchanged; notebook
+  24's order table shows 2, 4 and 6.
+- **Flags given as `None`, and `validate_input` given as anything but a bool, are refused**
+  (issue #160 §4).  The entry checks skipped every `None`, so `nubar=None`, `average=None`,
+  `cumulative=None` and seven more flags read as False; `validate_input` was truth-tested
+  before anything was checked, so `None` turned validation off and an array raised NumPy's
+  "truth value is ambiguous".
+- **`L0` on a vacuum or Earth entry point is refused by name** (issue #160 §1).  None of them
+  declares it, and one passed anyway collided with the start the entry point sets, as a
+  `TypeError` naming an internal function; the vacuum LIV wrappers used it as the start.
+- **The vacuum wrappers refuse `t_breakpoints`** (issue #160 §1).  The vacuum Hamiltonian has no
+  discontinuity to mark, so breakpoints were accepted and ignored.  The refinement keywords
+  (`rtol`, `atol`, the slab and order controls) stay accepted, since the command line and
+  shared calls pass one set to every wrapper, and the vacuum docstrings now say they have no
+  effect there.
+- **`average_n_samples` without `average=True` is refused** (issue #160 §1).  It was accepted
+  and ignored; it was already refused on the averaging routes that do not sample.
+  `average_spread` and `average_initial_state` stay documented as ignored without `average`.
+- **The scenario functions refuse an `h_vac_energy_indep` they would ignore** (issue #160 §1).
+  Up to five flavors the vacuum Hamiltonian is built from `osc_params`, so a matrix passed
+  there was accepted and ignored; `osc_prob_energy_baseline` is the way to propagate one's own.
+- **The Earth wrappers refuse a neutron-to-proton ratio they ignore, and check a callable one**
+  (issue #160 §1).  The density derives its ratio from :math:`Y_e`, so the caller's enters
+  only the sterile projector: at two and three flavors a ratio, scalar or callable, was
+  accepted and ignored, and is refused now.  Above that, a callable ratio returning NaN gave
+  NaN probabilities; its value at the start of the path is checked, as ``rho_func``'s is.
+- **The wrappers broadcast a single-entry `energy` or `L` against a longer one** (issue #160 §1).
+  `osc_prob_energy_baseline` always did; the `osc_prob_*` wrappers refused `[1e9]` against
+  three baselines as a length mismatch.  Unequal lengths above one are still refused.
+- **The Sun wrappers refuse a negative `L0` and arguments with no effect** (issue #160 §1).
+  `L0` is the radius where the path starts; a negative one was accepted.  `electron_fraction`
+  was accepted and ignored by every Sun wrapper, which uses the solar model's electron density
+  directly, and `ratio_number_neutrons_to_protons` was accepted and ignored at two and three
+  flavors.  All three are refused by name.
+- **A NaN `l_scale` or `rho_central` on an exponential-density wrapper is named as such**
+  (issue #160 §1).  It was refused only once the profile returned NaN, as "rho_func must be
+  finite", naming an argument the caller never passed.
+- **`earth.earth_radial_distance_from_depth` checks the position `l`** (issue #160 §3).  A NaN,
+  negative or `True` position was accepted (NaN returned NaN).  It is refused now, at the cost of
+  one array comparison, which also catches -inf.
+- **`earth.dms_to_decimal` refuses out-of-range degrees and ambiguous signs** (issue #160 §3).
+  Degrees of 500 were converted, and `(10, -1, 0)` was read as 10°1′ south.  The degrees now
+  lie in [-360, 360], and a negative part after a positive one is refused, as the chord
+  helpers already did: the sign goes on the first nonzero part.
+- **The per-node matter helpers check their fractions** (issue #160 §11).
+  `earth.electron_fraction_func_prem`, `earth.neutron_to_proton_ratio_from_electron_fraction` and
+  `matter.num_density_e_func` accepted negative, NaN, infinite and `True` electron fractions (or
+  a negative neutron/proton ratio, or a density that is not a function), and computed with them.
+  A plain float in range costs one comparison; anything else is checked in full when the call
+  comes from outside the package, where the wrappers have not already checked it.  Earth calls
+  time as before.
+- **`MagnusConvergenceWarning` measures the traceless part of Ω** (issue #155 §1).  The trace is
+  a global phase: it commutes with every term of the Magnus series and has no bearing on its
+  convergence, but it was counted, so a custom Hamiltonian's first coarse slab was flagged
+  (‖Ω‖ = 3.19, 1.94 without the trace) at every tolerance, and `rtol=1e-8` did not silence it.
+  Over the 160 valid configurations of `warn_fp.py` the warning now fires 19 times instead of
+  39, with 7 true positives instead of 8 and 12 false positives instead of 31; every answer
+  outside the tolerance still carries a warning.  The message now names `n_slabs` and
+  `min_n_slabs` as what silences it; a smaller `rtol` refines, but the coarse first level is
+  still reported.  The refinement gate of the batched scan is unchanged.
+- **`MixingAngleConventionWarning` judges by the active angles, and says how to silence it**
+  (issue #160 §11).  With `angles='deg'`, sines in the active slots went unnoticed when sterile
+  angles of a few degrees were also given, since the check looked at the largest of all angles.
+  It now looks at θ₁₂, θ₁₃, θ₂₃ (or θ at two flavors), and its text says that genuinely tiny
+  angles set it off and how to filter it.
+- **An angle beyond ±90° under `angles='rad'` or `'deg'` is refused** (issue #160 §11).  The
+  cosine is taken as `+sqrt(1 - sin^2)`, so θ₁₂ = 2.0 rad silently gave the rotation of
+  π − 2.0, 0.0175 off in probability.  The message names the angle and the in-quadrant angle
+  with the same sine.
+- **A computed profile plot labels its probability panel** (issue #146 §2).
+  `plot_probability_with_profile` in compute mode left the probability panel's ordinate empty;
+  it now gets the channel's label, as `plot_probability_vs_energy` gives, unless
+  `panel_ylabels` or `shared_ylabel` is passed.
+- **An oscillogram computed for antineutrinos is labelled as one** (issue #145 §1).
+  `plot_oscillogram(..., wrapper_kw=dict(nubar=True))` computed the antineutrino grid but
+  labelled its colour bar and annotation with the neutrino channel.
+- **Small pseudo-Dirac splittings keep their precision** (issue #165 §1).
+  `hamiltonian_pseudo_dirac_vacuum_energy_independent` formed each splitting-dependent entry as
+  `(m2_j + delta) - m2_j` at the scale of `m2_j`, so `delta = 1e-18` eV^2 kept one or two digits
+  (0.24 off at 1e-19 on the third state).  It now builds the Hamiltonian as a base term, written
+  down directly with nothing to cancel, plus the splitting term, carried at full precision:
+  `delta` is recovered to 2e-16 on every state from 1e-19 to 1e-15.  At ordinary splittings the
+  result moves by rounding only (4e-19 on entries of 1e-3), and it is Hermitian to the last bit.
+- **The docs say that a parallel scan agrees with the serial one to within the tolerance, not
+  bit for bit** (issue #166 §1).  `n_jobs > 1` sends a scan to the per-point path, one
+  refinement ladder per point, where the batched engine runs one for all of them: up to 3.7e-5
+  apart on a 40-energy Earth chord at the default 1e-3.  Stated in the `n_jobs` docstring of
+  `osc_prob_energy_baseline` and on the performance page.
+- **`n_jobs > 1` no longer costs a second or more on a small scan** (issue #155 §3).
+  `osc_prob_energy_baseline` computes the first point in the calling process; if the rest would
+  take under `N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that pace, it finishes there too instead of
+  starting workers.  A 5-point millisecond scan with `n_jobs=2` took 1.43 s and now takes
+  0.09 s, with the same numbers as `n_jobs=1`; a scan heavy enough to pay for the workers still
+  uses them.  The `n_jobs` docstring of `osc_prob_energy_baseline`, which said the argument
+  was forwarded to `osc_prob`, now says what it does.
 - **`average_spread` sets the energy window of `average=True` across declared discontinuities**
   (issue #134).  On that route the window was always the default, ±10%, and a caller's
   `average_spread` was accepted and silently ignored.  It is now the half-width of the window
@@ -26,7 +210,18 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- **Every public argument is validated once per call, by one set of rules** (issue #160).
+- **Every Hamiltonian builder takes an array for its varying argument** (issue #155 §2).  The
+  vacuum, `*_td`, NSI and LIV builders at two to five flavors and
+  `hamiltonian_pseudo_dirac_vacuum` now accept `energy`, `VCC` or `l` as a number or an array,
+  as the matter builders always have: a number returns one `(d, d)` matrix, unchanged bit for
+  bit, and an array of shape `s` returns a stack of shape `s + (d, d)`.  Before, an array raised
+  a broadcasting error or, when its length equalled `d`, returned one matrix mixing the entries
+  without a word.  An `H_func` built from these builders now takes the vectorized path.  An array
+  `energy` is checked entry by entry; scalar calls cost what they did.
+- **The public arguments are validated once per call, by one set of rules** (issue #160).
+  Not every argument in every combination: the checklist audit in
+  `docs/dev/measurements/issue160_audit/` lists what is checked, case by case, and the
+  entries above name the cases found open after this one and closed since.
   Before, most checks lived in the general refinement ladder, so whether a value was refused
   depended on which engine answered: `max_n_slabs=-1` was refused by the ladder and answered
   by the adiabatic engine.  The rules, now applied at the entry of every scenario function,
@@ -75,6 +270,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **NSI and LIV oscillograms in compute mode** (issue #146 §1).  `plot_oscillogram`,
+  `plot_probability_with_profile` and `plot_biprobability` pick the `_nsi` Earth wrapper when
+  `wrapper_kw` or `osc_params` holds an `eps_*` key, and the `_liv` one when it holds `b*`,
+  `sxi*`, `dxi*`, `Lambda` or `n_liv`.  They used to pick the standard wrapper, which refused
+  those keys.  Both kinds together, or a flavor count with no such wrapper, are refused with the
+  advice to compute the grid and pass it in.
+- **`nubar=` on the probability plots** (issue #145 §2).  `plot_probability_vs_energy`,
+  `plot_probability_vs_baseline`, `plot_probability_with_profile` and `plot_oscillogram` take a
+  keyword `nubar`: in plot-only mode it labels the curves as antineutrino probabilities, which
+  was not possible before; in compute mode it is also passed to the wrapper, so the numbers and
+  the label agree, and a value contradicting `wrapper_kw['nubar']` is refused.
 - **`gd.EnergyUnitWarning`**, for an energy below 1 keV, most likely MeV or GeV left
   unconverted (issue #141).  `gd.BaselineUnitWarning` now also covers `t_breakpoints` given
   in kilometers.

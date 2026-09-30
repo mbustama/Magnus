@@ -62,6 +62,10 @@ Names are matched without regard to case, and ``'exp'`` is the default.
         print('%-10s <P_ee> = %.4f' % (profile, P_ee))
     # exp 0.2971, BP04 0.3185, B16-GS98 0.3189, B23-AAG21 0.3192
 
+``L0`` is the radius where the neutrino is produced, 0 or more, and a scalar: ``L``
+may be an array of end points, but ``L0`` may not, so for several production points call
+once per point.
+
 From the command line, ``magnus --environment sun`` takes the same names through
 ``--density-profile`` (see :doc:`cli`).  `Notebook 13
 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_

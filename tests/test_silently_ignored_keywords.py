@@ -152,3 +152,49 @@ def test_unknown_keyword_lists_wrapper_physics_keywords(call, bad, listed):
     assert "'" + bad + "'" in msg
     assert listed in msg
     assert 'validate_input' not in msg and 'n_slabs, n_tpts' not in msg.split('engine keywords')[0]
+
+
+def test_small_parallel_scan_runs_in_the_calling_process(monkeypatch):
+    """#155 §3: n_jobs=2 on a millisecond 5-point scan cost about 1.4 s starting workers."""
+    H0v = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    H = lambda En, l: H0v/En + (1e-13*np.exp(-np.asarray(l, float)/(300*KM)))[..., None, None]*np.diag([1., 0, 0])
+    E5 = np.linspace(1.0, 5.0, 5)*gd.UNIT_GEV
+    started = []
+    real = op.Parallel
+    monkeypatch.setattr(op, 'Parallel', lambda *a, **k: started.append(k) or real(*a, **k))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        serial = op.osc_prob_energy_baseline(H, E5, L, n_jobs=1)
+        par = op.osc_prob_energy_baseline(H, E5, L, n_jobs=2)
+    assert started == []
+    assert np.array_equal(serial, par)
+
+
+def test_heavy_parallel_scan_still_uses_the_workers(monkeypatch):
+    import time
+    H0v = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    def H(En, l):
+        time.sleep(0.05)
+        return H0v/En + 0.0*np.asarray(l, float)[..., None, None]
+    started = []
+    real = op.Parallel
+    monkeypatch.setattr(op, 'Parallel', lambda *a, **k: started.append(k) or real(*a, **k))
+    monkeypatch.setattr(op, 'N_JOBS_MIN_PARALLEL_WORK_S', 0.01)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob_energy_baseline(H, np.linspace(1.0, 2.0, 3)*gd.UNIT_GEV, L, n_jobs=2)
+    assert len(started) == 1
+
+
+def test_parallel_and_batched_scans_agree_within_the_tolerance_as_documented():
+    """#166 §1: n_jobs > 1 takes the per-point path, one ladder per point; it agrees with the
+    batched scan to within the tolerance, not bit for bit, and the docstring says so."""
+    import magnus.earth as earth
+    E = np.geomspace(0.5, 20.0, 12)*gd.UNIT_GEV
+    Lc = earth.distance_traveled_inside_earth(-0.7)*gd.UNIT_KM
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        a = np.asarray(op.osc_prob_3nu_earth(E, costhz=-0.7, L=Lc, n_jobs=1))
+        b = np.asarray(op.osc_prob_3nu_earth(E, costhz=-0.7, L=Lc, n_jobs=2))
+    assert np.max(np.abs(a - b)) < 1e-3
+    assert 'not bit for bit' in ' '.join(op.osc_prob_energy_baseline.__doc__.split())

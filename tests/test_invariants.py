@@ -135,6 +135,9 @@ def test_parallel_scan_agrees_with_serial_to_the_tolerance(profile, d, energy, m
             return super().__call__(iterable)
 
     monkeypatch.setattr(op, 'Parallel', CountingParallel)
+    # Eight points finish well under N_JOBS_MIN_PARALLEL_WORK_S, and so would be computed in the
+    # calling process; the comparison is with the pool, so the pool is made to start.
+    monkeypatch.setattr(op, 'N_JOBS_MIN_PARALLEL_WORK_S', 0.0)
     energies = energy*np.linspace(0.8, 1.25, 8)
     Ls = np.linspace(0.3*L1, L1, 8)
     kw = dict(strategy='magnus', rtol=1e-6, atol=1e-6)

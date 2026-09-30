@@ -75,6 +75,12 @@ along the chord at :math:`\cos\theta_z = -0.9`, the batched path takes 0.11 s in
 and ten processes take 1.1 s.  So pass arrays and leave ``n_jobs=1``; raise it only for a scan
 no batched engine accepts, such as one where every energy has its own baseline.
 
+The two paths agree to within the tolerance, not bit for bit: the batched scan runs one
+refinement ladder for all the energies, the per-point path one ladder per point.  Along an Earth
+chord at :math:`\cos\theta_z = -0.7`, 40 energies from 0.5 to 20 GeV differ by up to 3.7e-5 at
+the default tolerance of 1e-3.  A scan whose serial work would take under a second runs in the
+calling process even when ``n_jobs > 1``, since starting the workers costs more.
+
 **The refinement ladder works against these savings.**  It computes every slab count below the
 one that converges and discards them: on an Earth chord, about four times the cost of a call
 given the right slab count in advance (:doc:`methodology`).
