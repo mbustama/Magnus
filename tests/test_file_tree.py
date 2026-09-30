@@ -424,6 +424,8 @@ TREE = [
     ('tests/test_input_fuzz.py', 'Issue #160: each bad argument refused by name, each valid edge accepted'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),
     ('tests/test_magnus_expansion.py', 'Magnus-core correctness (terms, orders, GL rates, unitarity)'),
+    ('tests/test_neither_engine_converges.py',
+     "When neither engine of strategy='auto' converges, the better supported answer is returned (issue #167)"),
     ('tests/test_one_sided_breakpoints.py',
      "'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values"),
     ('tests/test_oscprob.py', 'Oscillation-probability engine, closed-form and ODE cross-checks'),
