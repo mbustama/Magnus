@@ -15472,7 +15472,8 @@ def osc_prob_2nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -15646,7 +15647,8 @@ def osc_prob_3nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -15845,7 +15847,8 @@ def osc_prob_4nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s14 : int or float, optional
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s24 : int or float, optional
@@ -16092,7 +16095,8 @@ def osc_prob_5nu_sun(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s14 : int or float, optional
         Mixing angle :math:`\theta_{14}`, in the convention set by ``angles`` (default: its sine). Default: 0.0.
     s15 : int or float, optional
@@ -16328,7 +16332,8 @@ def osc_prob_sun(
     L : float, list, or np.ndarray
         Final radial position(s) [:math:`\text{eV}^{-1}`], measured from the center of the Sun.
     L0 : int or float, optional
-        Initial radial position [:math:`\text{eV}^{-1}`]. Default: 0.0.
+        Initial radial position [:math:`\text{eV}^{-1}`], 0 or more.  A single number, not an
+        array: for several production points, loop over them.  Default: 0.0.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the solar matter
         potential passed to ``H_func``). Default: False.
@@ -19581,7 +19586,8 @@ def osc_prob_2nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -19762,7 +19768,8 @@ def osc_prob_3nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -19987,7 +19994,8 @@ def osc_prob_4nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -20277,7 +20285,8 @@ def osc_prob_5nu_sun_nsi(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -24317,7 +24326,8 @@ def osc_prob_2nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     sth : int or float
         Mixing angle :math:`\theta` of the two-flavor system, in the convention set by ``angles`` (default: its sine).
     Dm2 : int or float
@@ -24493,7 +24503,8 @@ def osc_prob_3nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -24710,7 +24721,8 @@ def osc_prob_4nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -24997,7 +25009,8 @@ def osc_prob_5nu_sun_liv(
     L : float, list, or np.ndarray
         Baseline(s).
     L0 : int or float
-        Initial position.
+        Initial position: the radius where the path starts, 0 or more [eV^-1].  A single
+        number, not an array: for several production points, loop over them.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional

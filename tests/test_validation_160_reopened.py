@@ -237,3 +237,15 @@ def test_sun_start_at_zero_and_four_flavor_ratio_still_work():
         op.osc_prob_3nu_sun(1.0e7, RS, 0, nu_i=0, nu_f=0)
         op.osc_prob_4nu_sun(1.0e7, RS, 0.0, s14=0.1, s24=0.05, s34=0.02, D41=1.0,
                             ratio_number_neutrons_to_protons=0.5, nu_i=0, nu_f=0)
+
+
+def test_sun_docs_say_L0_is_a_single_radius():
+    import os
+    import re
+    for name in dir(op):
+        if re.match(r'osc_prob_(\dnu_)?sun', name):
+            assert 'loop over' in ' '.join(getattr(op, name).__doc__.split()), name
+    rst = os.path.join(os.path.dirname(__file__), '..', 'docs', 'source', 'solar_models.rst')
+    if os.path.exists(rst):
+        text = ' '.join(open(rst).read().split())
+        assert 'may not, so for several production points call once per point' in text
