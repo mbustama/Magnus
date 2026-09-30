@@ -9142,7 +9142,7 @@ def osc_prob_energy_baseline(
             # the jump from one level to the next; on a smooth profile it shrinks with the slab
             # width, by 1/growth_factor_n_slabs a level.  Only the first kind is checked.
             if len(steps) >= 2:
-                previous, accepted = magnus.node_step(steps[0]), magnus.node_step(steps[1])
+                previous, accepted = magnus._node_step(steps[0]), magnus._node_step(steps[1])
                 steps.clear()
                 if ((previous > 0.0)
                         and (abs(accepted/previous - 1.0) <= UNDECLARED_JUMP_STEP_TOLERANCE)
