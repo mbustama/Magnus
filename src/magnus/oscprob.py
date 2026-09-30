@@ -5118,6 +5118,47 @@ def _refuse_average_keywords(source_func_name: str, average_spread, average_n_sa
                 "pass average=True or remove " + name + ".")
 
 
+def _decoupled_degenerate_flavors(htot: Callable, energy: float, l0: float, l1: float,
+                                  n_positions: int = 5) -> Optional[Tuple[list, list]]:
+    r"""The flavors nothing couples to, when one of them is degenerate with another level.
+
+    A flavor whose row and column of the Hamiltonian are zero off the diagonal at every one of
+    ``n_positions`` positions from ``l0`` to ``l1`` is decoupled: an eigenstate at every position,
+    which never oscillates.  Returned as ``(coupled, decoupled)`` index lists only when some
+    decoupled flavor's eigenvalue also coincides, within ``adiabatic.DEGENERACY_ULPS``, with
+    another eigenvalue at every one of those positions -- a degeneracy along the whole path, which
+    the adiabatic averaging route treats as a crossing spanning the path and does not finish
+    (issue #148; the 4nu and 5nu Sun at their default sterile parameters).  None otherwise, and
+    the call is averaged as before.
+
+    .. versionadded:: 1.2.0
+    """
+    def uncoupled(Hs):
+        d = Hs.shape[-1]
+        off = np.abs(Hs.reshape((-1, d, d))).max(axis=0)
+        np.fill_diagonal(off, 0.0)
+        return np.flatnonzero(~(off.any(axis=0) | off.any(axis=1))).tolist()
+
+    # One sample settles the common case, a Hamiltonian with no zero entry, in a few
+    # microseconds; the other positions are sampled only when it has one.
+    H0 = np.asarray(htot(energy, float(l0)))
+    if np.count_nonzero(H0) == H0.size or not uncoupled(H0):
+        return None
+    ls = np.linspace(l0, l1, n_positions)
+    Hs = np.array([H0] + [np.asarray(htot(energy, float(l))) for l in ls[1:]], dtype=complex)
+    d = Hs.shape[-1]
+    decoupled = uncoupled(Hs)
+    if not decoupled or len(decoupled) == d:
+        return None
+    lam = np.linalg.eigvalsh(Hs)
+    tol = adiabatic.DEGENERACY_ULPS*np.finfo(float).eps*np.max(np.abs(lam), axis=-1)
+    for f in decoupled:
+        near = np.abs(lam - Hs[:, f, f].real[:, None]) <= tol[:, None]
+        if np.all(np.count_nonzero(near, axis=-1) >= 2):
+            return [i for i in range(d) if i not in decoupled], decoupled
+    return None
+
+
 def _avg_prob_dispatch(
     htot: Callable,
     htot_is_function_only_of_energy: bool,
@@ -5161,7 +5202,9 @@ def _avg_prob_dispatch(
        Refuses average_n_samples, average_spread and average_initial_state without average
        (issue #160 §1); the energy-window route raises
        one warning per class (issue #144 §2); the warning for an energy-independent Hamiltonian
-       says no spread can decohere it (issue #144 §3).
+       says no spread can decohere it (issue #144 §3).  On a smooth profile, flavors nothing
+       couples to and degenerate with another level along the whole path are averaged out
+       (issue #148): see _decoupled_degenerate_flavors.
 
     Parameters
     ----------
@@ -5276,6 +5319,29 @@ def _avg_prob_dispatch(
         energy_arr = np.repeat(energy_arr, len(L_arr))
     if len(L_arr) == 1 and len(energy_arr) > 1:
         L_arr = np.repeat(L_arr, len(energy_arr))
+
+    if (not htot_is_function_only_of_energy) and smooth_profile:
+        # A flavor nothing couples to, degenerate with another level along the whole path: the
+        # adiabatic route would window the whole path and never return (issue #148).  It is an
+        # eigenstate at every position and never oscillates, so the rest is averaged without it.
+        split = _decoupled_degenerate_flavors(htot, float(np.min(energy_arr)), float(L0),
+                                              float(np.max(L_arr)))
+        if split is not None:
+            coupled, decoupled = split
+
+            def htot_coupled(enu, l):
+                return np.asarray(htot(enu, l))[..., coupled, :][..., :, coupled]
+            P_c = _avg_prob_dispatch(htot_coupled, False, energy_arr, L_arr, L0, None, None, True,
+                source_func_name, smooth_profile=True, engine_kwargs=engine_kwargs,
+                average_spread=average_spread, average_initial_state=average_initial_state,
+                energy_dependent=energy_dependent)
+            d = len(coupled) + len(decoupled)
+            P_out = np.zeros((len(energy_arr), d, d))
+            P_out[:, np.ix_(coupled, coupled)[0], np.ix_(coupled, coupled)[1]] = P_c
+            P_out[:, decoupled, decoupled] = 1.0
+            if (nu_i is not None) and (nu_f is not None):
+                P_out = P_out[:, nu_i, nu_f]
+            return P_out.__getitem__(0 if return_float else slice(None))
 
     n_pts = len(energy_arr)
     undecided_points = 0

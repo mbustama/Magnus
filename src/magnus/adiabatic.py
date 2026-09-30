@@ -185,6 +185,9 @@ Any value from about 10 to 1e10 separates the first population from the third; 1
 above the largest round-off gap seen and eight orders below the smallest real one.  The last
 row is two sterile states that are degenerate along the whole path, not a crossing: they are
 windowed at any value, and were already, whenever round-off gave them a gap of exactly 0.0.
+That window spans the path, and the phase average across it did not finish (issue #148); the
+averaged route of :mod:`magnus.oscprob` now takes such decoupled states out before it reaches
+this module (``oscprob._decoupled_degenerate_flavors``).
 
 .. versionadded:: 1.1.1
 """
