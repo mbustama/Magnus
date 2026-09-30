@@ -193,3 +193,47 @@ def test_exponential_profile_arguments_are_named(arg, value):
     msg = _refused(arg, op.osc_prob_3nu_matter_exp_density, E, L, 0.0,
                    density_matter_is_in_g_per_cm3=True, **kw)
     assert 'osc_prob_3nu_matter_exp_density' in msg
+
+
+RS = gd.SUN_RADIUS*KM
+
+
+def _sun_kw(name):
+    n = int(name[9])
+    kw = dict(sth=0.55, Dm2=7.5e-5) if n == 2 else {}
+    return kw
+
+
+@pytest.mark.parametrize('name', [n for n in dir(op) if n.startswith('osc_prob_') and '_sun' in n
+                                  and n[9].isdigit()])
+def test_every_sun_wrapper_refuses_a_negative_start(name):
+    f = getattr(op, name)
+    _refused('L0', f, 1.0e7, RS, -1.0e5*KM, **_sun_kw(name))
+
+
+def test_custom_sun_refuses_a_negative_start():
+    H0v = hams_vacuum()
+    _refused('L0', op.osc_prob_sun, lambda En, l, V: H0v/En + np.asarray(V)[..., None, None]*np.diag([1., 0, 0]),
+             1.0e7, RS, -1.0e5*KM)
+
+
+def hams_vacuum():
+    import magnus.hamiltonians as hams
+    return hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+
+
+@pytest.mark.parametrize('profile', ['exponential', 'B16-GS98'])
+def test_sun_refuses_arguments_with_no_effect(profile):
+    _refused('electron_fraction', op.osc_prob_3nu_sun, 1.0e7, RS, 0.0,
+             density_profile=profile, electron_fraction=0.5)
+    _refused('ratio_number_neutrons_to_protons', op.osc_prob_3nu_sun, 1.0e7, RS, 0.0,
+             density_profile=profile, ratio_number_neutrons_to_protons=1.0)
+
+
+def test_sun_start_at_zero_and_four_flavor_ratio_still_work():
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob_3nu_sun(1.0e7, RS, 0.0, nu_i=0, nu_f=0)
+        op.osc_prob_3nu_sun(1.0e7, RS, 0, nu_i=0, nu_f=0)
+        op.osc_prob_4nu_sun(1.0e7, RS, 0.0, s14=0.1, s24=0.05, s34=0.02, D41=1.0,
+                            ratio_number_neutrons_to_protons=0.5, nu_i=0, nu_f=0)

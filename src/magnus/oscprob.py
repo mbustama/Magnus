@@ -15290,6 +15290,32 @@ def _solar_profile(density_profile, ratio_number_neutrons_to_protons, source_fun
     return solarmodels.electron_density_profile(name), ratio
 
 
+def _sun_entry(source_func_name: str, L0, kwargs: dict, num_flavors) -> None:
+    r"""Checks shared by the Sun wrappers, before anything is built (issue #160 §1).
+
+    * ``L0`` is a radius, so it is 0 or more: a negative one was accepted.
+    * ``electron_fraction`` has no effect: every Sun wrapper hands the engine an electron
+      number density, so it was accepted and ignored.
+    * ``ratio_number_neutrons_to_protons`` acts only through the sterile neutral-current term,
+      so at two and three flavors it was accepted and ignored.
+
+    .. versionadded:: 1.2.0
+    """
+    where = "oscprob." + source_func_name
+    if not (type(L0) is float and L0 >= 0.0):
+        _v.check_real('L0', L0, where, nonnegative=True,
+                      what="0 or more: it is the radius where the path starts")
+    unused = [k for k in ('electron_fraction',) if kwargs.get(k) is not None]
+    if num_flavors in (2, 3) and kwargs.get('ratio_number_neutrons_to_protons') is not None:
+        unused.append('ratio_number_neutrons_to_protons')
+    if unused:
+        raise ValueError(_v._msg(where, ', '.join(unused) + " has no effect here: the Sun "
+                                 "wrappers use the solar model's electron density directly"
+                                 + ("" if unused == ['electron_fraction'] else
+                                    ", and at %d flavors the neutron-to-proton ratio enters "
+                                    "nothing" % num_flavors) + "."))
+
+
 def _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, source_func_name: str):
     r"""Which baselines reach past a solar model's last tabulated radius, when that is refused.
 
@@ -15513,6 +15539,7 @@ def osc_prob_2nu_sun(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
+    _sun_entry('osc_prob_2nu_sun', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun')
     P = osc_prob_2nu_matter_exp_density(
@@ -15695,6 +15722,7 @@ def osc_prob_3nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun')
     P = osc_prob_3nu_matter_exp_density(
@@ -15925,6 +15953,7 @@ def osc_prob_4nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun')
     P = osc_prob_4nu_matter_exp_density(
@@ -16183,6 +16212,7 @@ def osc_prob_5nu_sun(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun')
     P = osc_prob_5nu_matter_exp_density(
@@ -16436,6 +16466,7 @@ def osc_prob_sun(
     """
     source_func_name = sys._getframe().f_code.co_name
 
+    _sun_entry(source_func_name, L0, kwargs, None)
     _rho, _ = _solar_profile(density_profile, None, source_func_name)
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0,
                                      source_func_name)
@@ -19619,6 +19650,7 @@ def osc_prob_2nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_2nu_sun_nsi', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_nsi')
     P = osc_prob_2nu_matter_nsi_exp_density(
@@ -19818,6 +19850,7 @@ def osc_prob_3nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun_nsi', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_nsi')
     P = osc_prob_3nu_matter_nsi_exp_density(
@@ -20082,6 +20115,7 @@ def osc_prob_4nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun_nsi', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_nsi')
     P = osc_prob_4nu_matter_nsi_exp_density(
@@ -20393,6 +20427,7 @@ def osc_prob_5nu_sun_nsi(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun_nsi', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_nsi')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_nsi')
     P = osc_prob_5nu_matter_nsi_exp_density(
@@ -24357,6 +24392,7 @@ def osc_prob_2nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_2nu_sun_liv', L0, kwargs, 2)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_2nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_2nu_sun_liv')
     P = osc_prob_2nu_matter_liv_exp_density(
@@ -24549,6 +24585,7 @@ def osc_prob_3nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_3nu_sun_liv', L0, kwargs, 3)
     _rho, _ = _solar_profile(density_profile, None, 'osc_prob_3nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_3nu_sun_liv')
     P = osc_prob_3nu_matter_liv_exp_density(
@@ -24811,6 +24848,7 @@ def osc_prob_4nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_4nu_sun_liv', L0, kwargs, 4)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_4nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_4nu_sun_liv')
     P = osc_prob_4nu_matter_liv_exp_density(
@@ -25121,6 +25159,7 @@ def osc_prob_5nu_sun_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _sun_entry('osc_prob_5nu_sun_liv', L0, kwargs, 5)
     _rho, ratio_number_neutrons_to_protons = _solar_profile(density_profile, ratio_number_neutrons_to_protons, 'osc_prob_5nu_sun_liv')
     L, _beyond = _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, 'osc_prob_5nu_sun_liv')
     P = osc_prob_5nu_matter_liv_exp_density(
