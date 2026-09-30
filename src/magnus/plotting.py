@@ -769,6 +769,10 @@ def plot_curves_stacked(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       Each panel's curves are checked as :func:`plot_curves` checks its curves: 1-D, finite,
+       as long as ``x``, and on a log y axis with at least one entry above 0 (issue #160 §12).
+
     Parameters
     ----------
     x : sequence of float

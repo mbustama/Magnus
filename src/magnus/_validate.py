@@ -383,6 +383,11 @@ def _order(name, x, where):
 
 
 def _n_jobs(name, x, where):
+    r"""A worker count: -1 (all cores) or a positive integer.
+
+    .. versionchanged:: 1.2.0
+       None is refused by name (issue #160 §5).
+    """
     # None was let through here and then compared with an integer (issue #160 §5).
     x = check_int(name, x, where)
     if x == -1 or x >= 1:
