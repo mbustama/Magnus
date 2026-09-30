@@ -172,8 +172,10 @@ class MagnusConvergenceWarning(UserWarning):
     :math:`\int_{t_0}^{t_1} \lVert A(t)\rVert_2\, dt < \pi`.  :math:`\lVert\Omega\rVert_2 \geq
     \pi` is used as a cheap proxy for that integral -- it comes free from the eigenvalues already
     computed for the matrix exponential -- so this fires when a *sufficient* condition for
-    convergence was not met on at least one slab.  The message says how far past :math:`\pi`, in
-    three buckets, which is the one quantity this check actually knows.
+    convergence was not met on at least one slab.  The norm is taken of the traceless part,
+    :math:`\Omega - \mathrm{tr}(\Omega)/d`: the trace is a global phase, commutes with every term
+    of the series and has no bearing on its convergence (issue #155 §1).  The message says how far
+    past :math:`\pi`, in three buckets, which is the one quantity this check actually knows.
 
     **What it means for the answer: unknown, and that is the honest answer.**  This is a
     statement about the slab width, not about the error.  The condition is sufficient, not
@@ -183,8 +185,9 @@ class MagnusConvergenceWarning(UserWarning):
     claiming more than this check can support; :class:`magnus.oscprob.ToleranceNotAchievedWarning` is the one
     that reports a failed convergence *test*.
 
-    **What to change.**  More, narrower slabs: request a smaller ``rtol``/``atol``, or raise
-    ``n_slabs``.  Raising ``magnus_exp_order`` does **not** help in this regime -- beyond the
+    **What to change.**  More, narrower slabs: raise ``n_slabs``, or ``min_n_slabs`` to start the
+    refinement finer.  A smaller ``rtol``/``atol`` adds finer levels, but the check runs on every
+    level, so a coarse first level is still reported.  Raising ``magnus_exp_order`` does **not** help in this regime -- beyond the
     series' radius no order converges.  If the profile has a density jump or a kink, pass
     ``t_breakpoints`` there as well: a slab straddling one is never fixed by more slabs, only
     narrowed.
@@ -197,17 +200,20 @@ class MagnusConvergenceWarning(UserWarning):
     ``strategy='auto'`` and ``strategy='magnus'``, the adaptive refinement ran and the answer was
     still **7.484e-03**, seven times outside the tolerance asked for, with this warning showing.
 
-    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations across
-    the profile families this package serves, d = 2-5, scored against ``solve_ivp`` or, for
-    piecewise profiles, against ``expm``): fired 70 times, of which **17 true positives and 53
-    false positives -- a 76 % false-positive rate**, the highest of any warning here.  That is
-    the price of reporting a *sufficient* condition, and it is why the text above refuses to
-    translate the condition into a claim about the error.
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its 168
+    configurations that are valid input, across the profile families this package serves,
+    d = 2-3, scored against ``solve_ivp`` or, for piecewise profiles, against ``expm``): fired
+    19 times, of which **7 true positives and 12 false positives -- a 63 % false-positive
+    rate**, the highest of any warning here.  Measuring the full norm, trace included, it fired
+    39 times (8 true, 31 false); the trace removed 19 false positives and one true positive,
+    and every answer outside the tolerance still carries some warning (33 of 33, none silent).
+    That rate is the price of reporting a *sufficient* condition, and it is why the text above
+    refuses to translate the condition into a claim about the error.
 
-    **Where that noise comes from, and what would fix it.**  Of 66 single-point calls, some
-    refinement level exceeded :math:`\pi` in 46 -- but the level whose answer was actually
-    returned did so in only **7**.  So **39 of 46 firings, 85 %, describe an intermediate grid
-    that nobody receives**: the ladder started coarse, said so, then refined and never retracted
+    **Where that noise comes from, and what would fix it.**  Of 69 single-point calls, some
+    refinement level exceeded :math:`\pi` in 19 -- but the level whose answer was actually
+    returned did so in only **4**.  So **15 of 19 firings describe an intermediate grid that
+    nobody receives**: the ladder started coarse, said so, then refined and never retracted
     it.  Keying the warning to the returned level alone was implemented and then reverted for
     :func:`magnus.oscprob.osc_prob`: measured, it removed most true positives with the noise
     (see ``_deferred_slab_norm``).  The mechanism is kept there, and the averaged-probability
@@ -1926,8 +1932,11 @@ def _warn_slab_norm(nmax: float):
         "series (||Omega||_2 >= pi, " + how_far + "). This is a statement about the slab "
         "width, not about the answer: it reports that a sufficient condition for "
         "convergence was not met somewhere, and the error may be anywhere from negligible "
-        "to large. To act on it, use more (narrower) slabs -- request a smaller rtol/atol, "
-        "or raise n_slabs; raising magnus_exp_order will not help in this regime. If the "
+        "to large. The norm excludes the trace, a global phase that does not affect "
+        "convergence. To act on it, use more (narrower) slabs: raise n_slabs, or min_n_slabs "
+        "to start the refinement finer -- a smaller rtol/atol adds finer levels, but a coarse "
+        "first level is still reported; raising magnus_exp_order will not help in this "
+        "regime. If the "
         "profile has a density jump or a kink, pass t_breakpoints there as well: a slab "
         "straddling one is not fixed by any number of slabs. Do NOT assume the adaptive "
         "refinement has already taken care of it -- measured on a sawtooth density with "
@@ -2425,6 +2434,40 @@ def _antiherm_scale_dev_core(Om):  # pragma: no cover -- compiled below
     return np.sqrt(s2), np.sqrt(d2)
 
 
+def _traceless_max_core(lam):  # pragma: no cover -- compiled below
+    r"""``max |lambda - mean(lambda)|`` over a ``(n, d)`` array of real eigenvalues, one pass.
+
+    The warning norm of issue #155 §1, with no ``(n, d)`` temporaries: the NumPy form
+    (mean, subtract, abs, max) cost 9 % of a 200-energy Earth scan.
+    """
+    n, d = lam.shape
+    best = 0.0
+    for i in range(n):
+        mu = 0.0
+        for j in range(d):
+            mu += lam[i, j]
+        mu /= d
+        for j in range(d):
+            v = abs(lam[i, j] - mu)
+            if v > best:
+                best = v
+    return best
+
+
+def _traceless_max(lam):
+    r"""``max |lambda - mean(lambda)|`` taken per row of the last axis (see _traceless_max_core)."""
+    lam2 = np.ascontiguousarray(lam, dtype=float).reshape(-1, lam.shape[-1])
+    if _traceless_max_kernel is not None:
+        return float(_traceless_max_kernel(lam2))
+    return float(np.max(np.abs(lam2 - lam2.mean(axis=-1, keepdims=True))))
+
+
+if expmkernels.HAVE_NUMBA:
+    _traceless_max_kernel = expmkernels._jit(_traceless_max_core)
+else:
+    _traceless_max_kernel = None
+
+
 if expmkernels.HAVE_NUMBA:
     _antiherm_scale_dev_kernel = expmkernels._jit(_antiherm_scale_dev_core)
 else:                                                   # pragma: no cover
@@ -2549,24 +2592,34 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
             Vh = np.conj(np.swapaxes(V, -1, -2))
             U = (V*np.exp(-1j*lam)[..., None, :]) @ Vh
         if warn_wide and not A_is_const:
+            # The warning measures the traceless part of Omega (issue #155 §1).  The trace is a
+            # global phase: it commutes with every term of the series, drops out of every
+            # commutator, and integrates exactly, so it has no bearing on convergence.  Counting
+            # it flagged, on a first coarse level, slabs whose traceless norm was well under pi
+            # (3.19 against 1.94 on a 3-flavor exponential profile), and no tolerance silenced it.
+            # The row norms kept for the batched GL gate are unchanged.
+            nmax_c = _traceless_max(lam)   # ||Om - tr(Om)/d||_2 = max |lambda - mean|
             if _ROW_NORM_SINK is None:
-                _warn_slab_norm(np.max(np.abs(lam)))  # ||Om||_2 = max |lambda|
+                _warn_slab_norm(nmax_c)
             else:
-                # The same maximum, taken per leading row first (see _row_slab_norms).
+                # The full maximum, taken per leading row first (see _row_slab_norms).
                 rows = np.abs(lam).reshape(Om.shape[0], -1).max(axis=1)
                 _ROW_NORM_SINK.append(rows)
-                _warn_slab_norm(rows.max())
+                _warn_slab_norm(nmax_c)
         return U
     # General (non-anti-Hermitian) fallback
     if warn_wide and not A_is_const:
         try:
-            sv = np.linalg.svd(Om, compute_uv=False)
+            d = Om.shape[-1]
+            Om_c = Om - (np.trace(Om, axis1=-2, axis2=-1)/d)[..., None, None]*np.eye(d)
+            sv_c = np.linalg.svd(Om_c, compute_uv=False)   # traceless, as above
             if _ROW_NORM_SINK is None:
-                _warn_slab_norm(np.max(sv))
+                _warn_slab_norm(np.max(sv_c))
             else:
+                sv = np.linalg.svd(Om, compute_uv=False)
                 rows = sv.reshape(Om.shape[0], -1).max(axis=1)
                 _ROW_NORM_SINK.append(rows)
-                _warn_slab_norm(rows.max())
+                _warn_slab_norm(np.max(sv_c))
         except np.linalg.LinAlgError:
             if _ROW_NORM_SINK is not None:
                 _ROW_NORM_SINK.append(np.zeros(Om.shape[0]))   # unknown: no gate, as before

@@ -557,7 +557,10 @@ def test_a_converged_call_does_not_warn_about_the_coarse_levels_of_its_windows()
         warnings.simplefilter('ignore')
         with mm._deferred_slab_norm() as sink:
             call(*args, average=True, **CHORD_KW)
-    assert max(sink) >= np.pi                 # some level was coarse: the old scheme warned
+    # The four warnings of #66 came from the trace of Omega, a global phase: measured on its
+    # traceless part (issue #155 §1), no level of these windows is wide at all.  Deferral is
+    # still covered by test_only_the_phase_average_defers_the_slab_norm_check.
+    assert max(sink) < np.pi
     P, warned = call(*args, average=True, **CHORD_KW)
     assert 'MagnusConvergenceWarning' not in warned
     assert abs(float(P) - 0.304987) < 1e-6
@@ -570,7 +573,8 @@ def test_a_window_ladder_still_warns_about_the_level_it_returns():
     for defer in (False, True):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter('always')
-            _, ok = ad._local_evolution_operator(H, l0, l1, 6, 'gl', n_slabs0=2, max_n_slabs=4,
+            # Stopped at two slabs over 22 units of length: wide in the traceless part too.
+            _, ok = ad._local_evolution_operator(H, l0, l1, 6, 'gl', n_slabs0=1, max_n_slabs=2,
                                                  defer_slab_norm=defer)
         assert not ok
         assert any(issubclass(x.category, mm.MagnusConvergenceWarning) for x in w)

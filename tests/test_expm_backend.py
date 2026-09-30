@@ -642,10 +642,25 @@ def test_non_contiguous_input_is_handled():
 
 @requires_numba
 def test_slab_norm_warning_still_fires_on_the_kernel_path():
-    r"""The convergence warning reads the eigenvalues, which both routes return."""
-    K = 40.0*np.eye(3)
+    r"""The convergence warning reads the eigenvalues, which both routes return.
+
+    Traceless on purpose: the warning measures ``Omega - tr(Omega)/d`` (issue #155 §1), so a
+    multiple of the identity, a global phase, is not wide however large it is.
+    """
+    K = np.diag([40.0, 0.0, -40.0])
     with pytest.warns(mg.MagnusConvergenceWarning):
         mg._expm_stack(-1j*K, warn_wide=True, expm_backend='numba')
+
+
+@requires_numba
+def test_slab_norm_warning_ignores_the_trace():
+    r"""A multiple of the identity is a global phase: no slab is too wide for it (issue #155 §1)."""
+    import warnings as _w
+    with _w.catch_warnings():
+        _w.simplefilter('error', mg.MagnusConvergenceWarning)
+        mg._expm_stack(-1j*40.0*np.eye(3), warn_wide=True, expm_backend='numba')
+        mg._expm_stack(-1j*(40.0*np.eye(3) + np.diag([0.5, 0.0, -0.5])), warn_wide=True,
+                       expm_backend='eigh')
 
 
 @requires_numba
@@ -1079,3 +1094,19 @@ def test_the_two_backends_are_distinguishable_on_that_workload():
     assert not np.array_equal(a, b)
     np.testing.assert_allclose(a, b, rtol=0.0, atol=1.0e-14)
 
+
+
+def test_custom_h_is_not_flagged_for_its_trace_at_any_tolerance():
+    r"""Issue #155 §1: a 3-flavor exponential profile as a custom H warned at rtol=1e-3 and at
+    1e-8 alike.  Its first slab had ||Omega||_2 = 3.19 but only 1.94 without the trace."""
+    import magnus.hamiltonians as hams
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    hv = hams.hamiltonian_3nu_vacuum_energy_independent(**osc)
+    e00 = np.diag([1.0, 0.0, 0.0])
+    Ls = 3000.0*gd.UNIT_KM
+    H = lambda E, l: hv/E + (1.1356e-13*np.exp(-np.asarray(l, float)/Ls))[..., None, None]*e00
+    import warnings as _w
+    for tol in (1e-3, 1e-8):
+        with _w.catch_warnings():
+            _w.simplefilter('error', mg.MagnusConvergenceWarning)
+            op.osc_prob_energy_baseline(H, 2.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, rtol=tol, atol=tol)

@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`MagnusConvergenceWarning` measures the traceless part of Ω** (issue #155 §1).  The trace is
+  a global phase: it commutes with every term of the Magnus series and has no bearing on its
+  convergence, but it was counted, so a custom Hamiltonian's first coarse slab was flagged
+  (‖Ω‖ = 3.19, 1.94 without the trace) at every tolerance, and `rtol=1e-8` did not silence it.
+  Over the 160 valid configurations of `warn_fp.py` the warning now fires 19 times instead of
+  39, with 7 true positives instead of 8 and 12 false positives instead of 31; every answer
+  outside the tolerance still carries a warning.  The message now names `n_slabs` and
+  `min_n_slabs` as what silences it; a smaller `rtol` refines, but the coarse first level is
+  still reported.  The refinement gate of the batched scan is unchanged.
 - **`MixingAngleConventionWarning` judges by the active angles, and says how to silence it**
   (issue #160 §11).  With `angles='deg'`, sines in the active slots went unnoticed when sterile
   angles of a few degrees were also given, since the check looked at the largest of all angles.

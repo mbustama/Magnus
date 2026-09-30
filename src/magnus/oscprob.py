@@ -1420,8 +1420,9 @@ class ToleranceNotAchievedWarning(UserWarning):
     :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
     on this class catches all three.
 
-    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations):
-    fired 37 times, **16 true positives and 21 false positives -- a 57 % false-positive rate**.
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its 168
+    configurations that are valid input): fired 42 times, **29 true positives and 13 false
+    positives -- a 31 % false-positive rate**.
     A false positive here means the ladder genuinely ran out of room *and* the answer was
     nonetheless inside tolerance, which is the expected shape: a cap is reached before
     convergence has been *verified*, not before it has been *achieved*.
@@ -1506,12 +1507,12 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     :func:`magnus.magnus.magnus_expansion_multislab`, whose slabs are given, when a declared
     breakpoint lies strictly inside one of them.
 
-    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, 168 configurations
-    including 48 random piecewise-constant profiles with the edges deliberately left
-    undeclared): fired 56 times, **23 true positives and 33 false positives -- 59 %**.  Read
-    that number carefully: this reports a *condition about the input*, not a prediction about
-    the error, and on every one of those 33 the condition was real -- there was an undeclared
-    discontinuity -- and the answer happened to come out inside tolerance anyway.  Declaring the
+    **Measured rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its 168
+    configurations that are valid input, including random piecewise-constant profiles with the
+    edges deliberately left undeclared): fired 56 times, **33 true positives and 23 false
+    positives -- 41 %**.  Read that number carefully: this reports a *condition about the
+    input*, not a prediction about the error, and a false positive means the undeclared
+    discontinuity was there but the answer happened to come out inside tolerance anyway.  Declaring the
     edges would still have improved it (median 7.8e-04 to 1.3e-12 in ``FINDINGS`` §9.2).  A
     warning whose claim is true and whose advice is worth taking is not made a false alarm by
     the answer surviving.
