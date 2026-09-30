@@ -4332,7 +4332,7 @@ def osc_prob(
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-            verbose=verbose))
+            new_recursion_limit=new_recursion_limit, verbose=verbose))
         # A caller's points-per-slab setting under 'gl' is overridden below; said once, at
         # the entry point the caller used, so an internal call does not repeat it.
         if integration_method == 'gl' and not _v._called_from_inside(2):

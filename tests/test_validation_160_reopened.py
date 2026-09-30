@@ -444,3 +444,14 @@ def test_points_per_slab_is_quiet_where_it_is_used_or_not_given():
                  lambda: _exp(),
                  lambda: _exp(n_tpts_per_slab=20, integration_method='trapezoid')):
         assert _quadrature_warnings(call)[1] == []
+
+
+# §4 new_recursion_limit, default_osc_params_set_name, the log file -------------------------------
+
+@pytest.mark.parametrize('value', [0, -1, 2.5, 'a', True])
+def test_osc_prob_checks_new_recursion_limit(value):
+    _refused('new_recursion_limit', op.osc_prob, _castle, 0.0, 1000.*KM, new_recursion_limit=value)
+
+
+def test_osc_prob_accepts_a_positive_recursion_limit():
+    op.osc_prob(_castle, 0.0, 1000.*KM, new_recursion_limit=10000)

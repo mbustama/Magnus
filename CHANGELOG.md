@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`osc_prob` checks `new_recursion_limit`** (issue #160 §4).  The scenario functions already
+  refused a non-positive or non-integer value; `osc_prob` accepted `0`, `-1`, `2.5` and `'a'`.
+  It is still otherwise ignored.
 - **A points-per-slab setting passed with `integration_method='gl'` warns that it does nothing**
   (issue #160 §5).  `n_tpts_per_slab`, `min_n_tpts_per_slab`, `max_n_tpts_per_slab` and
   `growth_factor_n_tpts_per_slab` are used by `'trapezoid'` and `'simpson'` only; `'gl'`
