@@ -1348,3 +1348,17 @@ def test_oscillogram_computes_nsi_and_liv_through_the_earth():
         mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
                             wrapper_kw=dict(eps_ee=0.1, b1=1e-23, b2=0.0, b3=0.0, Lambda=1e9,
                                             n_liv=0))
+
+
+@pytest.mark.parametrize('nubar', [False, True])
+def test_computed_profile_plot_labels_its_probability_panel(nubar):
+    """#146 §2: the probability panel of a computed profile plot had an empty label."""
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_probability_with_profile(
+            np.linspace(100.0, 3000.0, 30), trajectories=[dict(costhz=-0.3)],
+            energy=2.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=nubar,
+            xscale='linear')
+    labels = [a.get_ylabel() for a in fig.axes]
+    assert any(mp.prob_label(gd.NUMU, gd.NUE, nubar=nubar) in lab for lab in labels)
+    plt.close('all')

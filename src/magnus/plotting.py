@@ -1338,7 +1338,9 @@ def plot_probability_with_profile(
     profile_ylabel : str, optional
         Ordinate label of the density panel.
     panel_ylabels : sequence of str, optional
-        Ordinate labels for the probability panels. Entries may be ``None``.
+        Ordinate labels for the probability panels. Entries may be ``None``.  In compute
+        mode, when neither this nor ``shared_ylabel`` is given, every probability panel is
+        labelled with the channel of ``nu_i`` and ``nu_f`` (and ``nubar``).
     panel_annotations : sequence, optional
         Text placed inside each probability panel, one entry per panel, at
         ``panel_annotation_xy`` in axes coordinates. An entry is a string, or a
@@ -1498,6 +1500,12 @@ def plot_probability_with_profile(
             x, trajectories, **computing)
         if xlabel is None:
             xlabel = computed_xlabel
+        # The channel is known here, so the probability panels get the label the curve
+        # routines give (issue #146 §2); it used to be left empty.
+        if (panel_ylabels is None and shared_ylabel is None and nu_i is not None
+                and nu_f is not None):
+            panel_ylabels = [_probability_ylabel(nu_i, nu_f, num_flavors,
+                                                 nubar=nubar_label)]*len(panels)
     else:
         given = [name for name, value in computing.items() if value is not None]
         if return_probability:

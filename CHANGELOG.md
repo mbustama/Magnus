@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A computed profile plot labels its probability panel** (issue #146 §2).
+  `plot_probability_with_profile` in compute mode left the probability panel's ordinate empty;
+  it now gets the channel's label, as `plot_probability_vs_energy` gives, unless
+  `panel_ylabels` or `shared_ylabel` is passed.
 - **An oscillogram computed for antineutrinos is labelled as one** (issue #145 §1).
   `plot_oscillogram(..., wrapper_kw=dict(nubar=True))` computed the antineutrino grid but
   labelled its colour bar and annotation with the neutrino channel.
