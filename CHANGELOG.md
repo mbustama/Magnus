@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A custom Sun or Earth Hamiltonian is checked at its first sample** (issue #160 §7).
+  `osc_prob_sun` ran an `H_func` returning a list; it is now refused by name, as it already was
+  by `osc_prob_energy_baseline`, and a non-square, non-finite or non-Hermitian first sample is
+  refused too.  One evaluation, at `L0` and the first energy.
 - **`osc_prob_energy_baseline` refuses an `H_func` taking no argument, or returning an object
   array, by name** (issue #160 §7).  The first failed on its first call as a `TypeError` naming a
   lambda, the second as NumPy's "ufunc 'isfinite' not supported".

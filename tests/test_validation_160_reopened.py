@@ -570,3 +570,21 @@ def test_h_func_returning_an_object_array_is_refused_by_name():
     H0 = _h0()
     _refused('H_func', op.osc_prob_energy_baseline,
              lambda E, l: np.array(H0/E, dtype=object), 1.0e9, 1000.*KM)
+
+
+@pytest.mark.parametrize('entry', ['sun', 'earth'])
+def test_custom_hamiltonian_returning_a_list_is_refused_by_name(entry):
+    H0, e00 = _h0(), np.diag([1.0, 0.0, 0.0])
+    H = lambda E, l, V: (H0/E + np.asarray(V)[..., None, None]*e00).tolist()
+    if entry == 'sun':
+        _refused('H_func', op.osc_prob_sun, H, 1.0e7, RS)
+    else:
+        _refused('H_func', op.osc_prob_earth, H, 1.0e9, costhz=-0.5, L=1000.*KM)
+
+
+def test_custom_hamiltonian_returning_an_array_still_runs():
+    H0, e00 = _h0(), np.diag([1.0, 0.0, 0.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = op.osc_prob_sun(lambda E, l, V: H0/E + np.asarray(V)[..., None, None]*e00, 1.0e7, RS)
+    assert np.allclose(np.sum(P, axis=1), 1.0)

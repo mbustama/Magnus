@@ -15494,6 +15494,19 @@ def _osc_prob_with_potential(
         def htot(enu: Union[int, float], l: Union[int, float, np.ndarray]) -> np.ndarray:
             return H_func(enu, l)
 
+    # The first sample, checked as osc_prob_energy_baseline checks it for its direct callers
+    # (issue #160 §7): a list or an object array used to run here, and fail or not depending
+    # on which engine answered.  One evaluation, at L0 and the first energy.
+    if validate_input:
+        _e0 = float(np.atleast_1d(np.asarray(energy, dtype=float))[0])
+        _H0 = htot(_e0, L0)
+        if not isinstance(_H0, np.ndarray):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                ": H_func must return a NumPy array; it returned " + type(_H0).__name__ +
+                ".  Wrap its return value in np.array(..., dtype=complex).")
+        _v.check_hamiltonian_sample('H_func', _H0, "oscprob." + source_func_name,
+                                    at='energy ' + format(_e0, '.4g') + ', position L0')
+
     # Hybrid strategy (adiabatic transport + Magnus patch at any non-adiabatic window; see
     # _osc_prob_hybrid_dispatch_generic and :doc:`/adiabatic_strategy`). Falls back transparently
     # (returns NotImplemented) if it does not apply -- in particular, this is essentially always
