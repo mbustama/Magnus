@@ -2051,8 +2051,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         ``_profile_is_resolved``), ``'gamma_max'``, ``'gamma_unpatched'`` (see
         :func:`find_nonadiabatic_windows`), ``'n_windows'``, ``'iterations'``,
         ``'patches_converged'``, and ``'last_gap'`` (the largest change of a probability
-        between the last two levels computed; None when only one was).  ``certified=False`` on its own does not say *which* of these
-        failed, and the cures are different: an unresolved profile wants ``t_breakpoints``, an
+        between the last two levels computed; None when only one was).  ``certified=False`` on
+        its own does not say *which* of these failed, and the cures are different: an unresolved profile wants ``t_breakpoints``, an
         exhausted refinement wants a looser tolerance.  :mod:`magnus.oscprob` uses
         ``'resolved'`` to raise :class:`magnus.oscprob.UnmarkedDiscontinuityWarning` on the
         hybrid path instead of declining in silence. Default: None.

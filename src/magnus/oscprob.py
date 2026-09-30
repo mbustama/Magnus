@@ -1482,13 +1482,15 @@ class ToleranceNotAchievedWarning(UserWarning):
     ladder's answer, which was not returned.
 
     **The same for a scan of several energies** (issue #184), answered by the energy-batched
-    engine: an energy whose own slab count would start at the cap is not computed on that one
-    unverifiable level but takes the hybrid's answer, and an energy the engine ends without
-    converging takes it under the rule above.  An energy the hybrid certified before it
-    declined the scan keeps its certified answer; any other is computed with one refinement
-    iteration, where the answer has stopped improving.  Over 20 solar energies (0.5-20 MeV) at
-    ``rtol=atol`` from 1e-4 to 1e-8 the worst error went from 2.0e-3 to 7.0e-5, in the same
-    time as before, within -16 % and +9 %.
+    engine.  An energy it ends without converging takes the hybrid's answer when the two
+    disagree by more than twice the hybrid's error estimate -- when the estimate bounds the
+    hybrid's error, the ladder's is then the larger, so no energy is answered worse than the
+    ladder would have answered it.  An energy the hybrid certified before it declined the scan
+    keeps its certified answer; any other is computed with one refinement iteration, where the
+    answer has stopped improving, and whose estimate says so where it has not: across the Sun
+    the ladder's one level at the slab cap was 2.0e-3 off on the exponential profile but 1e-6
+    to 8e-6 on B16-GS98, where the one-iteration hybrid was 2e-3 to 8e-3 off with estimates of
+    1e-2 to 3e-2, and each case keeps the better of the two.
 
     Three subclasses narrow the diagnosis: :class:`HybridCertificationWarning`,
     :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
@@ -6114,14 +6116,17 @@ def _hybrid_error_estimate(info: Dict) -> float:
     along the path and the change between the last two refinement levels.  Neither alone is
     safe: over 120 solar points (20 energies x 3 tolerances, one and two refinement iterations)
     the first was below the error at 0.61 MeV (8.5e-6 against 7.0e-6), the second is absent
-    when only one level was computed.  Together they were at or above the error at all 120,
-    by a median factor of 5-7.
+    when only one level was computed -- then the estimate is infinite: on B16-GS98 a first
+    level whose patches failed was returned 2.2e-3 off with a non-adiabaticity bound of
+    1.9e-6.  Together they were at or above the error at all 120, by a median factor of 5-7.
 
     .. versionadded:: 1.2.0
     """
     gap = info.get('last_gap')
-    return max(adiabatic.GAMMA_TO_ERROR*float(info['gamma_max']),
-               0.0 if gap is None else float(gap))
+    if gap is None:
+        # One level only, when the first level's own patches failed: nothing compared it.
+        return float('inf')
+    return max(adiabatic.GAMMA_TO_ERROR*float(info['gamma_max']), float(gap))
 
 
 def _hybrid_rescue(energy: float, L: float, L0: float) -> Optional[Dict]:
@@ -6151,9 +6156,27 @@ def _hybrid_rescue(energy: float, L: float, L0: float) -> Optional[Dict]:
                 return None
             rescue['answers'][key] = dict(P=np.swapaxes(U.real**2 + U.imag**2, -1, -2),
                                           certified=bool(certified),
-                                          error_estimate=_hybrid_error_estimate(info))
+                                          error_estimate=_hybrid_error_estimate(info),
+                                          full=False)
         return rescue['answers'][key]
     return None
+
+
+def _hybrid_is_better(P_ladder: np.ndarray, answer: Dict) -> bool:
+    r"""Whether the hybrid's ``answer`` is better supported than an unconverged ladder's.
+
+    When the hybrid's error is at most its ``'error_estimate'`` e, and the two answers differ by
+    d, the ladder's error is at least d - e; so d > 2e means the ladder's is the larger, and the
+    answer returned is never worse than the ladder's.  That bound held at all 156 solar points
+    measured (0.5-20 MeV; 3nu, NSI, 4nu; exponential and B16-GS98 profiles).  A certified hybrid
+    answer is taken outright.
+
+    .. versionadded:: 1.2.0
+    """
+    if answer['certified']:
+        return True
+    d = float(np.max(np.abs(np.asarray(P_ladder) - answer['P'])))
+    return d > 2.0*answer['error_estimate']
 
 
 def _hybrid_rescue_note(L0: float) -> Optional[Dict]:
@@ -6177,23 +6200,21 @@ def _hybrid_answers_for_scan(P: np.ndarray, report: Dict, energy_arr: np.ndarray
                              L_arr: np.ndarray, L0: float) -> list:
     r"""Put the hybrid's answer, in place in ``P``, where the energy-batched ladder has none.
 
-    ``report`` is what :func:`_osc_prob_scan_separable` said: ``'capped'``, the energies it
-    left out because their one level at the slab cap could not be verified, and
-    ``'unconverged'``, the energies it ended without converging, with the gap between their
-    last two levels (None with only one).  A capped energy takes the hybrid's answer; an
-    unconverged one takes it when its gap is None or larger than the hybrid's error estimate,
-    the rule of the per-point path (issue #167).  Returns what was taken, one dict per energy.
+    ``report`` is what :func:`_osc_prob_scan_separable` said: ``'unconverged'``, the energies it
+    ended without converging, with the gap between their last two levels (None with only one,
+    as at the slab cap).  Each takes the hybrid's answer where :func:`_hybrid_is_better` says
+    so.  The ladder's own answer is always computed: across the Sun, its one capped level was
+    2.0e-3 off on the exponential profile but 1e-6 to 8e-6 on B16-GS98, where the hybrid's
+    one-iteration answer was 2e-3 to 8e-3 off -- neither is right everywhere, and only their
+    disagreement, set against the hybrid's own estimate, tells them apart.  Returns what was
+    taken, one dict per energy.
 
     .. versionadded:: 1.2.0
     """
     taken = []
-    candidates = [(int(i), None, True) for i in report.get('capped', ())]
-    candidates += [(i, gap, False) for i, gap in report.get('unconverged', {}).items()]
-    for i, gap, capped in candidates:
+    for i, gap in report.get('unconverged', {}).items():
         answer = _hybrid_rescue(energy_arr[i], L_arr[i], L0)
-        if answer is None:
-            continue
-        if capped or (gap is None) or (gap > answer['error_estimate']):
+        if (answer is not None) and _hybrid_is_better(P[i], answer):
             P[i] = answer['P']
             taken.append(dict(index=i, certified=answer['certified'],
                               error_estimate=answer['error_estimate'], ladder_last_gap=gap))
@@ -6430,7 +6451,6 @@ def _osc_prob_scan_separable(
         min_n_tpts_per_slab = max_n_tpts_per_slab = n_tpts_per_slab = 2
         s_nodes = magnus.gl_nodes(magnus_exp_order)
 
-    n_slabs_in = n_slabs
     if tol_requested:
         # The caller's n_slabs is a floor on the refinement ladder, not something to discard; see
         # the corresponding note in osc_prob.
@@ -6483,27 +6503,6 @@ def _osc_prob_scan_separable(
         if (integration_method != 'gl') and not (seed >= QUADRATURE_SEED_MIN_SLABS):
             seed = 0.0
         n_slabs = int(np.clip(max(min_n_slabs, seed), 1, max_n_slabs))
-        if ((report is not None) and report.get('skip_capped') and (seeds is not None)
-                and (integration_method == 'gl') and (n_slabs >= max_n_slabs)):
-            # Energies whose own seed is at the slab cap end on one level with nothing to
-            # compare it with, under 'gl' whose points per slab are fixed; the caller has an
-            # answer for them (issue #184), so that level is not computed.  The others are
-            # run as a scan of their own, grouped as usual.
-            capped = np.clip(np.maximum(min_n_slabs, seeds), 1, max_n_slabs) >= max_n_slabs
-            report['capped'] = np.flatnonzero(capped)
-            P_out = np.full((nE, dim, dim), np.nan)
-            rest = np.flatnonzero(~capped)
-            if rest.size:
-                sub = {}
-                P_out[rest] = _osc_prob_scan_separable(
-                    H_E[rest], VCC_func, h_matt, L0, L_val, t_breakpoints, magnus_exp_order,
-                    integration_method, rtol, atol, growth_factor_n_slabs,
-                    growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs,
-                    min_n_tpts_per_slab, max_n_tpts_per_slab, n_slabs_in, n_tpts_per_slab,
-                    report=sub)
-                report['unconverged'] = {int(rest[k]): gap
-                                         for k, gap in sub.get('unconverged', {}).items()}
-            return P_out
         if seeds is not None:
             # Each energy's own starting slab count, exactly as the line above would set it
             # for a scan holding that energy alone (the quadrature rules' minimum seed
@@ -7196,33 +7195,25 @@ def _osc_prob_scan_separable_dispatch(
         # A callable h_matt goes through as the function it is; only the constant form is
         # coerced to an array.
         # Under strategy='auto', where the hybrid declined this scan without certifying it
-        # (issue #184): the engine reports which energies it could not converge, and does not
-        # compute those it could only answer on one unverifiable level at the slab cap.
-        report = ({'skip_capped': True}
-                  if ((rtol is not None) and (_hybrid_rescue_note(L0) is not None)) else None)
-
-        def separable(sel, report):
-            return _osc_prob_scan_separable(H_E[sel], VCC_func,
-                h_matt if callable(h_matt) else np.asarray(h_matt), float(L0),
-                float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
-                scan_kwargs['integration_method'], rtol, atol,
-                scan_kwargs['growth_factor_n_slabs'],
-                scan_kwargs['growth_factor_n_tpts_per_slab'],
-                scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
-                scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
-                scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab, report=report)
-
-        P = separable(slice(None), report)
+        # (issue #184), the engine reports the energies it ends without converging, and those
+        # take the hybrid's answer where it is the better supported of the two.
+        report = ({} if ((rtol is not None) and (_hybrid_rescue_note(L0) is not None))
+                  else None)
+        P = _osc_prob_scan_separable(H_E, VCC_func,
+            h_matt if callable(h_matt) else np.asarray(h_matt), float(L0),
+            float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
+            scan_kwargs['integration_method'], rtol, atol,
+            scan_kwargs['growth_factor_n_slabs'],
+            scan_kwargs['growth_factor_n_tpts_per_slab'],
+            scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
+            scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
+            scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab, report=report)
         if P is None:
             # The potential takes one position at a time; the per-point path evaluates it
             # that way (issue #113).
             return NotImplemented
         if report is not None:
             from_hybrid = _hybrid_answers_for_scan(P, report, energy_arr, L_arr, L0)
-            missing = np.flatnonzero(np.isnan(P[:, 0, 0]))
-            if missing.size:
-                # Capped energies the hybrid could not answer after all: their one level.
-                P[missing] = separable(missing, None)
             if from_hybrid:
                 _note_hybrid_answers(from_hybrid, len(energy_arr), engine)
                 if (nu_i is not None) and (nu_f is not None):
@@ -8370,7 +8361,7 @@ def _hybrid_propagator_scan(
                     magnus_exp_order=magnus_exp_order, integration_method=integration_method,
                     answers={(float(energy_arr[j]), float(L_arr[j])): dict(
                         P=P_out[j].copy(), certified=estimates[j][0],
-                        error_estimate=estimates[j][1]) for j in range(i + 1)})
+                        error_estimate=estimates[j][1], full=True) for j in range(i + 1)})
                 _note_engine('hybrid', answered=False, certified=False,
                     reason=('the profile is not resolved at the probe scale'
                             if unresolved
@@ -9476,7 +9467,11 @@ def osc_prob_energy_baseline(
                 and ('convergence_info' in osc_prob_kwargs)):
             fallback = _hybrid_rescue(enu, baseline, L0)
             gap = conv_info.get('last_gap')
-            if (fallback is not None) and ((gap is None) or (gap > fallback['error_estimate'])):
+            # The hybrid's full refinement, kept from its decline, under the rule of #167; an
+            # answer computed now with one iteration only where it is the better supported.
+            if (fallback is not None) and (
+                    ((gap is None) or (gap > fallback['error_estimate'])) if fallback['full']
+                    else _hybrid_is_better(P, fallback)):
                 P = fallback['P']
                 from_hybrid.append(dict(certified=fallback['certified'],
                                         error_estimate=fallback['error_estimate'],

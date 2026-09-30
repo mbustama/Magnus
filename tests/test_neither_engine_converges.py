@@ -84,10 +84,10 @@ def test_a_note_left_by_an_earlier_answer_is_not_read():
     def H_at_energy(energy):
         raise Asked(energy)
     rescue = dict(H_at_energy=H_at_energy, L0=0.0, rtol=1e-8, atol=1e-8, magnus_exp_order=4,
-                  integration_method='gl', answers={(1.0, 2.0): kept})
+                  integration_method='gl', answers={(1.0, 2.0): dict(kept, full=True)})
     with op._engine_probe() as trace:
         op._note_engine('hybrid', answered=False, _rescue=rescue)
-        assert op._hybrid_rescue(1.0, 2.0, 0.0) is kept
+        assert op._hybrid_rescue(1.0, 2.0, 0.0)['P'] is kept['P']
         assert op._hybrid_rescue(1.0, 2.0, 5.0) is None          # another starting point
         with pytest.raises(Asked):                                # a point it never reached
             op._hybrid_rescue(1.0, 3.0, 0.0)
@@ -115,25 +115,26 @@ def _hybrid_reference(energies_mev):
     return np.array(out)
 
 
-def test_a_tight_scan_is_answered_by_the_hybrid_and_says_so():
+def test_a_tight_scan_is_answered_by_the_better_supported_engine_and_says_so():
+    """1 MeV was 4.0e-3 off and 10 MeV 7.9e-4 off; 2 and 5 MeV, 3e-5 and 5e-5, keep the ladder."""
     info = {}
     with pytest.warns(op.ToleranceNotAchievedWarning, match='neither engine'):
         P = _sun(SCAN, rtol=1e-6, atol=1e-6, strategy_info=info)
-    assert np.max(np.abs(P - _hybrid_reference(SCAN))) < 2e-4          # 4.0e-3 before
-    assert info['engine'] == 'hybrid' and info['certified'] is False
-    assert info['trace'][-1]['n_points'] == len(SCAN)
+    assert np.max(np.abs(P - _hybrid_reference(SCAN))) < 2e-4
+    hybrid = [e for e in info['trace'] if e['engine'] == 'hybrid' and e['answered']]
+    assert hybrid and hybrid[0]['certified'] is False and 1 <= hybrid[0]['n_points'] <= len(SCAN)
 
 
-def test_the_capped_level_is_not_computed(monkeypatch):
-    """Its answer would be thrown away: every energy's own seed is at the slab cap."""
-    calls = []
-    real = op._osc_prob_scan_separable_ladder
-    monkeypatch.setattr(op, '_osc_prob_scan_separable_ladder',
-                        lambda *a, **k: calls.append(1) or real(*a, **k))
+def test_where_the_capped_ladder_is_right_it_is_kept():
+    """B16-GS98: the ladder's one capped level is 1e-6 to 8e-6 off, the hybrid's one-iteration
+    answer 2e-3 to 8e-3, and the hybrid's own estimate says so.  Nothing changes there."""
+    energies = np.array([1.5, 6.0])
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        _sun(SCAN, rtol=1e-6, atol=1e-6)
-    assert calls == []
+        auto = _sun(energies, rtol=1e-6, atol=1e-6, density_profile='B16-GS98')
+        ladder = _sun(energies, rtol=1e-6, atol=1e-6, density_profile='B16-GS98',
+                      strategy='magnus')
+    assert np.array_equal(auto, ladder)
 
 
 def test_energies_the_hybrid_certified_keep_their_certified_answer():
