@@ -1043,16 +1043,18 @@ narrower than the probe spacing and between two probes is not flagged, and stays
 """
 
 
-UNDECLARED_JUMP_STEP_RATIO = 0.9
+UNDECLARED_JUMP_STEP_TOLERANCE = 0.1
 r"""float: Module-level constant
 
 When :func:`osc_prob_energy_baseline` looks for jumps nobody declared (issue #161).  After a
-point is computed, the largest change of the Hamiltonian between consecutive quadrature nodes at
-the accepted level is compared with the level before it.  On a smooth profile it shrinks with
-the slab width, to :math:`1/1.5 = 0.67` of it at the default ``growth_factor_n_slabs``; across a
-jump it stays at the size of the jump, a ratio near 1.  Only a ratio of at least this value
-sends the profile to the jump search, which costs about 400 evaluations of the Hamiltonian, so
-a smooth profile pays nothing for the search.
+point is computed, the largest change of the Hamiltonian's diagonal between consecutive
+quadrature nodes at the accepted level is compared with the level before it.  Across a jump it
+stays at the size of the jump, a ratio of 1 within this tolerance.  On a smooth profile it
+shrinks with the slab width, to :math:`1/1.5 = 0.67` of it at the default
+``growth_factor_n_slabs``, or grows, several times over, where a finer level first lands a node
+on a feature the coarser one stepped over.  Only a ratio within this tolerance of 1 sends the
+profile to the jump search, which costs about 400 evaluations of the Hamiltonian, so a smooth
+profile does not pay for it.
 
 .. versionadded:: 1.2.0
 """
@@ -9074,7 +9076,7 @@ def osc_prob_energy_baseline(
     # order of the method, so the ladder thrashes and stops wherever two levels happen to agree:
     # measured on a three-layer castle wall at 40 baselines, 24 were off by more than the
     # requested 1e-3, up to 7.0e-2, with only the generic MagnusConvergenceWarning.  The ladder's
-    # own samples show it: see UNDECLARED_JUMP_STEP_RATIO.  Then, once per call, the profile is
+    # own samples show it: see UNDECLARED_JUMP_STEP_TOLERANCE.  Then, once per call, the profile is
     # checked on the probe grid of the hybrid strategy's resolution test, and any jump found is
     # declared for every point and the points already computed are recomputed with it.  Calls
     # that declare their own t_breakpoints or t_slab_edges, or ask for no tolerance, never
@@ -9118,10 +9120,14 @@ def osc_prob_energy_baseline(
             # Across a jump the largest change between consecutive nodes stays at the size of
             # the jump from one level to the next; on a smooth profile it shrinks with the slab
             # width, by 1/growth_factor_n_slabs a level.  Only the first kind is checked.
-            if ((len(steps) >= 2) and (steps[-1] > 0.0)
-                    and (steps[-1] >= UNDECLARED_JUMP_STEP_RATIO*steps[-2])
-                    and check_for_jumps(enu)):
-                raise _JumpsDeclared()
+            if len(steps) >= 2:
+                previous, accepted = magnus.node_step(steps[0]), magnus.node_step(steps[1])
+                steps.clear()
+                if ((previous > 0.0)
+                        and (abs(accepted/previous - 1.0) <= UNDECLARED_JUMP_STEP_TOLERANCE)
+                        and check_for_jumps(enu)):
+                    raise _JumpsDeclared()
+            steps.clear()
         else:
             out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
         P, U = out if return_evolution_operator else (out, None)
@@ -9191,7 +9197,9 @@ def osc_prob_energy_baseline(
     # point's Hamiltonian arrives already assembled.  Stripped from strategy_info.
     _note_engine('magnus', n_points=n_points, _hamiltonian=dict(
         H_at_energy=H_at_energy, L0=L0, energy=energy, L=L, nu_i=nu_i, nu_f=nu_f,
-        t_breakpoints=osc_prob_kwargs.get('t_breakpoints')))
+        # The caller's own breakpoints: jumps found by the search below are this call's business,
+        # and the 'expm' reference of cross_check_strategies must see what the caller declared.
+        t_breakpoints=kwargs.get('t_breakpoints')))
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
     sel = 0 if return_float else slice(None)
