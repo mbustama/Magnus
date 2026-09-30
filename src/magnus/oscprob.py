@@ -5132,7 +5132,9 @@ def _avg_prob_dispatch(
        Refuses average_n_samples, average_spread and average_initial_state without average
        (issue #160 §1); the energy-window route raises
        one warning per class (issue #144 §2); the warning for an energy-independent Hamiltonian
-       says no spread can decohere it (issue #144 §3).
+       says no spread can decohere it (issue #144 §3).  On a smooth profile, flavors nothing
+       couples to and degenerate with another level along the whole path are averaged out
+       (issue #148): see _decoupled_degenerate_flavors.
 
     Parameters
     ----------

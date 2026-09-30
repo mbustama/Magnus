@@ -957,6 +957,21 @@ falls only on calls whose phases survive the spread, since the others never reac
 """
 
 
+PHASE_AVERAGE_MAX_GRID_NODES = 20000
+r"""int: Module-level constant
+
+Most energy nodes :func:`phase_averaged_probabilities_adiabatic` lays across its non-adiabatic
+windows on the grid route, each of them a propagation across every window.  Past it the
+function raises ``RuntimeError``, which :func:`magnus.oscprob.osc_prob_energy_baseline` and the
+wrappers turn into the decohered limit with :class:`magnus.oscprob.PhaseAveragingWarning`.
+The most any call in the test suite takes is 81; a window spanning the whole of the Sun, as a
+pair degenerate along the whole path opened before issue #148 was fixed, took 338 193, and the
+call never returned.
+
+.. versionadded:: 1.2.0
+"""
+
+
 PHASE_AVERAGE_PATCH_ATOL = 1.0e-5
 r"""float: Module-level constant
 
@@ -1477,6 +1492,10 @@ def phase_averaged_probabilities_adiabatic(
     .. versionchanged:: 1.1.1
        Takes ``rho0``; the default start is the flavor state, where it was decohered (issue #73).
 
+    .. versionchanged:: 1.2.0
+       Raises ``RuntimeError`` rather than lay more than :data:`PHASE_AVERAGE_MAX_GRID_NODES`
+       energy nodes across its windows (issue #148).
+
     Parameters
     ----------
     H_func : Callable
@@ -1627,6 +1646,11 @@ def phase_averaged_probabilities_adiabatic(
         wq = np.exp(-0.5*(u/spread)**2)
         wq = wq/wq.sum()
         method = 'grid'
+        if len(u) > PHASE_AVERAGE_MAX_GRID_NODES:
+            raise RuntimeError("Error in magnus: avgprob.phase_averaged_probabilities_adiabatic: "
+                "the windows would take " + str(len(u)) + " energy nodes, each a propagation "
+                "across them, above PHASE_AVERAGE_MAX_GRID_NODES = " +
+                str(PHASE_AVERAGE_MAX_GRID_NODES) + ".")
     report.update(n_nodes=len(u), method=method)
 
     Ms, conv = [], True
@@ -1755,6 +1779,7 @@ __all__ = [
     'PHASE_SPREAD_SENSITIVITY_THRESHOLD',
     'PHASE_AVERAGE_PATCH_ATOL',
     'PHASE_AVERAGE_PHASE_TOL',
+    'PHASE_AVERAGE_MAX_GRID_NODES',
     'phase_averaged_probabilities_constant_hamiltonian',
     'phase_averaged_probabilities_adiabatic',
     'phase_averaged_probabilities_pseudo_dirac',
