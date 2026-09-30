@@ -6547,6 +6547,21 @@ def _osc_prob_scan_separable_ladder(
         at_caps = ((n_slabs >= max_n_slabs) and
                    (n_tpts_per_slab >= max_n_tpts_per_slab))
         if (loop_count >= max_num_loops) or at_caps:
+            if (not warned.get('caps')) and at_caps and (loop_count == 1):
+                # The seed already sat at the caps, so no second level was ever computed and
+                # nothing was checked (issue #184).  Across the Sun this is every energy below
+                # about 20 MeV once rtol/atol are 1e-4 or tighter: the returned level was
+                # measured 2.0e-3 off over 0.5-20 MeV, where strategy='hybrid' was within
+                # 6.3e-5 (and the cumulative engine within 1.4e-4).
+                warnings.warn("osc_prob (energy-batched scan): requested tolerance not "
+                    "achieved for some energies: their slab count starts at max_n_slabs, so "
+                    "one level was computed with nothing to compare it with, and those "
+                    "probabilities are unverified.  Across the Sun this happens at every "
+                    "energy once rtol/atol are about 1e-4 or tighter; there, compare with "
+                    "strategy='hybrid' (on the default solar profile it was 30 times closer), "
+                    "or loosen rtol/atol for a verified answer.  Otherwise, raise max_n_slabs.",
+                    ToleranceNotAchievedWarning, stacklevel=3)
+                warned['caps'] = True
             if not warned.get('caps'):
                 warnings.warn("osc_prob (energy-batched scan): requested tolerance "
                     "not achieved for some energies (refinement caps reached); the "

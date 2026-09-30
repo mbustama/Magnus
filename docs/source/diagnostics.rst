@@ -100,6 +100,22 @@ On the same pool they return 43 of 2580 energies outside the tolerance without a
 at two flavors, ``rtol = atol = 1e-3``), and 10 on smooth profiles, the worst 11 times.
 Where that matters, keep ``'gl'``.
 
+**The adiabatic hybrid certifies the same way**, by two successive levels agreeing, together
+with a bound on the non-adiabaticity of the stretch it transports without a window, so
+``certified=True`` carries the same meaning and the same limit.  Measured on the
+``B16-GS98`` solar model at 0.7 MeV (issue #187): at ``rtol = atol`` = 1e-5 and 1e-6 the
+hybrid certified an answer 1.8e-5 from a 2e6-slab reference, with no warning; at 1e-7 it did
+not certify, and the answer was 1.1e-6 off.  Its non-adiabaticity bound there was 1.9e-6.
+
+**A ladder that starts at its cap checks nothing.**  When the slab count a scan needs is
+already at ``max_n_slabs``, one level is computed, there is no second level to compare it
+with, and :class:`~magnus.oscprob.ToleranceNotAchievedWarning` says so.  Across the Sun this
+is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter (issue #184): over
+0.5-20 MeV the returned level was up to 2.0e-3 off on the default exponential profile, where
+``strategy='hybrid'`` was within 6.3e-5, and 1e-6 to 8e-6 off on ``B16-GS98``.  About 1e-4
+is the tightest tolerance a solar energy scan can verify; below it, compare with
+``strategy='hybrid'``, or raise ``max_n_slabs`` (about 2e6 slabs verify 1e-8 at 1 MeV).
+
 It is fair to ask why the gap is not converted into an error estimate by Richardson
 extrapolation -- for refinement ratio :math:`r` and order :math:`p`, the finer level's
 error is :math:`\text{gap}/(r^p - 1)` -- which is what the sibling NuOscProbExact does.
