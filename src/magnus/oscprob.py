@@ -1043,6 +1043,21 @@ narrower than the probe spacing and between two probes is not flagged, and stays
 """
 
 
+UNDECLARED_JUMP_STEP_RATIO = 0.9
+r"""float: Module-level constant
+
+When :func:`osc_prob_energy_baseline` looks for jumps nobody declared (issue #161).  After a
+point is computed, the largest change of the Hamiltonian between consecutive quadrature nodes at
+the accepted level is compared with the level before it.  On a smooth profile it shrinks with
+the slab width, to :math:`1/1.5 = 0.67` of it at the default ``growth_factor_n_slabs``; across a
+jump it stays at the size of the jump, a ratio near 1.  Only a ratio of at least this value
+sends the profile to the jump search, which costs about 400 evaluations of the Hamiltonian, so
+a smooth profile pays nothing for the search.
+
+.. versionadded:: 1.2.0
+"""
+
+
 AUTO_LADDER_MAX_FLOOR_FRACTION = 0.25
 r"""float: Module-level constant
 
@@ -9058,13 +9073,12 @@ def osc_prob_energy_baseline(
     # Undeclared jumps (issue #161).  A slab straddling a jump converges as 1/n, not at the
     # order of the method, so the ladder thrashes and stops wherever two levels happen to agree:
     # measured on a three-layer castle wall at 40 baselines, 24 were off by more than the
-    # requested 1e-3, up to 7.0e-2, with only the generic MagnusConvergenceWarning.  Every one
-    # of them had refined through slabs too wide for the Magnus series, so that is when the
-    # profile is checked -- once per call, on the same probe grids as the hybrid strategy's
-    # resolution test -- and any jump found is declared for every point and the points already
-    # computed are recomputed with it: 24 -> 0, in 5.1 ms per point on average against the 9.0
-    # ms the thrashing took.  Calls that declare their own t_breakpoints or t_slab_edges, or ask
-    # for no tolerance, never reach the check.
+    # requested 1e-3, up to 7.0e-2, with only the generic MagnusConvergenceWarning.  The ladder's
+    # own samples show it: see UNDECLARED_JUMP_STEP_RATIO.  Then, once per call, the profile is
+    # checked on the probe grid of the hybrid strategy's resolution test, and any jump found is
+    # declared for every point and the points already computed are recomputed with it.  Calls
+    # that declare their own t_breakpoints or t_slab_edges, or ask for no tolerance, never
+    # reach the check.
     jump_check = bool(callable(H_first) and (t_slab_edges is None)
                       and ((rtol is not None) or (atol is not None))
                       and ((kwargs.get('t_breakpoints') is None)
@@ -9074,13 +9088,9 @@ def osc_prob_energy_baseline(
     def check_for_jumps(enu: float) -> bool:
         # True when jumps were found and declared: the caller recomputes what it has.
         jumps_checked[0] = True
-        H_here = H_at_energy(enu)
-        l0, l1 = float(L0), float(np.max(np.asarray(L, dtype=float)))
-        if (adiabatic._profile_is_resolved(H_here, l0, l1, AUTO_PROBE_POINTS)
-                or adiabatic._profile_is_resolved(H_here, l0, l1, 6400)):
-            return False
-        jumps = (adiabatic._located_jumps(H_here, l0, l1, AUTO_PROBE_POINTS)
-                 or adiabatic._located_jumps(H_here, l0, l1, 6400))
+        jumps = adiabatic._located_jumps(H_at_energy(enu), float(L0),
+                                         float(np.max(np.asarray(L, dtype=float))),
+                                         AUTO_PROBE_POINTS)
         if not jumps:
             return False
         osc_prob_kwargs['t_breakpoints'] = np.asarray(jumps, dtype=float)
@@ -9099,13 +9109,18 @@ def osc_prob_energy_baseline(
 
     def compute_single_point(enu: float, baseline: float):
         if jump_check and not jumps_checked[0]:
-            observer = [0.0]
-            token = magnus._SLAB_NORM_OBSERVER.set(observer)
+            steps = []
+            token = magnus._NODE_STEP_OBSERVER.set(steps)
             try:
                 out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
             finally:
-                magnus._SLAB_NORM_OBSERVER.reset(token)
-            if observer[0] >= np.pi and check_for_jumps(enu):
+                magnus._NODE_STEP_OBSERVER.reset(token)
+            # Across a jump the largest change between consecutive nodes stays at the size of
+            # the jump from one level to the next; on a smooth profile it shrinks with the slab
+            # width, by 1/growth_factor_n_slabs a level.  Only the first kind is checked.
+            if ((len(steps) >= 2) and (steps[-1] > 0.0)
+                    and (steps[-1] >= UNDECLARED_JUMP_STEP_RATIO*steps[-2])
+                    and check_for_jumps(enu)):
                 raise _JumpsDeclared()
         else:
             out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)

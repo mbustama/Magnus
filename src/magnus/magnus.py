@@ -1826,12 +1826,13 @@ immediately.  ``None`` (and therefore free) otherwise.  A context variable, not 
 so that concurrent calls in different threads each see their own (issue #153)."""
 
 
-_SLAB_NORM_OBSERVER = contextvars.ContextVar('_SLAB_NORM_OBSERVER', default=None)
-r"""ContextVar holding a one-element list or None: when set, ``_warn_slab_norm`` records in it
-the largest ``||Omega||_2`` it is handed, whether or not a sink is open and whether or not the
-warning is then shown or filtered.  Lets :func:`magnus.oscprob.osc_prob_energy_baseline` learn
-that a point's refinement ran on slabs too wide for the Magnus series, which is when it checks
-the profile for jumps nobody declared (issue #161).  ``None`` (and therefore free) otherwise.
+_NODE_STEP_OBSERVER = contextvars.ContextVar('_NODE_STEP_OBSERVER', default=None)
+r"""ContextVar holding a list or None: when set, ``magnus_expansion_multislab`` appends to it,
+per call, the largest change of the sampled generator between consecutive nodes along the path,
+:math:`\max_k \max |A(t_{k+1}) - A(t_k)|`, from the samples it has just taken.  On a smooth
+profile this shrinks with the slab width; across a jump it stays at the size of the jump, which
+is what :func:`magnus.oscprob.osc_prob_energy_baseline` looks for before it checks the profile
+for jumps nobody declared (issue #161).  ``None`` (and therefore free) otherwise.
 
 .. versionadded:: 1.2.0
 """
@@ -1929,8 +1930,7 @@ def _warn_slab_norm(nmax: float):
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
 
     .. versionchanged:: 1.2.0
-       Receives the norm of the traceless part of Omega (issue #155 §1); records it in
-       ``_SLAB_NORM_OBSERVER`` when that is set (issue #161).
+       Receives the norm of the traceless part of Omega (issue #155 §1).
 
     Parameters
     ----------
@@ -1942,9 +1942,6 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
-    observer = _SLAB_NORM_OBSERVER.get()
-    if observer is not None and nmax > observer[0]:
-        observer[0] = float(nmax)
     sink = _SLAB_NORM_SINK.get()
     if sink is not None:
         # A caller is running a refinement ladder and will decide, once it knows which level it
@@ -3395,6 +3392,11 @@ def magnus_expansion_multislab(
         if one_sided is not None:
             _one_sided_samples(tgrid, edges, widths, *one_sided)
         At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
+
+    steps = _NODE_STEP_OBSERVER.get()
+    if steps is not None:
+        nodes = At.reshape((-1,) + At.shape[-2:])
+        steps.append(float(np.max(np.abs(np.diff(nodes, axis=0)))) if len(nodes) > 1 else 0.0)
 
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),

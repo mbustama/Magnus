@@ -982,7 +982,8 @@ def _located_jumps(H_func: Callable, l0: float, l1: float, n_probe: int) -> List
     Every flagged probe interval is re-sampled on :data:`N_LOCAL_CONFIRM` points, as the local
     confirmation does, up to :data:`MAX_LOCAL_CONFIRMATIONS` of them; each confirmed one is
     narrowed by bisection on where ``H_func`` changes, to the rounding of the position.  The
-    jumps are returned in increasing order.  Used where a caller has just been answered on a
+    jumps are returned in increasing order; a steep smooth feature, whose step does not survive
+    the bisection, is left out.  Used where a caller has just been answered on a
     grid that straddled undeclared jumps and is re-run with them declared (issue #161).
 
     .. versionadded:: 1.2.0
@@ -1008,7 +1009,10 @@ def _located_jumps(H_func: Callable, l0: float, l1: float, n_probe: int) -> List
                 b, Hb = m, Hm
             else:
                 a, Ha = m, Hm
-        jumps.append(0.5*(a + b))
+        # A jump keeps its step down to the rounding of the position; a steep smooth feature
+        # does not, and is not reported.
+        if np.max(np.abs(Hb - Ha)) > LOCAL_JUMP_RATIO*steps[k]:
+            jumps.append(0.5*(a + b))
     return sorted(jumps)
 
 
