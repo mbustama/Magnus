@@ -379,10 +379,14 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
        where the jump could move probability between levels.  Also raised by
        :func:`magnus.magnus.magnus_expansion_multislab` when a declared breakpoint lies
-       strictly inside one of the slabs it was given.
+       strictly inside one of the slabs it was given.  On the per-point path of
+       :func:`~magnus.oscprob.osc_prob_energy_baseline`, which every wrapper reaches for a
+       single point, the jumps are also located and declared, and the message names them.
      - Yes, and refinement cannot help -- a straddling slab only gets narrower, and the
-       averaged route treats the jump as smooth.
-     - ``t_breakpoints`` at the jumps. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
+       averaged route treats the jump as smooth.  On the per-point path, no: the answer was
+       computed with the jumps declared (a castle wall: 4.1e-2 → 4.5e-13).
+     - ``t_breakpoints`` at the jumps; on the per-point path, those the message prints, to
+       skip the search. Measured: median 7.8e-04 → 1.3e-12 on a scan; with
        ``average=True`` on a supernova shock, 0.04 → 0.56 against a reference of 0.59.
    * - :class:`magnus.oscprob.PhaseAveragingWarning`
      - ``average=True`` where the phase average depends on its spread: some interference

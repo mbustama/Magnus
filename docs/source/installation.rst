@@ -442,6 +442,7 @@ File tree
        ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
        ├── test_thread_safety.py       # Concurrent calls from several threads match the serial answer (issue #153)
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
+       ├── test_undeclared_features.py  # Undeclared jumps and narrow spikes do not end the refinement ladder on a wrong answer (issue #161)
        ├── test_validation.py          # Input-validation guards and their error messages
        ├── test_validation_160_reopened.py  # The #160 sub-cases found open after the first validation pass, one test each
        ├── test_validate_helpers.py    # The shared argument checks: reals, integers, bools, slab edges, Hamiltonians

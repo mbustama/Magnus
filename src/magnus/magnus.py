@@ -1826,6 +1826,34 @@ immediately.  ``None`` (and therefore free) otherwise.  A context variable, not 
 so that concurrent calls in different threads each see their own (issue #153)."""
 
 
+_NODE_STEP_OBSERVER = contextvars.ContextVar('_NODE_STEP_OBSERVER', default=None)
+r"""ContextVar holding a list or None: when set, ``magnus_expansion_multislab`` appends to it
+the samples of the generator it has just taken, at every node along the path, and keeps only the
+last two.  ``_node_step`` turns each into the largest change between
+consecutive nodes.  On a smooth profile that shrinks with the slab width; across a jump it stays
+at the size of the jump, which is what :func:`magnus.oscprob.osc_prob_energy_baseline` looks
+for before it checks the profile for jumps nobody declared (issue #161).  ``None`` (and
+therefore free) otherwise.
+
+.. versionadded:: 1.2.0
+"""
+
+
+def _node_step(At: np.ndarray) -> float:
+    r"""Largest change of the sampled diagonal between consecutive nodes; see ``_NODE_STEP_OBSERVER``.
+
+    ``At`` holds the samples of the generator :math:`-iH`, shape ``(n_slabs, m, d, d)``, in the
+    order of the nodes along the path.
+
+    .. versionadded:: 1.2.0
+    """
+    d = At.shape[-1]
+    x = At.reshape((-1, d*d))[:, ::d + 1].imag
+    if len(x) < 2:
+        return 0.0
+    return float(np.abs(x[1:] - x[:-1]).max())
+
+
 @contextmanager
 def _deferred_slab_norm():
     r"""Collect slab norms instead of warning about them, for the duration of the block.
@@ -3380,6 +3408,13 @@ def magnus_expansion_multislab(
         if one_sided is not None:
             _one_sided_samples(tgrid, edges, widths, *one_sided)
         At, used_mode = _evaluate_A(A, tgrid, A_eval_mode)  # (n_slabs, m, d, d)
+
+    levels = _NODE_STEP_OBSERVER.get()
+    if levels is not None:
+        # The samples themselves, nothing computed: the caller reads the last two levels once,
+        # after the refinement has stopped (see _node_step), and only those are kept alive.
+        levels.append(At)
+        del levels[:-2]
 
     return evolution_operators_from_samples(At, widths, order,
         integration_method, A_is_const=(used_mode == 'constant'),
