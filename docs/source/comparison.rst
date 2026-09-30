@@ -35,7 +35,7 @@ Eight codes, three setups
 The codes are GLoBES, Prob3++, nuCraft, NuFast-LBL, NuFast-Earth, NuOscProbExact,
 nuSQuIDS and Magνs, with a second-order analytic expansion for reference.  Each is
 scored against a 50-digit reference built in **its own** constants and conventions,
-chiefly the nucleon mass that fixes :math:`V_{\rm CC}`, so two codes can both reach
+chiefly the constant that fixes :math:`V_{\rm CC}`, so two codes can both reach
 :math:`10^{-14}` here and still disagree with each other at :math:`10^{-4}`.
 
 * **Constant density.**  Most codes land near round-off and differ only in cost,

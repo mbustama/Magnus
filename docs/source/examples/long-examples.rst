@@ -614,9 +614,11 @@ The Hamiltonian is one function returning the sum of the three terms, written to
                    if len(f) == 12 and f[0][0].isdigit()])
    r = tab[:, 1]*gd.SUN_RADIUS*gd.UNIT_KM
    R_SUN = r[-1]                       # Table's last row
-   m_N = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-   n_e = tab[:, 3]*gd.UNIT_G_PER_CM3/m_N
-   n_e = n_e*(1.0 + tab[:, 6])/2.0     # Electrons/nucleon
+   X = tab[:, 6]                       # Hydrogen fraction
+   n_e = tab[:, 3]*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+   # Electrons per atomic mass unit: 1H, and the
+   # rest counted as 4He, at their atomic masses
+   n_e = n_e*(X/1.00782503 + 2.0*(1.0 - X)/4.00260325)
    vcc = matter.VCC_func(0.0, lambda l: 1.0)*n_e
 
    def vcc_sun(l):
