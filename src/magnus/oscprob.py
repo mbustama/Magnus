@@ -1473,12 +1473,22 @@ class ToleranceNotAchievedWarning(UserWarning):
     point (issue #167): the hybrid declined it uncertified, and the ladder that answered instead
     ran out of room with no two levels to compare, or with two further apart than the hybrid's
     error estimate.  The hybrid's answer is then returned, and ``strategy_info`` names the hybrid
-    as the engine, with ``certified=False`` and its ``'error_estimate'`` in ``'trace'``: its
-    :data:`magnus.adiabatic.GAMMA_TO_ERROR` times the largest non-adiabaticity along the path, a
-    bound on the unpatched adiabatic answer's error.  At 1 MeV across the Sun at
+    as the engine, with ``certified=False`` and its ``'error_estimate'`` in ``'trace'``: the
+    larger of :data:`magnus.adiabatic.GAMMA_TO_ERROR` times the largest non-adiabaticity along
+    the path and the change between the hybrid's last two refinement levels, which was at or
+    above the error at all 120 solar points measured.  At 1 MeV across the Sun at
     ``rtol=atol=1e-8`` the ladder's single level of 20000 slabs was 4.0e-3 off; the hybrid's
-    answer is 1.7e-6 off, against an estimate of 1.9e-5.  Any slab-width or tolerance warning
-    raised before it describes the ladder's answer, which was not returned.
+    answer is 1.7e-6 off.  Any slab-width or tolerance warning raised with it describes the
+    ladder's answer, which was not returned.
+
+    **The same for a scan of several energies** (issue #184), answered by the energy-batched
+    engine: an energy whose own slab count would start at the cap is not computed on that one
+    unverifiable level but takes the hybrid's answer, and an energy the engine ends without
+    converging takes it under the rule above.  An energy the hybrid certified before it
+    declined the scan keeps its certified answer; any other is computed with one refinement
+    iteration, where the answer has stopped improving.  Over 20 solar energies (0.5-20 MeV) at
+    ``rtol=atol`` from 1e-4 to 1e-8 the worst error went from 2.0e-3 to 7.0e-5, in the same
+    time as before, within -16 % and +9 %.
 
     Three subclasses narrow the diagnosis: :class:`HybridCertificationWarning`,
     :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
@@ -1495,7 +1505,8 @@ class ToleranceNotAchievedWarning(UserWarning):
 
     .. versionchanged:: 1.2.0
        Also raised when neither engine of ``strategy='auto'`` reached the tolerance and the
-       hybrid's uncertified answer was returned (issue #167).
+       hybrid's uncertified answer was returned, at a point (issue #167) or across an energy
+       scan (issue #184).
     """
 
 
@@ -6086,24 +6097,147 @@ def _note_engine(label: str, answered: bool = True, **detail) -> None:
         trace.append(dict(engine=label, answered=answered, **detail))
 
 
-def _hybrid_fallback(energy: float, L: float, L0: float) -> Optional[Dict]:
-    r"""The uncertified hybrid answer at this point, if the hybrid declined it in this call.
+# Refinement iterations of the hybrid when it answers for a point the ladder cannot (issue
+# #184).  Such a point has already been declined by the hybrid at the requested tolerance, so
+# certifying it there is out of reach; what is left is the answer, and the hybrid's answer
+# stops improving after its first refinement.  Measured over 20 solar energies (0.5-20 MeV,
+# 3nu) at rtol=atol 1e-4, 1e-6 and 1e-8, against the ladder at 2e6 slabs: worst error 7.0e-5
+# with one iteration, 7.2e-5 with two, 6.3e-5 with the full refinement -- which took 17.5 s
+# for the 20 energies at 1e-8, against 0.47 s with one.
+_HYBRID_RESCUE_MAX_ITERS = 1
 
-    Read from the decline note ``_hybrid_propagator_scan`` leaves under ``strategy='auto'``, and
-    only if no engine has answered since: nested probes share one trace, and a note left by an
-    earlier call is behind that call's answer.  None otherwise.
+
+def _hybrid_error_estimate(info: Dict) -> float:
+    r"""A conservative estimate of a hybrid answer's error, from its ``info``.
+
+    The larger of :data:`magnus.adiabatic.GAMMA_TO_ERROR` times the largest non-adiabaticity
+    along the path and the change between the last two refinement levels.  Neither alone is
+    safe: over 120 solar points (20 energies x 3 tolerances, one and two refinement iterations)
+    the first was below the error at 0.61 MeV (8.5e-6 against 7.0e-6), the second is absent
+    when only one level was computed.  Together they were at or above the error at all 120,
+    by a median factor of 5-7.
 
     .. versionadded:: 1.2.0
     """
-    trace = _ENGINE_TRACE.get()
-    for entry in reversed(trace or ()):
+    gap = info.get('last_gap')
+    return max(adiabatic.GAMMA_TO_ERROR*float(info['gamma_max']),
+               0.0 if gap is None else float(gap))
+
+
+def _hybrid_rescue(energy: float, L: float, L0: float) -> Optional[Dict]:
+    r"""The hybrid's answer at this point, when ``strategy='auto'`` declined it in this call.
+
+    Read from the decline note ``_hybrid_propagator_scan`` leaves, and only if no engine has
+    answered since: nested probes share one trace, and a note left by an earlier call is
+    behind that call's answer.  A point the hybrid computed before it declined is returned as
+    it was, certified or not; any other is computed now, with
+    ``_HYBRID_RESCUE_MAX_ITERS`` refinement iterations, and kept for the rest of the call.
+    Returns a dict with ``'P'``, ``'certified'`` and ``'error_estimate'``; None when there is
+    no such note.
+
+    .. versionadded:: 1.2.0
+    """
+    rescue = _hybrid_rescue_note(L0)
+    if rescue is not None:
+        key = (float(energy), float(L))
+        if key not in rescue['answers']:
+            info = {}
+            U, _, certified = adiabatic.hybrid_propagator(
+                rescue['H_at_energy'](energy), float(L0), float(L), rtol=rescue['rtol'],
+                atol=rescue['atol'], magnus_exp_order=rescue['magnus_exp_order'],
+                integration_method=rescue['integration_method'],
+                max_iters=_HYBRID_RESCUE_MAX_ITERS, info=info)
+            if not info.get('resolved', True):
+                return None
+            rescue['answers'][key] = dict(P=np.swapaxes(U.real**2 + U.imag**2, -1, -2),
+                                          certified=bool(certified),
+                                          error_estimate=_hybrid_error_estimate(info))
+        return rescue['answers'][key]
+    return None
+
+
+def _hybrid_rescue_note(L0: float) -> Optional[Dict]:
+    r"""The payload of this call's ``strategy='auto'`` hybrid decline, if there is one.
+
+    Only a note no engine has answered after counts: nested probes share one trace, and a note
+    left by an earlier call is behind that call's answer.
+
+    .. versionadded:: 1.2.0
+    """
+    for entry in reversed(_ENGINE_TRACE.get() or ()):
         if entry['answered']:
             return None
-        fallback = entry.get('_fallback')
-        if ((fallback is not None) and (fallback['energy'] == float(energy))
-                and (fallback['L'] == float(L)) and (fallback['L0'] == float(L0))):
-            return fallback
+        rescue = entry.get('_rescue')
+        if (rescue is not None) and (rescue['L0'] == float(L0)):
+            return rescue
     return None
+
+
+def _hybrid_answers_for_scan(P: np.ndarray, report: Dict, energy_arr: np.ndarray,
+                             L_arr: np.ndarray, L0: float) -> list:
+    r"""Put the hybrid's answer, in place in ``P``, where the energy-batched ladder has none.
+
+    ``report`` is what :func:`_osc_prob_scan_separable` said: ``'capped'``, the energies it
+    left out because their one level at the slab cap could not be verified, and
+    ``'unconverged'``, the energies it ended without converging, with the gap between their
+    last two levels (None with only one).  A capped energy takes the hybrid's answer; an
+    unconverged one takes it when its gap is None or larger than the hybrid's error estimate,
+    the rule of the per-point path (issue #167).  Returns what was taken, one dict per energy.
+
+    .. versionadded:: 1.2.0
+    """
+    taken = []
+    candidates = [(int(i), None, True) for i in report.get('capped', ())]
+    candidates += [(i, gap, False) for i, gap in report.get('unconverged', {}).items()]
+    for i, gap, capped in candidates:
+        answer = _hybrid_rescue(energy_arr[i], L_arr[i], L0)
+        if answer is None:
+            continue
+        if capped or (gap is None) or (gap > answer['error_estimate']):
+            P[i] = answer['P']
+            taken.append(dict(index=i, certified=answer['certified'],
+                              error_estimate=answer['error_estimate'], ladder_last_gap=gap))
+    if any(not a['certified'] for a in taken):
+        _warn_hybrid_answered()
+    return taken
+
+
+def _note_hybrid_answers(taken: list, n_points: int, engine: str) -> None:
+    r"""Record which engine answered, when the hybrid answered some points or all of them.
+
+    The hybrid is named the engine when it answered every point; otherwise the ladder is, with
+    the hybrid's points noted before it.
+
+    .. versionadded:: 1.2.0
+    """
+    note = dict(certified=all(a['certified'] for a in taken), n_points=len(taken),
+                error_estimate=max(a['error_estimate'] for a in taken),
+                reason='the ladder could not converge')
+    if len(taken) < n_points:
+        _note_engine('hybrid', **note)
+        _note_engine(engine)
+    else:
+        _note_engine(engine)
+        _note_engine('hybrid', **note)
+
+
+def _warn_hybrid_answered() -> None:
+    r"""Neither engine of ``strategy='auto'`` reached the tolerance, and the hybrid answered.
+
+    One function for the per-point and the energy-batched paths, so that the two say the same.
+
+    .. versionadded:: 1.2.0
+    """
+    warnings.warn(
+        "osc_prob (strategy='auto'): neither engine reached the requested tolerance at some "
+        "points.  The adiabatic hybrid did not certify them, and the Magnus ladder could not "
+        "converge within max_n_slabs.  The hybrid's answer was returned there, since the "
+        "ladder had less to show for its own: its estimated error is in "
+        "strategy_info['trace'] ('error_estimate'), and any slab-width or tolerance warning "
+        "raised with it describes the ladder's answer, which was not returned.  For certified "
+        "answers at this tolerance, raise max_n_slabs; or request rtol/atol no tighter than "
+        "the accuracy you need. Shown once per session.", ToleranceNotAchievedWarning,
+        stacklevel=5)
 
 
 @contextmanager
@@ -6177,7 +6311,8 @@ def _osc_prob_scan_separable(
     min_n_tpts_per_slab: int,
     max_n_tpts_per_slab: int,
     n_slabs: int,
-    n_tpts_per_slab: int
+    n_tpts_per_slab: int,
+    report: Optional[Dict] = None
 ) -> np.ndarray:
     r"""Energy-batched probability scan for separable Hamiltonians.
 
@@ -6295,6 +6430,7 @@ def _osc_prob_scan_separable(
         min_n_tpts_per_slab = max_n_tpts_per_slab = n_tpts_per_slab = 2
         s_nodes = magnus.gl_nodes(magnus_exp_order)
 
+    n_slabs_in = n_slabs
     if tol_requested:
         # The caller's n_slabs is a floor on the refinement ladder, not something to discard; see
         # the corresponding note in osc_prob.
@@ -6347,6 +6483,27 @@ def _osc_prob_scan_separable(
         if (integration_method != 'gl') and not (seed >= QUADRATURE_SEED_MIN_SLABS):
             seed = 0.0
         n_slabs = int(np.clip(max(min_n_slabs, seed), 1, max_n_slabs))
+        if ((report is not None) and report.get('skip_capped') and (seeds is not None)
+                and (integration_method == 'gl') and (n_slabs >= max_n_slabs)):
+            # Energies whose own seed is at the slab cap end on one level with nothing to
+            # compare it with, under 'gl' whose points per slab are fixed; the caller has an
+            # answer for them (issue #184), so that level is not computed.  The others are
+            # run as a scan of their own, grouped as usual.
+            capped = np.clip(np.maximum(min_n_slabs, seeds), 1, max_n_slabs) >= max_n_slabs
+            report['capped'] = np.flatnonzero(capped)
+            P_out = np.full((nE, dim, dim), np.nan)
+            rest = np.flatnonzero(~capped)
+            if rest.size:
+                sub = {}
+                P_out[rest] = _osc_prob_scan_separable(
+                    H_E[rest], VCC_func, h_matt, L0, L_val, t_breakpoints, magnus_exp_order,
+                    integration_method, rtol, atol, growth_factor_n_slabs,
+                    growth_factor_n_tpts_per_slab, max_num_loops, min_n_slabs, max_n_slabs,
+                    min_n_tpts_per_slab, max_n_tpts_per_slab, n_slabs_in, n_tpts_per_slab,
+                    report=sub)
+                report['unconverged'] = {int(rest[k]): gap
+                                         for k, gap in sub.get('unconverged', {}).items()}
+            return P_out
         if seeds is not None:
             # Each energy's own starting slab count, exactly as the line above would set it
             # for a scan holding that energy alone (the quadrature rules' minimum seed
@@ -6371,14 +6528,15 @@ def _osc_prob_scan_separable(
                         magnus_exp_order, integration_method, rtol, atol,
                         growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
                         max_num_loops, max_n_slabs, max_n_tpts_per_slab,
-                        int(seeds[g].max()), n_tpts_per_slab, tol_requested, s_nodes, warned)
+                        int(seeds[g].max()), n_tpts_per_slab, tol_requested, s_nodes, warned,
+                        report=report, rows=g)
                 return P_out
 
     return _osc_prob_scan_separable_ladder(
         H_E, VCC_func, h_matt, L0, L_val, t_breakpoints, magnus_exp_order,
         integration_method, rtol, atol, growth_factor_n_slabs, growth_factor_n_tpts_per_slab,
         max_num_loops, max_n_slabs, max_n_tpts_per_slab, n_slabs, n_tpts_per_slab,
-        tol_requested, s_nodes, {})
+        tol_requested, s_nodes, {}, report=report)
 
 
 def _osc_prob_scan_separable_ladder(
@@ -6401,7 +6559,9 @@ def _osc_prob_scan_separable_ladder(
     n_tpts_per_slab: int,
     tol_requested: bool,
     s_nodes: Optional[np.ndarray],
-    warned: Dict
+    warned: Dict,
+    report: Optional[Dict] = None,
+    rows: Optional[np.ndarray] = None
 ) -> np.ndarray:
     r"""The refinement ladder of :func:`_osc_prob_scan_separable`, on one shared slab grid.
 
@@ -6555,6 +6715,14 @@ def _osc_prob_scan_separable_ladder(
                     "once per session.", ToleranceNotAchievedWarning, stacklevel=3)
                 warned['caps'] = True
             P_out[active] = P_new[~conv]
+            if report is not None:
+                # Which energies ended here, and how far apart their last two levels were
+                # (None with only one level), for the caller's rescue (issue #184).
+                gaps = np.max(np.abs(P_new[~conv] - prev[~conv]), axis=(-1, -2))
+                where = np.arange(nE) if rows is None else np.asarray(rows)
+                report.setdefault('unconverged', {}).update(
+                    {int(where[a]): (None if np.isnan(g) else float(g))
+                     for a, g in zip(active, gaps)})
             return P_out
 
         n_slabs_old = n_slabs
@@ -7027,19 +7195,39 @@ def _osc_prob_scan_separable_dispatch(
     else:
         # A callable h_matt goes through as the function it is; only the constant form is
         # coerced to an array.
-        P = _osc_prob_scan_separable(H_E, VCC_func,
-            h_matt if callable(h_matt) else np.asarray(h_matt), float(L0),
-            float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
-            scan_kwargs['integration_method'], rtol, atol,
-            scan_kwargs['growth_factor_n_slabs'],
-            scan_kwargs['growth_factor_n_tpts_per_slab'],
-            scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
-            scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
-            scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab)
+        # Under strategy='auto', where the hybrid declined this scan without certifying it
+        # (issue #184): the engine reports which energies it could not converge, and does not
+        # compute those it could only answer on one unverifiable level at the slab cap.
+        report = ({'skip_capped': True}
+                  if ((rtol is not None) and (_hybrid_rescue_note(L0) is not None)) else None)
+
+        def separable(sel, report):
+            return _osc_prob_scan_separable(H_E[sel], VCC_func,
+                h_matt if callable(h_matt) else np.asarray(h_matt), float(L0),
+                float(L_arr[0]), t_breakpoints, scan_kwargs['magnus_exp_order'],
+                scan_kwargs['integration_method'], rtol, atol,
+                scan_kwargs['growth_factor_n_slabs'],
+                scan_kwargs['growth_factor_n_tpts_per_slab'],
+                scan_kwargs['max_num_loops'], scan_kwargs['min_n_slabs'],
+                scan_kwargs['max_n_slabs'], scan_kwargs['min_n_tpts_per_slab'],
+                scan_kwargs['max_n_tpts_per_slab'], n_slabs, n_tpts_per_slab, report=report)
+
+        P = separable(slice(None), report)
         if P is None:
             # The potential takes one position at a time; the per-point path evaluates it
             # that way (issue #113).
             return NotImplemented
+        if report is not None:
+            from_hybrid = _hybrid_answers_for_scan(P, report, energy_arr, L_arr, L0)
+            missing = np.flatnonzero(np.isnan(P[:, 0, 0]))
+            if missing.size:
+                # Capped energies the hybrid could not answer after all: their one level.
+                P[missing] = separable(missing, None)
+            if from_hybrid:
+                _note_hybrid_answers(from_hybrid, len(energy_arr), engine)
+                if (nu_i is not None) and (nu_f is not None):
+                    P = P[:, nu_i, nu_f]
+                return P.__getitem__(0 if return_float else slice(None))
 
     _note_engine(engine)
     if (nu_i is not None) and (nu_f is not None):
@@ -8155,6 +8343,8 @@ def _hybrid_propagator_scan(
     P_out = np.empty((n_pts, d, d))
     any_uncertified = False
     unresolved = False
+    # Under 'auto', what each point computed so far came to, kept in case the scan declines.
+    estimates = []
 
     for i in range(n_pts):
         H_of_l = H_at_energy(energy_arr[i])
@@ -8164,23 +8354,28 @@ def _hybrid_propagator_scan(
             rtol=rtol, atol=atol, magnus_exp_order=magnus_exp_order,
             integration_method=integration_method, info=info)
         unresolved = unresolved or (not info.get('resolved', True))
-
+        if strategy == 'auto':
+            estimates.append((bool(certified), _hybrid_error_estimate(info)))
 
         if not certified:
             if strategy == 'auto':
-                # The uncertified answer is kept on the decline note: if the ladder that answers
-                # instead runs out of slabs, osc_prob_energy_baseline returns this one when it is
-                # the better supported of the two (issue #167).  Not on an unresolved profile,
-                # where the adiabatic answer means nothing.
-                fallback = None if unresolved else dict(
-                    energy=float(energy_arr[i]), L=float(L_arr[i]), L0=float(L0),
-                    P=np.swapaxes(U.real**2 + U.imag**2, -1, -2),
-                    error_estimate=adiabatic.GAMMA_TO_ERROR*float(info['gamma_max']))
+                # What the hybrid computed is kept on the decline note, the answers it certified
+                # before this point included: if the ladder that answers instead runs out of
+                # slabs, the hybrid's answer is returned where it is the better supported of the
+                # two, and any point it did not reach is computed on demand (issues #167, #184).
+                # Not on an unresolved profile, where the adiabatic answer means nothing.
+                P_out[i] = np.swapaxes(U.real**2 + U.imag**2, -1, -2)
+                rescue = None if unresolved else dict(
+                    H_at_energy=H_at_energy, L0=float(L0), rtol=rtol, atol=atol,
+                    magnus_exp_order=magnus_exp_order, integration_method=integration_method,
+                    answers={(float(energy_arr[j]), float(L_arr[j])): dict(
+                        P=P_out[j].copy(), certified=estimates[j][0],
+                        error_estimate=estimates[j][1]) for j in range(i + 1)})
                 _note_engine('hybrid', answered=False, certified=False,
                     reason=('the profile is not resolved at the probe scale'
                             if unresolved
                             else 'did not self-certify at the requested tolerance'),
-                    _fallback=fallback)
+                    _rescue=rescue)
                 if unresolved:
                     _warn_hybrid_unresolved()
                 return NotImplemented
@@ -9244,7 +9439,7 @@ def osc_prob_energy_baseline(
             UnmarkedDiscontinuityWarning, stacklevel=5)
         return True
 
-    from_hybrid = []    # points answered by the hybrid's uncertified answer (issue #167)
+    from_hybrid = []    # points answered by the hybrid instead (issues #167, #184)
 
     def compute_single_point(enu: float, baseline: float):
         if jump_check and not jumps_checked[0]:
@@ -9274,26 +9469,20 @@ def osc_prob_energy_baseline(
         # answer was 1.7e-6 off.  The hybrid's answer is returned when the ladder has less to
         # show for its own: no two levels to compare, or two further apart than the hybrid's
         # error estimate.  Read only after the ladder failed, so a call that converges pays nothing.
+        # A point the hybrid did not reach before declining is computed then (issue #184).
         # conv_info describes this point only while it is passed to osc_prob; the parallel
         # workers run without it.
         if ((conv_info.get('tolerance_achieved') is False) and not return_evolution_operator
                 and ('convergence_info' in osc_prob_kwargs)):
-            fallback = _hybrid_fallback(enu, baseline, L0)
+            fallback = _hybrid_rescue(enu, baseline, L0)
             gap = conv_info.get('last_gap')
             if (fallback is not None) and ((gap is None) or (gap > fallback['error_estimate'])):
                 P = fallback['P']
-                from_hybrid.append(dict(error_estimate=fallback['error_estimate'],
+                from_hybrid.append(dict(certified=fallback['certified'],
+                                        error_estimate=fallback['error_estimate'],
                                         ladder_last_gap=gap))
-                warnings.warn(
-                    "osc_prob_energy_baseline (strategy='auto'): neither engine reached the "
-                    "requested tolerance at this point.  The adiabatic hybrid did not certify it, "
-                    "and the Magnus ladder then reached max_n_slabs without converging.  The "
-                    "hybrid's answer was returned, since the ladder had less to show for its own: "
-                    "its estimated error is in strategy_info['trace'] ('error_estimate'), and any "
-                    "slab-width or tolerance warning above describes the ladder's answer, which "
-                    "was not returned.  For an answer certified at this tolerance, raise "
-                    "max_n_slabs; or request rtol/atol no tighter than the accuracy you need. "
-                    "Shown once per session.", ToleranceNotAchievedWarning, stacklevel=4)
+                if not fallback['certified']:
+                    _warn_hybrid_answered()
         # Select one oscillation channel if requested; otherwise keep the full matrix
         if ((nu_i is not None) and (nu_f is not None)):
             P = P[nu_i][nu_f]
@@ -9358,9 +9547,10 @@ def osc_prob_energy_baseline(
 
     # Which engine answered: the hybrid, when every point is its answer; otherwise the ladder,
     # with the hybrid's points noted before it.
-    hybrid_note = (dict(certified=False, n_points=len(from_hybrid),
+    hybrid_note = (dict(certified=all(p['certified'] for p in from_hybrid),
+                        n_points=len(from_hybrid),
                         error_estimate=max(p['error_estimate'] for p in from_hybrid),
-                        reason='the ladder did not converge either')
+                        reason='the ladder could not converge')
                    if from_hybrid else None)
     if hybrid_note and len(from_hybrid) < n_points:
         _note_engine('hybrid', **hybrid_note)

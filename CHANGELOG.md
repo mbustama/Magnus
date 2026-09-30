@@ -9,6 +9,23 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An energy scan at a tight tolerance on the Sun is no longer 2.0e-3 off** (issue #184).
+  Where `strategy='auto'`'s hybrid did not certify one energy of a scan, the whole scan went to
+  the energy-batched ladder, the energies it had certified included; across the Sun that
+  ladder seeds every energy at the 20 000-slab cap, computed one level, had nothing to compare
+  it with, and returned it for every energy.  Over 20 solar energies (0.5-20 MeV, 3nu) that
+  was 4 of 20 outside `rtol=atol=1e-4` and all 20 outside 1e-5 and tighter, 2.0e-3 off at
+  worst.  Now an energy the hybrid certified keeps its answer, and one whose own slab count
+  would start at the cap is not computed on that level but takes the hybrid's answer, with one
+  refinement iteration, where the answer has stopped improving (worst 7.0e-5 against 6.3e-5
+  for the full refinement, in 0.47 s instead of 17.5 s for the 20).  Energies below the cap
+  keep their ladder, and the rule of #167 applies where it too ends unconverged.  The error
+  estimate reported for an uncertified hybrid answer is now the larger of the non-adiabaticity
+  bound and the change between its last two levels: the first alone was 20 % under the error
+  at one of 120 points measured, the two together under it at none.  Worst error 7.0e-5 at
+  every tolerance from 1e-4 to 1e-8; the scan takes the same time as before (-16 % at 1e-4,
+  +9 % at 1e-6 and 1e-8, interleaved and warm); all 140 benchmark calls are bitwise identical.
+
 - **A tight tolerance on the Sun no longer returns a worse answer than the default** (issue
   #167).  At 1 MeV across the Sun, `rtol=atol=1e-8` is beyond what the adiabatic hybrid
   certifies, so `strategy='auto'` declined it and the Magnus ladder answered instead; that

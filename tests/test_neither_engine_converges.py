@@ -53,8 +53,8 @@ def test_a_tight_tolerance_is_no_longer_worse_than_the_default():
 def test_the_default_tolerance_never_reaches_the_fallback(monkeypatch):
     """Read only after the ladder fails: a call that converges pays nothing and is unchanged."""
     calls = []
-    real = op._hybrid_fallback
-    monkeypatch.setattr(op, '_hybrid_fallback', lambda *a: calls.append(a) or real(*a))
+    real = op._hybrid_rescue
+    monkeypatch.setattr(op, '_hybrid_rescue', lambda *a: calls.append(a) or real(*a))
     info = {}
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -76,12 +76,93 @@ def test_a_forced_ladder_still_answers_with_the_ladder():
 
 def test_a_note_left_by_an_earlier_answer_is_not_read():
     """Nested probes share one trace: a decline behind an answer belongs to a finished call."""
-    fallback = dict(energy=1.0, L=2.0, L0=0.0, P=np.eye(3), error_estimate=1e-6)
+    kept = dict(P=np.eye(3), certified=False, error_estimate=1e-6)
+
+    class Asked(Exception):
+        pass
+
+    def H_at_energy(energy):
+        raise Asked(energy)
+    rescue = dict(H_at_energy=H_at_energy, L0=0.0, rtol=1e-8, atol=1e-8, magnus_exp_order=4,
+                  integration_method='gl', answers={(1.0, 2.0): kept})
     with op._engine_probe() as trace:
-        op._note_engine('hybrid', answered=False, _fallback=fallback)
-        assert op._hybrid_fallback(1.0, 2.0, 0.0) is fallback
-        assert op._hybrid_fallback(1.0, 3.0, 0.0) is None
+        op._note_engine('hybrid', answered=False, _rescue=rescue)
+        assert op._hybrid_rescue(1.0, 2.0, 0.0) is kept
+        assert op._hybrid_rescue(1.0, 2.0, 5.0) is None          # another starting point
+        with pytest.raises(Asked):                                # a point it never reached
+            op._hybrid_rescue(1.0, 3.0, 0.0)
         op._note_engine('magnus')
-        assert op._hybrid_fallback(1.0, 2.0, 0.0) is None
+        assert op._hybrid_rescue(1.0, 2.0, 0.0) is None
     assert all(not k.startswith('_') for e in op._summarize_engine_trace(trace)['trace']
                for k in e)
+
+
+# Issue #184: a scan of several energies is answered by the energy-batched engine, which across
+# the Sun seeds every energy at the 20000-slab cap and returned one unverifiable level for all
+# of them: 2.0e-3 off at every rtol = atol from 1e-4 to 1e-8, over 0.5-20 MeV.
+SCAN = np.array([1.0, 2.0, 5.0, 10.0])
+
+
+def _hybrid_reference(energies_mev):
+    """The hybrid, certified at 3e-4 at each energy: within 7.0e-5 of the 2e6-slab ladder."""
+    out = []
+    for e in energies_mev:
+        info = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            out.append(_sun(e, rtol=3e-4, atol=3e-4, strategy='hybrid', strategy_info=info))
+        assert info['certified'] is True
+    return np.array(out)
+
+
+def test_a_tight_scan_is_answered_by_the_hybrid_and_says_so():
+    info = {}
+    with pytest.warns(op.ToleranceNotAchievedWarning, match='neither engine'):
+        P = _sun(SCAN, rtol=1e-6, atol=1e-6, strategy_info=info)
+    assert np.max(np.abs(P - _hybrid_reference(SCAN))) < 2e-4          # 4.0e-3 before
+    assert info['engine'] == 'hybrid' and info['certified'] is False
+    assert info['trace'][-1]['n_points'] == len(SCAN)
+
+
+def test_the_capped_level_is_not_computed(monkeypatch):
+    """Its answer would be thrown away: every energy's own seed is at the slab cap."""
+    calls = []
+    real = op._osc_prob_scan_separable_ladder
+    monkeypatch.setattr(op, '_osc_prob_scan_separable_ladder',
+                        lambda *a, **k: calls.append(1) or real(*a, **k))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        _sun(SCAN, rtol=1e-6, atol=1e-6)
+    assert calls == []
+
+
+def test_energies_the_hybrid_certified_keep_their_certified_answer():
+    """At 1e-4 the hybrid certifies 1 and 2 MeV and declines the scan at 10 MeV."""
+    energies = np.array([1.0, 2.0, 10.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = _sun(energies, rtol=1e-4, atol=1e-4)
+        for k in (0, 1):
+            info = {}
+            alone = _sun(energies[k], rtol=1e-4, atol=1e-4, strategy='hybrid', strategy_info=info)
+            assert info['certified'] is True
+            assert np.array_equal(P[k], alone)
+    assert np.max(np.abs(P - _hybrid_reference(energies))) < 2e-4
+
+
+def test_a_scan_the_hybrid_certifies_never_reaches_the_rescue(monkeypatch):
+    calls = []
+    real = op._hybrid_rescue_note
+    monkeypatch.setattr(op, '_hybrid_rescue_note', lambda *a: calls.append(a) or real(*a))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        _sun(SCAN)
+    assert calls == []
+
+
+def test_the_hybrid_reports_the_gap_between_its_last_two_levels():
+    import magnus.adiabatic as ad
+    H = lambda l: np.diag([0.0, 1e-12, 3e-12]) + 1e-13*np.ones((3, 3))   # noqa: E731
+    info = {}
+    ad.hybrid_propagator(H, 0.0, 1e12, rtol=1e-6, atol=1e-6, max_iters=1, info=info)
+    assert isinstance(info['last_gap'], float) and info['last_gap'] >= 0.0

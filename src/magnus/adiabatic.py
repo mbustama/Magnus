@@ -1922,7 +1922,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
 
     .. versionchanged:: 1.2.0
        A Hamiltonian that turns NaN or infinite along the path is refused, naming H_func,
-       instead of returning a NaN propagator (issue #160 §7).
+       instead of returning a NaN propagator (issue #160 §7).  ``info`` also carries
+       ``'last_gap'``, the change between the last two levels computed (issue #184).
 
     Parameters
     ----------
@@ -2048,8 +2049,9 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
         out-parameter convention as ``convergence_info`` in :func:`magnus.oscprob.osc_prob`.
         Keys: ``'resolved'`` (whether ``H_func`` passed the probe-scale resolution test -- see
         ``_profile_is_resolved``), ``'gamma_max'``, ``'gamma_unpatched'`` (see
-        :func:`find_nonadiabatic_windows`), ``'n_windows'``, ``'iterations'``, and
-        ``'patches_converged'``.  ``certified=False`` on its own does not say *which* of these
+        :func:`find_nonadiabatic_windows`), ``'n_windows'``, ``'iterations'``,
+        ``'patches_converged'``, and ``'last_gap'`` (the largest change of a probability
+        between the last two levels computed; None when only one was).  ``certified=False`` on its own does not say *which* of these
         failed, and the cures are different: an unresolved profile wants ``t_breakpoints``, an
         exhausted refinement wants a looser tolerance.  :mod:`magnus.oscprob` uses
         ``'resolved'`` to raise :class:`magnus.oscprob.UnmarkedDiscontinuityWarning` on the
@@ -2135,13 +2137,16 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
     resolved = (_profile_is_resolved(H_func, l0, l1, n_probe0)
                 or _profile_is_resolved(H_func, l0, l1, max_n_probe))
 
+    # max |P_next - P_prev| between the last two levels computed, for info['last_gap'].
+    last_gap = [None]
+
     def report(n_windows: int, gamma_max: float, gamma_unpatched: float, iterations: int,
                patches_ok: bool):
         if info is not None:
             info.update(resolved=bool(resolved), gamma_max=float(gamma_max),
                         gamma_unpatched=float(gamma_unpatched),
                         n_windows=int(n_windows), iterations=int(iterations),
-                        patches_converged=bool(patches_ok))
+                        patches_converged=bool(patches_ok), last_gap=last_gap[0])
 
     # Every Magnus patch converges to this, and it has to follow the requested tolerance.  The
     # agreement test below cannot see a patch's own error: a window that does not change
@@ -2248,6 +2253,8 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
             l0, l1, threshold, n_probe, n_points, fd_step_frac, magnus_exp_order,
             integration_method, patch_atol, extra_points=extra_points, probe_out=probe_next)
         _refuse_non_finite_propagator(U_next, l0, l1)
+        last_gap[0] = float(np.max(np.abs((U_next.real**2 + U_next.imag**2)
+                                          - (U_prev.real**2 + U_prev.imag**2))))
         if not ok_next:
             report(len(windows_next), gamma_next, gu_next, iterations, False)
             return U_next, windows_next, False
