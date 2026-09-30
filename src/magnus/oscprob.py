@@ -5350,8 +5350,10 @@ def _avg_prob_dispatch(
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
             "probability was requested at " + str(undecided_points) + " of " +
             str(len(energy_arr)) + " (energy, L) point(s) where at least one pair of eigenvalues "
-            "has neither decohered nor stayed coherent, so no averaged expression describes it.  "
-            "The oscillation probability itself (average=False) is the meaningful quantity there.",
+            "has neither decohered nor stayed coherent.  The Hamiltonian does not depend on "
+            "energy -- a matrix, or a function of position alone -- so no energy spread can "
+            "decohere that pair, and no averaged expression describes it: the oscillation "
+            "probability itself (average=False) is the meaningful quantity there.",
             PhaseAveragingWarning, stacklevel=3)
 
     window_detail = (dict(window_half_width=window, n_samples=n_samples, largest_sem=worst_sem)

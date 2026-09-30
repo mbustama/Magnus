@@ -722,3 +722,17 @@ def test_window_route_still_honours_an_error_filter():
         warnings.simplefilter('error', op.ToleranceNotAchievedWarning)
         with pytest.raises(op.ToleranceNotAchievedWarning):
             _window_average()
+
+
+# #144 §3: a matrix Hamiltonian with average=True --------------------------------------------------
+
+def test_matrix_hamiltonian_average_says_no_spread_can_decohere():
+    H = _h0()/gd.UNIT_GEV
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = op.osc_prob_energy_baseline(H, gd.UNIT_GEV, 1000.*KM, 0.0, average=True,
+                                        nu_i=1, nu_f=1)
+    assert round(float(P), 4) == 1.0
+    msgs = [str(w.message) for w in caught if type(w.message).__name__ == 'PhaseAveragingWarning']
+    assert any('does not depend on energy' in m and 'no energy spread can decohere' in m
+               and 'average=False' in m for m in msgs), msgs

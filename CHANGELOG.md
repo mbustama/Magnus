@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Averaging an energy-independent Hamiltonian says why no average applies** (issue #144 §3).
+  A matrix, or a function of position alone, has no energy dependence for a spread to act on,
+  so a pair of levels neither decohered nor coherent stays that way; the warning said only
+  that such a pair existed.  It now says the Hamiltonian does not depend on energy, that no
+  spread can decohere the pair, and that `average=False` is the meaningful quantity.
 - **The energy-window average raises one warning per class, not one per sample** (issue #144
   §2).  On a profile with declared discontinuities, `average=True` propagates once per energy
   sample, and each propagation warned: 41 `MagnusConvergenceWarning` and 41
