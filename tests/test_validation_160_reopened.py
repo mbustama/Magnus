@@ -338,3 +338,48 @@ LIV = dict(sxi12=0.3, sxi23=0.4, sxi13=0.2, dxiCP=0.1, b1=1e-23, b2=2e-23, b3=3e
 def test_entry_points_with_a_fixed_start_refuse_L0_by_name(call):
     with pytest.raises(ValueError, match='Error in magnus.*L0 is not an argument here'):
         call()
+
+
+# §4 flags ---------------------------------------------------------------------------------------
+
+def _exp(**kw):
+    return op.osc_prob_3nu_matter_exp_density(1.0e9, 1000.*KM, 0.0, 3.0, 300.*KM,
+                                              density_matter_is_in_g_per_cm3=True, **kw, **OSC)
+
+
+def _const(**kw):
+    return op.osc_prob_3nu_matter_constant_density(1.0e9, 1000.*KM, 3.0, **kw, **OSC)
+
+
+def _oeb(**kw):
+    import magnus.hamiltonians as hams
+    H0 = hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    return op.osc_prob_energy_baseline(lambda E: H0/E, 1.0e9, 1000.*KM, **kw)
+
+
+@pytest.mark.parametrize('flag, call', [
+    ('nubar', lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC)),
+    ('average', lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC)),
+    ('density_matter_is_in_g_per_cm3', _const),
+    ('density_is_of_number_of_electrons', _const),
+    ('return_evolution_operator', _exp),
+    ('strict_convergence', _exp),
+    ('validate_input', lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC)),
+    ('save_log', lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC)),
+    ('close_file_log_upon_exit', lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC)),
+    ('H_func_is_function_only_of_energy', _oeb),
+    ('cumulative', _exp),
+])
+def test_flags_given_as_none_are_refused(flag, call):
+    _refused(flag, call, **{flag: None})
+
+
+def test_validate_input_as_an_array_is_refused_by_name():
+    _refused('validate_input', op.osc_prob_3nu_vacuum, 1.0e9, 1000.*KM,
+             validate_input=np.array([True, False]), **OSC)
+
+
+def test_validate_input_false_and_numpy_bools_still_work():
+    a = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, validate_input=False, **OSC)
+    b = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, validate_input=np.bool_(True), **OSC)
+    assert np.array_equal(a, b)

@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Flags given as `None`, and `validate_input` given as anything but a bool, are refused**
+  (issue #160 §4).  The entry checks skipped every `None`, so `nubar=None`, `average=None`,
+  `cumulative=None` and seven more flags read as False; `validate_input` was truth-tested
+  before anything was checked, so `None` turned validation off and an array raised NumPy's
+  "truth value is ambiguous".
 - **`L0` on a vacuum or Earth entry point is refused by name** (issue #160 §1).  None of them
   declares it, and one passed anyway collided with the start the entry point sets, as a
   `TypeError` naming an internal function; the vacuum LIV wrappers used it as the start.

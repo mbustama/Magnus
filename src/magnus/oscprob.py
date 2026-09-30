@@ -2009,6 +2009,25 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
 
 _ENTRY_DEFAULTS = {}
 _NO_DEFAULT = object()
+# Arguments for which None is not a value: the flags, and the two settings whose None the
+# entry points used to pass on to code that could not take it (issue #160 §4).  Every other
+# argument's None means "not given" and is skipped, as before.
+_NONE_REFUSED = frozenset(('nubar', 'average', 'density_matter_is_in_g_per_cm3',
+                           'density_is_of_number_of_electrons', 'return_evolution_operator',
+                           'strict_convergence', 'validate_input', 'save_log',
+                           'close_file_log_upon_exit', 'H_func_is_function_only_of_energy',
+                           'cumulative'))
+
+
+def _validation_requested(validate_input, where: str) -> bool:
+    r"""``validate_input``, checked before it decides whether anything else is (issue #160 §4).
+
+    Read as a truth value before any check ran, so ``None`` turned validation off silently and
+    an array raised NumPy's "truth value of an array is ambiguous".
+    """
+    if validate_input is True or validate_input is False:
+        return validate_input
+    return bool(_v.check_bool('validate_input', validate_input, "oscprob." + where))
 _SCENARIO_FUNCTION_NAMES = frozenset(('osc_prob_vacuum', 'osc_prob_matter_std_potential',
                                       'osc_prob_matter_nsi', 'osc_prob_liv'))
 
@@ -2052,7 +2071,7 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     # microsecond on a single-point call.
     defaults = _entry_defaults(func) if func is not None else {}
     for key, x in values.items():
-        if x is None or x is defaults.get(key, _NO_DEFAULT):
+        if x is defaults.get(key, _NO_DEFAULT) or (x is None and key not in _NONE_REFUSED):
             continue
         rule = rules.get(key)
         if rule is not None:
@@ -2061,7 +2080,7 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     if kw:
         for key, x in kw.items():
             rule = rules.get(key)
-            if rule is not None and x is not None:
+            if rule is not None and (x is not None or key in _NONE_REFUSED):
                 rule(key, x, where)
         merged = dict(values, **kw)
     else:
@@ -8229,7 +8248,7 @@ def osc_prob_energy_baseline(
     # L=True was a baseline of 1 eV^-1.
     # Skipped when a scenario function is the caller: it has run the same checks already.
     _direct = sys._getframe(1).f_code.co_name not in _SCENARIO_FUNCTION_NAMES
-    if validate_input and _direct:
+    if _direct and _validation_requested(validate_input, 'osc_prob_energy_baseline'):
         _where = "oscprob.osc_prob_energy_baseline"
         _validate_entry('osc_prob_energy_baseline', locals(), osc_prob_energy_baseline)
         _v.check_real_array('energy', energy, _where, positive=True)
@@ -9273,7 +9292,7 @@ def osc_prob_vacuum(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_vacuum')
-    if validate_input:
+    if _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_vacuum)
     _refuse_start_keyword(_where, kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum(_where, kwargs)
@@ -9747,7 +9766,7 @@ def osc_prob_matter_std_potential(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_std_potential')
-    if validate_input:
+    if _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_std_potential)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10315,7 +10334,7 @@ def osc_prob_matter_nsi(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_nsi')
-    if validate_input:
+    if _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_nsi)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10877,7 +10896,7 @@ def osc_prob_liv(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_liv')
-    if validate_input:
+    if _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_liv)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
