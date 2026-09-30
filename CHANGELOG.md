@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The vacuum wrappers refuse `t_breakpoints`** (issue #160 §1).  The vacuum Hamiltonian has no
+  discontinuity to mark, so breakpoints were accepted and ignored.  The refinement keywords
+  (`rtol`, `atol`, the slab and order controls) stay accepted, since the command line and
+  shared calls pass one set to every wrapper, and the vacuum docstrings now say they have no
+  effect there.
 - **`average_n_samples` without `average=True` is refused** (issue #160 §1).  It was accepted
   and ignored; it was already refused on the averaging routes that do not sample.
   `average_spread` and `average_initial_state` stay documented as ignored without `average`.

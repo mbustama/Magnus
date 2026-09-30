@@ -313,3 +313,13 @@ def test_spread_and_initial_state_stay_ignored_without_average():
     plain = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **OSC)
     for kw in (dict(average_spread=0.1), dict(average_initial_state='decohered')):
         assert np.array_equal(op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **kw, **OSC), plain)
+
+
+def test_vacuum_refuses_breakpoints():
+    _refused('t_breakpoints', op.osc_prob_3nu_vacuum, 1.0e9, 1000.*KM, t_breakpoints=[500.*KM],
+             **OSC)
+    _refused('t_breakpoints', op.osc_prob_vacuum, 3, 1.0e9, 1000.*KM, OSC,
+             t_breakpoints=[500.*KM])
+    _refused('t_breakpoints', op.osc_prob_3nu_vacuum_liv, 1.0e9, 1000.*KM, sxi12=0.3,
+             sxi23=0.4, sxi13=0.2, dxiCP=0.1, b1=1e-23, b2=2e-23, b3=3e-23, Lambda=1e9,
+             n_liv=0, t_breakpoints=[500.*KM], **OSC)

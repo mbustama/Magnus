@@ -7078,6 +7078,19 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
 
 
+def _refuse_breakpoints_in_vacuum(where: str, kwargs: dict) -> None:
+    r"""Refuses ``t_breakpoints`` on a vacuum call (issue #160 §1).
+
+    The vacuum Hamiltonian does not vary along the path, so there is no jump to mark: the
+    breakpoints were accepted and ignored.
+
+    .. versionadded:: 1.2.0
+    """
+    if kwargs.get('t_breakpoints') is not None:
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + where + ": t_breakpoints marks "
+            "discontinuities of a profile, and has no effect in vacuum, where there is none.")
+
+
 def _resolve_cumulative_kwarg(kwargs, strategy):
     r"""Pops a caller-supplied ``cumulative`` out of ``kwargs`` and decides what to forward.
 
@@ -9245,6 +9258,7 @@ def osc_prob_vacuum(
     _where = _caller_name('osc_prob_vacuum')
     if validate_input:
         _validate_entry(_where, locals(), osc_prob_vacuum)
+    _refuse_breakpoints_in_vacuum(_where, kwargs)
     energy, L = _as_float(energy), _as_float(L)
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
@@ -11232,7 +11246,10 @@ def osc_prob_2nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angle is stated: ``'sin'`` (default) its sine,
         ``'sin2'`` its sine *squared* -- which is what global fits report --
@@ -11422,7 +11439,10 @@ def osc_prob_3nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11670,7 +11690,10 @@ def osc_prob_4nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -11939,7 +11962,10 @@ def osc_prob_5nu_vacuum(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20651,7 +20677,10 @@ def osc_prob_2nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines,
         ``'sin2'`` their sines *squared* -- which is what global fits report --
@@ -20666,6 +20695,7 @@ def osc_prob_2nu_vacuum_liv(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
+    _refuse_breakpoints_in_vacuum('osc_prob_2nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=2,
         rho_func=0.0,
@@ -20783,7 +20813,10 @@ def osc_prob_3nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20797,6 +20830,7 @@ def osc_prob_3nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_breakpoints_in_vacuum('osc_prob_3nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=3,
         rho_func=0.0,
@@ -20955,7 +20989,10 @@ def osc_prob_4nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -20969,6 +21006,7 @@ def osc_prob_4nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_breakpoints_in_vacuum('osc_prob_4nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=4,
         rho_func=0.0,
@@ -21165,7 +21203,10 @@ def osc_prob_5nu_vacuum_liv(
         ``n_jobs``.  They do not appear in this signature because they are not this
         function's to declare, so ``help()`` on it will not list them: see
         :func:`osc_prob`.  The logging arguments are this function's own, and are
-        documented above.
+        documented above.  In vacuum the Hamiltonian does not vary along the path and
+        each point is computed exactly, so the refinement keywords (``rtol``, ``atol``,
+        the slab and order controls) are accepted, for a call shared with the matter
+        wrappers, and have no effect; ``t_breakpoints`` is refused.
     angles : str, optional
         How the mixing angles are stated: ``'sin'`` (default) their sines, ``'sin2'``
         their sines *squared* -- which is what global fits report -- ``'rad'`` the angles
@@ -21179,6 +21220,7 @@ def osc_prob_5nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_breakpoints_in_vacuum('osc_prob_5nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=5,
         rho_func=0.0,
