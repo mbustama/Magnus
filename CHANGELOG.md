@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`t_breakpoints` of which none lies on the path are refused** (issue #160 §6).  Breakpoints
+  all before `L0` or past the longest baseline mark nothing -- a sign or a unit gone wrong --
+  and were accepted and ignored.  Some off the path stay accepted: a whole profile's breakpoints
+  reused for a shorter path, as `solar_models.rst` does with a table's rows, still mark the
+  jumps on it.  The Earth wrappers now drop the PREM crossings past the end of a partial path
+  themselves; results are bit-identical (30 of 30 Earth cases, full and partial paths, scans
+  and strategies).
 - **`average=True` with `cumulative=True` is refused** (issue #160 §5).  The phase average takes
   no baseline scan, so the explicit request for one was accepted and ignored.
 - **The `n_jobs` docs say the worker pool outlives the call** (issue #160 §5).  joblib's loky

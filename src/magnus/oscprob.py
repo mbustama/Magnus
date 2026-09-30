@@ -2184,6 +2184,21 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
                 "API is in natural units, so these were most likely kilometers left "
                 "unconverted, and they mark nothing on the path.  Multiply by gd.UNIT_KM.",
                 gd.BaselineUnitWarning, stacklevel=3)
+        # Breakpoints of which none lies on the path mark nothing on it: a sign or a unit gone
+        # wrong, accepted and ignored (issue #160 §6).  Some off the path are fine -- the
+        # breakpoints of a whole profile reused for a shorter path, as solar_models.rst does
+        # with a table's rows -- since those on it still mark the jumps.  The path runs from
+        # L0 to the longest baseline.
+        _Lr, _L0r = _minmax_1d(merged.get('L')), merged.get('L0', 0.0)
+        _L0r = 0.0 if _L0r is None else _L0r
+        if _bpa.size and _Lr is not None and _v.is_real_scalar(_L0r):
+            _bpv = np.asarray(_bp, dtype=float)
+            _lo, _hi = min(float(_L0r), _Lr[0]), max(float(_L0r), _Lr[1])
+            if not np.any((_bpv >= _lo) & (_bpv <= _hi)):
+                raise ValueError(_v._msg(where, "none of the t_breakpoints lies on the path, "
+                    "between L0 = " + format(_lo, '.6g') + " and the longest baseline, " +
+                    format(_hi, '.6g') + " [eV^-1], so they mark nothing on it; the first is " +
+                    format(float(_bpv.ravel()[0]), '.6g') + ".  Check their sign and unit."))
     # Slab edges given for a single baseline are checked here, where the message can name the
     # function the caller called; osc_prob checks them again for its own direct callers.
     _te = merged.get('t_slab_edges')
@@ -7220,6 +7235,36 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
     return bool(len(L_arr) >= min_points
                 and np.all(energy_arr == energy_arr[0])
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
+
+
+def _earth_breakpoints(prem_breakpoints, user_breakpoints, L, source_func_name: str):
+    r"""The breakpoints an Earth entry point passes on: the PREM crossings on the path, and the
+    caller's own.
+
+    The crossings are computed along the whole chord, so a path that stops short of it (a
+    partial ``L``) used to carry crossings past its end.  Those mark nothing on the path, and
+    since breakpoints off the path are refused (issue #160 §6), the ones past the longest
+    baseline are dropped here; the caller's are kept as given, to be checked like any others.
+
+    .. versionadded:: 1.2.0
+    """
+    bp = np.atleast_1d(np.asarray(prem_breakpoints, dtype=float))
+    L_max = _minmax_1d(_as_float(L) if not isinstance(L, (list, np.ndarray)) else L)
+    if L_max is not None:
+        bp = bp[bp <= L_max[1]]
+    if user_breakpoints is None:
+        return bp
+    user = np.atleast_1d(_v.check_real_array('t_breakpoints', user_breakpoints,
+                                              "oscprob." + source_func_name, allow_empty=True))
+    user = np.asarray(user, dtype=float)
+    # Checked on their own: merged with the PREM crossings, which lie on the path, a set of
+    # which none does would pass the check the scenario function makes on the merged set.
+    if user.size and L_max is not None and not np.any((user >= 0.0) & (user <= L_max[1])):
+        raise ValueError(_v._msg("oscprob." + source_func_name, "none of the t_breakpoints "
+            "lies on the path, between 0 and the longest baseline, " + format(L_max[1], '.6g') +
+            " [eV^-1], so they mark nothing on it; the first is " + format(float(user[0]), '.6g') +
+            ".  Check their sign and unit."))
+    return np.unique(np.concatenate([bp, user]))
 
 
 def _refuse_start_keyword(where: str, kwargs: dict, environment: str) -> None:
@@ -13728,10 +13773,7 @@ def osc_prob_2nu_earth(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_2nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth')
 
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -14085,10 +14127,7 @@ def osc_prob_3nu_earth(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_3nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14460,10 +14499,7 @@ def osc_prob_4nu_earth(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_4nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -14856,10 +14892,7 @@ def osc_prob_5nu_earth(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_5nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -15219,10 +15252,7 @@ def osc_prob_earth(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_earth')
 
     # Charged-current potential along the chord from the PREM electron density; the antineutrino
     # sign flip is applied inside matter.vcc_func_from_rho_func.  The profile evaluations are
@@ -18490,10 +18520,7 @@ def osc_prob_2nu_earth_nsi(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_2nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth_nsi')
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -18864,10 +18891,7 @@ def osc_prob_3nu_earth_nsi(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_3nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19269,10 +19293,7 @@ def osc_prob_4nu_earth_nsi(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_4nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -19712,10 +19733,7 @@ def osc_prob_5nu_earth_nsi(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_5nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth_nsi')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -23256,10 +23274,7 @@ def osc_prob_2nu_earth_liv(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_2nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_2nu_earth_liv')
     
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
@@ -23641,10 +23656,7 @@ def osc_prob_3nu_earth_liv(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_3nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_3nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -24064,10 +24076,7 @@ def osc_prob_4nu_earth_liv(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_4nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_4nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The
@@ -24526,10 +24535,7 @@ def osc_prob_5nu_earth_liv(
     # yourself instead, pass t_slab_edges, which is the complete set.
     _refuse_start_keyword('osc_prob_5nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
-    if _user_breakpoints is not None:
-        t_breakpoints = np.unique(np.concatenate(
-            [np.atleast_1d(np.asarray(t_breakpoints, dtype=float)),
-             np.atleast_1d(np.asarray(_user_breakpoints, dtype=float))]))
+    t_breakpoints = _earth_breakpoints(t_breakpoints, _user_breakpoints, L, 'osc_prob_5nu_earth_liv')
     
     # The function earth.density_matter_func_prem returns the internal matter density of the Earth
     # as a function of radial distance, r, using the Preliminary Reference Earth Model (PREM). The

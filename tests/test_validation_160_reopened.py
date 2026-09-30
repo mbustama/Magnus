@@ -535,3 +535,20 @@ def test_average_with_cumulative_true_is_refused():
 def test_average_with_the_default_or_false_cumulative_still_runs():
     _exp(average=True)
     _exp(average=True, cumulative=False)
+
+
+# §6 t_breakpoints off the path ------------------------------------------------------------------
+
+@pytest.mark.parametrize('bp', [[-100.*KM], [5000.*KM], [-100.*KM, 5000.*KM]])
+def test_breakpoints_off_the_path_are_refused(bp):
+    _refused('t_breakpoints', _exp, t_breakpoints=bp)
+    _refused('t_breakpoints', op.osc_prob_3nu_earth, 1.0e9, costhz=-0.5, L=1000.*KM,
+             t_breakpoints=bp, **OSC)
+
+
+def test_breakpoints_on_the_path_and_a_partial_earth_path_still_work():
+    _exp(t_breakpoints=[300.*KM, 1000.*KM])
+    # A whole profile's breakpoints, some past the end of a shorter path, as solar_models.rst
+    # does with a table's rows: the ones on the path still mark its jumps.
+    _exp(t_breakpoints=[200.*KM, 2000.*KM])
+    op.osc_prob_3nu_earth(1.0e9, costhz=-0.9, L=2000.*KM, t_breakpoints=[1500.*KM], **OSC)
