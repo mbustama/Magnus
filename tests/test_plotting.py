@@ -1323,3 +1323,28 @@ def test_profile_plot_nubar_contradiction_is_refused():
                                          trajectories=[dict(costhz=-0.5)], energy=1.0,
                                          nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=True,
                                          wrapper_kw=dict(nubar=False), xscale='linear')
+
+
+def test_oscillogram_computes_nsi_and_liv_through_the_earth():
+    """#146 §1: eps_* or b* keys in compute mode were refused by the standard Earth wrapper."""
+    import magnus.oscprob as op
+    CZ = np.linspace(-1.0, -0.2, 3)
+    lg = np.linspace(0.0, 1.0, 3)
+    for kw, fn in [(dict(eps_ee=0.1, eps_em=0.05), op.osc_prob_3nu_earth_nsi),
+                   (dict(b1=1e-23, b2=0.0, b3=0.0, Lambda=1e9, n_liv=0), op.osc_prob_3nu_earth_liv)]:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            _, _, P = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                          wrapper_kw=kw, return_probability=True)
+            import magnus.earth as earth
+            energy = 10.0**lg*gd.UNIT_GEV
+            ref = np.stack([np.asarray(fn(energy, costhz=float(c),
+                                          L=earth.distance_traveled_inside_earth(float(c))*gd.UNIT_KM,
+                                          nu_i=gd.NUMU, nu_f=gd.NUE, **kw), dtype=float)
+                            for c in CZ], axis=1)
+        assert np.array_equal(np.asarray(P), ref)
+    plt.close('all')
+    with pytest.raises(ValueError, match='no Earth wrapper takes both'):
+        mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                            wrapper_kw=dict(eps_ee=0.1, b1=1e-23, b2=0.0, b3=0.0, Lambda=1e9,
+                                            n_liv=0))

@@ -105,6 +105,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **NSI and LIV oscillograms in compute mode** (issue #146 §1).  `plot_oscillogram`,
+  `plot_probability_with_profile` and `plot_biprobability` pick the `_nsi` Earth wrapper when
+  `wrapper_kw` or `osc_params` holds an `eps_*` key, and the `_liv` one when it holds `b*`,
+  `sxi*`, `dxi*`, `Lambda` or `n_liv`.  They used to pick the standard wrapper, which refused
+  those keys.  Both kinds together, or a flavor count with no such wrapper, are refused with the
+  advice to compute the grid and pass it in.
 - **`nubar=` on the probability plots** (issue #145 §2).  `plot_probability_vs_energy`,
   `plot_probability_vs_baseline`, `plot_probability_with_profile` and `plot_oscillogram` take a
   keyword `nubar`: in plot-only mode it labels the curves as antineutrino probabilities, which

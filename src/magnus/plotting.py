@@ -2597,6 +2597,22 @@ def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wr
                          'wrapper_kw or osc_params: ' % caller + ', '.join(clash) + '.')
     composition = {k: v for k, v in composition.items() if v is not None}
 
+    # NSI and LIV through the Earth (issue #146 §1): the wrapper follows the parameters given.
+    # Before, the standard wrapper was always chosen, and refused the eps_* or b* keys.
+    import re
+    given = set(wrapper_kw) | set(osc_params)
+    nsi = sorted(k for k in given if k.startswith('eps_'))
+    liv = sorted(k for k in given if re.fullmatch(r'b\d|sxi\d*|dxi\w*|Lambda|n_liv', k))
+    if nsi and liv:
+        raise ValueError(where + 'NSI (%s) and LIV (%s) parameters together: no Earth wrapper '
+                         'takes both.  Compute the grid yourself and pass it as probability.'
+                         % (', '.join(nsi), ', '.join(liv)))
+    suffix = '_nsi' if nsi else ('_liv' if liv else '')
+
     from magnus import oscprob
-    fn = getattr(oscprob, 'osc_prob_%dnu_earth' % num_flavors)
+    fn = getattr(oscprob, 'osc_prob_%dnu_earth%s' % (num_flavors, suffix), None)
+    if fn is None:
+        raise ValueError(where + 'there is no %d-flavor Earth wrapper for %s parameters.  '
+                         'Compute the grid yourself and pass it as probability.'
+                         % (num_flavors, 'NSI' if nsi else 'LIV'))
     return fn, dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition, **wrapper_kw)
