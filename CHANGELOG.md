@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`default_osc_params_set_name=None` is refused by name** (issue #160 §4).  It failed as
+  "can only concatenate str (not NoneType) to str"; the name of a parameter set is a string.
 - **`osc_prob` checks `new_recursion_limit`** (issue #160 §4).  The scenario functions already
   refused a non-positive or non-integer value; `osc_prob` accepted `0`, `-1`, `2.5` and `'a'`.
   It is still otherwise ignored.

@@ -2038,7 +2038,7 @@ _ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
     'strategy': lambda name, x, where: _v.check_choice(
         name, x, where, ('auto', 'hybrid', 'magnus')),
     'filename_log': _str,
-    'default_osc_params_set_name': _str_or_none,
+    'default_osc_params_set_name': _str,
     'angles': lambda name, x, where: _v.check_choice(
         name, x, where, ('sin', 'sin2', 'rad', 'deg')),
 })
@@ -2053,7 +2053,7 @@ _NONE_REFUSED = frozenset(('nubar', 'average', 'density_matter_is_in_g_per_cm3',
                            'density_is_of_number_of_electrons', 'return_evolution_operator',
                            'strict_convergence', 'validate_input', 'save_log',
                            'close_file_log_upon_exit', 'H_func_is_function_only_of_energy',
-                           'cumulative'))
+                           'cumulative', 'default_osc_params_set_name'))
 
 
 def _validation_requested(validate_input, where: str) -> bool:

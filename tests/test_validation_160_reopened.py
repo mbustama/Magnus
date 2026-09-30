@@ -455,3 +455,12 @@ def test_osc_prob_checks_new_recursion_limit(value):
 
 def test_osc_prob_accepts_a_positive_recursion_limit():
     op.osc_prob(_castle, 0.0, 1000.*KM, new_recursion_limit=10000)
+
+
+@pytest.mark.parametrize('call', [
+    lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC),
+    lambda **k: op.osc_prob_3nu_earth(1.0e9, costhz=-0.5, L=1000.*KM, **k, **OSC),
+    lambda **k: op.osc_prob_2nu_vacuum(1.0e9, 1000.*KM, sth=0.5, Dm2=2.5e-3, **k),
+])
+def test_parameter_set_name_none_is_refused_by_name(call):
+    _refused('default_osc_params_set_name', call, default_osc_params_set_name=None)
