@@ -492,6 +492,9 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for matter oscillations.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Computes and returns the 3x3 real three-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
@@ -535,6 +538,9 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
 
 def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     r"""Returns the three-neutrino Hamiltonian for matter oscillations, as a function of distance.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Computes and returns the 3x3 real three-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.

@@ -92,6 +92,9 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
     r"""Returns the matter density inside the Earth according to the
     Preliminary Reference Earth Model (PREM) [1]_.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Returns the matter density inside the Earth according to the PREM,
     for a given radial distance measured from the center of the Earth.
     Accepts a single radial distance or an array of radial distances;

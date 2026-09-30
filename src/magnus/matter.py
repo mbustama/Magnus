@@ -95,6 +95,9 @@ def density_matter_func_const(l: float,
     r"""Returns the matter density as a function of position, assuming a 
     constant density. Used for testing purposes.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Returns the matter density as a function of position, assuming a
     constant density. Used for testing purposes.
 
@@ -126,6 +129,9 @@ def density_matter_func_const(l: float,
 def density_matter_func_exp(l: float, density_matter_central:float , l_scale: float) -> float:
     r"""Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Returns the matter density as a function of position, assuming  
     an exponentially decreasing density profile of the form

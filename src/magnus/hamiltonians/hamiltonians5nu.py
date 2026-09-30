@@ -538,6 +538,9 @@ def hamiltonian_5nu_matter(VCC: float,
 ) -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for matter oscillations.
 
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
+
     Computes and returns the 5x5 real five-neutrino Hamiltonian for
     oscillations in matter with constant density.
 
@@ -588,6 +591,9 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
     ratio_number_neutrons_to_protons: Optional[Union[int, float, Callable]] = 1.0
 ) -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for matter oscillations, as a function of distance.
+
+    Not validated: called on the hot path, at every quadrature node.  Its inputs are
+    checked where they are set (issue #160 §11).
 
     Computes and returns the 5x5 real five-neutrino Hamiltonian for oscillations in matter with a
     given density as a function of position.

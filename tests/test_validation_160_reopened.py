@@ -116,3 +116,17 @@ def test_num_density_e_func_checks_ratio_and_density_function():
         matter.num_density_e_func(0.0, lambda l: 3.0, ratio_number_neutrons_to_protons=-1.0)
     with pytest.raises(ValueError, match='density_matter_func'):
         matter.num_density_e_func(0.0, 3)
+
+
+# §11 hot-path notes ---------------------------------------------------------------------------
+
+def test_unchecked_per_node_functions_say_so():
+    import magnus.earth as earth
+    import magnus.hamiltonians as hams
+    import magnus.matter as matter
+    funcs = [matter.density_matter_func_const, matter.density_matter_func_exp,
+             earth.density_matter_func_prem]
+    funcs += [getattr(hams, 'hamiltonian_%dnu_%s' % (n, k)) for n in (2, 3, 4, 5)
+              for k in ('matter', 'matter_td')]
+    for f in funcs:
+        assert 'hot path' in f.__doc__, f.__name__
