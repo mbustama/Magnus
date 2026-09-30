@@ -420,6 +420,7 @@ File tree
        ├── test_pseudodirac.py         # Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two
        ├── test_documented_examples.py  # Runs the code blocks in README.md and quickstart.rst
        ├── test_earth_matter.py        # PREM profile, chord geometry, electron density
+       ├── test_cross_check_unverified.py  # The cross-check names the engines that did not reach the tolerance (issue #166)
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_auto_ladder.py         # When strategy='auto' takes the ladder (issue #70)
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
