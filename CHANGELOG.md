@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An angle beyond ±90° under `angles='rad'` or `'deg'` is refused** (issue #160 §11).  The
+  cosine is taken as `+sqrt(1 - sin^2)`, so θ₁₂ = 2.0 rad silently gave the rotation of
+  π − 2.0, 0.0175 off in probability.  The message names the angle and the in-quadrant angle
+  with the same sine.
 - **A computed profile plot labels its probability panel** (issue #146 §2).
   `plot_probability_with_profile` in compute mode left the probability panel's ordinate empty;
   it now gets the channel's label, as `plot_probability_vs_energy` gives, unless

@@ -168,7 +168,9 @@ Mixing parameters
 
 Angles are given as **sines** by default (``angles='sin'``) -- not as angles,
 and not as :math:`\sin^2\theta`; ``angles=`` also accepts ``'sin2'``,
-``'rad'`` and ``'deg'``.  By default ``s12`` is
+``'rad'`` and ``'deg'``; under the last two an angle with a negative cosine (beyond
+:math:`\pm 90^\circ`) is refused, since the cosine is taken as :math:`+\sqrt{1 - s^2}`.
+By default ``s12`` is
 :math:`\sin\theta_{12}`. Quoted fits usually give :math:`\sin^2\theta`, so
 take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.

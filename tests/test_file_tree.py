@@ -437,6 +437,8 @@ TREE = [
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
+    ('tests/test_validation_160_reopened.py',
+     'The #160 sub-cases found open after the first validation pass, one test each'),
     ('tests/test_validate_helpers.py', 'The shared argument checks: reals, integers, bools, slab edges, Hamiltonians'),
     ('tests/test_version.py', 'Version resolution from pyproject.toml / installed metadata'),
 ]
