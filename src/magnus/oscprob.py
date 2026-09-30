@@ -13324,7 +13324,9 @@ def osc_prob_2nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -13659,7 +13661,9 @@ def osc_prob_3nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -14015,7 +14019,9 @@ def osc_prob_4nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -14392,7 +14398,9 @@ def osc_prob_5nu_earth(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -14737,7 +14745,9 @@ def osc_prob_earth(
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``.
     L : float, list, or np.ndarray, optional
         Baseline(s) [:math:`\text{eV}^{-1}`]. Used together with ``costhz``, as an alternative to
-        ``loc_ini``/``loc_fin``.
+        ``loc_ini``/``loc_fin``.  The path length from the source along the chord: a value
+        shorter than the chord is a partial path, which stops inside the Earth; one longer than
+        the chord is refused.
     nubar : bool, optional
         If True, compute the probability for antineutrinos (flips the sign of the PREM-based
         matter potential passed to ``H_func``). Default: False.
@@ -18016,7 +18026,9 @@ def osc_prob_2nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -18356,7 +18368,9 @@ def osc_prob_3nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -18734,7 +18748,9 @@ def osc_prob_4nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -19148,7 +19164,9 @@ def osc_prob_5nu_earth_nsi(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -22726,7 +22744,9 @@ def osc_prob_2nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -23071,7 +23091,9 @@ def osc_prob_3nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -23461,7 +23483,9 @@ def osc_prob_4nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional
@@ -23892,7 +23916,9 @@ def osc_prob_5nu_earth_liv(
     loc_fin : tuple, list, np.ndarray, or str, optional
         Final location, same format as ``loc_ini``. Must be given with ``loc_ini``. Default: None.
     L : float, list, or np.ndarray, optional
-        Baseline(s). Default: None.
+        Baseline(s): the path length from the source along the chord.  A value shorter than
+        the chord is a partial path, which stops inside the Earth; one longer than the chord
+        is refused.  Default: None.
     s12 : int or float, optional
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine). Default: None.
     s23 : int or float, optional

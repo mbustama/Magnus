@@ -174,3 +174,10 @@ def test_earth_radial_distance_from_depth_checks_the_position(l):
 def test_earth_radial_distance_from_depth_still_accepts_positions():
     import magnus.earth as earth
     assert np.all(np.isfinite(earth.earth_radial_distance_from_depth(-0.5, np.array([0.0, 100.0]))))
+
+
+def test_earth_wrappers_document_the_partial_path():
+    import re
+    for name in dir(op):
+        if re.match(r'osc_prob_\w*earth', name):
+            assert 'partial path' in ' '.join(getattr(op, name).__doc__.split()), name
