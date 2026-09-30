@@ -373,7 +373,13 @@ def _r_oscillogram_probability(name, x, where, a):
         raise ValueError(_v._msg(where, name + " must have shape (len(log10_energy), "
                                  "len(costhz)) = " + str(shape) + "; got " +
                                  str(np.shape(x)) + "."))
-    _r_probability_array(name, x, where, a)
+    # Finite reals, not [0, 1]: a precomputed map may be any quantity with a matching
+    # cbar_label, such as a difference of two probabilities (notebook 06).
+    arr = np.asarray(x)
+    if arr.dtype.kind not in 'iuf':
+        raise _v.InputTypeError(_v._msg(where, name + " must hold real numbers."))
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(_v._msg(where, name + " must be finite."))
 
 
 # The rules shared by every routine, by argument name; each routine adds its data rules.

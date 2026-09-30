@@ -1385,6 +1385,8 @@ __all__ = [
     'ANGLE_CONVENTIONS',
     'BaselineUnitWarning',
     'IMPLAUSIBLE_BASELINE_NATURAL_UNITS',
+    'EnergyUnitWarning',
+    'IMPLAUSIBLE_ENERGY_NATURAL_UNITS',
     'MixingAngleConventionWarning',
     'SterileMatterCompositionWarning',
     'TOL_MSG_NO_COLOR',

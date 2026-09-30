@@ -911,6 +911,16 @@ def test_oscillogram_checks_the_probability_orientation(oscillogram):
         mp.plot_oscillogram(c, lE, P.T)
 
 
+def test_oscillogram_draws_a_precomputed_difference(oscillogram):
+    """A precomputed map need not be a probability: notebook 06 draws a difference of two,
+    with its own colour-bar label, so values below 0 are accepted (#160)."""
+    c, lE, P = oscillogram
+    fig, ax = mp.plot_oscillogram(c, lE, P - 0.5, cmap='RdBu_r', cbar_label='difference')
+    assert len(ax.collections) >= 1
+    with pytest.raises(ValueError, match='finite'):
+        mp.plot_oscillogram(c, lE, np.full_like(P, np.nan))
+
+
 def test_oscillogram_annotates_the_channel_over_a_white_stroke(oscillogram):
     c, lE, P = oscillogram
     fig, ax = mp.plot_oscillogram(c, lE, P, nu_i=gd.NUE, nu_f=gd.NUMU)
