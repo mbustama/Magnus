@@ -77,6 +77,22 @@ import numpy as np
 from scipy.integrate import simpson
 
 import magnus.magnus as magnuscore
+from magnus import _validate as _v
+
+
+# Argument rules for the public functions below (issue #160 §8-§9), applied only to calls from
+# outside the package: the engines call these per energy point with arguments already checked.
+_INTERVAL = {'l0': _v.r_real(), 'l1': _v.r_end_after('l0')}
+_H_AT_L0 = {'H_func': _v.r_hamiltonian_at('l0')}
+_POSITIVE = _v.r_real(positive=True)
+_PROBES = _v.r_int(lo=3)
+_FD_STEP = _v.r_real(lo=0.0, hi=1.0, lo_open=True, hi_open=True, what="in (0, 1)")
+_ORDER = _v.r_int(lo=1, hi=10, what="an integer from 1 to 10")
+_METHOD = _v.r_choice(('gl', 'trapezoid', 'simpson'))
+
+# find_hidden_features and oscillation_sampling are diagnostics that must never break the call
+# they inspect, so their profile is not sampled here: only their other arguments are checked.
+
 
 
 GAMMA_TO_ERROR = 0.85
@@ -409,6 +425,7 @@ def _variation_steps(values: np.ndarray) -> np.ndarray:
     return np.max(np.abs(diffs), axis=tuple(range(1, diffs.ndim)))
 
 
+@_v.validated(dict(_INTERVAL, profile=_v.r_callable, n_ref=_v.r_int(lo=2), n_sub=_v.r_int(lo=1, allow_none=True)))
 def find_hidden_features(profile: Callable, l0: float, l1: float,
     n_ref: Optional[int] = 6400, n_sub: Optional[int] = None) -> Dict:
     r"""Looks for structure too narrow for any grid this package lays down to sample.
@@ -504,6 +521,8 @@ def find_hidden_features(profile: Callable, l0: float, l1: float,
             'l_centre': float(0.5*(l_lo + l_hi))}
 
 
+@_v.validated(dict(_INTERVAL, H_func=_v.r_callable, baselines=_v.r_real_array(nonnegative=True),
+                   n_probe=_v.r_int(lo=2)))
 def oscillation_sampling(H_func: Callable, l0: float, l1: float,
     baselines: Optional[np.ndarray] = None, n_probe: Optional[int] = 8) -> Dict:
     r"""How finely does a scan sample the fastest oscillation on its trajectory?
@@ -990,6 +1009,7 @@ def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarra
     return lam, W
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, n_points=_v.r_int(lo=2)))
 def adiabatic_propagator(H_func: Callable, l0: float, l1: float,
     n_points: Optional[int] = 201) -> np.ndarray:
     r"""Computes the evolution operator via pure adiabatic (instantaneous-eigenbasis) transport.
@@ -1152,6 +1172,7 @@ def _dH_dl_on_grid(H_func: Callable, ls: np.ndarray, h: float,
                      where=~flat[:, None, None])
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, n_probe=_PROBES, fd_step_frac=_FD_STEP, info=_v.r_dict))
 def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
     n_probe: Optional[int] = 200, fd_step_frac: Optional[float] = 1e-6,
     info: Optional[Dict] = None) -> List[Dict]:
@@ -1464,6 +1485,7 @@ def _estimate_window_bounds_many(H_func: Callable, stars: List[Tuple[float, int,
     return [(result[2*i], result[2*i + 1]) for i in range(len(stars))]
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, threshold=_POSITIVE, n_probe=_PROBES, fd_step_frac=_FD_STEP, info=_v.r_dict, extra_points=_v.r_real_array(allow_empty=True)))
 def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
     threshold: Optional[float] = 0.1, n_probe: Optional[int] = 200,
     fd_step_frac: Optional[float] = 1e-6,
@@ -1772,6 +1794,7 @@ def _hybrid_propagator_once(H_func: Callable, l0: float, l1: float, threshold: f
     return U_total, windows, all_patches_converged, gamma_max, gamma_unpatched
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, rtol=_POSITIVE, atol=_POSITIVE, magnus_exp_order=_ORDER, integration_method=_METHOD, threshold0=_POSITIVE, min_threshold=_POSITIVE, n_probe0=_PROBES, max_n_probe=_PROBES, n_points0=_v.r_int(lo=2), max_n_points=_v.r_int(lo=2), fd_step_frac=_FD_STEP, max_iters=_v.r_int(lo=1), info=_v.r_dict))
 def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[float] = 1.e-3,
     atol: Optional[float] = 1.e-3, magnus_exp_order: Optional[int] = 6,
     integration_method: Optional[str] = 'gl', threshold0: Optional[float] = 0.1,

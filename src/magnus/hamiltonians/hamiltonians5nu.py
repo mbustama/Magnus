@@ -40,6 +40,7 @@ from magnus.hamiltonians import _angles
 
 import magnus.matter as matter
 from typing import Optional, Callable, Union
+from magnus import _validate as _v
 
 
 @_angles.renamed_keyword('d13', 'dCP')
@@ -131,6 +132,10 @@ def mixing_matrix_5x5(s12: float, s23: float, s13:float, dCP: float, s14: float,
         print('shape', U.shape)
         print('unitary to %.1e' % np.max(np.abs(U.conj().T @ U - np.eye(5))))
 """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.mixing_matrix_5x5', {'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 'd35': d35, 'compute_matrix_multiplication': compute_matrix_multiplication})
     # arXiv:1105.3911
 
     _r, _p = _angles.resolve(
@@ -337,6 +342,10 @@ def hamiltonian_5nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_5nu_vacuum_energy_independent', {'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 's14': s14, 'd14': d14, 's15': s15, 'd15': d15, 's24': s24, 'd24': d24, 's25': s25, 's34': s34, 's35': s35, 'd35': d35, 'D21': D21, 'D31': D31, 'D41': D41, 'D51': D51, 'nubar': nubar, 'compute_matrix_multiplication': compute_matrix_multiplication})
     # Converted here rather than left to mixing_matrix_5x5 so the message names THIS
     # function: eighteen positional arguments interleaving each angle with its CP phase is
     # exactly the signature the slot-error guard exists for.
@@ -455,6 +464,11 @@ def hamiltonian_5nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_5nu_vacuum', {'energy': energy})
     return (1/energy)*hamiltonian_5nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s15,
         d15, s24, d24, s25, s34, s35, d35, D21, D31, D41, D51, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
@@ -667,6 +681,11 @@ def hamiltonian_5nu_nsi(
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
+    # float cannot get wrong is left to check, in one comparison per coupling: a
+    # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
+    if type(eps_ee) is not float or type(eps_mm) is not float or type(eps_tt) is not float or type(eps_s1s1) is not float or type(eps_s2s2) is not float:
+        _v.check_physics_params('hamiltonians.hamiltonian_5nu_nsi', {'eps_ee': eps_ee, 'eps_mm': eps_mm, 'eps_tt': eps_tt, 'eps_s1s1': eps_s1s1, 'eps_s2s2': eps_s2s2})
     return VCC * np.array([
         [eps_ee, eps_em, eps_et, eps_es1, eps_es2],
         [np.conj(eps_em), eps_mm, eps_mt, eps_ms1, eps_ms2],
@@ -765,6 +784,11 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
+    # checked here, in one comparison (issue #160 §11); the other arguments are
+    # checked by the energy-independent builder.
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_5nu_liv', {'energy': energy})
 
     return pow(energy, n_liv) * hamiltonian_5nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         sxi14, dxi14, sxi15, dxi15, sxi24, dxi24, sxi25, sxi34, sxi35, dxi35, b1, b2, b3, b4, b5,
@@ -826,6 +850,10 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     np.ndarray
         Hamiltonian 5x5 matrix.
     """
+    # Checked for calls from outside the package only (issue #160 §11); the wrappers
+    # reach this with arguments already validated.
+    if not _v._called_from_inside(2):
+        _v.check_physics_params('hamiltonians.hamiltonian_5nu_liv_energy_independent', {'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14, 'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv, 'nubar': nubar, 'compute_matrix_multiplication': compute_matrix_multiplication})
     # The LIV angles went through no guard at all before this.
     _r, _p = _angles.resolve(
         'hamiltonians.hamiltonian_5nu_liv_energy_independent', angles,

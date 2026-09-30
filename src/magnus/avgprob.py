@@ -102,6 +102,45 @@ from typing import Callable, List, Optional, Sequence, Tuple, Union
 import numpy as np
 
 import magnus.adiabatic as adiabatic
+from magnus import _validate as _v
+
+
+# Argument rules for the public functions below (issue #160 §8), applied only to calls from
+# outside the package: the engines call these with arguments already checked.
+_INTERVAL = {'l0': _v.r_real(), 'l1': _v.r_end_after('l0')}
+_H_AT_L0 = {'H_func': _v.r_hamiltonian_at('l0')}
+_POSITIVE = _v.r_real(positive=True)
+_POSITIVE_OR_NONE = _v.r_real(positive=True, allow_none=True)
+_SPREAD = _v.r_real(nonnegative=True)
+_PROBES = _v.r_int(lo=3)
+_FD_STEP = _v.r_real(lo=0.0, hi=1.0, lo_open=True, hi_open=True, what="in (0, 1)")
+_ORDER = _v.r_int(lo=1, hi=10, what="an integer from 1 to 10")
+_METHOD = _v.r_choice(('gl', 'trapezoid', 'simpson'))
+
+
+def _unitary(name, x, where, a):
+    U = _v.check_hamiltonian_sample(name, x, where, hermitian=False)
+    dev = float(np.max(np.abs(np.swapaxes(U.conj(), -1, -2) @ U - np.eye(U.shape[-1]))))
+    if dev > 1e-8:
+        raise ValueError(_v._msg(where, name + " must be unitary (its columns the eigenvectors);"
+                                 " U^dagger U differs from the identity by " +
+                                 format(dev, '.2g') + "."))
+
+
+def _same_shape_hamiltonian(other):
+    def rule(name, x, where, a):
+        A = _v.check_hamiltonian_sample(name, x, where)
+        B = np.asarray(a[other])
+        if A.shape != B.shape:
+            raise ValueError(_v._msg(where, name + " must have the shape of " + other + ", " +
+                                     str(B.shape) + "; got " + str(A.shape) + "."))
+    return rule
+
+
+def _dH_at_l0(name, x, where, a):
+    _v.r_callable(name, x, where, a)
+    _v.check_hamiltonian_sample(name, x(a['l0']), where, at='l0')
+
 
 
 DECOHERENCE_PHASE_THRESHOLD = 2.0*np.pi
@@ -133,6 +172,7 @@ above it -- so the accompanying number is a definite choice; what
 """
 
 
+@_v.validated(dict(eigenvalues=_v.r_real_array(allow_scalar=False, allow_empty=True), phase_scale=_POSITIVE, decoherence_threshold=_POSITIVE))
 def coherence_blocks(
     eigenvalues: Union[Sequence[float], np.ndarray],
     phase_scale: float,
@@ -216,6 +256,7 @@ def coherence_blocks(
     return [sorted(g) for _, g in sorted(groups.items())]
 
 
+@_v.validated(dict(eigenvalues=_v.r_real_array(allow_scalar=False, allow_empty=True), phase_scale=_POSITIVE, decoherence_threshold=_POSITIVE, coherence_threshold=_POSITIVE))
 def coherence_report(
     eigenvalues: Union[Sequence[float], np.ndarray],
     phase_scale: float,
@@ -272,6 +313,7 @@ def coherence_report(
     return blocks, undecided
 
 
+@_v.validated(dict(eigenvectors=_unitary))
 def averaged_probabilities_from_eigenbasis(
     eigenvectors: Union[Sequence, np.ndarray],
     blocks: Optional[List[List[int]]] = None
@@ -354,6 +396,7 @@ def averaged_probabilities_from_eigenbasis(
     return P
 
 
+@_v.validated(dict(hamiltonian=_v.r_hamiltonian, baseline=_v.r_real_array(nonnegative=True)))
 def averaged_probabilities_constant_hamiltonian(
     hamiltonian: Union[Sequence, np.ndarray],
     baseline: Optional[float] = None
@@ -442,6 +485,7 @@ this trade.  Callers set it through ``average_n_samples`` on the
 """
 
 
+@_v.validated(dict(prob_of_energy=_v.r_callable, energy=_POSITIVE, n_samples=_v.r_int(lo=2)))
 def averaged_probabilities_numerically(
     prob_of_energy: Callable,
     energy: float,
@@ -497,6 +541,7 @@ def averaged_probabilities_numerically(
     return mean, sem
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, n_points=_v.r_int(lo=2)))
 def adiabatic_phase_differences(
     H_func: Callable,
     l0: float,
@@ -648,6 +693,7 @@ def _crossing_from_windows(
     return crossing, converged
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, threshold=_POSITIVE, n_probe=_PROBES, fd_step_frac=_FD_STEP, magnus_exp_order=_ORDER, integration_method=_METHOD))
 def level_crossing_matrix(
     H_func: Callable,
     l0: float,
@@ -708,6 +754,7 @@ def level_crossing_matrix(
     return crossing, windows, converged
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, n_points=_v.r_int(lo=2), threshold=_POSITIVE, n_probe=_PROBES, fd_step_frac=_FD_STEP, magnus_exp_order=_ORDER, integration_method=_METHOD, _coherence=_v.r_bool))
 def averaged_probabilities_adiabatic(
     H_func: Callable,
     l0: float,
@@ -1025,6 +1072,7 @@ def _interference_damped(H_func: Callable, D_func: Callable, a: float, b: float,
     return bool(s_pair.min() >= floor and spread*(lower.min() - reach) > _PRUNE_Z)
 
 
+@_v.validated(dict(hamiltonian=_v.r_hamiltonian, dH_dlnE=_same_shape_hamiltonian('hamiltonian'), baseline=_v.r_real_array(nonnegative=True), spread=_SPREAD, dH_dlnE_step=_POSITIVE_OR_NONE))
 def phase_averaged_probabilities_constant_hamiltonian(
     hamiltonian: Union[Sequence, np.ndarray],
     dH_dlnE: Union[Sequence, np.ndarray],
@@ -1251,6 +1299,7 @@ def _hermite_order(x: float, tol: float = 1.0e-9) -> int:
     return K
 
 
+@_v.validated(dict(_INTERVAL, **_H_AT_L0, dH_dlnE_func=_dH_at_l0, spread=_SPREAD, threshold=_POSITIVE, n_probe=_PROBES, fd_step_frac=_FD_STEP, magnus_exp_order=_ORDER, integration_method=_METHOD, dH_dlnE_step=_POSITIVE_OR_NONE, patch_atol=_POSITIVE_OR_NONE, phase_tol=_POSITIVE_OR_NONE))
 def phase_averaged_probabilities_adiabatic(
     H_func: Callable,
     dH_dlnE_func: Callable,

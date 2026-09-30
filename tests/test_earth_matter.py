@@ -657,6 +657,10 @@ def test_a_cosine_outside_its_range_is_rejected_on_the_buried_branch():
             earth.distance_traveled_inside_earth(bad, detector_depth=2.0)
         with pytest.raises(ValueError, match='costhz'):
             earth.prem_layer_edges_along_chord(bad, detector_depth=2.0)
-    # The surface branch keeps its long-standing behavior of returning a number, which is
-    # what every existing result was computed with.
-    assert earth.distance_traveled_inside_earth(-1.5) == pytest.approx(3.0*gd.EARTH_RADIUS)
+    # Since 1.2.0 the surface branch refuses it too (issue #160 §3): it used to return
+    # 3 R_E, a chord longer than the Earth's diameter.
+    for bad in (-1.5, 1.0000001, float('nan')):
+        with pytest.raises(ValueError, match='costhz'):
+            earth.distance_traveled_inside_earth(bad)
+        with pytest.raises(ValueError, match='costhz'):
+            earth.prem_layer_edges_along_chord(bad)

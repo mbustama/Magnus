@@ -26,6 +26,42 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Every public argument is validated once per call, by one set of rules** (issue #160).
+  Before, most checks lived in the general refinement ladder, so whether a value was refused
+  depended on which engine answered: `max_n_slabs=-1` was refused by the ladder and answered
+  by the adiabatic engine.  The rules, now applied at the entry of every scenario function,
+  `osc_prob_energy_baseline`, `osc_prob`, the public helpers in `avgprob`, `adiabatic`,
+  `magnus`, `matter`, `earth`, `oscprobstd` and `plotting`, and the command line:
+  - real numbers are Python or NumPy reals (so `np.float32`, `np.int64` and 0-d arrays are
+    **now accepted**), never `bool`, never complex, and finite; energy and `L` are checked
+    entry by entry, and `L` must be at least `L0` on every route, the averaged one included;
+  - integers are `int` or `np.integer`, never `bool` or a float such as 2.5; flags are `True`
+    or `False` only, not truth-tested (`average='False'` turned averaging on); strings come
+    from their documented set, even where the argument is ignored;
+  - `rtol` and `atol` are `None` or above zero; slab and point counts are positive integers;
+    growth factors are above 1 (a factor of 1 never refined); `n_jobs` is -1 or a positive
+    integer;
+  - `osc_params`, `nsi_params` and `liv_params` refuse unknown keys, naming the nearest valid
+    one (a typo'd `dcp` left `dCP` unchanged); diagonal NSI couplings, LIV coefficients, sines
+    and phases must be real; `Lambda` is above zero and `n_liv` an integer >= 0;
+  - `t_slab_edges` must chain without gap or overlap over the whole path; a user Hamiltonian's
+    first sample must be a finite, square, Hermitian array; `rho_func` is sampled at the middle
+    and end of the path as well as at `L0`;
+  - Earth: `costhz` must lie in [-1, 1] on every route, the geometry helpers included; `L`
+    may not exceed the chord; locations are (degrees, minutes, seconds) triples in range;
+  - the command line refuses non-finite numbers, `--precision` outside 0 to 17, `--dxi13`
+    with `--dxicp`, and any flag the run would ignore (`--rho` in vacuum, an NSI coupling
+    without `--scenario nsi`).
+  Wrong types raise `magnus._validate.InputTypeError`, which is both a `TypeError` and a
+  `ValueError`, so code that catches `ValueError` keeps working.  Messages name the public
+  function the caller called and the argument they passed.  The checks never run inside a
+  quadrature or probe loop: arguments still at their defaults are skipped, internal calls skip
+  the helper checks, and single-point and scan timings are unchanged within noise.
+- **`load_nufit_params` matches version names without regard to case**, like solar-model
+  names (issue #160).
+- **`osc_prob_2nu_matter_std` accepts `Dm2 = 0`**, returning the matter-only result instead
+  of dividing by zero (issue #160).
+
 - **The 1-3 CP phase is `dCP`, and the Lorentz-violating one `dxiCP`, at every flavor count**
   (issue #121).  The four- and five-flavor builders called the phase `d13` (and `dxi13`), where
   the three-flavor ones, the wrappers and `load_nufit_params` say `dCP` (and `dxiCP`), so a
@@ -39,6 +75,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`gd.EnergyUnitWarning`**, for an energy below 1 keV, most likely MeV or GeV left
+  unconverted (issue #141).  `gd.BaselineUnitWarning` now also covers `t_breakpoints` given
+  in kilometers.
 - **`average_n_samples`** (issue #134), on every function that takes `average`: the number of
   energies the energy-window average samples on a profile with declared discontinuities, 41 by
   default.  The standard error of that average falls as the inverse square root of the number,

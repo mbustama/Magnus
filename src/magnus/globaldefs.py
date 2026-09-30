@@ -38,6 +38,8 @@ __email__ = "mbustamante@gmail.com"
 # from numpy import *
 import numpy as np
 
+from magnus import _validate as _v
+
 import os
 import platform
 
@@ -190,6 +192,29 @@ class BaselineUnitWarning(UserWarning):
 IMPLAUSIBLE_BASELINE_NATURAL_UNITS = 1.0e7
 
 
+class EnergyUnitWarning(UserWarning):
+    r"""An energy was passed that looks like MeV or GeV rather than eV.
+
+    Energies crossing this API are in eV, so 10 MeV is ``10*gd.UNIT_MEV``, 1e7.  Passing the
+    raw number does not fail: ``osc_prob_3nu_sun(10.0, ...)`` computes at 10 eV and returns
+    0.548 without a word.  Warned when an energy lies below
+    :data:`IMPLAUSIBLE_ENERGY_NATURAL_UNITS`, 1 keV, which no oscillation experiment reaches.
+
+    Its own class so it can be silenced deliberately::
+
+        import warnings
+        import magnus.globaldefs as gd
+
+        warnings.filterwarnings('ignore', category=gd.EnergyUnitWarning)
+
+    .. versionadded:: 1.2.0
+    """
+
+
+#: Below this, an energy in eV is almost certainly MeV or GeV left unconverted: 1 keV.
+IMPLAUSIBLE_ENERGY_NATURAL_UNITS = 1.0e3
+
+
 class SterileMatterCompositionWarning(UserWarning):
     r"""A caller's scalar builds the sterile matter entry from a different medium than the
     density.
@@ -261,6 +286,10 @@ def set_color_output(enabled: bool) -> None:
         gd.set_color_output(False)
         gd.WARNING_MSG_IN_COLOR
     """
+    # A flag, not a truth test: 'no' is a non-empty string (issue #160 §4).
+    if not isinstance(enabled, (bool, np.bool_)):
+        raise _v.InputTypeError("Error in magnus: globaldefs.set_color_output: enabled must be True "
+                        "or False; got %r." % (enabled,))
     global WARNING_MSG_IN_COLOR, ERROR_MSG_IN_COLOR, TOL_MSG_IN_COLOR
     if enabled:
         WARNING_MSG_IN_COLOR = cstyle.CVIOLETBG + "Warning:" + cstyle.CEND
@@ -1227,6 +1256,13 @@ def load_nufit_params(version='NuFIT 6.1', ordering='NO', category=None, angles=
 
     .. versionadded:: 1.0.0
     """
+    # Matched without regard to case or surrounding space, as solar-model names are:
+    # 'nufit 6.1' was refused while 'b16-gs98' was accepted (issue #160 §3).
+    if not isinstance(version, str):
+        raise _v.InputTypeError("Error in magnus: globaldefs.load_nufit_params: version must be a "
+                        "string such as 'NuFIT 6.1'; got %r." % (version,))
+    _by_key = {k.lower(): k for k in NUFIT_GLOBAL_FITS}
+    version = _by_key.get(' '.join(version.split()).lower(), version)
     if version not in NUFIT_GLOBAL_FITS:
         available = ', '.join(NUFIT_GLOBAL_FITS.keys())
         raise ValueError(
@@ -1349,6 +1385,8 @@ __all__ = [
     'ANGLE_CONVENTIONS',
     'BaselineUnitWarning',
     'IMPLAUSIBLE_BASELINE_NATURAL_UNITS',
+    'EnergyUnitWarning',
+    'IMPLAUSIBLE_ENERGY_NATURAL_UNITS',
     'MixingAngleConventionWarning',
     'SterileMatterCompositionWarning',
     'TOL_MSG_NO_COLOR',

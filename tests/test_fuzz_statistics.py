@@ -144,7 +144,10 @@ def smooth_cases(n=N_SMOOTH, seed=SEED):
         n_modes = int(rng.integers(2, 9))
         ks = rng.integers(1, n_modes + 1, size=n_modes)
         a, b = rng.normal(size=n_modes), rng.normal(size=n_modes)
-        nrm = np.sqrt(np.sum(a**2 + b**2)) or 1.0
+        # Normalized so that |s| <= 1 everywhere, which is what keeps 1 + amp*s positive.
+        # The L2 norm used before bounds |s| only by sqrt(2*n_modes), and some profiles went
+        # negative partway along the path, which the package now refuses (issue #160).
+        nrm = np.sum(np.abs(a) + np.abs(b)) or 1.0
         a, b = a/nrm, b/nrm
         base = float(10.0**rng.uniform(-2.5, -1.0))
         amp = float(rng.uniform(0.2, 0.9))

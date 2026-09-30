@@ -362,6 +362,7 @@ File tree
    │   ├── magnus/                     # Main Python package
    │   │   ├── __init__.py             # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
    │   │   ├── __main__.py             # Entry point for `python -m magnus`
+   │   │   ├── _validate.py            # The argument checks every public entry point applies once per call
    │   │   ├── adiabatic.py            # Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')
    │   │   ├── authors.py              # Package author string (internal; not part of the public API)
    │   │   ├── avgprob.py              # The phase average over an energy spread, and the decohered limit
@@ -420,6 +421,7 @@ File tree
        ├── test_file_tree.py           # This file: generates the tree above and checks it against git
        ├── test_globaldefs.py          # NuFIT historical parameter dict/loader
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
+       ├── test_input_fuzz.py          # Issue #160: each bad argument refused by name, each valid edge accepted
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
        ├── test_one_sided_breakpoints.py  # 'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values
@@ -433,4 +435,5 @@ File tree
        ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
+       ├── test_validate_helpers.py    # The shared argument checks: reals, integers, bools, slab edges, Hamiltonians
        └── test_version.py             # Version resolution from pyproject.toml / installed metadata

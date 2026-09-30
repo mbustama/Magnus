@@ -292,6 +292,7 @@ __author__ = 'Mauricio Bustamante'
 
 import functools
 import math
+import os
 import numbers
 import numpy as np
 import sys
@@ -317,6 +318,7 @@ import magnus.avgprob as avgprob
 import magnus.solarmodels as solarmodels
 from magnus import version
 from magnus import authors
+from magnus import _validate as _v
 
 
 has_magnus_header_been_printed = False
@@ -1882,8 +1884,205 @@ def _raise_if_array_params(source_func_name: str, params: dict) -> None:
         raise _not_a_single_number(source_func_name, bad) from None
 
 
+def _caller_name(default: str) -> str:
+    r"""The public wrapper that called the scenario function running this, else ``default``.
+
+    Error messages name the function the user called.  The 56 ``osc_prob_{N}nu_*`` wrappers
+    forward to four scenario functions, which used to sign every message with their own name,
+    so a user of ``osc_prob_3nu_sun`` was told about ``osc_prob_matter_std_potential``.  One
+    frame lookup per call (issue #160).
+
+    .. versionadded:: 1.2.0
+    """
+    # The outermost of a chain of wrappers: osc_prob_3nu_sun calls
+    # osc_prob_3nu_matter_exp_density, and the user called the first.
+    f, name = sys._getframe(2), default
+    while f is not None and _WRAPPER_NAME_PREFIX(f.f_code.co_name):
+        name, f = f.f_code.co_name, f.f_back
+    return name
+
+
+def _WRAPPER_NAME_PREFIX(name: str) -> bool:
+    return (name.startswith('osc_prob_') and len(name) > 12 and name[9] in '2345'
+            and name[10:13] == 'nu_')
+
+
+def _flavor_index(name, x, where):
+    return _v.check_int(name, x, where, lo=0, allow_none=True)
+
+
+def _fraction(name, x, where):
+    return _v.check_real(name, x, where, lo=0.0, hi=1.0, allow_none=True)
+
+
+def _nonneg_or_none(name, x, where):
+    return _v.check_real(name, x, where, nonnegative=True, allow_none=True)
+
+
+def _ratio(name, x, where):
+    if callable(x):
+        return x
+    return _v.check_real(name, x, where, nonnegative=True, allow_none=True)
+
+
+def _str_or_none(name, x, where):
+    if x is None or isinstance(x, str):
+        return x
+    raise _v.InputTypeError(_v._msg(where, name + " must be a string; got " + type(x).__name__ + "."))
+
+
+def _str(name, x, where):
+    if isinstance(x, str):
+        return x
+    raise _v.InputTypeError(_v._msg(where, name + " must be a string; got " + type(x).__name__ + "."))
+
+
+def _flag(name, x, where):
+    return _v.check_bool(name, x, where)
+
+
+# The rules for every argument the wrappers, the scenario functions and osc_prob_energy_baseline
+# take by name, beyond energy, L and the oscillation parameters (validated where they are
+# unpacked).  Applied once per call by _validate_entry, before any engine is chosen, so that the
+# answer to "is this argument valid?" does not depend on which engine would have answered
+# (issue #160 §5: max_n_slabs=-1 used to be refused by the general ladder and answered by the
+# adiabatic engine).
+_ENTRY_RULES = dict(_v.REFINEMENT_RULES, **{
+    'num_flavors': lambda name, x, where: _v.check_int(name, x, where, lo=2),
+    'L0': lambda name, x, where: _v.check_real(name, x, where),
+    'rho': _nonneg_or_none,
+    'rho_central': _nonneg_or_none,
+    'l_scale': lambda name, x, where: _v.check_real(name, x, where, positive=True),
+    'electron_fraction': _fraction,
+    'electron_fraction_core': _fraction,
+    'electron_fraction_mantle': _fraction,
+    'electron_fraction_crust': _fraction,
+    'electron_fraction_ocean': _fraction,
+    'ratio_number_neutrons_to_protons': _ratio,
+    'density_matter_ocean': _nonneg_or_none,
+    'source_depth': _nonneg_or_none,
+    'detector_depth': _nonneg_or_none,
+    'nu_i': _flavor_index,
+    'nu_f': _flavor_index,
+    'nubar': _flag,
+    'average': _flag,
+    'density_matter_is_in_g_per_cm3': _flag,
+    'density_is_of_number_of_electrons': _flag,
+    'return_evolution_operator': _flag,
+    'validate_input': _flag,
+    'save_log': _flag,
+    'close_file_log_upon_exit': _flag,
+    'H_func_is_function_only_of_energy': _flag,
+    'average_spread': lambda name, x, where: _v.check_real(
+        name, x, where, nonnegative=True, allow_none=True),
+    'average_n_samples': lambda name, x, where: _v.check_int(
+        name, x, where, lo=2, allow_none=True),
+    'average_initial_state': lambda name, x, where: _v.check_choice(
+        name, x, where, ('flavor', 'decohered'), allow_none=True),
+    'strategy': lambda name, x, where: _v.check_choice(
+        name, x, where, ('auto', 'hybrid', 'magnus')),
+    'filename_log': _str,
+    'default_osc_params_set_name': _str_or_none,
+    'angles': lambda name, x, where: _v.check_choice(
+        name, x, where, ('sin', 'sin2', 'rad', 'deg')),
+})
+
+
+_ENTRY_DEFAULTS = {}
+_NO_DEFAULT = object()
+_SCENARIO_FUNCTION_NAMES = frozenset(('osc_prob_vacuum', 'osc_prob_matter_std_potential',
+                                      'osc_prob_matter_nsi', 'osc_prob_liv'))
+
+
+def _entry_defaults(func) -> dict:
+    d = _ENTRY_DEFAULTS.get(func)
+    if d is None:
+        d = {k: p.default for k, p in signature(func).parameters.items()
+             if p.default is not p.empty}
+        _ENTRY_DEFAULTS[func] = d
+    return d
+
+
+def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
+    r"""Apply :data:`_ENTRY_RULES` to the arguments in ``values`` (a scenario function's locals).
+
+    ``values['kwargs']``, when present, is checked the same way, since the refinement keywords
+    reach the scenario functions through it.  Once per call; never inside an engine.
+
+    .. versionadded:: 1.2.0
+    """
+    where = "oscprob." + source_func_name
+    rules = _ENTRY_RULES
+    # An argument still holding the signature's own default is valid by construction, and
+    # most arguments of most calls are; skipping them by identity keeps this pass to about a
+    # microsecond on a single-point call.
+    defaults = _entry_defaults(func) if func is not None else {}
+    for key, x in values.items():
+        if x is None or x is defaults.get(key, _NO_DEFAULT):
+            continue
+        rule = rules.get(key)
+        if rule is not None:
+            rule(key, x, where)
+    kw = values.get('kwargs')
+    if kw:
+        for key, x in kw.items():
+            rule = rules.get(key)
+            if rule is not None and x is not None:
+                rule(key, x, where)
+        merged = dict(values, **kw)
+    else:
+        merged = values
+    # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
+    # clipped to the cap, with ToleranceNotAchievedWarning, by design.
+    for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
+                           ('min_n_tpts_per_slab', 'max_n_tpts_per_slab')):
+        lo, hi = merged.get(lo_key), merged.get(hi_key)
+        if lo is not None and hi is not None and lo > hi:
+            raise ValueError(_v._msg(where, lo_key + " (" + str(lo) + ") must be <= " +
+                                     hi_key + " (" + str(hi) + ")."))
+    _bp = merged.get('t_breakpoints')
+    if _bp is not None:
+        _bp = _v.check_real_array('t_breakpoints', _bp, where, allow_empty=True)
+        # Breakpoints in raw kilometers lie far outside the path, so the jumps they mark go
+        # undeclared and nothing warns (issue #141): the same test as for a baseline.
+        _bpa = np.abs(np.asarray(_bp, dtype=float))
+        if _bpa.size and 0.0 < float(_bpa.max()) < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
+            warnings.warn(gd.WARNING_MSG_NO_COLOR + " " + where + ": t_breakpoints up to " +
+                format(float(_bpa.max()), '.4g') + " were given.  Every length crossing this "
+                "API is in natural units, so these were most likely kilometers left "
+                "unconverted, and they mark nothing on the path.  Multiply by gd.UNIT_KM.",
+                gd.BaselineUnitWarning, stacklevel=3)
+    # Slab edges given for a single baseline are checked here, where the message can name the
+    # function the caller called; osc_prob checks them again for its own direct callers.
+    _te = merged.get('t_slab_edges')
+    if _te is not None:
+        _Lv, _L0v = merged.get('L'), merged.get('L0', 0.0)
+        _L0v = 0.0 if _L0v is None else _L0v
+        if _v.is_real_scalar(_Lv) and _v.is_real_scalar(_L0v):
+            _v.check_slab_edges(_te, float(_L0v), float(_Lv), where)
+
+
+def _as_float(x):
+    r"""A real scalar of any NumPy type as ``float``; anything else unchanged (issue #158)."""
+    return float(x) if (type(x) is not float) and _v.is_real_scalar(x) else x
+
+
+def _minmax_1d(x):
+    r"""``(min, max)`` of a plain float or a non-empty 1-D real array (or list); else None.
+
+    None sends the caller to the detailed checks, which name what is wrong.
+    """
+    if type(x) is float:
+        return x, x
+    if isinstance(x, (list, np.ndarray)) and not isinstance(x, np.ma.MaskedArray):
+        a = np.asarray(x)
+        if a.ndim == 1 and a.size and a.dtype.kind in 'iuf':
+            return float(a.min()), float(a.max())
+    return None
+
+
 def validate_input_battery(
-    source_func_name: str, 
+    source_func_name: str,
     energy: Optional[Union[int, float, list, np.ndarray]]=None, 
     L: Optional[Union[int, float, list, np.ndarray]]=None, 
     L0: Optional[Union[int, float]]=None,
@@ -1967,24 +2166,22 @@ def validate_input_battery(
     """
     if validate_energy_and_L:
 
-        if ( (not isinstance(energy, int)) and (not isinstance(energy, float)) and \
-            (not isinstance(energy, list)) and (not isinstance(energy, np.ndarray)) ):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                ": energy must be an int, a float, a 1D list, or a 1D NumPy array.")
-
-        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
-            (np.array(energy).ndim != 1) ):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                ": if energy is a list or NumPy array, it must be 1D.")
-
-        if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) ):
-            # (np.issubdtype is used instead of the np.float_/np.int_ aliases, which were
-            # removed in NumPy 2.0)
-            if not (np.issubdtype(np.asarray(energy).dtype, np.floating) or \
-                np.issubdtype(np.asarray(energy).dtype, np.integer)):
-                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                    ": since energy is a list or NumPy array, all of its elements must be int" + \
-                    " or float.")
+        _where = "oscprob." + source_func_name
+        # The common cases -- plain floats, or clean 1-D real arrays -- are settled by one
+        # min/max pair per argument: a NaN makes the minimum NaN and fails every comparison,
+        # so the pair establishes finiteness, sign and L >= L0 at once.  Anything else, or a
+        # failure, takes the general checks below, which name the entry at fault.
+        _E_mm, _L_mm = _minmax_1d(energy), _minmax_1d(L)
+        _L0v = 0.0 if L0 is None else L0
+        _fast = (_E_mm is not None and _L_mm is not None and type(_L0v) in (float, int)
+                 and 0.0 < _E_mm[0] and _E_mm[1] < math.inf
+                 and _L0v <= _L_mm[0] and _L_mm[1] < math.inf)
+    if validate_energy_and_L and not _fast:
+        # Every entry is checked: finite, and of a real type (not bool, not complex).  A NaN
+        # used to return a NaN row, an inf energy a probability of 0 (or 1 on the averaged
+        # route), and np.int64/np.float32 scalars were refused outright (issue #160 §1).
+        _v.check_real_array('energy', energy, _where)
+        _v.check_real_array('L', L, _where)
 
         # A non-positive energy is rejected rather than propagated, because it does not
         # fail: E < 0 flips the sign of the whole Hamiltonian, which is CP conjugation, so
@@ -2000,21 +2197,20 @@ def validate_input_battery(
                 " calculation reports: it returns the antineutrino probability, which is" + \
                 " unitary and looks correct.  Use nubar=True for antineutrinos.")
 
-        if ( (not isinstance(L, int)) and (not isinstance(L, float)) and \
-            (not isinstance(L, list)) and (not isinstance(L, np.ndarray)) ):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                ": L must be an int, a float, a 1D list, or a 1D NumPy array.")
+        # The path runs from L0 to L, so every L must be at least L0.  Refused here, by name,
+        # rather than several layers down as "t_fin must be >= t_ini" -- or not at all, on the
+        # engines that answer before that check (issue #160 §1).
+        _L0 = 0.0 if L0 is None else L0
+        if _v.is_real_scalar(_L0):
+            _La = np.asarray(L, dtype=float)
+            if not np.all(_La >= _L0):
+                _i = int(np.argmin(_La >= _L0)) if _La.ndim else 0
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                    ": L must be >= L0, the path running from L0 to L; got L = " +
+                    repr(float(_La.ravel()[_i])) + (" (entry " + str(_i) + ")" if _La.ndim
+                    else "") + " and L0 = " + repr(float(_L0)) + ".")
 
-        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-            (np.array(L).ndim != 1) ):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                ": if L is a list or NumPy array, it must be 1D.")
-
-        if ( (isinstance(L, list) or isinstance(L, np.ndarray)) ):
-            if not (np.issubdtype(np.asarray(L).dtype, np.floating) or \
-                np.issubdtype(np.asarray(L).dtype, np.integer)):
-                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
-                    ": since L is a list or NumPy array, all of its elements must be int or float.")
+    if validate_energy_and_L:
 
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (isinstance(L, list) or isinstance(L, np.ndarray)) and \
@@ -2023,11 +2219,23 @@ def validate_input_battery(
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
                 "the same length.")
 
+        # An energy that looks like MeV or GeV left unconverted (issue #160 §1); see
+        # globaldefs.EnergyUnitWarning.
+        _smallest_E = _E_mm[0] if _fast else float(np.min(np.asarray(energy, dtype=float)))
+        if _smallest_E < gd.IMPLAUSIBLE_ENERGY_NATURAL_UNITS:
+            warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
+                ": an energy of " + format(_smallest_E, '.4g') + " eV was given.  Energies "
+                "crossing this API are in eV, so this was most likely MeV or GeV left "
+                "unconverted; multiply by gd.UNIT_MEV or gd.UNIT_GEV.  Silence with "
+                "warnings.filterwarnings('ignore', category=gd.EnergyUnitWarning).",
+                gd.EnergyUnitWarning, stacklevel=3)
+
         # A baseline that looks like kilometers.  This does not fail on its own: the call
         # returns a converged, unitary probability for a baseline a few meters long, which
         # is why it is worth a warning.  See globaldefs.BaselineUnitWarning.
         if L is not None:
-            _largest_L = float(np.max(np.abs(np.asarray(L, dtype=float))))
+            _largest_L = (max(abs(_L_mm[0]), abs(_L_mm[1])) if _fast else
+                          float(np.max(np.abs(np.asarray(L, dtype=float)))))
             if 0.0 < _largest_L < gd.IMPLAUSIBLE_BASELINE_NATURAL_UNITS:
                 warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name +
                     ": a baseline of " + format(_largest_L, '.4g') + " was given. Every length "
@@ -2045,6 +2253,13 @@ def validate_input_battery(
                 ": if either nu_i or nu_f is not None, the other flavor must also be not None.")
 
     if validate_flavor_indices:
+
+        # Integers only: 1.0 passed the membership test below (1.0 == 1) and then failed as a
+        # raw IndexError, and True was read as 1 (issue #158 §2).
+        if nu_i is not None and np.ndim(nu_i) == 0:
+            nu_i = _v.check_int('nu_i', nu_i, "oscprob." + source_func_name, lo=0)
+        if nu_f is not None and np.ndim(nu_f) == 0:
+            nu_f = _v.check_int('nu_f', nu_f, "oscprob." + source_func_name, lo=0)
 
         if ((nu_i is not None) and (nu_f is not None)):
             if (num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
@@ -2084,61 +2299,81 @@ def validate_input_battery(
 
     if validate_osc_params:
 
-        ttest = [(isinstance(x, int) or isinstance(x, float) or (x is None)) 
-            for x in osc_params]
-        if (not np.all(ttest)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " the oscillation parameters must be int or float.")
+        # Named one by one where the keys are known (unpack_oscillation_params_from_dict);
+        # this is the backstop for callers that pass the list directly.
+        for _k, _x in enumerate(osc_params):
+            if _x is not None:
+                _v.check_real('oscillation parameter #' + str(_k), _x,
+                              "oscprob." + source_func_name)
 
     if validate_initial_position:
 
-        if not ((isinstance(L0, int) or (isinstance(L0, float)))):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " the initial neutrino position (L0) must be an int or float.")
+        _v.check_real('L0', L0, "oscprob." + source_func_name)
 
     if validate_density:
+
+        _where = "oscprob." + source_func_name
+        # The constant-density wrappers take the density as `rho`; the message names what the
+        # caller passed (issue #160 §1).
+        _rho_name = 'rho' if source_func_name.endswith('constant_density') else 'rho_func'
 
         # A callable ratio (r resolved per position, matter_potential_projector's widened
         # form) is not range-checked: a single probe evaluation would prove nothing about
         # the rest of the trajectory, and rho_func already sets the precedent that functions
         # are trusted on their values.
-        if (not callable(ratio_number_neutrons_to_protons)) and \
-                (ratio_number_neutrons_to_protons < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " the ratio of neutrons to protons (ratio_number_neutrons_to_protons) must" + \
-                " be non-negative.")
+        if not callable(ratio_number_neutrons_to_protons):
+            _v.check_real('ratio_number_neutrons_to_protons',
+                          ratio_number_neutrons_to_protons, _where, nonnegative=True)
 
-        if (electron_fraction < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " the ratio of electrons to protons + neutrons (electron_fraction) must be " + \
-                "non-negative.")
+        _v.check_real('electron_fraction', electron_fraction, _where, lo=0.0, hi=1.0,
+                      what="between 0 and 1 (the number of electrons per nucleon)")
 
         if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
                 " the provided rho_func is a function of more than one parameter.")
 
         rho_test = rho_func(L0) if callable(rho_func) else rho_func
+        _rho_what = 'rho_func(L0)' if callable(rho_func) else _rho_name
 
-        if (not isinstance(rho_test, (int, float))) and (np.ndim(rho_test) != 0):
-            raise _not_a_single_number(source_func_name,
-                ['rho_func(L0)' if callable(rho_func) else 'rho'])
+        if np.ndim(rho_test) != 0:
+            raise _not_a_single_number(source_func_name, [_rho_what])
+
+        # Any real scalar: a vectorized profile written with np.where returns a 0-d array for a
+        # scalar position, and np.float32 is a float (issues #144 §5, #158).  Checked before
+        # the density reaches the unit guards, because a NaN reaches them as a comparison that
+        # is False either way and used to be reported as a *units* mistake.
+        if not _v.is_real_scalar(rho_test):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                ": " + (("rho_func must return a real number; it returned " + repr(rho_test) + ".")
+                 if callable(rho_func) else
+                 (_rho_name + " must be a real number; got " + repr(rho_test) + ".")))
+
+        if not np.isfinite(float(rho_test)):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+                (("rho_func must be finite; it returned " + str(rho_test) + " at L0.")
+                 if callable(rho_func) else (_rho_name + " must be finite; got " +
+                                             str(rho_test) + ".")))
 
         if (rho_test < 0.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " rho_func must be non-negative.")
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
+                _rho_what + " must be non-negative; got " + str(rho_test) + ".")
 
-        # Checked before the density reaches the unit guards, because it reaches them as a
-        # comparison that is False either way: `nan == 0.0` and `nan >= threshold` are both
-        # False, so a NaN fell past the early return and was reported as a *units* mistake
-        # -- "far too small to be in natural units" -- which is a confident diagnosis of
-        # the wrong problem.  A non-finite density is not a units question at all.
-        if not np.all(np.isfinite(np.asarray(rho_test, dtype=float))):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " rho_func must be finite; it returned " + str(rho_test) + ".")
-
-        if not (isinstance(rho_test, int) or isinstance(rho_test, float)):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
-                " rho_func must be a float (or int) or must return a float (or int).")
+        # Two more samples of a callable profile, at the middle and the far end of the path: a
+        # profile that turns NaN partway used to surface as a raw LinAlgError from the
+        # eigensolver (issue #160 §7).  Two evaluations per call, never per node.
+        # A wrapper builds its profile itself (PREM, exponential, solar table), so only a
+        # rho_func the user wrote is probed.
+        if callable(rho_func) and L is not None and _v.is_real_scalar(L0) and \
+                not _WRAPPER_NAME_PREFIX(source_func_name):
+            _Lend = float(np.max(np.asarray(L, dtype=float)))
+            for _pos in (0.5*(float(L0) + _Lend), _Lend):
+                _r = rho_func(_pos)
+                if np.ndim(_r) != 0 or not _v.is_real_scalar(_r) or not np.isfinite(float(_r)) \
+                        or _r < 0.0:
+                    raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                        ": rho_func must return a finite, non-negative real number along the "
+                        "whole path; at position " + format(_pos, '.6g') + " it returned " +
+                        repr(_r) + ".")
 
 
 def _warn_if_sterile_projector_disagrees_with_composition(
@@ -2316,14 +2551,15 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
     for name, value in list(layered.items()) + [('electron_fraction', electron_fraction)]:
         if value is None:
             continue
-        try:
-            value = float(value)
-        except TypeError:
-            raise _not_a_single_number(source_func_name, [name]) from None
-        if not (0.0 < value <= 1.0):
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
-                name + " is an electron fraction, Y_e = <Z/A>, so it must be in (0, 1]; "
-                "got " + str(value) + ".")
+        # A real number, not a bool (True was read as 1) and not complex (issue #160 §1).
+        _v.check_real(name, value, "oscprob." + source_func_name, lo=0.0, hi=1.0,
+                      lo_open=True, what="in (0, 1], being an electron fraction, "
+                      "Y_e = <Z/A>")
+    _ratio('ratio_number_neutrons_to_protons', ratio_number_neutrons_to_protons,
+           "oscprob." + source_func_name)
+    if density_matter_ocean is not None:
+        density_matter_ocean = _v.check_real('density_matter_ocean', density_matter_ocean,
+                                             "oscprob." + source_func_name, nonnegative=True)
 
     if electron_fraction is not None:
         def ye_of_r(r):
@@ -2442,6 +2678,12 @@ def validate_input_osc_prob_earth(
     # Both depths are declared Optional, so None has to mean "no depth"; see
     # earth._depths_or_zero for why normalizing beats letting float(None) surface.
     source_depth, detector_depth = earth._depths_or_zero(source_depth, detector_depth)
+    _where = "oscprob." + source_func_name
+    if type(source_depth) is not float:
+        source_depth = _v.check_real('source_depth', source_depth, _where, nonnegative=True)
+    if type(detector_depth) is not float:
+        detector_depth = _v.check_real('detector_depth', detector_depth, _where,
+                                       nonnegative=True)
 
     buried = (source_depth != 0.0) or (detector_depth != 0.0)
 
@@ -2495,6 +2737,14 @@ def validate_input_osc_prob_earth(
                     "location (loc_fin) is given as coordinates, it must be a two-entry tuple," + \
                     " list, or NumPy array.")
 
+        # Each coordinate a (degrees, minutes, seconds) triple in range (issue #160 §3): a
+        # latitude of 146 degrees shifted P by 0.56, and decimal pairs failed as a raw TypeError.
+        for _name, _dms, _lo, _hi in (('loc_ini latitude', lat_ini, -90.0, 90.0),
+                                      ('loc_ini longitude', lon_ini, -180.0, 360.0),
+                                      ('loc_fin latitude', lat_fin, -90.0, 90.0),
+                                      ('loc_fin longitude', lon_fin, -180.0, 360.0)):
+            earth._check_dms(_name, _dms, _where, _lo, _hi)
+
         # We use the function earth.costhz_between_points_on_surface to compute the cosine of the
         # zenith angle of the chord that joins two locations on the surface of the Earth, measured 
         # at one position (any of the two locations will give the same result).
@@ -2515,6 +2765,12 @@ def validate_input_osc_prob_earth(
         if (not isinstance(costhz, (int, float))) and (costhz is not None) and \
                 (np.ndim(costhz) != 0):
             raise _not_a_single_number(source_func_name, ['costhz'])
+        if costhz is not None:
+            # Checked by name before anything samples the profile: a NaN or out-of-range
+            # costhz used to reach the user as "rho_func must be finite" or "value of r cannot
+            # exceed EARTH_RADIUS" (issue #160 §3).
+            costhz = _v.check_real('costhz', costhz, _where, lo=-1.0, hi=1.0,
+                                   what="in [-1, 1] (the cosine of the zenith angle)")
         if costhz is None:
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": no" + \
                 " initial and final locations on the surface of the Earth given, and no " + \
@@ -2534,6 +2790,20 @@ def validate_input_osc_prob_earth(
                 ": since two locations on the surface of the Earth have not been given, " + \
                 "the value of costhz will be used to define the chord length, but the" + \
                 " baseline, L, cannot be None.")
+
+        # A baseline longer than the chord leaves the Earth; named here rather than several
+        # layers down as "value of l cannot be larger ..." (issue #160 §3).  A shorter one is
+        # a partial path, which is allowed.
+        if _v.is_real_scalar(L) or isinstance(L, (list, tuple, np.ndarray)):
+            _v.check_real_array('L', L, _where)
+            _chord = earth.distance_traveled_inside_earth(
+                costhz, source_depth/gd.UNIT_KM, detector_depth/gd.UNIT_KM)
+            _Lmax = float(np.max(np.asarray(L, dtype=float)))/gd.UNIT_KM
+            if _Lmax > _chord*(1.0 + 1e-9) + 1e-9:
+                raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
+                    ": L = " + format(_Lmax, '.6g') + " km is longer than the chord through "
+                    "the Earth at costhz = " + format(costhz, '.6g') + ", which is " +
+                    format(_chord, '.6g') + " km.")
 
         return costhz, L
 
@@ -2782,6 +3052,120 @@ def values_to_unspecified_osc_params(
     return s12, s23, s13, dCP, D21, D31
 
 
+# The keys each parameter dict takes, per flavor count (issue #160 §2).  A key outside the set
+# for the flavor count in use was ignored in silence: a typo'd 'dcp' left dCP at its previous
+# value, and 's14' at three flavors changed nothing.
+_OSC_KEYS = {
+    2: ('sth', 'Dm2'),
+    3: ('s12', 's23', 's13', 'dCP', 'D21', 'D31'),
+    4: ('s12', 's23', 's13', 'dCP', 's14', 'd14', 's24', 'd24', 's34', 'D21', 'D31', 'D41'),
+    5: ('s12', 's23', 's13', 'dCP', 's14', 'd14', 's15', 'd15', 's24', 'd24', 's25', 's34', 's35',
+        'd35', 'D21', 'D31', 'D41', 'D51'),
+}
+_NSI_KEYS = {
+    2: ('eps_aa', 'eps_ab'),
+    3: ('eps_ee', 'eps_em', 'eps_et', 'eps_mm', 'eps_mt', 'eps_tt'),
+    4: ('eps_ee', 'eps_em', 'eps_et', 'eps_es', 'eps_mm', 'eps_mt', 'eps_ms', 'eps_tt', 'eps_ts',
+        'eps_ss'),
+    5: ('eps_ee', 'eps_em', 'eps_et', 'eps_es1', 'eps_es2', 'eps_mm', 'eps_mt', 'eps_ms1',
+        'eps_ms2', 'eps_tt', 'eps_ts1', 'eps_ts2', 'eps_s1s1', 'eps_s1s2', 'eps_s2s2'),
+}
+# Diagonal couplings are real by hermiticity; the off-diagonal ones may be complex.
+_NSI_DIAGONAL = frozenset(('eps_aa', 'eps_ee', 'eps_mm', 'eps_tt', 'eps_ss', 'eps_s1s1',
+                           'eps_s2s2'))
+_LIV_KEYS = {
+    2: ('sxi', 'b1', 'b2', 'Lambda', 'n_liv'),
+    3: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'b1', 'b2', 'b3', 'Lambda', 'n_liv'),
+    4: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'sxi14', 'dxi14', 'sxi24', 'dxi24', 'sxi34', 'b1',
+        'b2', 'b3', 'b4', 'Lambda', 'n_liv', 'dxi13'),
+    5: ('sxi12', 'sxi23', 'sxi13', 'dxiCP', 'sxi14', 'dxi14', 'sxi15', 'dxi15', 'sxi24', 'dxi24',
+        'sxi25', 'sxi34', 'sxi35', 'dxi35', 'b1', 'b2', 'b3', 'b4', 'b5', 'Lambda', 'n_liv',
+        'dxi13'),
+}
+_DICT_METADATA_KEYS = frozenset(('name', 'description'))
+
+
+def _check_param_dict(source_func_name: str, params, dict_name: str, num_flavors: int,
+                      table: dict) -> dict:
+    r"""Check a parameter dict's keys and values once; return it with the values normalized.
+
+    Unknown keys are refused, with the nearest valid name, or with the flavor count a key
+    belongs to.  Every value is ``None`` or a finite number: real, except the off-diagonal NSI
+    couplings; ``Lambda`` above zero; ``n_liv`` an integer >= 0.  A complex value with a zero
+    imaginary part is accepted where a real one is required, and converted (issue #160 §2).
+
+    .. versionadded:: 1.2.0
+    """
+    import collections.abc
+    import difflib
+    where = "oscprob." + source_func_name
+    if not isinstance(params, collections.abc.Mapping):
+        raise _v.InputTypeError(_v._msg(where, dict_name + " must be a dict (a mapping from "
+            "parameter names to values); got " + type(params).__name__ + "."))
+    allowed = table.get(num_flavors)
+    if allowed is None:
+        return params
+    allowed_set = frozenset(allowed)
+    unknown = [k for k in params if k not in allowed_set and k not in _DICT_METADATA_KEYS]
+    if unknown:
+        notes = []
+        for k in unknown:
+            other = [n for n, keys in sorted(table.items()) if k in keys and n != num_flavors]
+            if other:
+                notes.append(repr(k) + " is a " + str(other[0]) + "-flavor parameter, and with "
+                             "num_flavors=" + str(num_flavors) + " it would be ignored")
+            else:
+                near = ([a for a in allowed if a.lower() == str(k).lower()] or
+                        difflib.get_close_matches(str(k), allowed, n=1))
+                notes.append(repr(k) + " is not one" + (" (did you mean " + repr(near[0]) +
+                                                         "?)" if near else ""))
+        raise ValueError(_v._msg(where, dict_name + " has unknown key" +
+            ("s" if len(unknown) > 1 else "") + ": " + "; ".join(notes) + ".  The keys at " +
+            str(num_flavors) + " flavors are " + ", ".join(allowed) + "."))
+    # Every array at once, as before: a caller scanning two parameters hears about both.
+    _arrays = [k for k, x in params.items() if k not in _DICT_METADATA_KEYS and x is not None
+               and type(x) is not float and not isinstance(x, (str, bytes)) and np.ndim(x) != 0]
+    if _arrays:
+        raise _not_a_single_number(source_func_name, _arrays)
+    out = None
+    for k, x in params.items():
+        if x is None or k in _DICT_METADATA_KEYS:
+            continue
+        # The common case, a finite plain float, is valid for every key but these two.
+        if (type(x) is float and k != 'n_liv' and math.isfinite(x)
+                and (k != 'Lambda' or x > 0.0)):
+            continue
+        # A wrapper takes these as keywords, so its caller knows them by the bare name.
+        name = (k if (dict_name == 'osc_params' or _WRAPPER_NAME_PREFIX(source_func_name))
+                else dict_name + "['" + k + "']")
+        if table is _NSI_KEYS and k not in _NSI_DIAGONAL:
+            if isinstance(x, (complex, np.complexfloating)) and not isinstance(x, bool):
+                if not (math.isfinite(x.real) and math.isfinite(x.imag)):
+                    raise ValueError(_v._msg(where, name + " must be finite; got " + repr(x) +
+                                             "."))
+                continue
+            y = _v.check_real(name, x, where)
+        else:
+            if isinstance(x, (complex, np.complexfloating)) and x.imag == 0:
+                x = x.real
+            if k == 'n_liv':
+                y = _v.check_int(name, x, where, lo=0, what="an integer >= 0 (the operator "
+                                 "dimension minus 3)")
+            elif k == 'Lambda':
+                y = _v.check_real(name, x, where, positive=True)
+            else:
+                if isinstance(x, (complex, np.complexfloating)):
+                    raise _v.InputTypeError(_v._msg(where, name + " must be real" +
+                        (" (a diagonal NSI coupling is real by hermiticity)"
+                         if k in _NSI_DIAGONAL else "") + "; got " + repr(x) + "."))
+                y = _v.check_real(name, x, where)
+        if y is not x:
+            if out is None:
+                out = dict(params)
+            out[k] = y
+    return params if out is None else out
+
+
 def unpack_oscillation_params_from_dict(
     source_func_name: str,
     num_flavors: int,
@@ -2819,6 +3203,8 @@ def unpack_oscillation_params_from_dict(
         The unpacked oscillation parameters, in the order expected by the matching
         ``hamiltonian_{N}nu_vacuum_energy_independent`` function.
     """
+
+    osc_params = _check_param_dict(source_func_name, osc_params, 'osc_params', num_flavors, _OSC_KEYS)
 
     if (num_flavors == 2):
         try:
@@ -2964,6 +3350,8 @@ def unpack_nsi_params_from_dict(
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_nsi`` directly).
     """
 
+    nsi_params = _check_param_dict(source_func_name, nsi_params, 'nsi_params', num_flavors, _NSI_KEYS)
+
     if (num_flavors == 2):
         try:
             eps_aa = nsi_params['eps_aa']
@@ -3099,6 +3487,8 @@ def unpack_liv_params_from_dict(
         ``hamiltonian_{N}nu_liv_energy_independent`` function; or None if ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS`` (the caller uses ``h_liv`` directly).
     """
+
+    liv_params = _check_param_dict(source_func_name, liv_params, 'liv_params', num_flavors, _LIV_KEYS)
 
     if (num_flavors == 2):
         try:
@@ -3783,9 +4173,27 @@ def osc_prob(
     max_n_slabs = _resolve_max_n_slabs(max_n_slabs, integration_method)
     if validate_input:
 
-        if (t_fin < t_ini): 
+        t_ini = _v.check_real('t_ini', t_ini, "oscprob.osc_prob")
+        t_fin = _v.check_real('t_fin', t_fin, "oscprob.osc_prob")
+        if (t_fin < t_ini):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: t_fin must be >=" + \
                 " t_ini.")
+
+        # Types and ranges, by the rules the scenario functions apply (issue #160 §5): the
+        # comparisons below accepted n_slabs=2.5, rtol=nan and magnus_exp_order=True.
+        _v.check_refinement("oscprob.osc_prob", dict(
+            n_slabs=n_slabs, n_tpts_per_slab=n_tpts_per_slab, magnus_exp_order=magnus_exp_order,
+            n_jobs=n_jobs, integration_method=integration_method, rtol=rtol, atol=atol,
+            growth_factor_n_slabs=growth_factor_n_slabs,
+            growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
+            max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
+            min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
+            verbose=verbose))
+
+        # A gap, an overlap, a zero-width slab or a grid stopping short of t_fin used to be
+        # integrated as given, off by up to 9.4e-2; NaN edges returned NaN (issue #160 §6).
+        if t_slab_edges is not None:
+            t_slab_edges = _v.check_slab_edges(t_slab_edges, t_ini, t_fin, "oscprob.osc_prob")
 
         if (magnus_exp_order < 1):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob: magnus_exp_order " + \
@@ -7706,6 +8114,26 @@ def osc_prob_energy_baseline(
         with _engine_probe(info=strategy_info):
             return osc_prob_energy_baseline(**_args, **kwargs)
 
+    # The same entry checks as the scenario functions (issue #160): every keyword by its rule,
+    # energy and L entry by entry, and the Hamiltonian itself -- callable, or a square matrix.
+    # A string or None used to fail as a raw IndexError, a masked L had its mask ignored, and
+    # L=True was a baseline of 1 eV^-1.
+    # Skipped when a scenario function is the caller: it has run the same checks already.
+    _direct = sys._getframe(1).f_code.co_name not in _SCENARIO_FUNCTION_NAMES
+    if validate_input and _direct:
+        _where = "oscprob.osc_prob_energy_baseline"
+        _validate_entry('osc_prob_energy_baseline', locals(), osc_prob_energy_baseline)
+        _v.check_real_array('energy', energy, _where, positive=True)
+        _v.check_real_array('L', L, _where)
+        L0 = _v.check_real('L0', L0, _where)
+        if not np.all(np.asarray(L, dtype=float) >= L0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: L must"
+                " be >= L0, the path running from L0 to L.")
+        if not callable(H_func):
+            H_func = _v.check_hamiltonian_sample('H_func', H_func, _where)
+    energy = _as_float(energy)
+    L = _as_float(L)
+
     if (callable(H_func) and (_n_required_params(H_func) > 2)):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline:"+\
             " H_func can be energy- and position-dependent, only energy-dependent, or only" + \
@@ -7796,6 +8224,29 @@ def osc_prob_energy_baseline(
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
     H_first = H_at_energy(energy[0])
+
+    # The first sample of a user Hamiltonian, checked once (issue #160 §7): an array (a list
+    # failed later as a raw TypeError from the probe), square, finite (a NaN ran the whole
+    # refinement ladder before returning NaN), and Hermitian (a non-Hermitian H returned
+    # probabilities above 1 without a word).  One evaluation, at L0.
+    if validate_input and _direct and callable(H_func):
+        _where = "oscprob.osc_prob_energy_baseline"
+        _H0 = H_first(L0) if callable(H_first) else H_first
+        if not isinstance(_H0, np.ndarray):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " " + _where + ": H_func must "
+                "return a NumPy array; it returned " + type(_H0).__name__ + ".  Wrap its "
+                "return value in np.array(..., dtype=complex).")
+        try:
+            _v.check_hamiltonian_sample('H_func', _H0, _where,
+                                        at=('energy ' + format(float(energy[0]), '.4g') +
+                                            (', position L0' if callable(H_first) else '')))
+        except ValueError as _e:
+            if (not np.all(np.isfinite(_H0)) and _n_required_params(H_func) == 1
+                    and not H_func_is_function_only_of_energy):
+                raise ValueError(str(_e) + "  H_func takes one argument, which is read as the "
+                    "position; if it is a function of energy, pass "
+                    "H_func_is_function_only_of_energy=True.") from None
+            raise
 
     # Phase average, requested with average=True: the same dispatch the wrappers place
     # ahead of their engines, reached here on the direct route.  Answered before the
@@ -8100,8 +8551,13 @@ def osc_prob_energy_baseline(
             magnus.EXPM_BACKEND = _backend
             return compute_single_point(enu, baseline)
 
-        probs += Parallel(n_jobs=n_jobs)(delayed(compute_single_point_in_worker)(enu, baseline)
-            for enu, baseline in zip(energy[1:], L[1:]))
+        # No more workers than there are points left, or cores (issue #160 §5): n_jobs=1000 on
+        # a 20-energy scan used to start about 626 worker processes and stall the machine.
+        _workers = len(energy) - 1
+        _cores = os.cpu_count() or 1
+        _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
+        probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
+            enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
     else:
         probs = []
         for enu, baseline in zip(energy, L):
@@ -8352,6 +8808,21 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
     --------
     ENGINE_FAMILIES : which engines share machinery, and therefore which pairs carry information.
     """
+    # engines: None, or a non-empty list of labels.  A bare string was iterated letter by
+    # letter, an int raised a raw TypeError, and [] returned {} as though every check had
+    # passed (issue #160 §14).
+    _where = "oscprob.cross_check_strategies"
+    if not callable(entry_point):
+        raise _v.InputTypeError(_v._msg(_where, "entry_point must be one of the osc_prob "
+            "functions; got " + type(entry_point).__name__ + "."))
+    if engines is not None:
+        if isinstance(engines, str) or not isinstance(engines, (list, tuple, set, frozenset)):
+            raise _v.InputTypeError(_v._msg(_where, "engines must be None or a list of engine "
+                "labels, such as ['hybrid', 'magnus']; got " + type(engines).__name__ + " " +
+                repr(engines) + "."))
+        if len(engines) == 0:
+            raise ValueError(_v._msg(_where, "engines is empty, so there is nothing to "
+                "compare; pass None for every engine."))
     wanted = tuple(_CROSS_CHECK_FORCING) + ('expm',) if engines is None else tuple(engines)
     unknown = set(wanted) - set(_CROSS_CHECK_FORCING) - {'expm'}
     if unknown:
@@ -8677,9 +9148,16 @@ def osc_prob_vacuum(
         each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
+    # The public name to sign errors with, and the one validation pass that every engine
+    # below sits behind, so that whether an argument is refused does not depend on which
+    # engine would have answered (issue #160).
+    _where = _caller_name('osc_prob_vacuum')
+    if validate_input:
+        _validate_entry(_where, locals(), osc_prob_vacuum)
+    energy, L = _as_float(energy), _as_float(L)
+
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
-    # The function name is sys._getframe().f_code.co_name
-    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name, 
+    osc_params_list = unpack_oscillation_params_from_dict(_where, 
         num_flavors, osc_params, h_vac_energy_indep)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
@@ -8692,7 +9170,7 @@ def osc_prob_vacuum(
             osc_params_list
 
     if validate_input:
-        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=0.0,
+        validate_input_battery(_where, energy=energy, L=L, L0=0.0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             validate_energy_and_L=True, validate_flavor_indices=True, validate_osc_params=True, 
             validate_initial_position=False, validate_density=False)
@@ -8706,7 +9184,7 @@ def osc_prob_vacuum(
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
     _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
-        sys._getframe().f_code.co_name)
+        _where)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -8736,8 +9214,8 @@ def osc_prob_vacuum(
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
-    _reject_parameter_set_metadata(kwargs, 'osc_prob_vacuum')
-    _check_passthrough_kwargs(kwargs, 'osc_prob_vacuum')
+    _reject_parameter_set_metadata(kwargs, _where)
+    _check_passthrough_kwargs(kwargs, _where)
 
     # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -8750,13 +9228,13 @@ def osc_prob_vacuum(
         if return_evolution_operator:
             # The phase-averaged and scan engines below answer with probabilities only, so the
             # request goes straight to the ladder, which is the one engine that forms the operator.
-            _check_operator_request(average, None, 'osc_prob_vacuum')
+            _check_operator_request(average, None, _where)
             return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f,
                 htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
                 verbose=verbose, return_evolution_operator=True, **kwargs)
 
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, 0.0,
-            nu_i, nu_f, average, 'osc_prob_vacuum', average_spread=average_spread,
+            nu_i, nu_f, average, _where, average_spread=average_spread,
             average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
         if P_avg is not NotImplemented:
@@ -9140,15 +9618,25 @@ def osc_prob_matter_std_potential(
         each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
+    # The public name to sign errors with, and the one validation pass that every engine
+    # below sits behind, so that whether an argument is refused does not depend on which
+    # engine would have answered (issue #160).
+    _where = _caller_name('osc_prob_matter_std_potential')
+    if validate_input:
+        _validate_entry(_where, locals(), osc_prob_matter_std_potential)
+    energy, L = _as_float(energy), _as_float(L)
+    L0 = _as_float(L0)
+    if not callable(rho_func):
+        rho_func = _as_float(rho_func)
+
     if return_evolution_operator:
-        _check_operator_request(average, strategy, 'osc_prob_matter_std_potential')
+        _check_operator_request(average, strategy, _where)
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_std_potential:" + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ":" + \
             " strategy must be 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
-    # The function name is sys._getframe().f_code.co_name
-    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
+    osc_params_list = unpack_oscillation_params_from_dict(_where,
         num_flavors, osc_params, h_vac_energy_indep)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
@@ -9161,7 +9649,7 @@ def osc_prob_matter_std_potential(
             osc_params_list
 
     if validate_input:
-        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(_where, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list,
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True,
@@ -9177,7 +9665,7 @@ def osc_prob_matter_std_potential(
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
     _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
-        sys._getframe().f_code.co_name)
+        _where)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21,
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -9276,8 +9764,8 @@ def osc_prob_matter_std_potential(
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
-    _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_std_potential')
-    _check_passthrough_kwargs(kwargs, 'osc_prob_matter_std_potential')
+    _reject_parameter_set_metadata(kwargs, _where)
+    _check_passthrough_kwargs(kwargs, _where)
 
     # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -9306,7 +9794,7 @@ def osc_prob_matter_std_potential(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_std_potential', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average, _where, smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
             average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
@@ -9696,17 +10184,27 @@ def osc_prob_matter_nsi(
         each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
+    # The public name to sign errors with, and the one validation pass that every engine
+    # below sits behind, so that whether an argument is refused does not depend on which
+    # engine would have answered (issue #160).
+    _where = _caller_name('osc_prob_matter_nsi')
+    if validate_input:
+        _validate_entry(_where, locals(), osc_prob_matter_nsi)
+    energy, L = _as_float(energy), _as_float(L)
+    L0 = _as_float(L0)
+    if not callable(rho_func):
+        rho_func = _as_float(rho_func)
+
     if return_evolution_operator:
-        _check_operator_request(average, strategy, 'osc_prob_matter_nsi')
+        _check_operator_request(average, strategy, _where)
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_matter_nsi: strategy" + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": strategy" + \
             " must be 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
-    # The function name is sys._getframe().f_code.co_name
-    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
+    osc_params_list = unpack_oscillation_params_from_dict(_where,
         num_flavors, osc_params, h_vac_energy_indep)
-    nsi_params_list = unpack_nsi_params_from_dict(sys._getframe().f_code.co_name,
+    nsi_params_list = unpack_nsi_params_from_dict(_where,
         num_flavors, nsi_params, h_nsi)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
@@ -9725,7 +10223,7 @@ def osc_prob_matter_nsi(
             eps_ts1, eps_ts2, eps_s1s1, eps_s1s2, eps_s2s2 = nsi_params_list
 
     if validate_input:
-        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(_where, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True, 
@@ -9741,7 +10239,7 @@ def osc_prob_matter_nsi(
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
     _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
-        sys._getframe().f_code.co_name)
+        _where)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -9880,8 +10378,8 @@ def osc_prob_matter_nsi(
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
-    _reject_parameter_set_metadata(kwargs, 'osc_prob_matter_nsi')
-    _check_passthrough_kwargs(kwargs, 'osc_prob_matter_nsi')
+    _reject_parameter_set_metadata(kwargs, _where)
+    _check_passthrough_kwargs(kwargs, _where)
 
     # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -9910,7 +10408,7 @@ def osc_prob_matter_nsi(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_matter_nsi', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average, _where, smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
             average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)
@@ -10246,17 +10744,27 @@ def osc_prob_liv(
         each (energy, L) point.  With ``return_evolution_operator=True``, the pair ``(P, U)``.
     """
 
+    # The public name to sign errors with, and the one validation pass that every engine
+    # below sits behind, so that whether an argument is refused does not depend on which
+    # engine would have answered (issue #160).
+    _where = _caller_name('osc_prob_liv')
+    if validate_input:
+        _validate_entry(_where, locals(), osc_prob_liv)
+    energy, L = _as_float(energy), _as_float(L)
+    L0 = _as_float(L0)
+    if not callable(rho_func):
+        rho_func = _as_float(rho_func)
+
     if return_evolution_operator:
-        _check_operator_request(average, strategy, 'osc_prob_liv')
+        _check_operator_request(average, strategy, _where)
     if validate_input and (strategy not in ('auto', 'hybrid', 'magnus')):
-        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_liv: strategy must be" + \
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": strategy must be" + \
             " 'auto', 'hybrid', or 'magnus'.")
 
     # Unpack oscillation parameters from the osc_params dict, check if all values are available
-    # The function name is sys._getframe().f_code.co_name
-    osc_params_list = unpack_oscillation_params_from_dict(sys._getframe().f_code.co_name,
+    osc_params_list = unpack_oscillation_params_from_dict(_where,
         num_flavors, osc_params, h_vac_energy_indep)
-    liv_params_list = unpack_liv_params_from_dict(sys._getframe().f_code.co_name,
+    liv_params_list = unpack_liv_params_from_dict(_where,
         num_flavors, liv_params, h_liv_energy_indep)
     if num_flavors == 2:
         sth, Dm2 = osc_params_list
@@ -10275,7 +10783,7 @@ def osc_prob_liv(
             dxi35, b1, b2, b3, b4, b5, Lambda, n_liv = liv_params_list
 
     if validate_input:
-        validate_input_battery(sys._getframe().f_code.co_name, energy=energy, L=L, L0=L0,
+        validate_input_battery(_where, energy=energy, L=L, L0=L0,
             num_flavors=num_flavors, nu_i=nu_i, nu_f=nu_f, osc_params=osc_params_list, 
             rho_func=rho_func, ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
             electron_fraction=electron_fraction, validate_energy_and_L=True, 
@@ -10291,7 +10799,7 @@ def osc_prob_liv(
     # and s12 and its neighbours were never assigned, so an unbounded test raised
     # UnboundLocalError on the path the unpacking warning says is supported.
     _reject_parameter_set_name_without_set(num_flavors, default_osc_params_set_name,
-        sys._getframe().f_code.co_name)
+        _where)
     if 2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS:
         s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP, D21, 
             D31, default_osc_params_set_name, verbose, angles=angles)
@@ -10429,8 +10937,8 @@ def osc_prob_liv(
     # Checked here, rather than only in osc_prob: the averaged path returns before anything
     # forwards **kwargs onwards, so a check further down would see these keys on the ordinary
     # path and silently ignore them on the averaged one.
-    _reject_parameter_set_metadata(kwargs, 'osc_prob_liv')
-    _check_passthrough_kwargs(kwargs, 'osc_prob_liv')
+    _reject_parameter_set_metadata(kwargs, _where)
+    _check_passthrough_kwargs(kwargs, _where)
 
     # Phase average, requested with average=True: closed-form whenever the
     # Hamiltonian does not depend on position, so it is tried before any of the propagation
@@ -10459,7 +10967,7 @@ def osc_prob_liv(
     with _engine_probe(disabled=_OPERATOR_ONLY_FROM_LADDER if return_evolution_operator else (),
                        info=strategy_info, extra={'hidden_feature': _hidden, 'sampling': _osc}):
         P_avg = _avg_prob_dispatch(htot, htot_is_function_only_of_energy, energy, L, L0, nu_i, nu_f,
-            average, 'osc_prob_liv', smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
+            average, _where, smooth_profile=_profile_is_smooth, engine_kwargs=scan_kwargs,
             average_spread=average_spread,
             average_n_samples=average_n_samples,
             average_initial_state=average_initial_state)

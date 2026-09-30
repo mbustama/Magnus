@@ -30,8 +30,10 @@ import numpy as np
 from typing import Optional, Union
 
 from magnus.hamiltonians import _angles
+from magnus import _validate as _v
 
 
+@_v.validated(dict(sth=_v.r_real(), Dm2=_v.r_real(), energy=_v.r_real_array(positive=True), L=_v.r_real_array(nonnegative=True)))
 def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float,
     angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns 2nu oscillation vacuum probabilities, std. computation.
@@ -91,6 +93,7 @@ def osc_prob_2nu_vacuum_std(sth: float, Dm2: float, energy: float, L: float,
     return prob
 
 
+@_v.validated(dict(sth=_v.r_real(), Dm2=_v.r_real(), VCC=_v.r_real(), energy=_v.r_real_array(positive=True), L=_v.r_real_array(nonnegative=True)))
 def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float, 
     L: float, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns 2nu oscillation matter probabilities, std. computation.
@@ -140,17 +143,24 @@ def osc_prob_2nu_matter_std(sth: float, Dm2: float, VCC: float, energy: float,
         print('P_ee in matter = %.6f' % P[0][0])
 """
     # x = 2.0*VCC*(energy*1.e9)/Dm2
-    x = 2.0*VCC*(energy)/Dm2
+    # The matter term A = 2 VCC E enters in the same units as Dm2.  Written without dividing
+    # by Dm2, so that Dm2 = 0 -- no vacuum oscillation, a valid input -- gives the matter-only
+    # answer rather than ZeroDivisionError (issue #160 §11).  Same algebra as the familiar
+    # form with x = A/Dm2.
+    A = 2.0*VCC*(energy)
     sth = _angles.resolve('oscprobstd.osc_prob_2nu_matter_std', angles, {'sth': sth})[0]['sth']
     cth = np.sqrt(1.0-sth*sth)
     s2th = 2.0*sth*cth
-    s2thsq = s2th*s2th
     # Signed: sqrt(1 - sin^2(2 theta)) is non-negative, which silently reflects the
     # second octant onto the first.  The two agree only up to theta = 45 degrees.
     c2th = cth*cth - sth*sth
 
-    Dm2m = Dm2*np.sqrt(s2thsq+pow(c2th-x, 2.0))
-    s2thmsq = s2thsq / (s2thsq+pow(c2th-x, 2.0))
+    # Only sin^2 of the phase enters, so the sign of Dm2m does not matter.
+    _num = pow(Dm2*s2th, 2.0)
+    _denom = _num + pow(Dm2*c2th - A, 2.0)
+    Dm2m = np.sqrt(_denom)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        s2thmsq = np.where(_denom > 0.0, _num/_denom, 0.0)
 
     # arg = 1.27*Dm2m*L/energy#/4.0
     Pem = s2thmsq * pow(np.sin(Dm2m*L/energy/4.0), 2.0)
@@ -219,6 +229,7 @@ def J(U: Union[list, np.ndarray], alpha: int, beta: int, k: int, j: int) -> comp
     return np.conj(U[alpha][k])*U[beta][k]*U[alpha][j]*np.conj(U[beta][j])
 
 
+@_v.validated(dict(D21=_v.r_real(), D31=_v.r_real(), energy=_v.r_real_array(positive=True), L=_v.r_real_array(nonnegative=True), nubar=_v.r_bool))
 def osc_prob_3nu_vacuum_std(U: Union[list, np.ndarray], D21: float, D31: float, energy: float, 
     L: float, nubar: Optional[bool]=False) -> np.ndarray:
     r"""Returns 3nu oscillation vacuum probabilities, std. computation.
