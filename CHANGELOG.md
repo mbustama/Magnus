@@ -9,6 +9,17 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An energy scan whose slab count starts at the cap says it checked nothing** (issue #184).
+  Across the Sun at `rtol=atol` of 1e-4 or tighter, every energy's slab count starts at
+  `max_n_slabs`, so the energy-batched ladder computes one level with nothing to compare it
+  with; the warning said only that a refinement cap was reached.  It now says the answers
+  are unverified, that across the Sun about 1e-4 is the tightest tolerance a scan can verify,
+  and to compare with `strategy='hybrid'`, loosen the tolerance, or raise `max_n_slabs`.  Over
+  0.5-20 MeV the returned level was up to 2.0e-3 off on the default profile, where the hybrid
+  was within 6.3e-5.  No answer changes.  `diagnostics.rst` documents it, and documents that
+  the hybrid's `certified=True` is an agreement between levels, like the ladder's: on
+  `B16-GS98` at 0.7 MeV it certified 1e-6 on an answer 1.8e-5 off (issue #187).
+
 - **`cross_check_strategies` says which engines did not reach the tolerance** (issue #166).
   On the Sun at 1 MeV it reported a 1.9e-3 spread between the certified hybrid and the Magnus
   ladder, and named the pair.  Against a 2e6-slab reference the hybrid is 3.8e-5 off and the

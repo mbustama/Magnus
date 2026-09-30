@@ -85,3 +85,15 @@ def test_a_note_left_by_an_earlier_answer_is_not_read():
         assert op._hybrid_fallback(1.0, 2.0, 0.0) is None
     assert all(not k.startswith('_') for e in op._summarize_engine_trace(trace)['trace']
                for k in e)
+
+
+def test_a_scan_that_starts_at_the_slab_cap_says_it_checked_nothing():
+    """Issue #184: across the Sun at 1e-6 every energy's slab count starts at max_n_slabs, so
+    the energy-batched ladder computes one level and returns it unverified.  The warning says
+    that, and where to look instead, rather than only that a cap was reached."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        _sun(np.array([1.0, 2.0, 5.0, 10.0]), rtol=1e-6, atol=1e-6)
+    messages = [str(w.message) for w in caught
+                if issubclass(w.category, op.ToleranceNotAchievedWarning)]
+    assert any('starts at max_n_slabs' in m and "strategy='hybrid'" in m for m in messages)
