@@ -941,11 +941,24 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
         re-sampling stage; True otherwise, including for a constant Hamiltonian, where there is
         nothing to resolve, and for a profile whose flagged intervals all fail confirmation.
     """
+    return _profile_resolution(H_func, l0, l1, n_probe)[0]
+
+
+def _profile_resolution(H_func: Callable, l0: float, l1: float, n_probe: int) -> Tuple[bool, bool]:
+    r""":func:`_profile_is_resolved`, and whether its first stage flagged any interval.
+
+    The second value is True when some probe interval carries most of its variation in one
+    half, whether or not the local confirmation then calls it a jump: a feature sharp at this
+    probe scale, which a grid no finer than the probes can step over (issue #161).  The first
+    value is exactly :func:`_profile_is_resolved`'s, from the same evaluations.
+
+    .. versionadded:: 1.2.0
+    """
     if n_probe < 2:
-        return True
+        return True, False
     ls, flagged, total = _concentrated_intervals(H_func, l0, l1, n_probe)
     if flagged.size == 0:
-        return True
+        return True, False
 
     # A concentrated interval is a candidate, not a verdict.  The one interval containing a
     # smooth turning point is genuinely asymmetric -- one half nearly cancels -- and since the
@@ -959,8 +972,48 @@ def _profile_is_resolved(H_func: Callable, l0: float, l1: float, n_probe: int) -
         xs = np.linspace(ls[i], ls[i + 1], N_LOCAL_CONFIRM)
         steps = np.max(np.abs(np.diff(_H_on_grid(H_func, xs), axis=0)), axis=(1, 2))
         if steps.max() > LOCAL_JUMP_RATIO*total[i]:
-            return False
-    return True
+            return False, True
+    return True, True
+
+
+def _located_jumps(H_func: Callable, l0: float, l1: float, n_probe: int) -> List[float]:
+    r"""The positions of the jumps of ``H_func`` that :func:`_profile_is_resolved` confirms.
+
+    Every flagged probe interval is re-sampled on :data:`N_LOCAL_CONFIRM` points, as the local
+    confirmation does, up to :data:`MAX_LOCAL_CONFIRMATIONS` of them; each confirmed one is
+    narrowed by bisection on where ``H_func`` changes, to the rounding of the position.  The
+    jumps are returned in increasing order; a steep smooth feature, whose step does not survive
+    the bisection, is left out.  Used where a caller has just been answered on a
+    grid that straddled undeclared jumps and is re-run with them declared (issue #161).
+
+    .. versionadded:: 1.2.0
+    """
+    if n_probe < 2:
+        return []
+    ls, flagged, total = _concentrated_intervals(H_func, l0, l1, n_probe)
+    jumps = []
+    for i in flagged[np.argsort(-total[flagged])][:MAX_LOCAL_CONFIRMATIONS]:
+        xs = np.linspace(ls[i], ls[i + 1], N_LOCAL_CONFIRM)
+        Hs = _H_on_grid(H_func, xs)
+        steps = np.max(np.abs(np.diff(Hs, axis=0)), axis=(1, 2))
+        k = int(np.argmax(steps))
+        if steps[k] <= LOCAL_JUMP_RATIO*total[i]:
+            continue
+        a, b, Ha, Hb = float(xs[k]), float(xs[k + 1]), Hs[k], Hs[k + 1]
+        while True:
+            m = 0.5*(a + b)
+            if not (a < m < b):
+                break
+            Hm = np.asarray(H_func(m), dtype=complex)
+            if np.max(np.abs(Hm - Ha)) >= np.max(np.abs(Hb - Hm)):
+                b, Hb = m, Hm
+            else:
+                a, Ha = m, Hm
+        # A jump keeps its step down to the rounding of the position; a steep smooth feature
+        # does not, and is not reported.
+        if np.max(np.abs(Hb - Ha)) > LOCAL_JUMP_RATIO*steps[k]:
+            jumps.append(0.5*(a + b))
+    return sorted(jumps)
 
 
 def _eigs_along(H_func: Callable, ls: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

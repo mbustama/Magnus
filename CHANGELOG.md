@@ -9,6 +9,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Undeclared jumps and narrow spikes no longer end the refinement ladder on a wrong answer**
+  (issue #161).  One point at a time, a slab straddling a density jump nobody declared converges
+  as 1/n, and the ladder stopped wherever two levels happened to agree: the castle wall of the
+  issue was off by 4.3e-2, and 24 of 40 baselines by more than the requested 1e-3, with only
+  MagnusConvergenceWarning.  `osc_prob_energy_baseline` now watches the ladder's own samples:
+  where the largest change between nodes does not shrink from one level to the next, it locates
+  the jumps on the hybrid strategy's 200-point probe grid, declares them, recomputes, and warns
+  `UnmarkedDiscontinuityWarning` naming them (4.1e-2 → 4.5e-13).  A narrow smooth spike was
+  stepped over by every level instead: the 5 km spike of #154 was off by 5.4e-3 with no warning
+  at all, and 17 of 36 spikes of 2-50 km by more than 1e-3.  `strategy='auto'`, which probes the
+  profile anyway, now starts the ladder at the probe spacing where the probe flags a sharp
+  feature (`AUTO_SHARP_FEATURE_SLABS_PER_PROBE`): 17 → 3, the three a 2 km spike between two
+  probes, which no grid of that spacing can see.  Of 140 public-API calls benchmarked against
+  1.1, 126 are bit-identical and the other 14 moved toward the reference.  Timing: no change on
+  any path with declared breakpoints (every Earth wrapper), on the Sun under `'auto'`, or in
+  vacuum and constant density; +2 % to +5 % (about 0.05 ms, 0.7 ms on a 20 ms solar ladder) on a
+  single point that reaches the ladder without breakpoints, the cost of watching its samples.
+  The issue's first proposal, treating an agreement to rounding as unproven, was measured and not
+  adopted: it caught 19 of the 41 wrong answers and fired on 6 of 27 right ones.
+
 - **Calls from several threads no longer interfere** (issue #153).  Four pieces of per-call
   state were module globals: the two slab-norm collectors of `magnus.magnus` and the engine
   trace and disabled set of `magnus.oscprob`.  Concurrent batched Earth energy scans overwrote

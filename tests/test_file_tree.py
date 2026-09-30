@@ -440,6 +440,8 @@ TREE = [
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
     ('tests/test_thread_safety.py', 'Concurrent calls from several threads match the serial answer (issue #153)'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
+    ('tests/test_undeclared_features.py',
+     'Undeclared jumps and narrow spikes do not end the refinement ladder on a wrong answer (issue #161)'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
     ('tests/test_validation_160_reopened.py',
      'The #160 sub-cases found open after the first validation pass, one test each'),
