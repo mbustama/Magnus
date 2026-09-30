@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Small pseudo-Dirac splittings keep their precision** (issue #165 §1).
+  `hamiltonian_pseudo_dirac_vacuum_energy_independent` formed each splitting-dependent entry as
+  `(m2_j + delta) - m2_j` at the scale of `m2_j`, so `delta = 1e-18` eV^2 kept one or two digits
+  (0.24 off at 1e-19 on the third state).  It now builds the Hamiltonian as a base term, written
+  down directly with nothing to cancel, plus the splitting term, carried at full precision:
+  `delta` is recovered to 2e-16 on every state from 1e-19 to 1e-15.  At ordinary splittings the
+  result moves by rounding only (4e-19 on entries of 1e-3), and it is Hermitian to the last bit.
 - **The docs say that a parallel scan agrees with the serial one to within the tolerance, not
   bit for bit** (issue #166 §1).  `n_jobs > 1` sends a scan to the per-point path, one
   refinement ladder per point, where the batched engine runs one for all of them: up to 3.7e-5

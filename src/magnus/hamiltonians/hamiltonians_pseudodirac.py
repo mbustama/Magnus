@@ -331,10 +331,34 @@ def hamiltonian_pseudo_dirac_vacuum_energy_independent(
         print(float(np.max(np.abs(H - H3))))
     """
     W = pseudo_dirac_mixing_matrix(mixing_matrix, pairs)
-    M2 = pseudo_dirac_mass_squared(mass_squared, pairs)
+    pseudo_dirac_mass_squared(mass_squared, pairs)          # validates, and warns on a large delta
+    U = np.asarray(mixing_matrix, dtype=complex)
+    m2 = np.asarray(mass_squared, dtype=float).ravel()
+    pairs = {} if pairs is None else pairs
     if nubar:
-        W = np.conj(W)
-    return 0.5 * W @ np.diag(M2).astype(complex) @ np.conj(W.T)
+        W, U = np.conj(W), np.conj(U)
+    n_active = U.shape[0]
+    columns, sterile_of = _pair_layout(n_active, pairs)
+    n = n_active + len(sterile_of)
+
+    # Built in two terms so that a splitting never meets the mass it splits (issue #165 §1).
+    # 0.5*W diag(M2) W^dagger formed each delta-dependent entry as (m2_j + delta_j) - m2_j at
+    # the scale of m2_j ~ 2.5e-3 eV^2, which left delta = 1e-18 eV^2 one or two digits.
+    #
+    # Base term: m2_j on both members of each pair.  The two columns of a pair then combine to
+    # m2_j (u_j u_j^dagger + e_s e_s^dagger) exactly -- their active-sterile cross terms are
+    # equal and opposite -- so it is written down directly, with nothing left to cancel:
+    # U diag(m2) U^dagger on the active block, m2_j on the diagonal of each sterile row.
+    H = np.zeros((n, n), dtype=complex)
+    H[:n_active, :n_active] = (U*m2) @ np.conj(U.T)
+    for k, j in enumerate(sterile_of):
+        H[n_active + k, n_active + k] = m2[j]
+    # Splitting term: delta_j on the antisymmetric member only, carried at full precision.
+    for column, (j, sign) in enumerate(columns):
+        if sign == -1:
+            c = W[:, column]
+            H += float(pairs[j])*np.outer(c, np.conj(c))
+    return 0.25*(H + np.conj(H.T))          # 0.5*H, Hermitian to the last bit
 
 
 def hamiltonian_pseudo_dirac_vacuum(
