@@ -181,3 +181,15 @@ def test_earth_wrappers_document_the_partial_path():
     for name in dir(op):
         if re.match(r'osc_prob_\w*earth', name):
             assert 'partial path' in ' '.join(getattr(op, name).__doc__.split()), name
+
+
+# §1 physics arguments ------------------------------------------------------------------------------
+
+@pytest.mark.parametrize('arg, value', [('l_scale', np.nan), ('l_scale', 0.0),
+                                        ('rho_central', np.nan), ('rho_central', -3.0)])
+def test_exponential_profile_arguments_are_named(arg, value):
+    kw = dict(rho_central=3.0, l_scale=300.0*KM)
+    kw[arg] = value
+    msg = _refused(arg, op.osc_prob_3nu_matter_exp_density, E, L, 0.0,
+                   density_matter_is_in_g_per_cm3=True, **kw)
+    assert 'osc_prob_3nu_matter_exp_density' in msg

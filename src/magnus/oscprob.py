@@ -2022,6 +2022,21 @@ def _entry_defaults(func) -> dict:
     return d
 
 
+def _exp_profile(rho_central, l_scale, source_func_name: str):
+    r"""``matter.exp_density_profile``, with its two arguments checked in the wrapper's name.
+
+    The factory checks its arguments only for callers outside the package, so a wrapper's
+    ``l_scale=nan`` used to surface as "rho_func must be finite; it returned nan at L0"
+    (issue #160 §1).
+
+    .. versionadded:: 1.2.0
+    """
+    where = "oscprob." + source_func_name
+    _ENTRY_RULES['rho_central']('rho_central', rho_central, where)
+    _ENTRY_RULES['l_scale']('l_scale', l_scale, where)
+    return matter.exp_density_profile(rho_central, l_scale)
+
+
 def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     r"""Apply :data:`_ENTRY_RULES` to the arguments in ``values`` (a scenario function's locals).
 
@@ -12659,7 +12674,7 @@ def osc_prob_2nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=2,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -12809,7 +12824,7 @@ def osc_prob_3nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=3,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -12978,7 +12993,7 @@ def osc_prob_4nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=4,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -13166,7 +13181,7 @@ def osc_prob_5nu_matter_exp_density(
 
     return osc_prob_matter_std_potential(
         num_flavors=5,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17251,7 +17266,7 @@ def osc_prob_2nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=2,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17421,7 +17436,7 @@ def osc_prob_3nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=3,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17623,7 +17638,7 @@ def osc_prob_4nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=4,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -17860,7 +17875,7 @@ def osc_prob_5nu_matter_nsi_exp_density(
 
     return osc_prob_matter_nsi(
         num_flavors=5,
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_nsi_exp_density') if _rho_func is None
                   else _rho_func),
         energy=energy,
         L=L,
@@ -21928,7 +21943,7 @@ def osc_prob_2nu_matter_liv_exp_density(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_2nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22105,7 +22120,7 @@ def osc_prob_3nu_matter_liv_exp_density(
         osc_params={'s12': s12, 's23': s23, 's13': s13, 'dCP': dCP, 'D21': D21, 'D31': D31},
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'b1': b1, 
             'b2': b2, 'b3': b3, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_3nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22323,7 +22338,7 @@ def osc_prob_4nu_matter_liv_exp_density(
         liv_params={'sxi12': sxi12, 'sxi23': sxi23, 'sxi13': sxi13, 'dxiCP': dxiCP, 'sxi14': sxi14,
             'dxi14': dxi14, 'sxi24': sxi24, 'dxi24': dxi24, 'sxi34': sxi34, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_4nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
@@ -22579,7 +22594,7 @@ def osc_prob_5nu_matter_liv_exp_density(
             'dxi14': dxi14, 'sxi15': sxi15, 'dxi15': dxi15, 'sxi24': sxi24, 'dxi24': dxi24, 
             'sxi25': sxi25, 'sxi34': sxi34, 'sxi35': sxi35, 'dxi35': dxi35, 'b1': b1, 'b2': b2, 
             'b3': b3, 'b4': b4, 'b5': b5, 'Lambda': Lambda, 'n_liv': n_liv},
-        rho_func=(matter.exp_density_profile(rho_central, l_scale) if _rho_func is None
+        rho_func=(_exp_profile(rho_central, l_scale, 'osc_prob_5nu_matter_liv_exp_density') if _rho_func is None
                   else _rho_func),
         L0=L0,
         ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons, 
