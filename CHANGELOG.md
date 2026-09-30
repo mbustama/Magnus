@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The `n_jobs` docs say the worker pool outlives the call** (issue #160 §5).  joblib's loky
+  workers stay alive until idle for 300 s, which looked like leaked processes.
 - **`n_jobs=None` is refused by name** (issue #160 §5).  It was let through the check and then
   compared with an integer, as "'<' not supported between instances of 'int' and 'NoneType'";
   on single-point calls it was accepted.  `n_jobs` is -1 or a positive integer.

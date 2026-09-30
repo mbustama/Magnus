@@ -519,3 +519,8 @@ def test_counts_above_their_caps_behave_as_documented():
 ])
 def test_n_jobs_none_is_refused_by_name(call):
     _refused('n_jobs', call, n_jobs=None)
+
+
+def test_n_jobs_docs_say_the_pool_outlives_the_call_until_idle():
+    doc = ' '.join(op.osc_prob_energy_baseline.__doc__.split())
+    assert 'until they have been idle' in doc and '300 s' in doc

@@ -8166,7 +8166,10 @@ def osc_prob_energy_baseline(
         engine would answer takes the per-point path instead when ``n_jobs != 1``, which runs
         one refinement ladder per point where the batched engine runs one for all of them: the
         two agree to within the tolerance, not bit for bit (up to 3.7e-5 on a 40-energy Earth
-        chord at the default 1e-3; issue #166 §1).
+        chord at the default 1e-3; issue #166 §1).  The workers are joblib's reusable loky
+        pool: they stay alive after the call, so the next parallel call starts at once, until
+        they have been idle for joblib's timeout (300 s by default), and then exit.  A process
+        list shows them in that window; they hold no state from the call.
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
