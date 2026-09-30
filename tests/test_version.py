@@ -34,6 +34,17 @@ def declared_version():
     return match.group(1)
 
 
+def test_plot_and_fast_extras_stay_declared_and_empty():
+    r"""matplotlib and numba are base dependencies, so ``plot`` and ``fast`` install nothing
+    more; they are kept, empty, so that ``pip install 'magnuspy[plot]'`` from older
+    instructions still resolves (issue #164 §2)."""
+    text = PYPROJECT.read_text(encoding='utf-8')
+    for extra in ('plot', 'fast'):
+        assert re.search(r'^' + extra + r'\s*=\s*\[\s*\]', text, re.MULTILINE), extra
+    deps = re.search(r'^dependencies\s*=\s*\[(.*?)^\]', text, re.MULTILINE | re.DOTALL).group(1)
+    assert '"matplotlib' in deps and '"numba' in deps
+
+
 def test_version_from_pyproject_matches_the_declared_version():
     """The source-checkout route. This is the branch that never runs when
     the package is installed, which is exactly why it needs a test."""

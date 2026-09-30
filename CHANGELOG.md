@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Nothing calls numba optional any more** (issue #164 §2).  numba and matplotlib have been
+  base dependencies since the `fast` and `plot` extras were emptied, but `HAVE_NUMBA`'s docstring
+  still called numba "an optional dependency (`pip install magnuspy[fast]`)", and the error for
+  `expm_backend='numba'` without numba pointed at that extra.  Both now say numba is a dependency
+  and name `pip install numba`.  The empty `plot` and `fast` extras are kept, so
+  `pip install 'magnuspy[plot]'` from older instructions still resolves.
 - **The plotting tests pass at the declared matplotlib floor, 3.5** (issue #164 §3).  Three
   tests read API from later releases (`Figure.get_supylabel`, the `figure.labelsize` rcParam,
   the legend's `_ncols`), and one relied on 3.6's legend keeping more columns than entries, so
