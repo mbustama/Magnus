@@ -265,3 +265,29 @@ def test_wrappers_broadcast_a_single_entry_like_osc_prob_energy_baseline(energy,
 
 def test_wrappers_still_refuse_unequal_lengths_above_one():
     _refused('single entry', op.osc_prob_3nu_vacuum, [1.0e9, 2.0e9], [1.*KM, 2.*KM, 3.*KM], **OSC)
+
+
+@pytest.mark.parametrize('fn', ['osc_prob_3nu_earth', 'osc_prob_3nu_earth_nsi', 'osc_prob_3nu_earth_liv'])
+@pytest.mark.parametrize('ratio', [0.5, lambda l: 1.0])
+def test_three_flavor_earth_refuses_a_ratio_it_ignores(fn, ratio):
+    _refused('ratio_number_neutrons_to_protons', getattr(op, fn), 1.0e9, costhz=-0.5,
+             L=1000.*KM, ratio_number_neutrons_to_protons=ratio)
+
+
+def test_two_flavor_earth_refuses_a_ratio_it_ignores():
+    _refused('ratio_number_neutrons_to_protons', op.osc_prob_2nu_earth, 1.0e9, costhz=-0.5,
+             L=1000.*KM, sth=0.5, Dm2=2.5e-3, ratio_number_neutrons_to_protons=1.0)
+
+
+STERILE = dict(OSC, s14=0.1, s24=0.1, s34=0.1, D41=1.0)
+
+
+def test_four_flavor_earth_checks_a_callable_ratio():
+    _refused('ratio_number_neutrons_to_protons', op.osc_prob_4nu_earth, 1.0e9, costhz=-0.5,
+             L=1000.*KM, ratio_number_neutrons_to_protons=lambda l: np.nan, **STERILE)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        a = op.osc_prob_4nu_earth(1.0e9, costhz=-0.5, L=1000.*KM,
+                                  ratio_number_neutrons_to_protons=lambda l: 1.0 + 0.0*np.asarray(l),
+                                  **STERILE)
+    assert np.all(np.isfinite(a))

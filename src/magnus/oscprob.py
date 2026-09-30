@@ -2593,6 +2593,21 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
                       "Y_e = <Z/A>")
     _ratio('ratio_number_neutrons_to_protons', ratio_number_neutrons_to_protons,
            "oscprob." + source_func_name)
+    # The caller's ratio enters only the sterile projector: the density derives its own from
+    # Y_e.  At two and three flavors there is no sterile block, so a ratio, scalar or callable,
+    # was accepted and ignored; above that a callable's first sample is checked, as rho_func's
+    # is, since a NaN one came back as NaN probabilities (issue #160 §1).
+    if ratio_number_neutrons_to_protons is not None:
+        if num_flavors in (2, 3):
+            raise ValueError(_v._msg("oscprob." + source_func_name,
+                "ratio_number_neutrons_to_protons has no effect here: the Earth wrappers "
+                "derive the density's ratio from Y_e, and at %d flavors the caller's ratio "
+                "enters nothing." % num_flavors))
+        if callable(ratio_number_neutrons_to_protons):
+            _first = ratio_number_neutrons_to_protons(0.0)
+            _v.check_real_array('ratio_number_neutrons_to_protons(0)',
+                                np.ravel(_first) if np.ndim(_first) else _first,
+                                "oscprob." + source_func_name, nonnegative=True)
     if density_matter_ocean is not None:
         density_matter_ocean = _v.check_real('density_matter_ocean', density_matter_ocean,
                                              "oscprob." + source_func_name, nonnegative=True)
@@ -13363,15 +13378,19 @@ def osc_prob_2nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -13714,15 +13733,19 @@ def osc_prob_3nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14084,15 +14107,19 @@ def osc_prob_4nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -14475,15 +14502,19 @@ def osc_prob_5nu_earth(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18101,15 +18132,19 @@ def osc_prob_2nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18469,15 +18504,19 @@ def osc_prob_3nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -18869,15 +18908,19 @@ def osc_prob_4nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -19307,15 +19350,19 @@ def osc_prob_5nu_earth_nsi(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -22827,15 +22874,19 @@ def osc_prob_2nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -23206,15 +23257,19 @@ def osc_prob_3nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -23624,15 +23679,19 @@ def osc_prob_4nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is
@@ -24081,15 +24140,19 @@ def osc_prob_5nu_earth_liv(
         ~0.4 in probability at 3+1, and the best possible scalar still leaves ~7e-3, so a
         scalar over layered composition raises
         :class:`magnus.globaldefs.SterileMatterCompositionWarning`.  A callable of
-        position [:math:`\text{eV}^{-1}`] is forwarded untouched and trusted, the way
-        ``rho_func`` is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
+        position [:math:`\text{eV}^{-1}`] is forwarded, and its value at the start of the
+        path is checked, the way ``rho_func``'s is.  ``electron_fraction=0.5`` describes genuinely uniform isoscalar
         matter, and with it these wrappers reproduce the numbers from before composition
-        was layered.  Three flavors are unaffected: the projector's sterile block is
-        empty.
+        was layered.  At two and three flavors the projector's sterile block is empty,
+        so a ratio has nothing to act on and is refused.
 
         .. versionchanged:: 1.1.0
            Default changed from 1.0 (isoscalar, one matrix for the whole chord) to None
            (follow the composition); a callable is accepted.
+
+        .. versionchanged:: 1.2.0
+           Refused at two and three flavors, where it was accepted and ignored; a
+           callable's first value is checked.
     electron_fraction : int or float, optional
         One :math:`Y_e` for the whole Earth, overriding the per-layer values below.
         ``0.5`` reproduces the uniform composition assumed before those existed, and is

@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The Earth wrappers refuse a neutron-to-proton ratio they ignore, and check a callable one**
+  (issue #160 §1).  The density derives its ratio from :math:`Y_e`, so the caller's enters
+  only the sterile projector: at two and three flavors a ratio, scalar or callable, was
+  accepted and ignored, and is refused now.  Above that, a callable ratio returning NaN gave
+  NaN probabilities; its value at the start of the path is checked, as ``rho_func``'s is.
 - **The wrappers broadcast a single-entry `energy` or `L` against a longer one** (issue #160 §1).
   `osc_prob_energy_baseline` always did; the `osc_prob_*` wrappers refused `[1e9]` against
   three baselines as a length mismatch.  Unequal lengths above one are still refused.
