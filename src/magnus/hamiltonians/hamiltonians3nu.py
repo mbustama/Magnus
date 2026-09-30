@@ -38,6 +38,7 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 
 from magnus.hamiltonians import _angles
+from magnus.hamiltonians import _broadcast
 from typing import Optional, Callable
 from magnus import _validate as _v
 
@@ -348,8 +349,9 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     s12 : float
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
@@ -375,10 +377,10 @@ def hamiltonian_3nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
-    return hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+    return _broadcast.over_positions(l, hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dCP: float,
@@ -393,8 +395,9 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
 
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12 : float
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
@@ -422,13 +425,15 @@ def hamiltonian_3nu_vacuum(energy: float, s12: float, s23: float, s13: float, dC
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_3nu_vacuum', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return (1/energy)*hamiltonian_3nu_vacuum_energy_independent(s12, s23, s13, dCP, D21, D31,
         nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
         angles=angles)
@@ -447,10 +452,12 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
-    energy : float
+        An array returns a stack of matrices, one per position.
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12 : float
         Mixing angle :math:`\theta_{12}`, in the convention set by ``angles`` (default: its sine).
     s23 : float
@@ -476,10 +483,10 @@ def hamiltonian_3nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
-    return hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
-        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
+    return _broadcast.over_positions(l, hamiltonian_3nu_vacuum(energy, s12, s23, s13, dCP, D21, D31,
+        compute_matrix_multiplication=compute_matrix_multiplication, angles=angles))
 
 
 def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
@@ -492,14 +499,14 @@ def hamiltonian_3nu_matter(VCC: float) -> np.ndarray:
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with
         electrons.
 
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     
     Examples
     --------
@@ -536,8 +543,9 @@ def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -545,7 +553,7 @@ def hamiltonian_3nu_matter_td(l: float, VCC_func: Callable) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
     return hamiltonian_3nu_matter(VCC_func(l))
 
@@ -568,7 +576,7 @@ def hamiltonian_3nu_nsi(
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with electrons.
     eps_ee : float
         Diagonal NSI coupling of nu_e.
@@ -586,7 +594,7 @@ def hamiltonian_3nu_nsi(
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     
     Examples
     --------
@@ -610,6 +618,8 @@ def hamiltonian_3nu_nsi(
     # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
     if type(eps_ee) is not float or type(eps_mm) is not float or type(eps_tt) is not float:
         _v.check_physics_params('hamiltonians.hamiltonian_3nu_nsi', {'eps_ee': eps_ee, 'eps_mm': eps_mm, 'eps_tt': eps_tt})
+    if type(VCC) not in _broadcast.SCALARS and np.ndim(VCC):
+        VCC = _broadcast.stacked(VCC)
     return VCC * np.array([
         [eps_ee, eps_em, eps_et],
         [np.conj(eps_em), eps_mm, eps_mt],
@@ -628,8 +638,9 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -649,7 +660,7 @@ def hamiltonian_3nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
     return hamiltonian_3nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_mm, eps_mt, eps_tt)
 
@@ -669,8 +680,9 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sxi12 : float
         Sin(xi_12), with xi_12 the one of the mixing angles between the space of the eigenvectors of
         B3 and the flavor states.
@@ -708,13 +720,15 @@ def hamiltonian_3nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 3x3 matrix.
+        Hamiltonian 3x3 matrix, or a stack of them, shape ``(..., 3, 3)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_3nu_liv', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return pow(energy, n_liv) * hamiltonian_3nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         b1, b2, b3, Lambda, n_liv, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)

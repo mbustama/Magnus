@@ -26,6 +26,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Every Hamiltonian builder takes an array for its varying argument** (issue #155 §2).  The
+  vacuum, `*_td`, NSI and LIV builders at two to five flavors and
+  `hamiltonian_pseudo_dirac_vacuum` now accept `energy`, `VCC` or `l` as a number or an array,
+  as the matter builders always have: a number returns one `(d, d)` matrix, unchanged bit for
+  bit, and an array of shape `s` returns a stack of shape `s + (d, d)`.  Before, an array raised
+  a broadcasting error or, when its length equalled `d`, returned one matrix mixing the entries
+  without a word.  An `H_func` built from these builders now takes the vectorized path.  An array
+  `energy` is checked entry by entry; scalar calls cost what they did.
 - **Every public argument is validated once per call, by one set of rules** (issue #160).
   Before, most checks lived in the general refinement ladder, so whether a value was refused
   depended on which engine answered: `max_n_slabs=-1` was refused by the ladder and answered

@@ -48,6 +48,8 @@ from typing import Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 
 import magnus.matter as matter
+from magnus import _validate as _v
+from magnus.hamiltonians import _broadcast
 
 
 __all__ = [
@@ -350,8 +352,9 @@ def hamiltonian_pseudo_dirac_vacuum(
 
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy, in eV.
+        An array returns a stack of matrices, one per energy.
     mixing_matrix : list or np.ndarray
         The active-sector mixing matrix.
     mass_squared : list or np.ndarray
@@ -379,6 +382,10 @@ def hamiltonian_pseudo_dirac_vacuum(
 
         print(H.shape)
     """
+    if not (type(energy) is float and 0.0 < energy < _v._INF):
+        _v.check_physics_params('hamiltonians.hamiltonian_pseudo_dirac_vacuum', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return hamiltonian_pseudo_dirac_vacuum_energy_independent(
         mixing_matrix, mass_squared, pairs, nubar=nubar)/energy
 

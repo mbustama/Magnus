@@ -549,7 +549,11 @@ def check_physics_params(where: str, values: dict) -> None:
             continue
         if k == 'energy' or k == 'Lambda':
             if not (type(x) is float and 0.0 < x < _INF):
-                check_real(k, x, where, positive=True)
+                if k == 'energy' and np.ndim(x) != 0:
+                    # The builders broadcast over an array of energies (issue #155 §2).
+                    check_real_array(k, x, where, positive=True, ndim=np.ndim(x))
+                else:
+                    check_real(k, x, where, positive=True)
             continue
         if k == 'n_liv':
             check_int(k, x, where, lo=0, what="an integer >= 0 (the operator dimension "

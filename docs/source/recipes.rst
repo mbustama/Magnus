@@ -575,6 +575,11 @@ Measured at **4.6x** on a 3ν exponential-density profile, with bit-identical
 output. A scalar-only ``H_func`` raises
 :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
 
+The builders in :mod:`magnus.hamiltonians` do this for you: each takes its energy, ``VCC``
+or position as a number or an array, and an array returns a stack of matrices, one per
+entry.  So ``h_vac/energy + hams.hamiltonian_3nu_nsi(vcc(l), 0.1, 0.05, 0.0, 0.0, 0.0,
+0.0)`` is already vectorized.
+
 
 Where to go next
 ----------------

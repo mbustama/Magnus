@@ -37,6 +37,7 @@ __email__ = "mbustamante@gmail.com"
 import numpy as np
 
 from magnus.hamiltonians import _angles
+from magnus.hamiltonians import _broadcast
 
 import magnus.matter as matter
 from typing import Optional, Callable, Union
@@ -295,8 +296,9 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -320,11 +322,11 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
-    return hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34,
+    return _broadcast.over_positions(l, hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24, d24, s34,
         D21, D31, D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
-        angles=angles)
+        angles=angles))
 
 
 @_angles.renamed_keyword('d13', 'dCP')
@@ -340,8 +342,9 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
 
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -365,13 +368,15 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_4nu_vacuum', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
     return (1/energy)*hamiltonian_4nu_vacuum_energy_independent(s12, s23, s13, dCP, s14, d14, s24,
         d24, s34, D21, D31, D41, nubar=nubar,
         compute_matrix_multiplication=compute_matrix_multiplication, angles=angles)
@@ -392,10 +397,12 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
-    energy : float
+        An array returns a stack of matrices, one per position.
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     s12, s23, s13, dCP, s14, d14, s24, d24, s34 : float
         3+1 mixing angles (sines) and CP phases; see :func:`mixing_matrix_4x4`.  ``dCP`` is the phase of the
         1-3 rotation, formerly ``d13``, which is still accepted as a keyword.
@@ -419,11 +426,11 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
-    return hamiltonian_4nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31,
+    return _broadcast.over_positions(l, hamiltonian_4nu_vacuum(energy, s12, s23, s13, dCP, s14, d14, s24, d24, s34, D21, D31,
         D41, nubar=nubar, compute_matrix_multiplication=compute_matrix_multiplication,
-        angles=angles)
+        angles=angles))
 
 
 def hamiltonian_4nu_matter(VCC: float,
@@ -438,7 +445,7 @@ def hamiltonian_4nu_matter(VCC: float,
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with
         electrons.
     ratio_number_neutrons_to_protons : int or float, optional
@@ -450,7 +457,7 @@ def hamiltonian_4nu_matter(VCC: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     
     Examples
     --------
@@ -501,8 +508,9 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable,
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -517,7 +525,7 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable,
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
     if callable(ratio_number_neutrons_to_protons):
         # The projector of a position-dependent ratio is itself a function of position.
@@ -550,7 +558,7 @@ def hamiltonian_4nu_nsi(
 
     Parameters
     ----------
-    VCC : float
+    VCC : float or array_like
         Potential due to charged-current interactions of nu_e with electrons.
     eps_ee : float
         Diagonal NSI coupling of nu_e.
@@ -576,13 +584,15 @@ def hamiltonian_4nu_nsi(
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only what a plain
     # float cannot get wrong is left to check, in one comparison per coupling: a
     # complex diagonal coupling makes H non-Hermitian (issue #160 §2).
     if type(eps_ee) is not float or type(eps_mm) is not float or type(eps_tt) is not float or type(eps_ss) is not float:
         _v.check_physics_params('hamiltonians.hamiltonian_4nu_nsi', {'eps_ee': eps_ee, 'eps_mm': eps_mm, 'eps_tt': eps_tt, 'eps_ss': eps_ss})
+    if type(VCC) not in _broadcast.SCALARS and np.ndim(VCC):
+        VCC = _broadcast.stacked(VCC)
     return VCC * np.array([
         [eps_ee, eps_em, eps_et, eps_es],
         [np.conj(eps_em), eps_mm, eps_mt, eps_ms],
@@ -603,8 +613,9 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
 
     Parameters
     ----------
-    l : float
+    l : float or array_like
         Position at which the Hamiltonian is evaluated.
+        An array returns a stack of matrices, one per position.
     VCC_func : Callable
         Potential due to charged-current interactions of nu_e with electrons, as a function of
         position, l.
@@ -614,7 +625,7 @@ def hamiltonian_4nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
     return hamiltonian_4nu_nsi(VCC_func(l), eps_ee, eps_em, eps_et, eps_es, eps_mm, eps_mt, eps_ms,
         eps_tt, eps_ts, eps_ss)
@@ -637,8 +648,9 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     Parameters
     ----------
-    energy : float
+    energy : float or array_like
         Neutrino energy.
+        An array returns a stack of matrices, one per energy.
     sxi12, sxi23, sxi13, sxi14, sxi24, sxi34 : float
         Sines of the mixing angles between the space of the eigenvectors of the LIV operator B4
         and the flavor states, parametrized as in :func:`mixing_matrix_4x4`.
@@ -672,13 +684,15 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
     Returns
     -------
     np.ndarray
-        Hamiltonian 4x4 matrix.
+        Hamiltonian 4x4 matrix, or a stack of them, shape ``(..., 4, 4)``, for array input.
     """
     # Runs at every quadrature node inside a user Hamiltonian, so only the energy is
     # checked here, in one comparison (issue #160 §11); the other arguments are
     # checked by the energy-independent builder.
     if not (type(energy) is float and 0.0 < energy < _v._INF):
         _v.check_physics_params('hamiltonians.hamiltonian_4nu_liv', {'energy': energy})
+        if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
+            energy = _broadcast.stacked(energy)
 
     return pow(energy, n_liv) * hamiltonian_4nu_liv_energy_independent(sxi12, sxi23, sxi13, dxiCP,
         sxi14, dxi14, sxi24, dxi24, sxi34, b1, b2, b3, b4, Lambda, n_liv, nubar=nubar,

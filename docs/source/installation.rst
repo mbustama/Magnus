@@ -376,6 +376,7 @@ File tree
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the one true subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
    │   │   │   ├── _angles.py          # Interprets the four angles conventions; rejects an out-of-range sine
+   │   │   │   ├── _broadcast.py       # Lets every builder take an array of its one scalar argument
    │   │   │   ├── hamiltonians2nu.py
    │   │   │   ├── hamiltonians3nu.py
    │   │   │   ├── hamiltonians4nu.py
@@ -405,6 +406,7 @@ File tree
        ├── test_array_arguments.py     # Arguments other than energy and L refuse arrays, naming them (issue #116)
        ├── test_angles.py              # The four `angles` conventions and the guards between them
        ├── test_avgprob.py             # Phase-averaged probabilities
+       ├── test_builders_broadcast.py  # Every Hamiltonian builder broadcasts over its scalar argument (issue #155)
        ├── test_phase_average.py       # The phase average over an energy spread (issue #64)
        ├── test_phase_groups.py        # Batched scans split into groups of similar phase (issue #111)
        ├── test_silently_ignored_keywords.py  # Keywords that were accepted and ignored now work or raise (issues #110, #112, #114)
