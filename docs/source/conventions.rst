@@ -188,3 +188,76 @@ eV\ :sup:`-1`, so that :math:`HL` is dimensionless.
 :mod:`magnus.globaldefs` supplies the conversions — multiply by ``UNIT_KM``,
 ``UNIT_MEV``, ``UNIT_GEV``, ``UNIT_G_PER_CM3`` — and :ref:`units-table` lists
 them.
+
+.. _coming-from-other-codes:
+
+Coming from GLoBES, Prob3++ or nuSQuIDS
+----------------------------------------
+
+The physics is the same; the bookkeeping differs.  Each entry for the other codes is
+what the drivers behind :doc:`comparison` pass them (``resources/benchmarks/external_drivers``,
+in a source checkout).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 21 21 21 21
+
+   * -
+     - Magνs
+     - GLoBES
+     - Prob3++
+     - nuSQuIDS
+   * - Energy
+     - eV: multiply GeV by ``gd.UNIT_GEV``
+     - GeV
+     - GeV
+     - its own units: ``E*units.GeV``, with ``units = nuSQuIDS.Const()``
+   * - Baseline
+     - eV\ :sup:`-1`: multiply km by ``gd.UNIT_KM``
+     - km
+     - km, or a zenith cosine through the Earth
+     - its own units: ``L*units.km``
+   * - Density
+     - natural units, or g cm\ :sup:`-3` with ``density_matter_is_in_g_per_cm3=True``
+     - g cm\ :sup:`-3`
+     - g cm\ :sup:`-3`
+     - g cm\ :sup:`-3`
+   * - :math:`Y_e`
+     - ``electron_fraction``, 0.5 by default; per layer through the Earth
+     - fixed at 0.5 inside the code
+     - from the profile file on the Earth path
+     - an argument of the body, e.g. ``ConstantDensity(rho, 0.5)``
+   * - Flavor indices
+     - 0, 1, 2 = e, μ, τ; ``P[initial][final]``
+     - 1, 2, 3; ``(initial, final, …)``
+     - 1, 2, 3; ``GetProb(initial, final)``
+     - 0, 1, 2; initial state set, then ``EvalFlavor(final)``
+   * - Antineutrinos
+     - ``nubar=True``
+     - ``cp_sign = -1``
+     - a negative neutrino type
+     - ``NeutrinoType.antineutrino``
+   * - Angles
+     - sines by default; ``angles='sin2'``, ``'rad'`` or ``'deg'``
+     - radians, in the order θ12, θ13, θ23
+     - :math:`\sin^2\theta` (``kSquared=true``) or :math:`\sin^2 2\theta`, in the order
+       θ12, θ13, θ23
+     - radians, ``Set_MixingAngle(i, j, θ)``
+   * - Splittings and ordering
+     - ``D21``, ``D31``; the sign of ``D31`` is the ordering
+     - Δm²21, Δm²31
+     - Δm²21 and **Δm²32**, not Δm²31
+     - ``Set_SquareMassDifference(1, Δm²21)``, ``(2, Δm²31)``
+   * - :math:`\delta_{\rm CP}`
+     - radians (degrees under ``angles='deg'``)
+     - radians
+     - radians
+     - radians, ``Set_CPPhase(0, 2, δ)``
+
+Two differences matter at the level of the comparison itself:
+
+* **The matter potential for a given density.**  Each code converts g cm\ :sup:`-3` to an
+  electron density with its own rounding of the nucleon mass.  GLoBES's potential is 0.992093
+  times that of Magνs at the same density and :math:`Y_e`, a shift of 0.8%;
+  the comparison drivers rescale for it.
+* **Prob3++ takes Δm²32.**  Passing Δm²31 in its place changes probabilities by up to 0.26.

@@ -58,7 +58,9 @@ not yet released, clone the repository and install from it:
    pip install -e ".[test]"          # plus what the tests need
 
 The notebooks are in ``notebooks/``; opening them interactively also needs a Jupyter front
-end, such as JupyterLab.  Only contributors typically need the test suite.
+end, such as JupyterLab.  Only contributors typically need the test suite.  Wherever these
+pages cite a file under ``tests/``, ``docs/`` or ``notebooks/``, it is in such a checkout (or
+on GitHub), not in the installed package.
 
 Either way, one command confirms it worked:
 

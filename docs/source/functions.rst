@@ -266,8 +266,8 @@ cumulative traversal takes the per-point path instead. Two combinations are
 refused with an error, because no operator exists to return: ``average=True``,
 and ``strategy='hybrid'``.
 
-The phase-averaged content at a distant detector, from the operator, is then two
-lines:
+The phase-averaged content at a distant detector, from ``U`` and ``osc`` of the call
+above, is then two lines:
 
 .. code-block:: python
 

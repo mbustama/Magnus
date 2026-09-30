@@ -77,12 +77,13 @@ Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
 **Fast.**  An energy scan is one batched call rather than a loop, worth about an order
-of magnitude per probability; an oscillogram is one such call per zenith angle.  The median call over 164 Earth and solar configurations is **2 ms**;
+of magnitude per probability; an oscillogram (probability over energy and zenith angle) is one such call per zenith angle.  The median call over 164 Earth and solar configurations is **2 ms**, warm, on the laptop
+behind every timing in the paper; the first call of a session adds 0.1 to 0.3 s of set-up.
 :doc:`performance` has the rest.
 
 **Accurate.**  Internally, Magνs propagates the evolution operator with the
 **Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
-a chain of position slabs, and every truncation is exactly unitary.  Asked for it, it agrees with an
+a chain of slabs, short consecutive stretches of the path, and every truncation is exactly unitary.  Asked for it, it agrees with an
 independent integration to a few parts in :math:`10^{12}` at two to five
 flavors.  Where it cannot certify its own answer, it says so.
 
@@ -96,7 +97,7 @@ flavors.  Where it cannot certify its own answer, it says so.
 What it can compute
 --------------------
 
-* Oscillations through a **varying profile**: the Earth's PREM layers, any of
+* Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth Model (PREM), any of
   twelve tabulated standard solar models, a supernova shock front, or any density
   you supply.
 * The **phase-averaged** probability a solar or astrophysical experiment actually
@@ -112,7 +113,7 @@ What it has been used for
 Each of these is one call with a different Hamiltonian, profile or observable.
 
 * **Beam experiments** — appearance probabilities along the DUNE, T2K, Hyper-K and
-  ESS chords, from two named sites (`notebook 04
+  ESS chords (the straight paths through the Earth between source and detector), from two named sites (`notebook 04
   <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_).
 * **Atmospheric oscillograms** — probability over zenith angle and energy, one
   batched energy scan per zenith angle (`notebook 06
@@ -176,8 +177,8 @@ random smooth profiles (each within three times the tolerance), none on 150 piec
 profiles with declared edges, and none on 164 Earth, solar, vacuum and constant-density
 configurations.
 
-**And the caveat.**  ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the ladder
-stops once two successive answers agree.  Two slab counts can be wrong by the same amount and
+**And the caveat.**  ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the refinement ladder
+(:ref:`glossary`) stops once two successive answers agree.  Two slab counts can be wrong by the same amount and
 still agree, which is how a silent miss happens.  At the default ``rtol = atol = 1e-3`` a
 probability through the Earth is usually far more accurate than that: on eight chords at six
 energies, the median difference from the same call at 1e-7 is about 1e-6, and the largest
@@ -192,8 +193,8 @@ When is Magνs the right tool?
 Three advantages follow from the method, whatever the Hamiltonian contains.  Magνs is
 **robust**: the evolution operator is exactly unitary.  It is **fast** without giving up
 accuracy: its cost follows the profile, not the phase, where an ODE solver pays for every
-radian it resolves, and a scan over energy or direction is one batched call on compiled
-kernels.  And it is **flexible**: the Hamiltonian is a callable that returns a Hermitian matrix
+radian it resolves, and a scan over energy or baseline is one batched call on compiled
+kernels (an oscillogram, one such call per zenith angle).  And it is **flexible**: the Hamiltonian is a callable that returns a Hermitian matrix
 of any size, so five flavors, non-standard interactions, a Lorentz-violating background and a
 new interaction are the same call.
 
@@ -230,7 +231,7 @@ paper):
   flavor content of the neutrinos, so the problem is nonlinear.  In Magνs the Hamiltonian is
   fixed before the propagation.  Magνs could be the propagator inside a self-consistent
   iteration, but it does not ship one.
-* **A feature narrower than every grid.**  Every engine samples the Hamiltonian on a grid of
+* **A feature narrower than every grid.**  Every engine (the algorithm that answers a call; :ref:`glossary`) samples the Hamiltonian on a grid of
   positions, so a feature narrower than the finest grid is missed by all of them together.
   The matter scenario functions scan the profile for such features and warn, naming the
   breakpoints to declare; the scan catches most, not all.
@@ -254,7 +255,11 @@ Performance
 
 A single three-flavor probability through the Earth takes about 2 ms at the default
 tolerance, and across 164 Earth and solar configurations the median call takes 2 ms and the
-slowest under a second.  Four things set the cost (Sec. 7.3 of the paper):
+slowest under a second.  These are per call, on one laptop, with the first call of the session
+discarded: that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first time
+on a machine, when they compile.  The configurations are
+``docs/dev/adversarial_batteries/battery10_coverage.py`` and the timing harness is
+``timing.py`` beside it (in a source checkout).  Four things set the cost (Sec. 7.3 of the paper):
 
 * **Pass arrays.**  Every wrapper accepts arrays of energies, of baselines, or both, and then
   shares work across the points: worth about an order of magnitude at two and three flavors,
