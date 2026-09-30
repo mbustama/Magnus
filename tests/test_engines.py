@@ -279,8 +279,8 @@ def test_cross_check_leaves_no_engine_disabled_after_a_raising_call(hybrid_under
         op.osc_prob_matter_std_potential, 2, solar_ne(),
         np.linspace(5.0e6, 50.0e6, 4), L1, PARAMS_2NU,
         L0=0.0, density_is_of_number_of_electrons=True)
-    assert op._ENGINES_DISABLED == frozenset()
-    assert op._ENGINE_TRACE is None
+    assert op._ENGINES_DISABLED.get() == frozenset()
+    assert op._ENGINE_TRACE.get() is None
     info = {}
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')

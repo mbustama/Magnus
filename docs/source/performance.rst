@@ -81,6 +81,12 @@ chord at :math:`\cos\theta_z = -0.7`, 40 energies from 0.5 to 20 GeV differ by u
 the default tolerance of 1e-3.  A scan whose serial work would take under a second runs in the
 calling process even when ``n_jobs > 1``, since starting the workers costs more.
 
+**Threads.**  ``n_jobs`` uses processes.  Calls made from several threads of one process are
+safe as well: each call keeps its own per-call state, so concurrent calls return the serial
+answer bit for bit, and a ``strategy`` or ``strategy_info`` in one thread does not reach
+another (issue #153).  They do not run faster for it, since most of a call holds Python's global
+interpreter lock.
+
 **The refinement ladder works against these savings.**  It computes every slab count below the
 one that converges and discards them: on an Earth chord, about four times the cost of a call
 given the right slab count in advance (:doc:`methodology`).

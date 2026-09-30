@@ -299,6 +299,7 @@ import sys
 import time
 import warnings
 import weakref
+import contextvars
 from contextlib import contextmanager, nullcontext
 from joblib import Parallel, delayed
 from typing import Optional, Callable, Union, Tuple, Dict
@@ -5726,17 +5727,19 @@ prevent.
 """
 
 
-_ENGINE_TRACE = None
-r"""list or None: set to a list by ``_engine_probe`` while a diagnostic is watching; ``None``
-(and therefore free) on every ordinary call."""
+_ENGINE_TRACE = contextvars.ContextVar('_ENGINE_TRACE', default=None)
+r"""ContextVar holding a list or None: set to a list by ``_engine_probe`` while a diagnostic is
+watching; ``None`` (and therefore free) on every ordinary call.  A context variable, so that a
+call in one thread neither sees nor adds to another's trace (issue #153)."""
 
 
-_ENGINES_DISABLED = frozenset()
-r"""frozenset: engine labels that the dispatchers must decline, set by ``_engine_probe``.  Used
+_ENGINES_DISABLED = contextvars.ContextVar('_ENGINES_DISABLED', default=frozenset())
+r"""ContextVar holding a frozenset: engine labels that the dispatchers must decline, set by ``_engine_probe``.  Used
 only by :func:`cross_check_strategies`, to reach an engine that a faster one would otherwise
 answer for -- there is no user-facing way to ask for the general ladder specifically when the
 interaction-picture path applies, and a cross-check that silently compared the same engine with
-itself would be exactly the failure it exists to detect."""
+itself would be exactly the failure it exists to detect.  Per thread: ``strategy='magnus'`` in
+one thread disabled the other engines for every thread while it ran (issue #153)."""
 
 
 def _suggest_breakpoints(profile, scan, n_local=2048, hold=0.90, n_edges=7) -> list:
@@ -5930,8 +5933,9 @@ def _note_engine(label: str, answered: bool = True, **detail) -> None:
 
     .. versionadded:: 1.0.0
     """
-    if _ENGINE_TRACE is not None:
-        _ENGINE_TRACE.append(dict(engine=label, answered=answered, **detail))
+    trace = _ENGINE_TRACE.get()
+    if trace is not None:
+        trace.append(dict(engine=label, answered=answered, **detail))
 
 
 @contextmanager
@@ -5946,8 +5950,7 @@ def _engine_probe(disabled=(), info=None, extra=None):
 
     .. versionadded:: 1.0.0
     """
-    global _ENGINE_TRACE, _ENGINES_DISABLED
-    prev_trace, prev_disabled = _ENGINE_TRACE, _ENGINES_DISABLED
+    prev_trace, prev_disabled = _ENGINE_TRACE.get(), _ENGINES_DISABLED.get()
     # Nested probes SHARE one trace, and a nested one can only add to the disabled set.  Both
     # matter because nesting is the normal case, not an edge case: cross_check_strategies
     # watches from outside the wrapper, and the wrapper opens its own probe for strategy_info.
@@ -5957,12 +5960,13 @@ def _engine_probe(disabled=(), info=None, extra=None):
     # had switched off, which is how the cross-check reaches an engine a faster one shadows.
     trace = prev_trace if prev_trace is not None else []
     start = len(trace)
-    _ENGINE_TRACE = trace
-    _ENGINES_DISABLED = prev_disabled | frozenset(disabled)
+    trace_token = _ENGINE_TRACE.set(trace)
+    disabled_token = _ENGINES_DISABLED.set(prev_disabled | frozenset(disabled))
     try:
         yield trace
     finally:
-        _ENGINE_TRACE, _ENGINES_DISABLED = prev_trace, prev_disabled
+        _ENGINES_DISABLED.reset(disabled_token)
+        _ENGINE_TRACE.reset(trace_token)
         if info is not None:
             info.update(_summarize_engine_trace(trace[start:]))
             if extra is not None:
@@ -6757,7 +6761,7 @@ def _osc_prob_scan_separable_dispatch(
     if vcc_is_constant and callable(h_matt):
         return NotImplemented
     engine = 'constant' if vcc_is_constant else 'separable'
-    if engine in _ENGINES_DISABLED:
+    if engine in _ENGINES_DISABLED.get():
         return NotImplemented
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
@@ -7244,7 +7248,7 @@ def _osc_prob_ip_exp_dispatch(
         The oscillation probability (or single channel), computed via the fast method; or the
         ``NotImplemented`` singleton if the request does not fit it or it failed to converge.
     """
-    if ('ip_exp' in _ENGINES_DISABLED) or (scan_kwargs.get('cumulative') is True):
+    if ('ip_exp' in _ENGINES_DISABLED.get()) or (scan_kwargs.get('cumulative') is True):
         return NotImplemented
     kwargs = dict(scan_kwargs.get('kwargs', {}))
     t_breakpoints = kwargs.pop('t_breakpoints', None)
@@ -7763,7 +7767,7 @@ def _osc_prob_hybrid_dispatch(
         only with ``strategy == 'auto'``, a :class:`_PreferLadder` asking the caller to answer on
         the slab ladder instead.
     """
-    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
+    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED.get()):
         return NotImplemented
     if scan_kwargs.get('cumulative') is True:
         # An explicit cumulative=True is a request for one engine in particular, documented to
@@ -7874,7 +7878,7 @@ def _osc_prob_hybrid_dispatch(
     batched_scan = ((np.unique(energy_arr).size > 1) and (np.unique(L_arr).size == 1)
                     and (scan_kwargs.get('n_jobs', 1) == 1)
                     and (scan_kwargs.get('verbose', 0) < 1)
-                    and ('separable' not in _ENGINES_DISABLED))
+                    and ('separable' not in _ENGINES_DISABLED.get()))
     prefer = (_auto_prefers_ladder(H_at_energy, energy_arr, L_arr, L0, rtol, atol,
                   _resolve_max_n_slabs(scan_kwargs.get('max_n_slabs'), integration_method),
                   batched_scan=batched_scan, magnus_exp_order=magnus_exp_order,
@@ -8107,7 +8111,7 @@ def _osc_prob_hybrid_dispatch_generic(
         only with ``strategy == 'auto'``, a :class:`_PreferLadder` asking the caller to answer on
         the slab ladder instead.
     """
-    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED):
+    if (strategy == 'magnus') or ('hybrid' in _ENGINES_DISABLED.get()):
         return NotImplemented
 
     if (t_breakpoints is not None) and (len(np.atleast_1d(t_breakpoints)) > 0):

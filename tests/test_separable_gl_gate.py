@@ -65,7 +65,7 @@ def test_row_slab_norms_are_the_per_row_maximum_and_leave_the_warning_unchanged(
     with mg._deferred_slab_norm() as seen1:
         with mg._row_slab_norms() as rows:
             U1 = mg._expm_stack(Om, warn_wide=True)
-    assert mg._ROW_NORM_SINK is None
+    assert mg._ROW_NORM_SINK.get() is None
     assert np.array_equal(U0, U1)
     assert seen0 == seen1                     # MagnusConvergenceWarning sees the same value
     assert len(rows) == 1 and rows[0].shape == (6,)
@@ -85,4 +85,4 @@ def test_row_slab_norms_are_the_per_row_maximum_and_leave_the_warning_unchanged(
     with pytest.raises(RuntimeError):
         with mg._row_slab_norms():
             raise RuntimeError
-    assert mg._ROW_NORM_SINK is None
+    assert mg._ROW_NORM_SINK.get() is None
