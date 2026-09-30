@@ -2118,6 +2118,35 @@ def _exp_profile(rho_central, l_scale, source_func_name: str):
     return matter.exp_density_profile(rho_central, l_scale)
 
 
+#: The arguments whose combinations _entry_combinations checks; only these are collected.
+_COMBINATION_KEYS = frozenset(('magnus_exp_order', 'integration_method', 'cumulative',
+                               'save_log', 'n_tpts_per_slab', 'min_n_tpts_per_slab',
+                               'max_n_tpts_per_slab', 'growth_factor_n_tpts_per_slab'))
+
+
+def _entry_combinations(source_func_name: str, where: str, merged: dict, given: list) -> None:
+    r"""The checks of :func:`_validate_entry` that involve an argument the caller set.
+
+    .. versionadded:: 1.2.0
+    """
+    if 'magnus_exp_order' in given or 'integration_method' in given:
+        _v.check_gl_order(merged.get('magnus_exp_order', 4),
+                          merged.get('integration_method', 'gl'), where)
+    # The phase average answers in closed form or by its own sampling, never by a baseline scan,
+    # so a cumulative=True beside it was accepted and ignored (issue #160 §5).
+    if 'cumulative' in given and merged.get('average') is True \
+            and merged.get('cumulative') is True:
+        raise ValueError(_v._msg(where, "cumulative=True asks for a baseline scan by one "
+                                 "traversal, and average=True returns the phase average, which "
+                                 "takes no such scan: pass one or the other."))
+    if 'save_log' in given and merged.get('save_log') is True \
+            and merged.get('file_log') is None:
+        _check_log_path(merged.get('filename_log', './out.log'), where)
+    tpts = [k for k in _TPTS_SETTINGS if k in given]
+    if tpts and merged.get('integration_method', 'gl') == 'gl':
+        _warn_ignored_quadrature_settings(source_func_name, tpts)
+
+
 def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     r"""Apply :data:`_ENTRY_RULES` to the arguments in ``values`` (a scenario function's locals).
 
@@ -2132,38 +2161,30 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     # most arguments of most calls are; skipping them by identity keeps this pass to about a
     # microsecond on a single-point call.
     defaults = _entry_defaults(func) if func is not None else {}
+    # The arguments the caller actually set, collected on the way: the combination checks
+    # below look only at these, so a call that sets none of them pays nothing for them.
+    given = []
     for key, x in values.items():
         if x is defaults.get(key, _NO_DEFAULT) or (x is None and key not in _NONE_REFUSED):
             continue
+        if key in _COMBINATION_KEYS:
+            given.append(key)
         rule = rules.get(key)
         if rule is not None:
             rule(key, x, where)
     kw = values.get('kwargs')
     if kw:
         for key, x in kw.items():
+            if key in _COMBINATION_KEYS and (x is not None or key in _NONE_REFUSED):
+                given.append(key)
             rule = rules.get(key)
             if rule is not None and (x is not None or key in _NONE_REFUSED):
                 rule(key, x, where)
         merged = dict(values, **kw)
     else:
         merged = values
-    if merged.get('magnus_exp_order') is not None:
-        _v.check_gl_order(merged['magnus_exp_order'], merged.get('integration_method', 'gl'),
-                          where)
-    # The phase average answers in closed form or by its own sampling, never by a baseline scan,
-    # so a cumulative=True beside it was accepted and ignored (issue #160 §5).
-    if merged.get('average') is True and merged.get('cumulative') is True:
-        raise ValueError(_v._msg(where, "cumulative=True asks for a baseline scan by one "
-                                 "traversal, and average=True returns the phase average, which "
-                                 "takes no such scan: pass one or the other."))
-    if merged.get('save_log') is True and merged.get('file_log') is None:
-        _check_log_path(merged.get('filename_log', './out.log'), where)
-    if merged.get('integration_method', 'gl') == 'gl':
-        _given = [k for k in _TPTS_SETTINGS
-                  if k in merged and merged[k] is not None
-                  and merged[k] is not defaults.get(k, _NO_DEFAULT)]
-        if _given:
-            _warn_ignored_quadrature_settings(source_func_name, _given)
+    if given:
+        _entry_combinations(source_func_name, where, merged, given)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
@@ -4393,19 +4414,23 @@ def osc_prob(
             growth_factor_n_tpts_per_slab=growth_factor_n_tpts_per_slab,
             max_num_loops=max_num_loops, min_n_slabs=min_n_slabs, max_n_slabs=max_n_slabs,
             min_n_tpts_per_slab=min_n_tpts_per_slab, max_n_tpts_per_slab=max_n_tpts_per_slab,
-            new_recursion_limit=new_recursion_limit, verbose=verbose))
+            verbose=verbose))
         # A caller's points-per-slab setting under 'gl' is overridden below; said once, at
         # the entry point the caller used, so an internal call does not repeat it.
-        if integration_method == 'gl' and not _v._called_from_inside(2):
-            _d = _entry_defaults(osc_prob)
-            _given = [k for k, x in (('n_tpts_per_slab', n_tpts_per_slab),
-                                     ('min_n_tpts_per_slab', min_n_tpts_per_slab),
-                                     ('max_n_tpts_per_slab', max_n_tpts_per_slab),
-                                     ('growth_factor_n_tpts_per_slab',
-                                      growth_factor_n_tpts_per_slab))
-                      if x is not None and x is not _d[k]]
-            if _given:
-                _warn_ignored_quadrature_settings('osc_prob', _given)
+        if integration_method == 'gl':
+            _tp = (n_tpts_per_slab, min_n_tpts_per_slab, max_n_tpts_per_slab,
+                   growth_factor_n_tpts_per_slab)
+            _d = _OSC_PROB_TPTS_DEFAULTS
+            if (_tp[0] is not _d[0] or _tp[1] is not _d[1] or _tp[2] is not _d[2]
+                    or _tp[3] is not _d[3]) and not _v._called_from_inside(2):
+                _given = [k for k, x, d in zip(_TPTS_SETTINGS, _tp, _d)
+                          if x is not None and x is not d]
+                if _given:
+                    _warn_ignored_quadrature_settings('osc_prob', _given)
+        # Checked here rather than by the rule table, which costs a call on every point.
+        if new_recursion_limit is not None and not (type(new_recursion_limit) is int
+                                                    and new_recursion_limit >= 1):
+            _v.check_int('new_recursion_limit', new_recursion_limit, "oscprob.osc_prob", lo=1)
 
         # A gap, an overlap, a zero-width slab or a grid stopping short of t_fin used to be
         # integrated as given, off by up to 9.4e-2; NaN edges returned NaN (issue #160 §6).
@@ -4977,6 +5002,11 @@ that was right before stays exactly what it was.
 
 .. versionadded:: 1.1.1
 """
+
+
+# osc_prob's own defaults for the points-per-slab settings, compared by identity on every call.
+_OSC_PROB_TPTS_DEFAULTS = tuple(signature(osc_prob).parameters[_k].default
+                                for _k in _TPTS_SETTINGS)
 
 
 def _avg_prob_dispatch(
@@ -7296,8 +7326,13 @@ def _array_capable_rho(rho_func, L0, L, where: str):
 
     .. versionadded:: 1.2.0
     """
+    # Only a caller's own rho_func needs this: the wrappers pass profiles the package built,
+    # which take arrays, and probing them cost ~10% of a single Earth point.  A density reaches
+    # a scenario function from the caller only when the caller called it directly.
+    if not callable(rho_func) or _v._called_from_inside(3):
+        return rho_func
     Lr = _minmax_1d(L)
-    if not callable(rho_func) or Lr is None or not _v.is_real_scalar(L0):
+    if Lr is None or not _v.is_real_scalar(L0):
         return rho_func
     pts = np.array([float(L0), 0.5*(float(L0) + Lr[1]), Lr[1]])
     try:
@@ -8485,7 +8520,8 @@ def osc_prob_energy_baseline(
     # L=True was a baseline of 1 eV^-1.
     # Skipped when a scenario function is the caller: it has run the same checks already.
     _direct = sys._getframe(1).f_code.co_name not in _SCENARIO_FUNCTION_NAMES
-    if _direct and _validation_requested(validate_input, 'osc_prob_energy_baseline'):
+    if _direct and (validate_input is True
+                    or _validation_requested(validate_input, 'osc_prob_energy_baseline')):
         _where = "oscprob.osc_prob_energy_baseline"
         _validate_entry('osc_prob_energy_baseline', locals(), osc_prob_energy_baseline)
         _v.check_real_array('energy', energy, _where, positive=True)
@@ -9540,7 +9576,7 @@ def osc_prob_vacuum(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_vacuum')
-    if _validation_requested(validate_input, _where):
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_vacuum)
     _refuse_start_keyword(_where, kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum(_where, kwargs)
@@ -10017,7 +10053,7 @@ def osc_prob_matter_std_potential(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_std_potential')
-    if _validation_requested(validate_input, _where):
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_std_potential)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10085,7 +10121,7 @@ def osc_prob_matter_std_potential(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
-    if validate_input:
+    if validate_input and callable(rho_func):
         rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
@@ -10587,7 +10623,7 @@ def osc_prob_matter_nsi(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_matter_nsi')
-    if _validation_requested(validate_input, _where):
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_matter_nsi)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -10708,7 +10744,7 @@ def osc_prob_matter_nsi(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
-    if validate_input:
+    if validate_input and callable(rho_func):
         rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
@@ -11151,7 +11187,7 @@ def osc_prob_liv(
     # below sits behind, so that whether an argument is refused does not depend on which
     # engine would have answered (issue #160).
     _where = _caller_name('osc_prob_liv')
-    if _validation_requested(validate_input, _where):
+    if validate_input is True or _validation_requested(validate_input, _where):
         _validate_entry(_where, locals(), osc_prob_liv)
     energy, L = _as_float(energy), _as_float(L)
     L0 = _as_float(L0)
@@ -11257,7 +11293,7 @@ def osc_prob_liv(
         # Build the coherent forward potential function, VCC_func, from the density function,
         # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert
         # rho_func to a function that returns the electron number density [eV^3].
-        if validate_input:
+        if validate_input and callable(rho_func):
             rho_func = _array_capable_rho(rho_func, L0, L, _where)
         VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
             electron_fraction, nubar, density_matter_is_in_g_per_cm3,

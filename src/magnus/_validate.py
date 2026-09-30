@@ -454,6 +454,8 @@ def check_gl_order(order, integration_method, where: str) -> None:
     next even order and returned its result bit for bit, so ``magnus_exp_order=3`` was order 4
     under another name.  Refused, naming the order that was being computed.
     """
+    if type(order) is int and not order & 1:
+        return
     if integration_method in (None, 'gl') and isinstance(order, (int, np.integer)) and \
             not isinstance(order, bool) and order % 2 == 1:
         raise ValueError(_msg(where, "magnus_exp_order=" + str(order) + " is odd, and the "
