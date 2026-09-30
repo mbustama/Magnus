@@ -70,3 +70,49 @@ def test_angle_warning_is_quiet_for_real_degrees():
         op.osc_prob_4nu_vacuum(E, L, s12=33.7, s23=43.3, s13=8.6, dCP=212.0, s14=0.5, s24=0.5,
                                s34=0.5, d14=0.0, d24=0.0, D21=7.5e-5, D31=2.5e-3, D41=1.0,
                                angles='deg')
+
+
+# §11 per-node matter helpers --------------------------------------------------------------
+
+@pytest.mark.parametrize('layer', ['core', 'mantle', 'crust', 'ocean'])
+@pytest.mark.parametrize('value', [-0.1, 1.5, np.nan, np.inf, True])
+def test_electron_fraction_func_prem_checks_its_fractions(layer, value):
+    import magnus.earth as earth
+    name = 'electron_fraction_' + layer
+    with pytest.raises(ValueError, match=name):
+        earth.electron_fraction_func_prem(1000.0, **{name: value})
+
+
+@pytest.mark.parametrize('value', [0.0, -0.1, 1.5, np.nan, np.inf, True])
+def test_neutron_to_proton_ratio_checks_the_electron_fraction(value):
+    import magnus.earth as earth
+    with pytest.raises(ValueError, match='electron_fraction'):
+        earth.neutron_to_proton_ratio_from_electron_fraction(value)
+
+
+def test_matter_helpers_still_take_arrays():
+    import magnus.earth as earth
+    import magnus.matter as matter
+    ye = np.array([0.4656, 0.4957])
+    assert np.allclose(earth.neutron_to_proton_ratio_from_electron_fraction(ye), (1 - ye)/ye)
+    n = matter.num_density_e_func(np.array([0.0, 1.0]), lambda l: 3.0 + 0*np.asarray(l),
+                                  ratio_number_neutrons_to_protons=(1 - ye)/ye,
+                                  electron_fraction=ye, density_matter_is_in_g_per_cm3=True)
+    assert np.all(np.isfinite(n))
+    with pytest.raises(ValueError, match='electron_fraction'):
+        earth.neutron_to_proton_ratio_from_electron_fraction(np.array([0.5, 1.5]))
+
+
+@pytest.mark.parametrize('value', [1.5, -0.1, np.nan, np.inf, 1j, True])
+def test_num_density_e_func_checks_the_electron_fraction(value):
+    import magnus.matter as matter
+    with pytest.raises(ValueError, match='electron_fraction'):
+        matter.num_density_e_func(0.0, lambda l: 3.0, electron_fraction=value)
+
+
+def test_num_density_e_func_checks_ratio_and_density_function():
+    import magnus.matter as matter
+    with pytest.raises(ValueError, match='ratio_number_neutrons_to_protons'):
+        matter.num_density_e_func(0.0, lambda l: 3.0, ratio_number_neutrons_to_protons=-1.0)
+    with pytest.raises(ValueError, match='density_matter_func'):
+        matter.num_density_e_func(0.0, 3)

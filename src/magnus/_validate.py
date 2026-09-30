@@ -27,6 +27,7 @@ Routine listings
     * check_bool - True or False only
     * check_choice - One of a set of values, compared by type as well
     * check_real_array - A real scalar or 1-D array, every entry finite
+    * check_unit_fraction - A fraction in (0, 1], or an array of them
     * check_dict - None or a dict
     * check_slab_edges - A gap-free partition of the path into [start, end] pairs
     * check_hamiltonian_sample - A finite, square, Hermitian matrix (or stack)
@@ -191,6 +192,28 @@ def check_choice(name: str, x, where: str, choices, *, allow_none: bool = False)
             return x
     raise ValueError(_msg(where, name + " must be one of " +
                           ", ".join(repr(c) for c in choices) + "; got " + _show(x) + "."))
+
+
+def check_unit_fraction(name: str, x, where: str, *, allow_zero: bool = False):
+    r"""A fraction in (0, 1] ([0, 1] with ``allow_zero``): a number or an array of them.
+
+    For the helpers that run at every quadrature node (issue #160 §11): a plain float in range
+    passes in one comparison; anything else, arrays included, gets the full check.  Returns
+    ``x`` unchanged.
+    """
+    if type(x) is float and (0.0 <= x if allow_zero else 0.0 < x) and x <= 1.0:
+        return x
+    what = "in [0, 1]" if allow_zero else "in (0, 1]"
+    if np.ndim(x) == 0:
+        check_real(name, x, where, lo=0.0, lo_open=not allow_zero, hi=1.0, what=what)
+        return x
+    a = np.asarray(check_real_array(name, x, where, ndim=np.ndim(x)), dtype=float)
+    bad = ~((a >= 0.0 if allow_zero else a > 0.0) & (a <= 1.0))
+    if bad.any():
+        i = int(np.argmax(bad.ravel()))
+        raise ValueError(_msg(where, name + " must be " + what + "; entry " + str(i) + " is "
+                              + repr(float(a.ravel()[i])) + "."))
+    return x
 
 
 def check_real_array(name: str, x, where: str, *, positive: bool = False,

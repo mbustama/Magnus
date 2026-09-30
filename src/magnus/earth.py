@@ -988,6 +988,16 @@ def electron_fraction_func_prem(
     np.ndarray
         :math:`Y_e` at each radius, with the shape of ``r``.
     """
+    # Runs at every quadrature node, so a plain float in range costs one comparison each
+    # (issue #160 §11); anything else is checked in full for a caller from outside the package
+    # (inside it, the wrapper has already checked the value).
+    for _name, _value in (('electron_fraction_core', electron_fraction_core),
+                          ('electron_fraction_mantle', electron_fraction_mantle),
+                          ('electron_fraction_crust', electron_fraction_crust),
+                          ('electron_fraction_ocean', electron_fraction_ocean)):
+        if (_value is not None and not (type(_value) is float and 0.0 < _value <= 1.0)
+                and not _v._called_from_inside(2)):
+            _v.check_unit_fraction(_name, _value, 'earth.electron_fraction_func_prem')
     core = Y_E_CORE_PREM if electron_fraction_core is None else float(electron_fraction_core)
     mantle = (Y_E_MANTLE_PREM if electron_fraction_mantle is None
               else float(electron_fraction_mantle))
@@ -1037,6 +1047,12 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     np.ndarray
         :math:`r = n_n/n_p`, with the shape of the input.
     """
+    # Inside the package this runs per node on values the wrapper has already checked, so only
+    # a caller from outside pays for the full check (a float in range costs one comparison).
+    if (not (type(electron_fraction) is float and 0.0 < electron_fraction <= 1.0)
+            and not _v._called_from_inside(2)):
+        _v.check_unit_fraction('electron_fraction', electron_fraction,
+                               'earth.neutron_to_proton_ratio_from_electron_fraction')
     ye = np.asarray(electron_fraction, dtype=float)
     return (1.0 - ye)/ye
 

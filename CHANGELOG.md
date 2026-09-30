@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The per-node matter helpers check their fractions** (issue #160 §11).
+  `earth.electron_fraction_func_prem`, `earth.neutron_to_proton_ratio_from_electron_fraction` and
+  `matter.num_density_e_func` accepted negative, NaN, infinite and `True` electron fractions (or
+  a negative neutron/proton ratio, or a density that is not a function), and computed with them.
+  A plain float in range costs one comparison; anything else is checked in full when the call
+  comes from outside the package, where the wrappers have not already checked it.  Earth calls
+  time as before.
 - **`MagnusConvergenceWarning` measures the traceless part of Ω** (issue #155 §1).  The trace is
   a global phase: it commutes with every term of the Magnus series and has no bearing on its
   convergence, but it was counted, so a custom Hamiltonian's first coarse slab was flagged
