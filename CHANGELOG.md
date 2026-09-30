@@ -47,6 +47,20 @@ and the project uses [Semantic Versioning](https://semver.org/).
   The issue's first proposal, treating an agreement to rounding as unproven, was measured and not
   adopted: it caught 19 of the 41 wrong answers and fired on 6 of 27 right ones.
 
+- **`average=True` on the 5-flavor Sun at its default sterile parameters returns** (issue #148).
+  There the two sterile states are decoupled and degenerate along the whole path; the adiabatic
+  averaging route read the pair as a crossing spanning the Sun, laid 338 193 energy nodes across
+  it, and never returned (killed after 90 s; a 40-energy scan ran past 5 minutes).  A flavor that
+  nothing couples to is an eigenstate at every position and never oscillates, so when one is
+  degenerate with another level along the whole path it is now averaged out: probability 1 of
+  staying itself, 0 to or from anything else, and the rest averaged as before.  The 5-flavor Sun
+  at its defaults, with or without NSI, on the default profile or BP04, now returns in about
+  0.01 s the 3-flavor value to 2e-15.  Calls without such a pair are unchanged, bit for bit --
+  the 4-flavor Sun at its defaults included, whose sterile state crosses an active level at a
+  point, which the windows handle (#59).  As a backstop, the grid route of the phase average now
+  stops at `avgprob.PHASE_AVERAGE_MAX_GRID_NODES` = 20 000 nodes, 250 times the most any test
+  takes, and the call returns the decohered limit with `PhaseAveragingWarning`.
+
 - **Calls from several threads no longer interfere** (issue #153).  Four pieces of per-call
   state were module globals: the two slab-norm collectors of `magnus.magnus` and the engine
   trace and disabled set of `magnus.oscprob`.  Concurrent batched Earth energy scans overwrote
