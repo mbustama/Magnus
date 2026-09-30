@@ -309,10 +309,40 @@ def test_sample_count_without_average_is_refused():
              average_n_samples=11, **OSC)
 
 
-def test_spread_and_initial_state_stay_ignored_without_average():
-    plain = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **OSC)
-    for kw in (dict(average_spread=0.1), dict(average_initial_state='decohered')):
-        assert np.array_equal(op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **kw, **OSC), plain)
+_WITHOUT_AVERAGE = [
+    ('vacuum', lambda **kw: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **kw, **OSC)),
+    ('constant', lambda **kw: op.osc_prob_3nu_matter_constant_density(1.0e9, 1000.*KM, 3.0,
+                                                                      **kw, **OSC)),
+    ('earth', lambda **kw: op.osc_prob_3nu_earth(1.0e9, costhz=-0.5, L=5000.*KM, **kw, **OSC)),
+    ('sun', lambda **kw: op.osc_prob_3nu_sun(1.0e7, 1.0e5*KM, 0.0, **kw, **OSC)),
+    ('energy_baseline', lambda **kw: op.osc_prob_energy_baseline(
+        lambda e: np.diag([0.0, 7.4e-5, 2.5e-3])/(2.0*e), 1.0e9, 1000.*KM,
+        H_func_is_function_only_of_energy=True, **kw)),
+]
+
+
+@pytest.mark.parametrize('kw', [dict(average_spread=0.1), dict(average_initial_state='decohered')],
+                         ids=['average_spread', 'average_initial_state'])
+@pytest.mark.parametrize('call', [c for _, c in _WITHOUT_AVERAGE], ids=[n for n, _ in _WITHOUT_AVERAGE])
+def test_spread_and_initial_state_are_refused_without_average(call, kw):
+    """#160, by the author's decision: without average=True these did nothing, silently."""
+    name = next(iter(kw))
+    msg = _refused(name, call, **kw)
+    assert 'average=True' in msg
+
+
+@pytest.mark.parametrize('call', [c for _, c in _WITHOUT_AVERAGE], ids=[n for n, _ in _WITHOUT_AVERAGE])
+def test_average_keywords_at_their_defaults_pass_without_average(call):
+    """None is the default of all three, and a call that leaves them there is unchanged."""
+    assert np.array_equal(np.asarray(call()), np.asarray(call(average_spread=None,
+                                                               average_initial_state=None,
+                                                               average_n_samples=None)))
+
+
+def test_spread_is_still_taken_with_average():
+    a = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, average=True, average_spread=0.3, **OSC)
+    b = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, average=True, average_spread=0.01, **OSC)
+    assert not np.array_equal(np.asarray(a), np.asarray(b))
 
 
 def test_vacuum_refuses_breakpoints():
@@ -736,3 +766,11 @@ def test_matrix_hamiltonian_average_says_no_spread_can_decohere():
     msgs = [str(w.message) for w in caught if type(w.message).__name__ == 'PhaseAveragingWarning']
     assert any('does not depend on energy' in m and 'no energy spread can decohere' in m
                and 'average=False' in m for m in msgs), msgs
+
+
+def test_sample_count_without_average_is_refused_on_the_direct_route():
+    """#160 §1 was fixed in the wrappers only: osc_prob_energy_baseline reaches the averaging
+    dispatch only with average=True, so it went on ignoring average_n_samples without it."""
+    _refused('average_n_samples', op.osc_prob_energy_baseline,
+             lambda e: np.diag([0.0, 7.4e-5, 2.5e-3])/(2.0*e), 1.0e9, 1000.*KM,
+             H_func_is_function_only_of_energy=True, average_n_samples=11)

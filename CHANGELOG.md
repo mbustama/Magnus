@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`average_spread` and `average_initial_state` are refused without `average=True`** (issue
+  #160).  They shape the phase average and did nothing without it; they were documented as
+  ignored and are now refused by name, like `average_n_samples`.  `osc_prob_energy_baseline`
+  went on ignoring `average_n_samples` without `average` too, since its direct route reaches
+  the averaging code only with `average=True`; it refuses all three now.  Left at their default,
+  None, they pass as before.
 - **Nothing calls numba optional any more** (issue #164 §2).  numba and matplotlib have been
   base dependencies since the `fast` and `plot` extras were emptied, but `HAVE_NUMBA`'s docstring
   still called numba "an optional dependency (`pip install magnuspy[fast]`)", and the error for
