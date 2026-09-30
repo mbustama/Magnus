@@ -693,3 +693,32 @@ def test_fixed_text_warnings_keep_once_per_session():
     import magnus.magnus as mm
     msgs = _messages(lambda: mm._warn_scalar_hamiltonian(), 'ScalarHamiltonianWarning')
     assert msgs and all('once per session' in m for m in msgs)
+
+
+# #144 §2: one warning per class on the window route ------------------------------------------------
+
+def _window_average():
+    RS_ = gd.SUN_RADIUS*KM
+    return op.osc_prob_3nu_sun(10*gd.UNIT_MEV, RS_, 0.0, nu_i=gd.NUE, nu_f=gd.NUE, average=True,
+                               t_breakpoints=[0.5*RS_], **OSC)
+
+
+def test_window_route_raises_one_warning_per_class():
+    from collections import Counter
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        P = _window_average()
+    counts = Counter(type(w.message).__name__ for w in caught)
+    assert counts and max(counts.values()) == 1, counts
+    assert round(float(P), 4) == 0.3127
+    tol = [str(w.message) for w in caught
+           if type(w.message).__name__ == 'ToleranceNotAchievedWarning']
+    assert tol and 'propagations across the energy window' in tol[0]
+
+
+def test_window_route_still_honours_an_error_filter():
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        warnings.simplefilter('error', op.ToleranceNotAchievedWarning)
+        with pytest.raises(op.ToleranceNotAchievedWarning):
+            _window_average()

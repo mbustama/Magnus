@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The energy-window average raises one warning per class, not one per sample** (issue #144
+  §2).  On a profile with declared discontinuities, `average=True` propagates once per energy
+  sample, and each propagation warned: 41 `MagnusConvergenceWarning` and 41
+  `ToleranceNotAchievedWarning` records for one call.  They are collected and raised once per
+  class, saying how many of the propagations raised it; filters set by the caller still apply.
 - **"Shown once per session" is said only where it is true** (issue #144 §1).  Python's default
   filter shows each distinct message once per call site, so a warning whose text reports a count,
   a window, an error or a slab number shows again for each new value.  The phrase is gone from the

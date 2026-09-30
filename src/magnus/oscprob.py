@@ -5219,16 +5219,29 @@ def _avg_prob_dispatch(
         eng = dict(engine_kwargs)
         extra = eng.pop('kwargs', None) or {}
         worst_sem = 0.0
-        for i in range(n_pts):
-            L_i = float(L_arr[i])
+        # Every sample is a full propagation, and each warned on its own: 41 samples gave 41
+        # MagnusConvergenceWarning and 41 ToleranceNotAchievedWarning to anything recording
+        # warnings (issue #144 §2).  Collected here and raised once per class below, with how
+        # many samples raised it; the caller's filters apply to that one, as they would have.
+        with warnings.catch_warnings(record=True) as _caught:
+            warnings.simplefilter('always')
+            for i in range(n_pts):
+                L_i = float(L_arr[i])
 
-            def prob_of_energy(enu, L_i=L_i):
-                return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
-                    htot_is_function_only_of_energy, **eng, **extra)
+                def prob_of_energy(enu, L_i=L_i):
+                    return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
+                        htot_is_function_only_of_energy, **eng, **extra)
 
-            P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
-                float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
-            worst_sem = max(worst_sem, sem)
+                P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
+                    float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
+                worst_sem = max(worst_sem, sem)
+        _by_class = {}
+        for _w in _caught:
+            _by_class.setdefault(_w.category, []).append(_w)
+        for _category, _ws in _by_class.items():
+            warnings.warn(str(_ws[0].message) + "  (Raised by " + str(len(_ws)) + " of the " +
+                str(n_pts*n_samples) + " propagations across the energy window of the average; "
+                "shown once here for all of them.)", _category, stacklevel=3)
 
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "on a profile with discontinuities has no closed form, so the probability was "
