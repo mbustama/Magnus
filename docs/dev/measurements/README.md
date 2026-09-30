@@ -20,6 +20,7 @@ measurement (runner, case list, DOP853 references).
 | `issue122_clamp_refusal/` | The clamp table in `MIN_EFFECTIVE_REFINEMENT`'s docstring and the #122 entry of `CHANGELOG.md` (PR #123) |
 | `issue160_audit/` | The #160 checklist run case by case; the reproducer table and "Closes" line of the bundled #155/#160 pull request |
 | `issue161_rtol_gap/` | The measured true-error-to-tolerance ratios on smooth PREM chords in `diagnostics.rst` ("What `rtol` and `atol` actually control") |
+| `issue165_pseudo_dirac_resolution/` | The accuracy of `average=True` on a pseudo-Dirac pair, generic route against `osc_prob_pseudo_dirac_vacuum`, in their docstrings, `CHANGELOG.md` and `averaged_probability.rst` |
 | `listing1_timing/` | The paper's timing sentence for Listing 1 |
 
 The plan these came from is `docs/dev/HANDOVER_AUTO_TIGHT.md`.  Not kept, and archived outside

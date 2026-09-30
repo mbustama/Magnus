@@ -25,7 +25,12 @@ which the naive sum over eigenstates is wrong.  See
 pair is handled by the block form and a fully decohered pair by the ordinary
 sum; the regime in between is the phase average of :mod:`magnus.avgprob`,
 which ``average=True`` returns since 1.1.1.  These routines build the
-Hamiltonian; the existing engines propagate it.
+Hamiltonian; the existing engines propagate it.  For the phase average in
+vacuum, :func:`magnus.oscprob.osc_prob_pseudo_dirac_vacuum` takes the pairs
+directly and forms each pair phase from its splitting.  The generic engines
+take it from an eigendecomposition, and lose accuracy as
+:math:`\delta m^2/\max m^2` falls: off by :math:`7\times10^{-5}` at
+:math:`10^{-12}` and by 0.25 at :math:`4\times10^{-16}` (issue #165).
 
 Routine listings
 ----------------

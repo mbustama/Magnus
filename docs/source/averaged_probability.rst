@@ -189,6 +189,24 @@ Hamiltonians, with the pairing selectable per mass state; notebook 29 walks
 the splitting up through the three regimes below with
 :func:`magnus.avgprob.coherence_report`.
 
+.. _avg-pseudo-dirac:
+
+For them, use :func:`magnus.oscprob.osc_prob_pseudo_dirac_vacuum` with
+``average=True`` rather than passing the Hamiltonian to
+:func:`~magnus.oscprob.osc_prob_energy_baseline` (issue #165).  The generic
+route takes each pair's phase from the difference of two eigenvalues, which an
+eigendecomposition resolves only to about :math:`10^{-16}` of the largest, so a
+splitting far below the standard ones is partly lost.  Against a 50-digit
+reference, over pair phases of 0.5 to 30 rad, it is off by :math:`2\times10^{-7}` at
+:math:`\delta m^2/\max m^2 = 10^{-10}`, :math:`7\times10^{-5}` at :math:`10^{-12}`,
+:math:`6\times10^{-3}` at :math:`10^{-14}` and 0.25 at :math:`4\times10^{-16}`.  The
+pseudo-Dirac function builds the eigensystem from the pairing instead
+(:func:`magnus.avgprob.phase_averaged_probabilities_pseudo_dirac`): the phase
+between the two members of a pair is :math:`\delta m^2_j L/2E`, exactly, and its
+slope in :math:`\ln E` is :math:`-\phi`.  It is within :math:`1.1\times10^{-16}` of
+the reference at every one of those ratios.  The measurement is in
+``docs/dev/measurements/issue165_pseudo_dirac_resolution/``.
+
 The same per-pair phase decides whether the limit applies at all.  A pair
 is in one of three regimes:
 

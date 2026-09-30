@@ -31,6 +31,10 @@ Neutrino oscillations in **vacuum**:
 - :func:`osc_prob_5nu_vacuum`: Two 
   additional flavors (i.e., 3+2 sterile neutrino model).
 
+- :func:`osc_prob_pseudo_dirac_vacuum`: Three flavors with pseudo-Dirac
+  partners on any of the mass states; its ``average=True`` is exact at any
+  splitting.
+
 Neutrino oscillations in **constant-density matter**:
 
 - :func:`osc_prob_2nu_matter_constant_density`: Two-neutrino oscillation
@@ -9766,6 +9770,270 @@ def osc_prob_vacuum(
             htot_is_function_only_of_energy, n_jobs=n_jobs, validate_input=validate_input,
             verbose=verbose, save_log=save_log, filename_log=filename_log, file_log=file_log,
             close_file_log_upon_exit=close_file_log_upon_exit, **kwargs)
+
+
+def osc_prob_pseudo_dirac_vacuum(
+    energy: Union[int, float, list, np.ndarray],
+    L: Union[int, float, list, np.ndarray],
+    pairs: Optional[Dict[int, float]],
+    s12: Optional[Union[int, float]]=None,
+    s23: Optional[Union[int, float]]=None,
+    s13: Optional[Union[int, float]]=None,
+    dCP: Optional[Union[int, float]]=None,
+    D21: Optional[Union[int, float]]=None,
+    D31: Optional[Union[int, float]]=None,
+    mixing_matrix: Optional[Union[list, np.ndarray]]=None,
+    mass_squared: Optional[Union[list, np.ndarray]]=None,
+    average: Optional[bool]=False,
+    average_spread: Optional[float]=None,
+    average_n_samples: Optional[int]=None,
+    average_initial_state: Optional[str]=None,
+    strategy_info: Optional[Dict]=None,
+    nubar: Optional[bool]=False,
+    nu_i: Optional[int]=None,
+    nu_f: Optional[int]=None,
+    default_osc_params_set_name: Optional[str]='OSC_PARAMS_DEFAULT',
+    validate_input: Optional[bool]=True,
+    verbose: Optional[int]=0,
+    angles: Optional[str]='sin',
+    return_evolution_operator: Optional[bool]=False,
+    **kwargs) -> Union[float, np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+    r"""Computes and returns oscillation probabilities in vacuum for a pseudo-Dirac spectrum.
+
+    Each mass state named in ``pairs`` is two states split by a tiny :math:`\delta m^2_j`,
+    as in :mod:`magnus.hamiltonians.hamiltonians_pseudodirac`; the others stay single.  The
+    flavor space has ``n = 3 + len(pairs)`` rows: the three active flavors, then one sterile
+    partner per paired state, in ascending order of that state's index.
+
+    Without ``average`` this is the ordinary oscillation probability, from the same
+    Hamiltonian and the same engine as ``osc_prob_energy_baseline`` given
+    :func:`magnus.hamiltonians.hamiltonians_pseudodirac.hamiltonian_pseudo_dirac_vacuum`, bit for bit.
+
+    With ``average=True`` it is the phase average of :func:`osc_prob_energy_baseline`, but
+    computed from the known eigensystem instead of an eigendecomposition
+    (:func:`magnus.avgprob.phase_averaged_probabilities_pseudo_dirac`).  The generic route
+    finds each pair's phase as the difference of two eigenvalues of the Hamiltonian, which a
+    diagonalization resolves only to about :math:`\epsilon\,\max m^2`, so its error grows as
+    :math:`\delta m^2_j/\max m^2` falls: against a 50-digit reference, over pair phases of 0.5
+    to 30 rad, it is :math:`2\times10^{-7}` at a ratio of :math:`10^{-10}`,
+    :math:`7\times10^{-5}` at :math:`10^{-12}`, :math:`6\times10^{-3}` at :math:`10^{-14}` and
+    0.25 at :math:`4\times10^{-16}` (issue #165).  Here each pair phase is formed from
+    :math:`\delta m^2_j` directly, and its slope in :math:`\ln E` is exact, so the result is
+    within :math:`1.1\times10^{-16}` of the reference at every one of those ratios.
+
+    .. versionadded:: 1.2.0
+
+    Parameters
+    ----------
+    energy : int, float, list, or np.ndarray
+        Neutrino energy/energies [eV].
+    L : int, float, list, or np.ndarray
+        Baseline(s) [:math:`\text{eV}^{-1}`].  Paired with ``energy`` point by point, or
+        broadcast when one of the two is a single value.
+    pairs : dict
+        Mapping from mass-state index (0, 1 or 2) to its splitting :math:`\delta m^2_j`
+        [eV^2]; see :func:`magnus.hamiltonians.hamiltonians_pseudodirac.pseudo_dirac_mixing_matrix`.  An empty
+        mapping is the ordinary three-flavor spectrum.
+    s12, s23, s13, dCP, D21, D31 : int or float, optional
+        The standard three-flavor parameters, read as ``angles`` says; each one left at
+        None takes its value from ``default_osc_params_set_name``.
+    mixing_matrix : list or np.ndarray, optional
+        The active-sector mixing matrix, in place of the angles; given together with
+        ``mass_squared``, and never with any of ``s12`` to ``D31``.  Its size sets the number
+        of active flavors.
+    mass_squared : list or np.ndarray, optional
+        The active-sector mass-squared values [eV^2], with ``mixing_matrix``.
+    average : bool, optional
+        If True, return the phase-averaged probability.  Default: False.
+    average_spread : float, optional
+        Relative energy spread of the phase average; None means
+        :data:`magnus.avgprob.AVG_PHASE_SPREAD`.  Only with ``average=True``.
+    average_n_samples : int, optional
+        Refused: this route samples nothing.  Accepted as None for a signature shared with
+        the other wrappers.
+    average_initial_state : str, optional
+        ``'flavor'`` (the default) or ``'decohered'``.  Only with ``average=True``.
+    strategy_info : dict, optional
+        Filled with the engine that answered, as in :func:`osc_prob_vacuum`.
+    nubar : bool, optional
+        If True, antineutrinos.  Default: False.
+    nu_i, nu_f : int, optional
+        Initial and final flavor, in ``[0, n)``; if both are given, the single probability is
+        returned.
+    default_osc_params_set_name : str, optional
+        Parameter set that fills the standard parameters left at None.
+    validate_input : bool, optional
+        Whether to validate the input.  Default: True.
+    verbose : int, optional
+        Verbosity, as in :func:`osc_prob_vacuum`.
+    angles : str, optional
+        How ``s12``, ``s23`` and ``s13`` are read: ``'sin'``, ``'sin2'``, ``'rad'`` or
+        ``'deg'``.  Default: ``'sin'``.
+    return_evolution_operator : bool, optional
+        If True, also return the evolution operator.  Not with ``average=True``.
+    **kwargs
+        Engine settings forwarded to :func:`osc_prob_energy_baseline` without ``average``.
+
+    Returns
+    -------
+    float or np.ndarray
+        The probability, or the ``n`` x ``n`` probabilities, per (energy, L) point, shaped as
+        :func:`osc_prob_vacuum` returns them.
+
+    Raises
+    ------
+    ValueError
+        If the angles are given together with ``mixing_matrix``, only one of
+        ``mixing_matrix`` and ``mass_squared`` is given, a flavor index is outside
+        ``[0, n)``, or an averaging keyword is given without ``average=True``.
+
+    Warns
+    -----
+    PhaseAveragingWarning
+        With ``average=True``, where the average depends on ``average_spread``, as in
+        :func:`osc_prob_vacuum`.
+
+    Examples
+    --------
+    A splitting of :math:`10^{-17}` eV^2 at 100 TeV over 100 Mpc, where the pair phase is a
+    few radians.
+
+    .. jupyter-execute::
+
+        import magnus.globaldefs as gd
+        import magnus.oscprob as oscprob
+
+        L = 100.0*3.0856775814913673e19*gd.UNIT_KM          # 100 Mpc
+        P = oscprob.osc_prob_pseudo_dirac_vacuum(
+                100.0*gd.UNIT_TEV, L, {0: 1.0e-17, 1: 1.0e-17, 2: 1.0e-17},
+                nu_i=gd.NUE, nu_f=gd.NUE, average=True, average_spread=0.01)
+        print(round(float(P), 6))
+    """
+    _where = 'osc_prob_pseudo_dirac_vacuum'
+    if validate_input is True or _validation_requested(validate_input, _where):
+        _validate_entry(_where, locals(), osc_prob_pseudo_dirac_vacuum)
+    _refuse_start_keyword(_where, kwargs, 'vacuum')
+    _refuse_breakpoints_in_vacuum(_where, kwargs)
+    energy, L = _as_float(energy), _as_float(L)
+
+    angle_values = dict(s12=s12, s23=s23, s13=s13, dCP=dCP, D21=D21, D31=D31)
+    if (mixing_matrix is None) != (mass_squared is None):
+        raise ValueError(_v._msg("oscprob." + _where, "mixing_matrix and mass_squared go "
+            "together: give both, or neither and the standard parameters s12 to D31."))
+    if mixing_matrix is not None:
+        given = [name for name, value in angle_values.items() if value is not None]
+        if given:
+            raise ValueError(_v._msg("oscprob." + _where, "the mixing is given twice: by "
+                "mixing_matrix and mass_squared, and by " + ", ".join(given) + ".  Give one "
+                "or the other."))
+        U = np.asarray(mixing_matrix, dtype=complex)
+        m2 = np.asarray(mass_squared, dtype=float).ravel()
+        if U.ndim != 2 or U.shape[0] != U.shape[1] or m2.size != U.shape[0]:
+            raise ValueError(_v._msg("oscprob." + _where, "mixing_matrix must be square and "
+                "mass_squared hold one value per row of it; got shapes " + str(U.shape) +
+                " and " + str(m2.shape) + "."))
+    else:
+        _reject_parameter_set_name_without_set(3, default_osc_params_set_name, _where)
+        s12, s23, s13, dCP, D21, D31 = values_to_unspecified_osc_params(s12, s23, s13, dCP,
+            D21, D31, default_osc_params_set_name, verbose, angles=angles)
+        U = hamiltonians.pmns_mixing_matrix(s12, s23, s13, dCP, angles=angles)
+        m2 = np.array([0.0, float(D21), float(D31)])
+
+    # Validates pairs, and warns on a splitting that is not small (PseudoDiracSplittingWarning).
+    H_energy_indep = hamiltonians.hamiltonian_pseudo_dirac_vacuum_energy_independent(
+        U, m2, pairs, nubar=nubar)
+    d = H_energy_indep.shape[0]
+
+    if validate_input:
+        validate_input_battery(_where, energy=energy, L=L, L0=0.0, nu_i=nu_i, nu_f=nu_f,
+            validate_energy_and_L=True, validate_flavor_indices=False,
+            validate_osc_params=False, validate_initial_position=False,
+            validate_density=False)
+    for name, index in (('nu_i', nu_i), ('nu_f', nu_f)):
+        if index is not None and not 0 <= int(index) < d:
+            raise ValueError(_v._msg("oscprob." + _where, name + " = " + str(index) + " is "
+                "outside the " + str(d) + " flavors of this spectrum, [0, " + str(d) + "): "
+                "the active flavors, then one sterile partner per paired mass state."))
+
+    _reject_parameter_set_metadata(kwargs, _where)
+    _check_passthrough_kwargs(kwargs, _where)
+
+    with _engine_probe(info=strategy_info):
+        if not average:
+            _refuse_average_keywords(_where, average_spread, average_n_samples,
+                                     average_initial_state)
+
+            def htot(enu: Union[int, float]) -> np.ndarray:
+                # What hamiltonian_pseudo_dirac_vacuum returns, formed once.
+                return H_energy_indep/enu
+
+            return osc_prob_energy_baseline(htot, energy, L, 0.0, nu_i, nu_f, True,
+                validate_input=validate_input, verbose=verbose,
+                return_evolution_operator=return_evolution_operator, **kwargs)
+
+        if return_evolution_operator:
+            _check_operator_request(average, None, _where)
+        if kwargs:
+            raise ValueError(_v._msg("oscprob." + _where, "average=True is computed in closed "
+                "form, and takes no engine settings; remove " + ", ".join(sorted(kwargs)) +
+                "."))
+        if average_n_samples is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": "
+                "average_n_samples sets how many energies the energy-window average samples, "
+                "and that average is taken only on a profile with declared discontinuities.  "
+                "This call takes the closed-form route, which samples nothing; remove "
+                "average_n_samples.")
+        spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
+        if (isinstance(spread, bool)
+                or not isinstance(spread, (int, float, np.integer, np.floating))
+                or not np.isfinite(spread) or spread < 0.0):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": average_spread "
+                "is the relative energy spread of the phase average and must be a non-negative "
+                "number, not " + repr(average_spread) + ".")
+        spread = float(spread)
+        initial = 'flavor' if average_initial_state is None else average_initial_state
+        if not isinstance(initial, str) or initial not in ('flavor', 'decohered'):
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": "
+                "average_initial_state is the state the neutrino starts in and must be "
+                "'flavor' or 'decohered', not " + repr(average_initial_state) + ".")
+
+        energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
+        if not ok:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + _where + ": the energy "
+                "and L arrays must have the same length, or one of them must be a single value.")
+        energy_arr, L_arr = np.broadcast_arrays(np.asarray(energy_arr, dtype=float),
+                                                np.asarray(L_arr, dtype=float))
+        n_pts = energy_arr.size
+
+        if initial == 'decohered':
+            # An incoherent mixture of the eigenstates never interferes, whatever the phases.
+            W = hamiltonians.pseudo_dirac_mixing_matrix(U, pairs)
+            if nubar:
+                W = np.conj(W)
+            P_out = np.broadcast_to(avgprob.averaged_probabilities_from_eigenbasis(W),
+                                    (n_pts, d, d)).copy()
+            sens = np.zeros(n_pts)
+        else:
+            P_out, sens = avgprob.phase_averaged_probabilities_pseudo_dirac(U, m2, pairs,
+                energy_arr, L_arr, spread=spread, nubar=nubar)
+        spread_sensitive_points = int(np.count_nonzero(
+            sens > avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD))
+        largest_sensitivity = float(np.max(sens, initial=0.0))
+        if spread_sensitive_points > 0:
+            warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + _where + ": the "
+                "phase-averaged probability depends on the energy spread at " +
+                str(spread_sensitive_points) + " of " + str(n_pts) + " (energy, L) point(s): "
+                "some interference has partly survived the spread average_spread=" +
+                format(spread, 'g') + ", so the result changes by more than " +
+                format(avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD, 'g') + " per e-fold of it "
+                "(largest " + format(largest_sensitivity, '.1e') + ").  It is the average over "
+                "that spread; pass average_spread to match the resolution of the measurement.",
+                PhaseAveragingWarning, stacklevel=2)
+        _note_engine('average', average_spread=spread, recomputed=0,
+                     sigma_sensitivity=largest_sensitivity)
+        if (nu_i is not None) and (nu_f is not None):
+            P_out = P_out[:, nu_i, nu_f]
+        return P_out.__getitem__(0 if return_float else slice(None))
 
 
 def osc_prob_matter_std_potential(
@@ -26025,6 +26293,7 @@ __all__ = [
     'osc_prob',
     'osc_prob_energy_baseline',
     'osc_prob_vacuum',
+    'osc_prob_pseudo_dirac_vacuum',
     'osc_prob_matter_std_potential',
     'osc_prob_matter_nsi',
     'osc_prob_liv',
