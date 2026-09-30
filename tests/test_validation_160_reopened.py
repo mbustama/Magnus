@@ -510,3 +510,12 @@ def test_counts_above_their_caps_behave_as_documented():
         op.osc_prob(_castle, 0.0, 3000.*KM, integration_method='simpson', n_slabs=4,
                     max_n_slabs=4, max_n_tpts_per_slab=501, convergence_info=info)
     assert info['n_tpts_per_slab'] <= 501
+
+
+@pytest.mark.parametrize('call', [
+    lambda **k: _exp(**k),
+    lambda **k: op.osc_prob(_castle, 0.0, 1000.*KM, **k),
+    lambda **k: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **k, **OSC),
+])
+def test_n_jobs_none_is_refused_by_name(call):
+    _refused('n_jobs', call, n_jobs=None)

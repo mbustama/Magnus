@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`n_jobs=None` is refused by name** (issue #160 §5).  It was let through the check and then
+  compared with an integer, as "'<' not supported between instances of 'int' and 'NoneType'";
+  on single-point calls it was accepted.  `n_jobs` is -1 or a positive integer.
 - **`osc_prob` documents what happens to a count above its cap** (issue #160 §5).  With a
   tolerance, an `n_slabs` floor above `max_n_slabs` is clipped to it and the points per slab
   are clipped at `max_n_tpts_per_slab`, with `ToleranceNotAchievedWarning` if a cap stops the

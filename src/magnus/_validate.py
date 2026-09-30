@@ -381,8 +381,7 @@ def _order(name, x, where):
 
 
 def _n_jobs(name, x, where):
-    if x is None:
-        return None
+    # None was let through here and then compared with an integer (issue #160 §5).
     x = check_int(name, x, where)
     if x == -1 or x >= 1:
         return x

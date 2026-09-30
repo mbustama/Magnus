@@ -2078,7 +2078,7 @@ _NONE_REFUSED = frozenset(('nubar', 'average', 'density_matter_is_in_g_per_cm3',
                            'density_is_of_number_of_electrons', 'return_evolution_operator',
                            'strict_convergence', 'validate_input', 'save_log',
                            'close_file_log_upon_exit', 'H_func_is_function_only_of_energy',
-                           'cumulative', 'default_osc_params_set_name'))
+                           'cumulative', 'default_osc_params_set_name', 'n_jobs'))
 
 
 def _validation_requested(validate_input, where: str) -> bool:
