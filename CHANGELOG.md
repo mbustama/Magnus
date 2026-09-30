@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The scenario functions refuse an `h_vac_energy_indep` they would ignore** (issue #160 §1).
+  Up to five flavors the vacuum Hamiltonian is built from `osc_params`, so a matrix passed
+  there was accepted and ignored; `osc_prob_energy_baseline` is the way to propagate one's own.
 - **The Earth wrappers refuse a neutron-to-proton ratio they ignore, and check a callable one**
   (issue #160 §1).  The density derives its ratio from :math:`Y_e`, so the caller's enters
   only the sterile projector: at two and three flavors a ratio, scalar or callable, was

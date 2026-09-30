@@ -3257,6 +3257,17 @@ def unpack_oscillation_params_from_dict(
 
     osc_params = _check_param_dict(source_func_name, osc_params, 'osc_params', num_flavors, _OSC_KEYS)
 
+    # Up to MAGNUS_MAX_PREDEFINED_NUM_FLAVORS the Hamiltonian is built from osc_params, so a
+    # matrix given here was accepted and ignored (issue #160 §1).
+    if (h_vac_energy_indep is not None) and \
+            isinstance(num_flavors, (int, np.integer)) and \
+            (2 <= num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+            "h_vac_energy_indep has no effect at num_flavors = " + str(num_flavors) + ": up to " +
+            str(gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS) + " flavors the vacuum Hamiltonian is "
+            "built from osc_params.  To propagate a Hamiltonian of your own, pass it to "
+            "osc_prob_energy_baseline as H_func.")
+
     if (num_flavors == 2):
         try:
             sth = osc_params['sth']
@@ -9078,7 +9089,8 @@ def osc_prob_vacuum(
         keys for each ``num_flavors``.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     average : bool, optional
         If True, return the phase-averaged probability rather than the oscillating one.
     average_spread : float, optional
@@ -9413,7 +9425,8 @@ def osc_prob_matter_std_potential(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         Ratio of the number of neutrons to protons in matter.  Scales the sterile
         states' entry in the matter term (see
@@ -10061,7 +10074,8 @@ def osc_prob_matter_nsi(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     h_nsi : list or np.ndarray, optional
         Precomputed NSI Hamiltonian, used instead of ``nsi_params`` when ``num_flavors`` exceeds
         ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
@@ -10620,7 +10634,8 @@ def osc_prob_liv(
         Initial position. Default: 0.0.
     h_vac_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent vacuum Hamiltonian, used instead of ``osc_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``, and refused
+        at or below it, where it would be ignored.
     h_liv_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent LIV Hamiltonian, used instead of ``liv_params`` when
         ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.

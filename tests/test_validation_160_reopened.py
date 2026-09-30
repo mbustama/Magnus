@@ -291,3 +291,12 @@ def test_four_flavor_earth_checks_a_callable_ratio():
                                   ratio_number_neutrons_to_protons=lambda l: 1.0 + 0.0*np.asarray(l),
                                   **STERILE)
     assert np.all(np.isfinite(a))
+
+
+@pytest.mark.parametrize('scenario', ['osc_prob_vacuum', 'osc_prob_matter_std_potential'])
+def test_scenario_functions_refuse_a_vacuum_hamiltonian_they_would_ignore(scenario):
+    H4 = np.diag([0.0, 7.4e-5, 2.5e-3, 1.0]).astype(complex)
+    params = dict(OSC, s14=0.1, d14=0.3, s24=0.15, d24=0.5, s34=0.2, D41=1.0)
+    args = (4,) + ((3.0*gd.UNIT_G_PER_CM3,) if scenario != 'osc_prob_vacuum' else ()) + \
+        (1.0e9, 1000.*KM, params)
+    _refused('h_vac_energy_indep', getattr(op, scenario), *args, h_vac_energy_indep=H4)
