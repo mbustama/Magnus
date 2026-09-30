@@ -1,0 +1,4 @@
+# The sdist ships src/ and tests/.  setuptools picks up tests/test_*.py by itself but not
+# tests/conftest.py, which puts src/ on the path in a checkout and skips the tests that need
+# one (docs/, notebooks/, resources/, .github/) from an unpacked sdist (issue #164 §1).
+include tests/conftest.py

@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The sdist's own tests pass against the installed package** (issue #164 §1).  Thirty-eight
+  tests check the repository rather than the library -- the documentation, the notebooks, the
+  paper's assets, the CI workflows -- and the sdist ships none of those files, so run from an
+  unpacked sdist they failed (20) or errored (18).  They are marked `checkout_only` and skip
+  there with their reason.  `tests/conftest.py`, which holds that rule, had never been in the
+  sdist either; `MANIFEST.in` now includes it.  A new CI job, `sdist tests`, builds the sdist
+  and the wheel, installs the wheel into a clean environment and runs the sdist's tests with
+  `src/` removed.  In a checkout nothing is skipped.
 - **`average_spread` and `average_initial_state` are refused without `average=True`** (issue
   #160).  They shape the phase average and did nothing without it; they were documented as
   ignored and are now refused by name, like `average_n_samples`.  `osc_prob_energy_baseline`

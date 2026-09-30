@@ -23,6 +23,9 @@ import time
 import numpy as np
 import pytest
 
+# Reads files the sdist does not ship (issue #164 §1).
+pytestmark = pytest.mark.checkout_only
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ANCHORS = ('FINGERPRINT_DIGITS = 12', 'def _hashable', 'def _python_scalars', 'class _Rounded',
            'def _rounded', 'def fingerprint', 'def _shallow_fingerprint', 'def legacy_fingerprint',

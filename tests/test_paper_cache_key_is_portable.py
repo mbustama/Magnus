@@ -23,6 +23,9 @@ import sys
 import numpy as np
 import pytest
 
+# Reads files the sdist does not ship (issue #164 §1).
+pytestmark = pytest.mark.checkout_only
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT/'notebooks'))
 

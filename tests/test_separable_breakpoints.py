@@ -69,6 +69,7 @@ def scan(chord, d, tol, **kw):
     return P, levels, names
 
 
+@pytest.mark.checkout_only     # the chord fixture reads notebooks/ (issue #164 §1)
 @pytest.mark.parametrize('strategy', ['auto', 'magnus'])
 def test_the_prem_chord_scan_meets_its_tolerance(chord, strategy):
     r"""The case the issue is about, on the default route and the explicit one."""
@@ -79,6 +80,7 @@ def test_the_prem_chord_scan_meets_its_tolerance(chord, strategy):
     assert np.all(np.abs(P - ref) <= tol + tol*np.abs(ref))
 
 
+@pytest.mark.checkout_only
 @pytest.mark.parametrize('growth', [1.5, 1.1])
 def test_every_level_refines_the_real_grid(chord, growth):
     r"""Points of consecutive levels (slabs + 1) differ by at least the bound, also when the
@@ -90,6 +92,7 @@ def test_every_level_refines_the_real_grid(chord, growth):
     assert np.all(points[1:]/points[:-1] >= op.MIN_EFFECTIVE_REFINEMENT)
 
 
+@pytest.mark.checkout_only
 def test_a_level_cut_short_by_the_cap_warns(chord):
     r"""With ``max_n_slabs=20`` the last step is 30 -> 37 points, x1.23: below the bound, so
     its agreement cannot certify, and the caps end the ladder with a warning."""
@@ -114,6 +117,7 @@ def test_without_breakpoints_a_capped_step_still_counts():
     assert not any(issubclass(w.category, op.ToleranceNotAchievedWarning) for w in caught)
 
 
+@pytest.mark.checkout_only     # imports notebooks/gen_profile_benchmarks.py
 @pytest.mark.parametrize('d', [2, 4])
 def test_the_earth_wrapper_with_a_layered_electron_fraction_meets_its_tolerance(d):
     r"""The Earth wrappers declare the layer crossings themselves and use a layered Y_e; at
