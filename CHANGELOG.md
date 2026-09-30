@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`cross_check_strategies` says which engines did not reach the tolerance** (issue #166).
+  On the Sun at 1 MeV it reported a 1.9e-3 spread between the certified hybrid and the Magnus
+  ladder, and named the pair.  Against a 2e6-slab reference the hybrid is 3.8e-5 off and the
+  ladder, stopped at its 20 000-slab cap on a single level, 1.9e-3; the ladder had warned
+  `ToleranceNotAchievedWarning`, the hybrid nothing.  New keys: `'unverified'`, the engines
+  that raised `ToleranceNotAchievedWarning` or `HybridCertificationWarning`, and
+  `'max_spread_verified'` with its pair, the spread across families among the others.  The
+  existing keys and values are unchanged, and no engine runs that did not before.
+
 - **An energy scan at a tight tolerance on the Sun is no longer up to 3.4e-3 off** (issue #184).
   Where `strategy='auto'`'s hybrid did not certify one energy of a scan, the whole scan went to
   the energy-batched ladder, the energies it had certified included, and across the Sun that

@@ -9727,10 +9727,13 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       Reports ``'unverified'`` and ``'max_spread_verified'`` (issue #166).
+
     Parameters
     ----------
     entry_point : Callable
-        The function to cross-check: :func:`osc_prob_matter_std_potential`,
+        The function to cross-check::func:`osc_prob_matter_std_potential`,
         :func:`osc_prob_matter_nsi`, :func:`osc_prob_liv`, :func:`osc_prob_sun`,
         :func:`osc_prob_earth`, one of their fixed-flavor wrappers, or
         :func:`osc_prob_energy_baseline`.  ``strategy`` and ``cumulative`` are supplied by this
@@ -9771,6 +9774,18 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
             ``{label: [warning class names]}`` raised while that engine answered.
         ``'certified'``
             ``{label: bool}``, currently only for ``'hybrid'``.
+        ``'unverified'``
+            The labels that said they did not reach the requested tolerance: they raised
+            :class:`ToleranceNotAchievedWarning` itself (a refinement ladder that ran out of
+            room) or :class:`HybridCertificationWarning`.  **A spread that involves one of them
+            points at that engine first.**  Measured on the Sun at 1 MeV (issue #166): the
+            certified hybrid was 3.8e-5 from a 2e6-slab reference and the ladder, capped at
+            20000 slabs, 1.9e-3 -- and ``max_spread_independent`` named the pair without saying
+            which one had already warned.
+        ``'max_spread_verified'``, ``'max_spread_verified_pair'``
+            ``'max_spread_independent'`` and its pair over the engines not in
+            ``'unverified'``: 0.0 and None when fewer than two of them, from different
+            families, ran.
 
     Examples
     --------
@@ -9822,7 +9837,7 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
     call_kwargs = {k: v for k, v in kwargs.items() if k not in ('strategy', 'cumulative')}
     takes_strategy = 'strategy' in signature(entry_point).parameters
 
-    answers, declined, warns, certified = {}, {}, {}, {}
+    answers, declined, warns, certified, unverified = {}, {}, {}, {}, []
     hamiltonian = None
 
     for label in wanted:
@@ -9853,6 +9868,9 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
             continue
         answers[label] = np.asarray(P)
         warns[label] = sorted({w.category.__name__ for w in caught})
+        if any(w.category in (ToleranceNotAchievedWarning, HybridCertificationWarning)
+               for w in caught):
+            unverified.append(label)
         if 'certified' in note:
             certified[label] = note['certified']
         if hamiltonian is None:
@@ -9872,6 +9890,7 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
 
     ran = [lab for lab in wanted if lab in answers]
     spread, best, best_pair, best_ind, best_ind_pair = {}, 0.0, None, 0.0, None
+    best_ver, best_ver_pair = 0.0, None
     for i, a in enumerate(ran):
         for b in ran[i + 1:]:
             Pa, Pb = np.ravel(answers[a]), np.ravel(answers[b])
@@ -9887,6 +9906,9 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
                 best, best_pair = s, (a, b)
             if ENGINE_FAMILIES[a] != ENGINE_FAMILIES[b] and s > best_ind:
                 best_ind, best_ind_pair = s, (a, b)
+            if (ENGINE_FAMILIES[a] != ENGINE_FAMILIES[b] and s > best_ver
+                    and a not in unverified and b not in unverified):
+                best_ver, best_ver_pair = s, (a, b)
 
     # A spread of zero means "no disagreement was found", which is not the same statement as "the
     # engines agree" -- and when nothing was compared, it is the wrong one.  Say so, because the
@@ -9926,6 +9948,9 @@ def cross_check_strategies(entry_point: Callable, *args, engines=None, **kwargs)
         'families': {lab: ENGINE_FAMILIES[lab] for lab in ran},
         'warnings': warns,
         'certified': certified,
+        'unverified': tuple(lab for lab in ran if lab in unverified),
+        'max_spread_verified': best_ver,
+        'max_spread_verified_pair': best_ver_pair,
     }
 
 
