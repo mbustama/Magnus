@@ -406,6 +406,8 @@ TREE = [
     ('tests/test_scan_potential_forms.py',
      'Energy scans with scalar-valued or scalar-only density functions (issue #113)'),
     ('tests/test_cli.py', 'magnus command-line calculator'),
+    ('tests/test_persistent_degeneracy.py',
+     'average=True with sterile flavors nothing couples to returns, as the 3-flavor answer (issue #148)'),
     ('tests/test_pseudodirac.py',
      'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),
     ('tests/test_documented_examples.py',
