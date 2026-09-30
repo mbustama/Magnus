@@ -5072,12 +5072,21 @@ def _decoupled_degenerate_flavors(htot: Callable, energy: float, l0: float, l1: 
 
     .. versionadded:: 1.2.0
     """
+    def uncoupled(Hs):
+        d = Hs.shape[-1]
+        off = np.abs(Hs.reshape((-1, d, d))).max(axis=0)
+        np.fill_diagonal(off, 0.0)
+        return np.flatnonzero(~(off.any(axis=0) | off.any(axis=1))).tolist()
+
+    # One sample settles the common case, a Hamiltonian with no zero entry, in a few
+    # microseconds; the other positions are sampled only when it has one.
+    H0 = np.asarray(htot(energy, float(l0)))
+    if np.count_nonzero(H0) == H0.size or not uncoupled(H0):
+        return None
     ls = np.linspace(l0, l1, n_positions)
-    Hs = np.array([np.asarray(htot(energy, float(l)), dtype=complex) for l in ls])
+    Hs = np.array([H0] + [np.asarray(htot(energy, float(l))) for l in ls[1:]], dtype=complex)
     d = Hs.shape[-1]
-    off = np.max(np.abs(Hs), axis=0)
-    off[np.arange(d), np.arange(d)] = 0.0
-    decoupled = [i for i in range(d) if not (off[i].any() or off[:, i].any())]
+    decoupled = uncoupled(Hs)
     if not decoupled or len(decoupled) == d:
         return None
     lam = np.linalg.eigvalsh(Hs)
