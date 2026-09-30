@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An oscillogram computed for antineutrinos is labelled as one** (issue #145 §1).
+  `plot_oscillogram(..., wrapper_kw=dict(nubar=True))` computed the antineutrino grid but
+  labelled its colour bar and annotation with the neutrino channel.
 - **Small pseudo-Dirac splittings keep their precision** (issue #165 §1).
   `hamiltonian_pseudo_dirac_vacuum_energy_independent` formed each splitting-dependent entry as
   `(m2_j + delta) - m2_j` at the scale of `m2_j`, so `delta = 1e-18` eV^2 kept one or two digits

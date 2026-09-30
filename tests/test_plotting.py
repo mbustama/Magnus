@@ -18,6 +18,8 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt  # noqa: E402
+import warnings  # noqa: E402
+
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
@@ -1262,3 +1264,20 @@ def test_importing_magnus_does_not_require_matplotlib():
     """The core package must stay installable and usable without the extra."""
     import magnus
     assert 'plotting' in magnus.submodules
+
+
+def test_oscillogram_computed_for_antineutrinos_is_labelled_as_such():
+    """#145 §1: a grid computed with wrapper_kw=dict(nubar=True) was labelled nu_mu -> nu_e."""
+    CZ = np.linspace(-1.0, -0.1, 4)
+    lg = np.linspace(0.0, 1.0, 4)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                      wrapper_kw=dict(nubar=True))
+    bar = mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    assert ax.texts[0].get_text() == bar
+    assert fig.axes[1].get_ylabel() == bar
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE)

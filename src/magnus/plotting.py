@@ -2464,16 +2464,19 @@ def plot_oscillogram(
     ckw.update(contourf_kw or {})
     cs = ax.contourf(costhz, log10_energy, prob, **ckw)
 
+    # A grid computed with nubar=True is the antineutrino probability, and is labelled as one
+    # (issue #145 §1): the labels used to say nu whatever the grid held.
+    nubar_label = bool((wrapper_kw or {}).get('nubar', False))
     label = cbar_label
     if label is None and nu_i is not None and nu_f is not None:
-        label = cbar_label_prefix + prob_label(nu_i, nu_f)
+        label = cbar_label_prefix + prob_label(nu_i, nu_f, nubar=nubar_label)
     cbar = fig.colorbar(cs, ax=ax)
     cbar.ax.tick_params(labelsize=cbar_labelsize)
     if label is not None:
         cbar.set_label(label=label, fontsize=cbar_fontsize)
 
     if annotation is None and nu_i is not None and nu_f is not None:
-        annotation = prob_label(nu_i, nu_f)
+        annotation = prob_label(nu_i, nu_f, nubar=nubar_label)
     if annotation:
         text = ax.text(0.96, 0.95, annotation, ha='right', va='center',
                        size=annotation_fontsize, color='k', rotation=0.0,
