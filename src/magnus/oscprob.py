@@ -1014,6 +1014,35 @@ MSW region and reads 2.2 to 2.9 times low there: it put a two-flavor request at 
 """
 
 
+AUTO_PROBE_POINTS = 200
+r"""int: Module-level constant
+
+Points of the probe grid on which ``strategy='auto'`` tests the profile before handing a request
+to the ladder (``_auto_prefers_ladder``): the resolution test of
+``magnus.adiabatic._profile_is_resolved``, the same grid the hybrid strategy starts from.
+
+.. versionadded:: 1.2.0
+"""
+
+
+AUTO_SHARP_FEATURE_SLABS_PER_PROBE = 2
+r"""int: Module-level constant
+
+Slabs per probe interval that the ladder starts from when ``strategy='auto'`` hands it a profile
+with a feature sharp at the probe scale but smooth below it (issue #161): a narrow density
+spike, which the ladder's seed, from the phase integrated along the path, cannot see.  Every
+level from that seed can step over the spike and agree on the same wrong answer: 17 of 36
+Gaussian spikes of widths 2 to 50 km over 4000 km were off by more than the requested 1e-3, up
+to 1.4e-2, with no warning.  Two slabs per probe interval, 398 over the path, brought every one
+the probe grid flags within the tolerance, 2e-4 to 4e-4 at a width of 2 km and 3e-5 or better
+from 5 km, in 3 to 5 ms against the 4 to 8 ms it took to return the wrong answer.  A feature
+narrower than the probe spacing and between two probes is not flagged, and stays out of reach
+(see :class:`HiddenFeatureWarning`).
+
+.. versionadded:: 1.2.0
+"""
+
+
 AUTO_LADDER_MAX_FLOOR_FRACTION = 0.25
 r"""float: Module-level constant
 
@@ -7675,8 +7704,13 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
         return None
     H_lo = H_at_energy(float(np.min(np.asarray(energy_arr, dtype=float))))
     l0, l1 = float(L0), float(np.max(np.asarray(L_arr, dtype=float)))
-    resolved = (adiabatic._profile_is_resolved(H_lo, l0, l1, 200)
-                or adiabatic._profile_is_resolved(H_lo, l0, l1, 6400))
+    resolved, sharp = adiabatic._profile_resolution(H_lo, l0, l1, AUTO_PROBE_POINTS)
+    resolved = resolved or adiabatic._profile_is_resolved(H_lo, l0, l1, 6400)
+    if resolved and sharp:
+        # A feature sharp at the probe scale and smooth below it: the ladder's seed, from the
+        # phase integrated along the path, cannot see it, and every level can step over it and
+        # agree on the same wrong answer (issue #161).  Start at the probe spacing instead.
+        n_floor = max(n_floor, AUTO_SHARP_FEATURE_SLABS_PER_PROBE*(AUTO_PROBE_POINTS - 1))
     margin = 1.0 if tight else AUTO_LADDER_TOLERANCE_MARGIN
     detail = dict(estimated_phase=phase, phase_limit=phase_limit, min_n_slabs=n_floor,
                   magnus_exp_order=magnus_exp_order, tolerance_margin=margin)
@@ -8295,6 +8329,14 @@ def _osc_prob_cumulative_scan(H_func, L_out, L0, n_acc, magnus_exp_order,
         magnus._running_product_snapshots(running, U, out_idx[order] - start - 1, order, P)
         del U
     return P
+
+
+class _JumpsDeclared(Exception):
+    r"""Raised inside :func:`osc_prob_energy_baseline` when undeclared jumps were found and
+    declared, so that the points computed without them are computed again (issue #161).
+
+    .. versionadded:: 1.2.0
+    """
 
 
 def osc_prob_energy_baseline(
@@ -9013,65 +9055,128 @@ def osc_prob_energy_baseline(
             osc_prob_kwargs['min_n_tpts_per_slab'] = max(min_n_tpts_per_slab,
                 int(np.ceil(conv_info['n_tpts_per_slab']/g2)))
 
+    # Undeclared jumps (issue #161).  A slab straddling a jump converges as 1/n, not at the
+    # order of the method, so the ladder thrashes and stops wherever two levels happen to agree:
+    # measured on a three-layer castle wall at 40 baselines, 24 were off by more than the
+    # requested 1e-3, up to 7.0e-2, with only the generic MagnusConvergenceWarning.  Every one
+    # of them had refined through slabs too wide for the Magnus series, so that is when the
+    # profile is checked -- once per call, on the same probe grids as the hybrid strategy's
+    # resolution test -- and any jump found is declared for every point and the points already
+    # computed are recomputed with it: 24 -> 0, in 5.1 ms per point on average against the 9.0
+    # ms the thrashing took.  Calls that declare their own t_breakpoints or t_slab_edges, or ask
+    # for no tolerance, never reach the check.
+    jump_check = bool(callable(H_first) and (t_slab_edges is None)
+                      and ((rtol is not None) or (atol is not None))
+                      and ((kwargs.get('t_breakpoints') is None)
+                           or (len(np.atleast_1d(kwargs.get('t_breakpoints'))) == 0)))
+    jumps_checked = [False]
+
+    def check_for_jumps(enu: float) -> bool:
+        # True when jumps were found and declared: the caller recomputes what it has.
+        jumps_checked[0] = True
+        H_here = H_at_energy(enu)
+        l0, l1 = float(L0), float(np.max(np.asarray(L, dtype=float)))
+        if (adiabatic._profile_is_resolved(H_here, l0, l1, AUTO_PROBE_POINTS)
+                or adiabatic._profile_is_resolved(H_here, l0, l1, 6400)):
+            return False
+        jumps = (adiabatic._located_jumps(H_here, l0, l1, AUTO_PROBE_POINTS)
+                 or adiabatic._located_jumps(H_here, l0, l1, 6400))
+        if not jumps:
+            return False
+        osc_prob_kwargs['t_breakpoints'] = np.asarray(jumps, dtype=float)
+        conv_info.clear()
+        osc_prob_kwargs['min_n_slabs'] = min_n_slabs
+        osc_prob_kwargs['min_n_tpts_per_slab'] = min_n_tpts_per_slab
+        warnings.warn(
+            "osc_prob_energy_baseline: the Hamiltonian jumps at l = " +
+            ", ".join(format(j, '.6e') for j in jumps) + " [eV^-1], and no t_breakpoints "
+            "were given.  A slab straddling a jump converges slowly and erratically, so the "
+            "refinement can stop on an answer outside the tolerance; the jumps were located and "
+            "every point was computed with them declared.  Pass t_breakpoints=[" +
+            ", ".join(format(j, '.6e') for j in jumps) + "] to skip this search.",
+            UnmarkedDiscontinuityWarning, stacklevel=5)
+        return True
+
     def compute_single_point(enu: float, baseline: float):
-        out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
+        if jump_check and not jumps_checked[0]:
+            observer = [0.0]
+            token = magnus._SLAB_NORM_OBSERVER.set(observer)
+            try:
+                out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
+            finally:
+                magnus._SLAB_NORM_OBSERVER.reset(token)
+            if observer[0] >= np.pi and check_for_jumps(enu):
+                raise _JumpsDeclared()
+        else:
+            out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
         P, U = out if return_evolution_operator else (out, None)
         # Select one oscillation channel if requested; otherwise keep the full matrix
         if ((nu_i is not None) and (nu_f is not None)):
             P = P[nu_i][nu_f]
         return (P, U) if return_evolution_operator else P
 
-    probs = None
-    if parallelize_over_points:
-        # Compute the first point serially to learn the refinement parameters, then distribute
-        # the remaining points over the workers, warm-started from the first point.  (The shared
-        # conv_info dict cannot be updated across processes, so it is dropped from the parallel
-        # calls.)
-        _t_first = time.perf_counter()
-        probs = [compute_single_point(energy[0], L[0])]
-        _t_first = time.perf_counter() - _t_first
-        apply_warm_start()
-        # Too little work left to pay for starting the workers (issue #155 §3): finish here.
-        if _t_first*(len(energy) - 1) < N_JOBS_MIN_PARALLEL_WORK_S:
-            parallelize_over_points = False
-            for enu, baseline in zip(energy[1:], L[1:]):
+    def run_points(parallelize_over_points: bool) -> list:
+        probs = None
+        if parallelize_over_points:
+            # Compute the first point serially to learn the refinement parameters, then distribute
+            # the remaining points over the workers, warm-started from the first point.  (The shared
+            # conv_info dict cannot be updated across processes, so it is dropped from the parallel
+            # calls.)
+            _t_first = time.perf_counter()
+            probs = [compute_single_point(energy[0], L[0])]
+            _t_first = time.perf_counter() - _t_first
+            apply_warm_start()
+            # Too little work left to pay for starting the workers (issue #155 §3): finish here.
+            if _t_first*(len(energy) - 1) < N_JOBS_MIN_PARALLEL_WORK_S:
+                parallelize_over_points = False
+                for enu, baseline in zip(energy[1:], L[1:]):
+                    apply_warm_start()
+                    probs.append(compute_single_point(enu, baseline))
+        if parallelize_over_points:
+            osc_prob_kwargs.pop('convergence_info', None)
+            # The first point, computed above, decided whether to look for jumps; a worker
+            # cannot declare them for the others.
+            jumps_checked[0] = True
+
+            # A module global does not cross a process boundary: loky re-imports magnus in each
+            # worker, where EXPM_BACKEND is back at its default.  Since the wrappers expose no
+            # expm_backend parameter, that global is the *only* backend control a caller of this
+            # function has, so leaving it behind meant an explicit request was silently ignored for
+            # every point but the first -- worst for the one use the switch is documented for,
+            # comparing the two backends, which would have compared 'auto' against itself.  The
+            # answers agree to ~1e-15 either way, so this is about honoring the request, not about
+            # the numbers.  Carried by value and re-applied inside the worker.
+            def compute_single_point_in_worker(enu: float, baseline: float,
+                                               _backend: str = magnus.EXPM_BACKEND):
+                magnus.EXPM_BACKEND = _backend
+                return compute_single_point(enu, baseline)
+
+            # No more workers than there are points left, or cores (issue #160 §5): n_jobs=1000 on
+            # a 20-energy scan used to start about 626 worker processes and stall the machine.
+            _workers = len(energy) - 1
+            _cores = os.cpu_count() or 1
+            _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
+            probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
+                enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
+        elif probs is None:
+            probs = []
+            for enu, baseline in zip(energy, L):
                 apply_warm_start()
                 probs.append(compute_single_point(enu, baseline))
-    if parallelize_over_points:
-        osc_prob_kwargs.pop('convergence_info', None)
+        return probs
 
-        # A module global does not cross a process boundary: loky re-imports magnus in each
-        # worker, where EXPM_BACKEND is back at its default.  Since the wrappers expose no
-        # expm_backend parameter, that global is the *only* backend control a caller of this
-        # function has, so leaving it behind meant an explicit request was silently ignored for
-        # every point but the first -- worst for the one use the switch is documented for,
-        # comparing the two backends, which would have compared 'auto' against itself.  The
-        # answers agree to ~1e-15 either way, so this is about honoring the request, not about
-        # the numbers.  Carried by value and re-applied inside the worker.
-        def compute_single_point_in_worker(enu: float, baseline: float,
-                                           _backend: str = magnus.EXPM_BACKEND):
-            magnus.EXPM_BACKEND = _backend
-            return compute_single_point(enu, baseline)
-
-        # No more workers than there are points left, or cores (issue #160 §5): n_jobs=1000 on
-        # a 20-energy scan used to start about 626 worker processes and stall the machine.
-        _workers = len(energy) - 1
-        _cores = os.cpu_count() or 1
-        _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
-        probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
-            enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
-    elif probs is None:
-        probs = []
-        for enu, baseline in zip(energy, L):
-            apply_warm_start()
-            probs.append(compute_single_point(enu, baseline))
+    try:
+        probs = run_points(parallelize_over_points)
+    except _JumpsDeclared:
+        # Every point, the ones already computed included, again with the jumps declared.
+        probs = run_points(parallelize_over_points)
 
     # The private '_hamiltonian' payload is what lets cross_check_strategies build the 'expm'
     # reference without rebuilding any wrapper's physics: this is the one place every entry
     # point's Hamiltonian arrives already assembled.  Stripped from strategy_info.
     _note_engine('magnus', n_points=n_points, _hamiltonian=dict(
         H_at_energy=H_at_energy, L0=L0, energy=energy, L=L, nu_i=nu_i, nu_f=nu_f,
-        t_breakpoints=kwargs.get('t_breakpoints')))
+        t_breakpoints=osc_prob_kwargs.get('t_breakpoints')))
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
     sel = 0 if return_float else slice(None)

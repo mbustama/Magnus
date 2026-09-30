@@ -1826,6 +1826,17 @@ immediately.  ``None`` (and therefore free) otherwise.  A context variable, not 
 so that concurrent calls in different threads each see their own (issue #153)."""
 
 
+_SLAB_NORM_OBSERVER = contextvars.ContextVar('_SLAB_NORM_OBSERVER', default=None)
+r"""ContextVar holding a one-element list or None: when set, ``_warn_slab_norm`` records in it
+the largest ``||Omega||_2`` it is handed, whether or not a sink is open and whether or not the
+warning is then shown or filtered.  Lets :func:`magnus.oscprob.osc_prob_energy_baseline` learn
+that a point's refinement ran on slabs too wide for the Magnus series, which is when it checks
+the profile for jumps nobody declared (issue #161).  ``None`` (and therefore free) otherwise.
+
+.. versionadded:: 1.2.0
+"""
+
+
 @contextmanager
 def _deferred_slab_norm():
     r"""Collect slab norms instead of warning about them, for the duration of the block.
@@ -1918,7 +1929,8 @@ def _warn_slab_norm(nmax: float):
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
 
     .. versionchanged:: 1.2.0
-       Receives the norm of the traceless part of Omega (issue #155 §1).
+       Receives the norm of the traceless part of Omega (issue #155 §1); records it in
+       ``_SLAB_NORM_OBSERVER`` when that is set (issue #161).
 
     Parameters
     ----------
@@ -1930,6 +1942,9 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
+    observer = _SLAB_NORM_OBSERVER.get()
+    if observer is not None and nmax > observer[0]:
+        observer[0] = float(nmax)
     sink = _SLAB_NORM_SINK.get()
     if sink is not None:
         # A caller is running a refinement ladder and will decide, once it knows which level it
