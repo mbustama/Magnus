@@ -397,7 +397,16 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
         print('antisymmetric:',
               np.array_equal(magnus.commutator(X, Y), -magnus.commutator(Y, X)))
 """
-    return X @ Y - Y @ X
+    # Called inside the expansion terms, so nothing is checked on the way in; a failure is
+    # re-raised naming the arguments (issue #160 §10), which costs nothing when it succeeds.
+    try:
+        return X @ Y - Y @ X
+    except (ValueError, TypeError) as err:
+        raise ValueError(_v._msg('magnus.commutator', "X and Y must be square matrices, or "
+                                 "stacks of them, of the same size and broadcastable against "
+                                 "each other; got shapes " + str(np.shape(X)) + " and "
+                                 + str(np.shape(Y)) + " (" + str(err).split('\n')[0] + ").")
+                         ) from err
 
 
 def _commutator_batched_core(X, Y):  # pragma: no cover -- compiled below

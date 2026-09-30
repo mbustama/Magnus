@@ -130,3 +130,12 @@ def test_unchecked_per_node_functions_say_so():
               for k in ('matter', 'matter_td')]
     for f in funcs:
         assert 'hot path' in f.__doc__, f.__name__
+
+
+# §10 commutator ------------------------------------------------------------------------------
+
+def test_commutator_with_mismatched_shapes_names_its_arguments():
+    import magnus.magnus as mm
+    _refused('X and Y', mm.commutator, np.eye(2), np.eye(3))
+    X = np.array([[0.0, 1.0], [0.0, 0.0]])
+    assert np.array_equal(mm.commutator(X, X.T), X @ X.T - X.T @ X)
