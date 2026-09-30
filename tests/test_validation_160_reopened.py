@@ -552,3 +552,21 @@ def test_breakpoints_on_the_path_and_a_partial_earth_path_still_work():
     # does with a table's rows: the ones on the path still mark its jumps.
     _exp(t_breakpoints=[200.*KM, 2000.*KM])
     op.osc_prob_3nu_earth(1.0e9, costhz=-0.9, L=2000.*KM, t_breakpoints=[1500.*KM], **OSC)
+
+
+# §7 callables and matrix Hamiltonians -----------------------------------------------------------
+
+def _h0():
+    import magnus.hamiltonians as hams
+    return hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+
+
+def test_h_func_taking_no_argument_is_refused_by_name():
+    H0 = _h0()
+    _refused('H_func', op.osc_prob_energy_baseline, lambda: H0, 1.0e9, 1000.*KM)
+
+
+def test_h_func_returning_an_object_array_is_refused_by_name():
+    H0 = _h0()
+    _refused('H_func', op.osc_prob_energy_baseline,
+             lambda E, l: np.array(H0/E, dtype=object), 1.0e9, 1000.*KM)

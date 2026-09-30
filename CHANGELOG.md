@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`osc_prob_energy_baseline` refuses an `H_func` taking no argument, or returning an object
+  array, by name** (issue #160 §7).  The first failed on its first call as a `TypeError` naming a
+  lambda, the second as NumPy's "ufunc 'isfinite' not supported".
 - **`t_breakpoints` of which none lies on the path are refused** (issue #160 §6).  Breakpoints
   all before `L0` or past the longest baseline mark nothing -- a sign or a unit gone wrong --
   and were accepted and ignored.  Some off the path stay accepted: a whole profile's breakpoints

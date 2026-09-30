@@ -8524,6 +8524,16 @@ def osc_prob_energy_baseline(
     # Probe once how the Hamiltonian can be evaluated (vectorized over an array of positions,
     # constant, or scalar-only): the verdict is structural and holds for every (energy, L) point,
     # so probing here avoids re-probing inside every osc_prob call.
+    # A callable taking no argument, or more than two, fits none of the forms above and used
+    # to fail on its first call, as a TypeError naming a lambda (issue #160 §7).
+    if validate_input and _direct and callable(H_func):
+        _n_args = _n_required_params(H_func)
+        if isinstance(_n_args, int) and _n_args not in (1, 2):
+            raise _v.InputTypeError(gd.ERROR_MSG_NO_COLOR + " oscprob.osc_prob_energy_baseline: "
+                "H_func must take (energy, l), (l), or (energy) with "
+                "H_func_is_function_only_of_energy=True; it requires " + str(_n_args) +
+                " argument" + ("" if _n_args == 1 else "s") + ".  A constant Hamiltonian can be "
+                "passed as the matrix itself.")
     H_first = H_at_energy(energy[0])
 
     # The first sample of a user Hamiltonian, checked once (issue #160 §7): an array (a list
@@ -8542,7 +8552,9 @@ def osc_prob_energy_baseline(
                                         at=('energy ' + format(float(energy[0]), '.4g') +
                                             (', position L0' if callable(H_first) else '')))
         except ValueError as _e:
-            if (not np.all(np.isfinite(_H0)) and _n_required_params(H_func) == 1
+            # An object array cannot be tested for finiteness, and is refused as it stands.
+            if (_H0.dtype.kind in 'iufc' and not np.all(np.isfinite(_H0))
+                    and _n_required_params(H_func) == 1
                     and not H_func_is_function_only_of_energy):
                 raise ValueError(str(_e) + "  H_func takes one argument, which is read as the "
                     "position; if it is a function of energy, pass "
