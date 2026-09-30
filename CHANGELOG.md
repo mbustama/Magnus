@@ -9,6 +9,8 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A computed oscillogram refuses `log10_energy` above 19, the Planck scale in GeV** (issue
+  #160 §12).  `[30, 31]` was computed as if meaningful.
 - **`plot_probability_vs_energy` warns when the energies look like eV under a larger unit**
   (issue #160 §12).  Energies left in eV, the package's unit, were drawn under the default
   `GeV` label a billion times too large.  `EnergyUnitWarning` fires when the values reach 1e6

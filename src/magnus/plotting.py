@@ -2515,6 +2515,14 @@ def plot_oscillogram(
                                              probability is None)
     computing['wrapper_kw'] = wrapper_kw
     if probability is None:
+        # 10^19 GeV is the Planck scale: above it no oscillation wrapper is meaningful, and a
+        # grid there was computed as if it were (issue #160 §12).
+        _lg = np.asarray(log10_energy, dtype=float)
+        if np.max(_lg) > 19.0:
+            raise ValueError(_v._msg('plotting.plot_oscillogram', "log10_energy is log10 of the "
+                                     "energy in GeV, so it must stay at or below 19, the Planck "
+                                     "scale; its largest entry is " + format(float(np.max(_lg)),
+                                                                              'g') + "."))
         probability = _oscillogram_through_earth_wrappers(costhz, log10_energy, nu_i, nu_f,
                                                           **computing)
     else:

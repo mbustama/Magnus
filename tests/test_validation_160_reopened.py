@@ -646,3 +646,8 @@ def test_energies_left_in_ev_under_a_gev_label_warn(mp):
         mp.plot_probability_vs_energy(x, [y], nu_i=1, nu_f=0)
         mp.plot_probability_vs_energy(x*1e9, [y], nu_i=1, nu_f=0, energy_unit='eV')
         mp.plot_probability_vs_energy(x, [y], nu_i=1, nu_f=0, energy_unit='EeV')
+
+
+def test_computed_oscillogram_refuses_energies_above_the_planck_scale(mp):
+    _refused('log10_energy', mp.plot_oscillogram, np.linspace(-1, -0.1, 4), np.array([30., 31.]),
+             nu_i=1, nu_f=0, num_flavors=3)
