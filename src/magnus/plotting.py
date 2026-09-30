@@ -313,7 +313,11 @@ def _r_abscissa(name, x, where, a):
 
 
 def _r_curves(xname, probability=False):
-    r"""Each curve 1-D, finite, as long as the abscissa; in [0, 1] if a probability."""
+    r"""Each curve 1-D, finite, as long as the abscissa; in [0, 1] if a probability.
+
+    .. versionchanged:: 1.2.0
+       A curve with no point above 0 is refused on a log y axis (issue #160 §12).
+    """
     def rule(name, x, where, a):
         n = len(np.atleast_1d(a[xname]))
         for i, (y, _) in enumerate(_as_curve_list(x)):
@@ -333,7 +337,10 @@ def _r_curves(xname, probability=False):
 
 
 def _r_panels(xname):
-    r"""Each panel of :func:`plot_curves_stacked` checked as :func:`plot_curves` checks its curves."""
+    r"""Each panel of :func:`plot_curves_stacked` checked as :func:`plot_curves` checks its curves.
+
+    .. versionadded:: 1.2.0
+    """
     curves = _r_curves(xname)
 
     def rule(name, x, where, a):
@@ -998,6 +1005,9 @@ def plot_probability_vs_baseline(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       Takes nubar, for the default ordinate label (issue #145 §2).
+
     Parameters
     ----------
     distances : sequence of float
@@ -1085,6 +1095,10 @@ def plot_probability_vs_energy(
     The energy counterpart of :func:`plot_probability_vs_baseline`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Takes nubar, for the default ordinate label (issue #145 §2); energies that look like eV
+       under a larger unit raise EnergyUnitWarning (issue #160 §12).
 
     Parameters
     ----------
@@ -1191,6 +1205,9 @@ def _probability_ylabel(nu_i, nu_f, num_flavors, nubar=False):
     r"""Build the notebooks' ordinate label for a probability panel.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Takes nubar and labels an antineutrino probability as such (issue #145).
     """
     label = prob_label(nu_i, nu_f, nubar=bool(nubar))
     if num_flavors is None:
@@ -1285,6 +1302,10 @@ def plot_probability_with_profile(
     .. versionchanged:: 1.1.1
        Computes the probabilities through the Earth wrappers when given
        ``trajectories``; ``profiles`` and ``panels`` default to None.
+
+    .. versionchanged:: 1.2.0
+       Takes nubar (issue #145 §2), labels the computed probability panel (issue #146 §2), and
+       computes NSI and LIV through the Earth wrappers (issue #146 §1).
 
     Parameters
     ----------
@@ -2360,6 +2381,11 @@ def plot_oscillogram(
        the Earth wrappers.  Adds ``num_flavors``, ``osc_params``, the
        electron-fraction keywords, ``wrapper_kw`` and ``return_probability``.
 
+    .. versionchanged:: 1.2.0
+       Takes nubar and labels an antineutrino oscillogram as such (issue #145), computes NSI and
+       LIV through the Earth wrappers (issue #146 §1), and refuses log10_energy above 19 in
+       compute mode (issue #160 §12).
+
     Parameters
     ----------
     costhz : sequence of float
@@ -2624,6 +2650,10 @@ def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wr
     caller sets per call, which ``wrapper_kw`` and ``osc_params`` may not also set.  The
     composition keywords left at None are dropped, so the wrapper's own defaults (a
     layered electron fraction) apply.
+
+    .. versionchanged:: 1.2.0
+       Routes NSI and LIV parameters to the Earth wrapper that takes them (issue #146 §1), and
+       the wrapper it returns names the plotting routine in its errors (issue #160 §12).
     """
     where = 'Error in magnus: plotting.%s: ' % caller
     if nu_i is None or nu_f is None:

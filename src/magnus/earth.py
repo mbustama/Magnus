@@ -247,6 +247,10 @@ def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
     (issue #160 §3).
 
     .. versionadded:: 1.2.0
+
+    .. versionchanged:: 1.2.0
+       Converts through the unchecked conversion, so a longitude beyond 360 degrees is refused
+       naming the caller's argument rather than 'degrees' (issue #160 §3).
     """
     try:
         d, m, s = dms
@@ -457,6 +461,9 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
        Added ``source_depth`` and ``detector_depth``.  Their defaults of
        zero reproduce the surface-to-surface chord bit for bit, through
        the same expression as before.
+
+    .. versionchanged:: 1.2.0
+       A NaN, negative or bool position ``l`` is refused (issue #160 §3).
 
     Parameters
     ----------
@@ -712,6 +719,10 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
        West or South site toward zero by up to one degree: the chord from
        Fermilab to Homestake was 1207 km instead of 1285 km.
 
+    .. versionchanged:: 1.2.0
+       Degrees outside [-360, 360] are refused, and so is a negative part after a positive one,
+       which was ambiguous (issue #160 §3).
+
     Parameters
     ----------
     degrees : float
@@ -752,6 +763,8 @@ def _dms_value(degrees: float, minutes: float, seconds: float) -> float:
 
     Shared by :func:`dms_to_decimal` and ``_check_dms``, whose own range check names the
     caller's argument (``lon1_dms``) rather than ``degrees``.
+
+    .. versionadded:: 1.2.0
     """
     sign = 1.0
     for part in (degrees, minutes, seconds):
@@ -1002,6 +1015,10 @@ def electron_fraction_func_prem(
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
 
+    .. versionchanged:: 1.2.0
+       Called from outside the package, a fraction outside (0, 1], NaN, infinite or bool is
+       refused by name (issue #160 §11).
+
     Parameters
     ----------
     r : float or np.ndarray
@@ -1065,6 +1082,10 @@ def neutron_to_proton_ratio_from_electron_fraction(electron_fraction):
     .. note::
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
+
+    .. versionchanged:: 1.2.0
+       Called from outside the package, an electron fraction outside (0, 1], NaN, infinite or
+       bool is refused (issue #160 §11).
 
     Parameters
     ----------

@@ -555,6 +555,10 @@ def num_density_e_func(l: float, density_matter_func: Callable,
        Its arguments are not validated: it runs at every quadrature node, and they are
        checked where they are set, by the wrappers and the factories (issue #160).
 
+    .. versionchanged:: 1.2.0
+       Called from outside the package, the electron fraction, the neutron-to-proton ratio and
+       density_matter_func are checked by name (issue #160 §11).
+
     Parameters
     ----------
     l : float or np.ndarray

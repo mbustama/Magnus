@@ -60,6 +60,9 @@ def mixing_matrix_4x4(s12: float, s23: float, s13:float, dCP: float, s14: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
+
     Parameters
     ----------
     s12 : float
@@ -207,6 +210,9 @@ def hamiltonian_4nu_vacuum_energy_independent(s12: float, s23: float, s13:float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       A mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160 §11).
+
     Parameters
     ----------
     s12 : float
@@ -294,6 +300,10 @@ def hamiltonian_4nu_vacuum_energy_independent_td(l: float, s12: float, s23: floa
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
+
     Parameters
     ----------
     l : float or array_like
@@ -339,6 +349,10 @@ def hamiltonian_4nu_vacuum(energy: float, s12: float, s23: float, s13:float, dCP
     Same as :func:`hamiltonian_4nu_vacuum_energy_independent`, but with the 1/E factor applied.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
 
     Parameters
     ----------
@@ -394,6 +408,10 @@ def hamiltonian_4nu_vacuum_td(l: float, energy: float, s12: float, s23: float, s
     genuinely position-dependent Hamiltonians.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       ``l`` may be an array: the result is a stack of matrices, one per position (issue #155
+       §2).
 
     Parameters
     ----------
@@ -562,6 +580,10 @@ def hamiltonian_4nu_nsi(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``VCC`` may be an array: the result is a stack of matrices, one per potential (issue #155
+       §2).
+
     Parameters
     ----------
     VCC : float or array_like
@@ -652,6 +674,10 @@ def hamiltonian_4nu_liv(energy: float, sxi12: float, sxi23: float, sxi13: float,
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2).
+
     Parameters
     ----------
     energy : float or array_like
@@ -717,6 +743,10 @@ def hamiltonian_4nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13: fl
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A LIV mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160
+       §11).
 
     Parameters
     ----------

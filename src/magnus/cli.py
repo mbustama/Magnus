@@ -211,6 +211,10 @@ def build_parser() -> argparse.ArgumentParser:
     .. versionchanged:: 1.1.1
        The epilog names ``prob`` as the default subcommand, and ``magnus -h`` also prints
        the options of ``prob`` (issue #138).
+
+    .. versionchanged:: 1.2.0
+       The --magnus-exp-order help states that 'gl' takes the even orders from 2 to 8 (issue
+       #160 §5).
     """
     parser = argparse.ArgumentParser(
         prog='magnus',

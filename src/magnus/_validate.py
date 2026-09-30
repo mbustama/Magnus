@@ -201,6 +201,8 @@ def check_unit_fraction(name: str, x, where: str, *, allow_zero: bool = False):
     For the helpers that run at every quadrature node (issue #160 §11): a plain float in range
     passes in one comparison; anything else, arrays included, gets the full check.  Returns
     ``x`` unchanged.
+
+    .. versionadded:: 1.2.0
     """
     if type(x) is float and (0.0 <= x if allow_zero else 0.0 < x) and x <= 1.0:
         return x
@@ -430,6 +432,9 @@ def check_refinement(where: str, values: dict) -> None:
     r"""Apply :data:`REFINEMENT_RULES` to the entries of ``values`` that it names.
 
     Also refuses the combinations no single rule sees: a floor above its ceiling.
+
+    .. versionchanged:: 1.2.0
+       Refuses an odd magnus_exp_order with integration_method='gl' (issue #160 §5).
     """
     for key, x in values.items():
         rule = REFINEMENT_RULES.get(key)
@@ -453,6 +458,8 @@ def check_gl_order(order, integration_method, where: str) -> None:
     Each Gauss-Legendre scheme integrates to an even order: an odd request ran the scheme of the
     next even order and returned its result bit for bit, so ``magnus_exp_order=3`` was order 4
     under another name.  Refused, naming the order that was being computed.
+
+    .. versionadded:: 1.2.0
     """
     if type(order) is int and not order & 1:
         return
@@ -584,6 +591,10 @@ def check_physics_params(where: str, values: dict) -> None:
     coefficient is a finite real; the two flags are bools.  A finite plain float passes in
     one comparison, so a builder called once per quadrature node inside a user Hamiltonian
     pays well under a microsecond (issue #160 §11).
+
+    .. versionchanged:: 1.2.0
+       An array ``energy`` is checked entry by entry, since the builders now take one (issue
+       #155 §2).
     """
     for k, x in values.items():
         if k in _BUILDER_FLAGS:

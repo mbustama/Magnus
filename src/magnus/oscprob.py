@@ -2086,6 +2086,8 @@ def _validation_requested(validate_input, where: str) -> bool:
 
     Read as a truth value before any check ran, so ``None`` turned validation off silently and
     an array raised NumPy's "truth value of an array is ambiguous".
+
+    .. versionadded:: 1.2.0
     """
     if validate_input is True or validate_input is False:
         return validate_input
@@ -2154,6 +2156,11 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     reach the scenario functions through it.  Once per call; never inside an engine.
 
     .. versionadded:: 1.2.0
+
+    .. versionchanged:: 1.2.0
+       Refuses flags given as None, a validate_input that is not a bool, t_breakpoints of which
+       none lies on the path, average with cumulative=True and an unwritable filename_log; warns
+       when a points-per-slab setting is given with 'gl' (issue #160 §4 to §6).
     """
     where = "oscprob." + source_func_name
     rules = _ENTRY_RULES
@@ -2276,6 +2283,9 @@ def validate_input_battery(
     core.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A single-entry energy or L is accepted against a longer one (issue #160 §1).
 
     Parameters
     ----------
@@ -2690,6 +2700,10 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
        Returns ``(rho_func, ratio_resolved)`` instead of ``rho_func`` alone, and accepts
        ``ratio_number_neutrons_to_protons=None`` (the new wrapper default) meaning
        "follow the composition".
+
+    .. versionchanged:: 1.2.0
+       A ratio is refused at two and three flavors, where it has no effect, and a callable one
+       is checked at its first value (issue #160 §1).
     """
 
     # Both depths are declared Optional, so None has to mean "no depth".  Normalized
@@ -3365,6 +3379,10 @@ def unpack_oscillation_params_from_dict(
     descriptive error if a required key is missing.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       h_vac_energy_indep is refused up to MAGNUS_MAX_PREDEFINED_NUM_FLAVORS flavors, where it
+       was ignored (issue #160 §1).
 
     Parameters
     ----------
@@ -4052,6 +4070,12 @@ def osc_prob(
 
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
+
+    .. versionchanged:: 1.2.0
+       An odd magnus_exp_order is refused with 'gl'; a points-per-slab setting given with 'gl'
+       warns that it does nothing; new_recursion_limit is checked; an unwritable filename_log is
+       refused before any work; the rule for counts above their caps is documented (issue #160
+       §4, §5).
 
     Parameters
     ----------
@@ -5047,6 +5071,11 @@ def _avg_prob_dispatch(
 
     .. versionchanged:: 1.1.1
        Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
+
+    .. versionchanged:: 1.2.0
+       Refuses average_n_samples without average (issue #160 §1); the energy-window route raises
+       one warning per class (issue #144 §2); the warning for an energy-independent Hamiltonian
+       says no spread can decohere it (issue #144 §3).
 
     Parameters
     ----------
@@ -6196,6 +6225,9 @@ def _osc_prob_scan_separable_ladder(
     warns once per call.
 
     .. versionadded:: 1.1.1
+
+    .. versionchanged:: 1.2.0
+       The slab-cap warning no longer claims to show once per session (issue #144 §1).
     """
     nE, dim = H_E.shape[0], H_E.shape[-1]
 
@@ -8282,6 +8314,11 @@ def osc_prob_energy_baseline(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator`` and ``average``.
 
+    .. versionchanged:: 1.2.0
+       A scan with n_jobs > 1 that would finish within N_JOBS_MIN_PARALLEL_WORK_S runs in the
+       calling process (issue #155 §3); an H_func taking no argument or returning an object
+       array is refused by name (issue #160 §7).
+
     Parameters
     ----------
     H_func : Callable or np.ndarray
@@ -9417,6 +9454,9 @@ def osc_prob_vacuum(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator`` and ``strategy_info``.
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused, and flags given as None (issue #160 §1, §4).
+
     Parameters
     ----------
     num_flavors : int
@@ -9751,6 +9791,10 @@ def osc_prob_matter_std_potential(
 
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
+
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
 
     Parameters
     ----------
@@ -10404,6 +10448,10 @@ def osc_prob_matter_nsi(
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
 
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
+
     Parameters
     ----------
     num_flavors : int
@@ -10966,6 +11014,10 @@ def osc_prob_liv(
 
     .. versionchanged:: 1.1.1
        Added ``return_evolution_operator``.
+
+    .. versionchanged:: 1.2.0
+       A scalar-only rho_func is evaluated position by position and warned about by name (issue
+       #144 §4); flags given as None are refused (issue #160 §4).
 
     Parameters
     ----------
@@ -11537,6 +11589,10 @@ def osc_prob_2nu_vacuum(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -11716,6 +11772,10 @@ def osc_prob_3nu_vacuum(
     function :func:`validate_input_battery`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
 
     Parameters
     ----------
@@ -11955,6 +12015,10 @@ def osc_prob_4nu_vacuum(
     function :func:`validate_input_battery`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
 
     Parameters
     ----------
@@ -12213,6 +12277,10 @@ def osc_prob_5nu_vacuum(
     function :func:`validate_input_battery`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name, and the refinement keywords are documented as
+       having no effect in vacuum (issue #160 §1).
 
     Parameters
     ----------
@@ -12990,6 +13058,10 @@ def osc_prob_2nu_matter_exp_density(
         directly.  Requests it cannot certify go to the general
         slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -13131,6 +13203,10 @@ def osc_prob_3nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -13288,6 +13364,10 @@ def osc_prob_4nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -13464,6 +13544,10 @@ def osc_prob_5nu_matter_exp_density(
     probability in matter with an exponentially falling density profile.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -13723,6 +13807,10 @@ def osc_prob_2nu_earth(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -14066,6 +14154,10 @@ def osc_prob_3nu_earth(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -14426,6 +14518,10 @@ def osc_prob_4nu_earth(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -14808,6 +14904,10 @@ def osc_prob_5nu_earth(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -15152,6 +15252,10 @@ def osc_prob_earth(
        they were: both endpoints on the surface, and PREM's own ocean.
        Added ``average``.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path (issue
+       #160 §1, §6).
+
     Parameters
     ----------
     H_func : Callable
@@ -15448,6 +15552,9 @@ def _osc_prob_with_potential(
         ``_osc_prob_hybrid_dispatch_generic`` and :doc:`/adiabatic_strategy`) whenever
         ``t_breakpoints`` is empty and a target tolerance is requested, before falling back to
         the general slab-refinement method.
+
+    .. versionchanged:: 1.2.0
+       H_func's first sample is checked: an array, square, finite and Hermitian (issue #160 §7).
 
     Parameters
     ----------
@@ -15886,6 +15993,10 @@ def osc_prob_2nu_sun(
         :func:`magnus.adiabatic.hybrid_propagator` and :doc:`/adiabatic_strategy`) first, before
         the interaction-picture integrator and the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -16060,6 +16171,10 @@ def osc_prob_3nu_sun(
     .. versionchanged:: 1.1.1
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
 
     Parameters
     ----------
@@ -16260,6 +16375,10 @@ def osc_prob_4nu_sun(
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
 
     Parameters
     ----------
@@ -16509,6 +16628,10 @@ def osc_prob_5nu_sun(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -16743,6 +16866,10 @@ def osc_prob_sun(
 
     .. versionchanged:: 1.1.1
        Added ``average``, ``density_profile`` and ``stop_at_table_edge``.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 and electron_fraction, which has no effect, are refused; H_func's first
+       sample is checked (issue #160 §1, §7).
 
     Parameters
     ----------
@@ -17636,6 +17763,10 @@ def osc_prob_2nu_matter_nsi_exp_density(
         ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
         cannot certify go to the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -17789,6 +17920,10 @@ def osc_prob_3nu_matter_nsi_exp_density(
     non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -17971,6 +18106,10 @@ def osc_prob_4nu_matter_nsi_exp_density(
     including non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -18186,6 +18325,10 @@ def osc_prob_5nu_matter_nsi_exp_density(
     including non-standard interactions (NSI).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -18479,6 +18622,10 @@ def osc_prob_2nu_earth_nsi(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -18831,6 +18978,10 @@ def osc_prob_3nu_earth_nsi(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -19213,6 +19364,10 @@ def osc_prob_4nu_earth_nsi(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -19632,6 +19787,10 @@ def osc_prob_5nu_earth_nsi(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -20009,6 +20168,10 @@ def osc_prob_2nu_sun_nsi(
         ladder; with ``strategy='magnus'`` it is tried directly.  Requests it
         cannot certify go to the general slab-refinement method.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -20190,6 +20353,10 @@ def osc_prob_3nu_sun_nsi(
     .. versionchanged:: 1.1.1
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
 
     Parameters
     ----------
@@ -20416,6 +20583,10 @@ def osc_prob_4nu_sun_nsi(
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
 
     Parameters
     ----------
@@ -20708,6 +20879,10 @@ def osc_prob_5nu_sun_nsi(
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -20957,6 +21132,9 @@ def osc_prob_2nu_vacuum_liv(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -21075,6 +21253,9 @@ def osc_prob_3nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -21226,6 +21407,9 @@ def osc_prob_4nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -21417,6 +21601,9 @@ def osc_prob_5nu_vacuum_liv(
     vacuum under (one form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       L0 and t_breakpoints are refused by name (issue #160 §1).
 
     Parameters
     ----------
@@ -22339,6 +22526,10 @@ def osc_prob_2nu_matter_liv_exp_density(
 
     .. versionadded:: 1.0.0
 
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -22500,6 +22691,10 @@ def osc_prob_3nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -22690,6 +22885,10 @@ def osc_prob_4nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -22920,6 +23119,10 @@ def osc_prob_5nu_matter_liv_exp_density(
     form of) Lorentz-invariance violation.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       A NaN or otherwise invalid l_scale or rho_central is refused naming it, rather than as a
+       non-finite rho_func (issue #160 §1).
 
     Parameters
     ----------
@@ -23227,6 +23430,10 @@ def osc_prob_2nu_earth_liv(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -23590,6 +23797,10 @@ def osc_prob_3nu_earth_liv(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -23984,6 +24195,10 @@ def osc_prob_4nu_earth_liv(
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
+
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
 
     Parameters
     ----------
@@ -24420,6 +24635,10 @@ def osc_prob_5nu_earth_liv(
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
 
+    .. versionchanged:: 1.2.0
+       L0 is refused by name, and so are t_breakpoints of which none lies on the path; the PREM
+       crossings past the end of a partial path are no longer passed on (issue #160 §1, §6).
+
     Parameters
     ----------
     energy : int, float, list, or np.ndarray
@@ -24777,6 +24996,10 @@ def osc_prob_2nu_sun_liv(
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 2 flavors (issue #160 §1).
+
     Parameters
     ----------
     energy : float, list, or np.ndarray
@@ -24953,6 +25176,10 @@ def osc_prob_3nu_sun_liv(
     .. versionchanged:: 1.1.1
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect, and
+       ratio_number_neutrons_to_protons, which has none at 3 flavors (issue #160 §1).
 
     Parameters
     ----------
@@ -25171,6 +25398,10 @@ def osc_prob_4nu_sun_liv(
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
 
     Parameters
     ----------
@@ -25459,6 +25690,10 @@ def osc_prob_5nu_sun_liv(
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
        composition with a standard solar model.
+
+    .. versionchanged:: 1.2.0
+       A negative L0 is refused, and so is electron_fraction, which has no effect (issue #160
+       §1).
 
     Parameters
     ----------

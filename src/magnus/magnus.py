@@ -220,6 +220,10 @@ class MagnusConvergenceWarning(UserWarning):
     ladders of :mod:`magnus.avgprob` use it.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       The norm excludes the trace, a global phase that does not affect convergence, so a large
+       trace no longer triggers it (issue #155 §1).
     """
 
 
@@ -369,6 +373,9 @@ def commutator(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     product broadcasts over all leading axes).
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Matrices of mismatched shapes are refused naming X and Y (issue #160 §10).
 
     Parameters
     ----------
@@ -1910,6 +1917,9 @@ def _warn_slab_norm(nmax: float):
     r"""Warn if the slab norm proxy ``nmax`` :math:`= \max \lVert\Omega\rVert_2` is
     :math:`\geq \pi` (see :class:`MagnusConvergenceWarning`).
 
+    .. versionchanged:: 1.2.0
+       Receives the norm of the traceless part of Omega (issue #155 §1).
+
     Parameters
     ----------
     nmax : float
@@ -2449,6 +2459,8 @@ def _traceless_max_core(lam):  # pragma: no cover -- compiled below
 
     The warning norm of issue #155 §1, with no ``(n, d)`` temporaries: the NumPy form
     (mean, subtract, abs, max) cost 9 % of a 200-energy Earth scan.
+
+    .. versionadded:: 1.2.0
     """
     n, d = lam.shape
     best = 0.0
@@ -2465,7 +2477,10 @@ def _traceless_max_core(lam):  # pragma: no cover -- compiled below
 
 
 def _traceless_max(lam):
-    r"""``max |lambda - mean(lambda)|`` taken per row of the last axis (see _traceless_max_core)."""
+    r"""``max |lambda - mean(lambda)|`` taken per row of the last axis (see _traceless_max_core).
+
+    .. versionadded:: 1.2.0
+    """
     lam2 = np.ascontiguousarray(lam, dtype=float).reshape(-1, lam.shape[-1])
     if _traceless_max_kernel is not None:
         return float(_traceless_max_kernel(lam2))
@@ -2527,6 +2542,10 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
     (``A_is_const``) the series terminates exactly and the check is
     skipped.  Both routes return the eigenvalues, so the check costs nothing
     either way.
+
+    .. versionchanged:: 1.2.0
+       The convergence check measures the traceless part of Omega, on the eigenvalue and the SVD
+       routes alike (issue #155 §1).
 
     Parameters
     ----------
@@ -2645,6 +2664,10 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
 
 def _validate(order: int, integration_method: str):
     r"""Validates ``order`` and ``integration_method``.
+
+    .. versionchanged:: 1.2.0
+       Refuses an odd order with integration_method='gl'; the order-cost warning no longer
+       claims to show once per session (issues #160 §5, #144 §1).
 
     Parameters
     ----------

@@ -1800,6 +1800,8 @@ def _refuse_non_finite_propagator(U, l0, l1) -> None:
     Only the first sample of ``H_func`` is checked on entry, so a Hamiltonian that turned NaN
     partway along the path was integrated through and returned as a NaN propagator, silently.
     One ``isfinite`` over a ``(d, d)`` matrix per refinement level.
+
+    .. versionadded:: 1.2.0
     """
     if not np.all(np.isfinite(U)):
         raise ValueError(_v._msg("adiabatic.hybrid_propagator", "H_func is not finite "
@@ -1861,6 +1863,10 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
        ``min(1e-7, (atol + rtol)/10)`` instead of a fixed 1e-7, so a tolerance tighter than
        about 1e-6 now reaches the patches; before, the result was certified at the requested
        tolerance while each patch was converged only to 1e-7.
+
+    .. versionchanged:: 1.2.0
+       A Hamiltonian that turns NaN or infinite along the path is refused, naming H_func,
+       instead of returning a NaN propagator (issue #160 §7).
 
     Parameters
     ----------

@@ -294,6 +294,11 @@ def hamiltonian_pseudo_dirac_vacuum_energy_independent(
 
     .. versionadded:: 1.0.11
 
+    .. versionchanged:: 1.2.0
+       Built as the standard term plus the splitting term, so a small splitting keeps its
+       precision instead of vanishing below the round-off of the larger masses, and symmetrized
+       to be exactly Hermitian (issue #165 §1).
+
     Parameters
     ----------
     mixing_matrix : list or np.ndarray
@@ -373,6 +378,10 @@ def hamiltonian_pseudo_dirac_vacuum(
     :math:`H_{\rm vac} = W M^2 W^\dagger / (2E)`.
 
     .. versionadded:: 1.0.11
+
+    .. versionchanged:: 1.2.0
+       ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
+       §2); small splittings keep their precision (issue #165 §1).
 
     Parameters
     ----------

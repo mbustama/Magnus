@@ -155,6 +155,10 @@ def _warn_if_angles_are_probably_sines(source_func_name, values):
     :data:`IMPLAUSIBLE_MIXING_ANGLE_DEG`.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Judged by the active angles only, and the message says how to silence a false positive
+       (issue #160 §11).
     """
     import warnings
 
@@ -208,6 +212,9 @@ def resolve(source_func_name: str, angles: str, sines: dict, phases: dict = None
     this function at all.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       An angle with a negative cosine, beyond 90 degrees, is refused (issue #160 §11).
 
     Parameters
     ----------
@@ -323,6 +330,8 @@ def _refuse_negative_cosine(source_func_name, values, convention, to_radians):
     :math:`\theta_{12} = 2.0` rad gave the matrix of :math:`\pi - 2.0`, 0.0175 off in
     probability.  That rotation differs from the requested one by the sign of the cosine, which
     only a rephasing of the states can absorb, so it is refused rather than guessed.
+
+    .. versionadded:: 1.2.0
     """
     for name, value in values.items():
         theta = to_radians(np.asarray(value, dtype=float))

@@ -21,7 +21,10 @@ SCALARS = frozenset((float, int, np.float64, np.float32, np.int64, np.int32))
 
 
 def stacked(x):
-    r"""``x`` as a float array with two trailing axes, ready to multiply a ``(d, d)`` matrix."""
+    r"""``x`` as a float array with two trailing axes, ready to multiply a ``(d, d)`` matrix.
+
+    .. versionadded:: 1.2.0
+    """
     return np.asarray(x, dtype=float)[..., None, None]
 
 
@@ -31,6 +34,8 @@ def over_positions(l, H):
     A scalar ``l`` returns ``H`` itself.  An array returns a writable stack of shape
     ``broadcast(shape(l), H.shape[:-2]) + (d, d)``, so an energy stack and a position stack of
     the same length pair up entry by entry.
+
+    .. versionadded:: 1.2.0
     """
     if type(l) in SCALARS or np.ndim(l) == 0:
         return H
