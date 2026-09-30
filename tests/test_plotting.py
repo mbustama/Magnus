@@ -167,9 +167,13 @@ HOUSE_LEGEND_FONTSIZE = 17
 
 def test_plot_curves_legend_kw_overrides_the_house_default(sample):
     L, exact, _ = sample
-    fig, ax = mp.plot_curves(L, [dict(y=exact, label='m')],
+    # Three entries: below matplotlib 3.6 a legend caps its columns at its entry count.
+    fig, ax = mp.plot_curves(L, [dict(y=exact, label=k) for k in 'abc'],
                              legend_kw=dict(ncol=3))
-    assert ax.get_legend()._ncols == 3
+    # The column count is private, and matplotlib 3.6 renamed it _ncol -> _ncols; read
+    # whichever this version has, since the floor is 3.5 (issue #164 §3).
+    legend = ax.get_legend()
+    assert getattr(legend, '_ncols', getattr(legend, '_ncol', None)) == 3
 
 
 def test_plot_curves_sets_multiple_locators_from_the_tick_spacings(sample):
@@ -333,7 +337,9 @@ def test_stacked_ylabel_is_one_figure_level_label(stack):
     subplot purely to hang a label on."""
     E, panels = stack
     fig, ax = mp.plot_curves_stacked(E, panels, ylabel='P')
-    assert fig.get_supylabel() == 'P'
+    # Figure.get_supylabel is matplotlib 3.7+; the label itself exists from 3.4 on, and the
+    # floor is 3.5 (issue #164 §3).
+    assert fig._supylabel.get_text() == 'P'
     assert all(axx.get_ylabel() == '' for axx in ax)
 
 
@@ -344,7 +350,12 @@ def test_stacked_shared_ylabel_matches_the_axis_label_size(stack):
     abscissa label under it -- caught by looking at the rendered figure, not by
     the code running."""
     E, panels = stack
-    with matplotlib.rc_context({'axes.labelsize': 25, 'figure.labelsize': 11}):
+    # 'figure.labelsize' exists from matplotlib 3.7 on; below that supylabel has no size of
+    # its own to fall back to, and the axis label size must still win (issue #164 §3).
+    rc = {'axes.labelsize': 25}
+    if 'figure.labelsize' in matplotlib.rcParams:
+        rc['figure.labelsize'] = 11
+    with matplotlib.rc_context(rc):
         fig, ax = mp.plot_curves_stacked(E, panels, ylabel='P', xlabel='X')
     assert fig._supylabel.get_fontsize() == 25
 

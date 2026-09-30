@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The plotting tests pass at the declared matplotlib floor, 3.5** (issue #164 §3).  Three
+  tests read API from later releases (`Figure.get_supylabel`, the `figure.labelsize` rcParam,
+  the legend's `_ncols`), and one relied on 3.6's legend keeping more columns than entries, so
+  they failed at matplotlib 3.5.0 while the library itself worked.  They now check the same
+  behaviour through what 3.5 has; the runtime floor is unchanged.
 - **Averaging an energy-independent Hamiltonian says why no average applies** (issue #144 §3).
   A matrix, or a function of position alone, has no energy dependence for a spread to act on,
   so a pair of levels neither decohered nor coherent stays that way; the warning said only
