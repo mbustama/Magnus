@@ -4043,11 +4043,24 @@ def osc_prob(
         the phase-based estimate (:func:`magnus.magnus.suggest_n_slabs`),
         never below ``min_n_slabs``, and ``'trapezoid'``/``'simpson'``
         start at ``min_n_slabs``.
+
+        **The caps and the requested counts.**  ``max_n_slabs`` and
+        ``max_n_tpts_per_slab`` are ceilings on the *refinement*, so they apply
+        only when a tolerance is requested.  There, an ``n_slabs`` floor above
+        ``max_n_slabs`` is clipped to ``max_n_slabs``, and the points per slab
+        climb from ``min_n_tpts_per_slab`` and are clipped at
+        ``max_n_tpts_per_slab``; stopping at either cap without two levels
+        agreeing raises :class:`ToleranceNotAchievedWarning`.  On a fixed grid
+        (``rtol`` and ``atol`` both ``None``) nothing is refined, so
+        ``n_slabs`` and ``n_tpts_per_slab`` are used as given, above their caps
+        or not.
     n_tpts_per_slab : int, optional
         Number of time-points inside the slab at which to evaluate 
         H_func in order to numerically compute the integrals over time 
         required by the Magnus expansion. A higher value of 
-        ``n_tpts_per_slab`` yields a more accurate probability.
+        ``n_tpts_per_slab`` yields a more accurate probability.  Used on a
+        fixed grid; with a tolerance the points per slab climb from
+        ``min_n_tpts_per_slab`` instead (see ``n_slabs`` for the caps).
         Used by ``'trapezoid'`` and ``'simpson'`` only: ``'gl'`` evaluates the
         Hamiltonian at its own nodes and ignores it, and a value passed with it raises
         :class:`IgnoredQuadratureSettingWarning`.

@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`osc_prob` documents what happens to a count above its cap** (issue #160 §5).  With a
+  tolerance, an `n_slabs` floor above `max_n_slabs` is clipped to it and the points per slab
+  are clipped at `max_n_tpts_per_slab`, with `ToleranceNotAchievedWarning` if a cap stops the
+  refinement; on a fixed grid (`rtol=atol=None`) both counts are used as given.  This was the
+  behavior already, undocumented; it is unchanged.
 - **A `filename_log` that cannot be written is refused by name, before any work** (issue #160
   §4).  With `save_log=True`, a missing directory or a path naming a directory surfaced as a
   raw `FileNotFoundError` or `IsADirectoryError` from deep inside `osc_prob`.

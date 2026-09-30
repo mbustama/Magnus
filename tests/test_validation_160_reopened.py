@@ -478,3 +478,35 @@ def test_log_path_that_can_be_written_still_logs(tmp_path):
     log = tmp_path/'run.log'
     op.osc_prob(_castle, 0.0, 1000.*KM, save_log=True, filename_log=str(log))
     assert log.exists()
+
+
+# §5 caps, n_jobs, average with cumulative -------------------------------------------------------
+
+def test_osc_prob_documents_the_rule_for_counts_above_their_caps():
+    doc = ' '.join(op.osc_prob.__doc__.split())
+    assert 'clipped to ``max_n_slabs``' in doc
+    assert 'clipped at ``max_n_tpts_per_slab``' in doc
+    assert '``n_slabs`` and ``n_tpts_per_slab`` are used as given, above their caps or not' in doc
+
+
+def test_counts_above_their_caps_behave_as_documented():
+    info = {}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        op.osc_prob(_castle, 0.0, 3000.*KM, n_slabs=50, max_n_slabs=20, convergence_info=info)
+    assert info['n_slabs'] == 20
+    assert any(type(w.message).__name__ == 'ToleranceNotAchievedWarning' for w in caught)
+    info = {}
+    op.osc_prob(_castle, 0.0, 3000.*KM, n_slabs=50, max_n_slabs=20, rtol=None, atol=None,
+                convergence_info=info)
+    assert info['n_slabs'] == 50
+    info = {}
+    op.osc_prob(_castle, 0.0, 3000.*KM, integration_method='simpson', n_tpts_per_slab=601,
+                max_n_tpts_per_slab=501, n_slabs=4, rtol=None, atol=None, convergence_info=info)
+    assert info['n_tpts_per_slab'] == 601
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob(_castle, 0.0, 3000.*KM, integration_method='simpson', n_slabs=4,
+                    max_n_slabs=4, max_n_tpts_per_slab=501, convergence_info=info)
+    assert info['n_tpts_per_slab'] <= 501
