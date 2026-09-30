@@ -432,6 +432,13 @@ family share their failure modes, and when only one family applies the function
 says so with :class:`~magnus.oscprob.CrossCheckInconclusiveWarning`.  A large spread
 is reported, never raised; read it before trusting a number that matters.
 
+When a spread is large, look first at ``check['unverified']``: the engines that said
+they did not reach the tolerance.  A spread involving one of them points at that
+engine.  ``check['max_spread_verified']`` is the spread across families among the
+others.  On the Sun at 1 MeV, a certified hybrid 3.8e-5 from a fine reference and a
+slab ladder capped at 20 000 slabs 1.9e-3 from it gave a 1.9e-3 spread; the ladder is
+the one listed as unverified.
+
 
 Telling it where the profile is not smooth
 ------------------------------------------
