@@ -1031,13 +1031,15 @@ r"""int: Module-level constant
 Slabs per probe interval that the ladder starts from when ``strategy='auto'`` hands it a profile
 with a feature sharp at the probe scale but smooth below it (issue #161): a narrow density
 spike, which the ladder's seed, from the phase integrated along the path, cannot see.  Every
-level from that seed can step over the spike and agree on the same wrong answer: 17 of 36
-Gaussian spikes of widths 2 to 50 km over 4000 km were off by more than the requested 1e-3, up
-to 1.4e-2, with no warning.  Two slabs per probe interval, 398 over the path, brought every one
-the probe grid flags within the tolerance, 2e-4 to 4e-4 at a width of 2 km and 3e-5 or better
-from 5 km, in 3 to 5 ms against the 4 to 8 ms it took to return the wrong answer.  A feature
-narrower than the probe spacing and between two probes is not flagged, and stays out of reach
-(see :class:`HiddenFeatureWarning`).
+level from that seed can step over the spike and agree on the same wrong answer.  On Gaussian
+spikes of widths 2, 5, 20 and 50 km at three positions along 4000 km, at 0.5, 1 and 3 GeV, 17 of
+the 36 were off by more than the requested 1e-3, up to 1.4e-2, with no warning; starting at two
+slabs per probe interval, 398 over the path, leaves 3, the 2 km spike that falls between two
+probes at every energy, which the probe grid cannot flag (see :class:`HiddenFeatureWarning`).
+The 5 km spike went from 4.0e-3 to 1.0e-8 at 3 GeV.  A request the probe does not flag keeps its
+starting grid, and its answer, bit for bit.  One it flags costs up to twice the time of a
+scan that was answered wrong, and up to 1.5 times that of one already answered right, as on
+the 50 km spike, where the error also falls, from 1e-6 to 1e-9.
 
 .. versionadded:: 1.2.0
 """
@@ -1577,7 +1579,20 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
     answer was wrong by **0.54** in probability while reporting itself certified, and that is
     the case this instance exists for.
 
+    **Also raised by** :func:`osc_prob_energy_baseline` **on its per-point path**, where the
+    refinement ladder answers one point at a time (issue #161).  There a slab straddling an
+    undeclared jump converges as :math:`1/n` and the ladder can stop wherever two levels happen
+    to agree: on a three-layer castle wall, 24 of 40 baselines were off by more than the
+    requested 1e-3, up to 7.0e-2.  When the ladder's own samples show a jump (see
+    :data:`UNDECLARED_JUMP_STEP_TOLERANCE`), the jumps are located and declared, every point is
+    computed with them, and this warning names them and the ``t_breakpoints`` to pass.  The
+    answer is then right: 4.5e-13 on that castle wall.
+
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Raised by the per-point path of osc_prob_energy_baseline, which then declares the jumps
+       it found (issue #161).
     """
 
 
@@ -7700,6 +7715,10 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
 
     .. versionadded:: 1.1.1
 
+    .. versionchanged:: 1.2.0
+       A profile with a feature sharp at the probe scale starts the ladder at the probe spacing
+       (issue #161); see :data:`AUTO_SHARP_FEATURE_SLABS_PER_PROBE`.
+
     Returns
     -------
     _PreferLadder or None
@@ -8415,6 +8434,8 @@ def osc_prob_energy_baseline(
        calling process (issue #155 §3); an H_func taking no argument or returning an object
        array is refused by name (issue #160 §7).
        average_spread and average_initial_state are refused without average=True (issue #160).
+       Finds jumps nobody declared and declares them, with UnmarkedDiscontinuityWarning (issue
+       #161): see UNDECLARED_JUMP_STEP_TOLERANCE.
 
     Parameters
     ----------
