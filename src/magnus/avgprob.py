@@ -91,6 +91,7 @@ Routine listings
     averaged_probabilities_numerically
     phase_averaged_probabilities_constant_hamiltonian
     phase_averaged_probabilities_adiabatic
+    phase_averaged_probabilities_pseudo_dirac
 """
 
 __author__ = "Mauricio Bustamante"
@@ -1145,6 +1146,131 @@ def phase_averaged_probabilities_constant_hamiltonian(
     Kt = np.swapaxes(K, -1, -2)                                         # (..., 2, j, i)
     Y = Xc[..., None, :, :, :] @ Kt[..., :, None, :, :]                # (..., 2, a, b, i)
     PS = np.real(np.sum(X[..., None, :, :, :]*Y, axis=-1))             # (..., 2, a, b)
+    P, S = PS[..., 0, :, :], PS[..., 1, :, :]
+    return P, np.max(np.abs(S), axis=(-2, -1))
+
+
+@_v.validated(dict(mixing_matrix=_unitary, mass_squared=_v.r_real_array(allow_scalar=False),
+                   energy=_v.r_real_array(positive=True),
+                   baseline=_v.r_real_array(nonnegative=True), spread=_SPREAD,
+                   nubar=_v.r_bool))
+def phase_averaged_probabilities_pseudo_dirac(
+    mixing_matrix: Union[Sequence, np.ndarray],
+    mass_squared: Union[Sequence[float], np.ndarray],
+    pairs: Optional[dict],
+    energy: Union[float, np.ndarray],
+    baseline: Union[float, np.ndarray],
+    spread: Optional[float] = AVG_PHASE_SPREAD,
+    nubar: Optional[bool] = False
+) -> Tuple[np.ndarray, np.ndarray]:
+    r"""Phase-averaged probabilities of a pseudo-Dirac spectrum in vacuum, from its exact phases.
+
+    The same average as :func:`phase_averaged_probabilities_constant_hamiltonian`,
+
+    .. math::
+
+       P_{\alpha\beta} = \sum_{ij} W^*_{\alpha i} W_{\beta i} W_{\alpha j} W^*_{\beta j}\,
+       e^{-i\phi_{ij}}\, e^{-\sigma^2 \phi_{ij}^2/2} ,
+       \qquad \phi_{ij} = \frac{(M^2_i - M^2_j) L}{2E} ,
+
+    but with :math:`W` and the phases taken from the pseudo-Dirac construction rather than from
+    a diagonalization.  That is the point of it.  A pair splitting :math:`\delta m^2_j` sits next
+    to masses near :math:`2.5\times10^{-3}` eV\ :sup:`2`, and ``eigh`` resolves eigenvalue
+    differences only to about :math:`10^{-16}` of the largest, so the averaged route of the
+    generic engine loses a small splitting: measured against a 50-digit reference over pair
+    phases of 0.5 to 30 rad, off by :math:`7\times10^{-5}` at
+    :math:`\delta m^2/\max m^2 = 10^{-12}` and by 0.25 at :math:`4\times10^{-16}` (issue #165).
+    Here the difference between the two members of a pair is formed as
+    :math:`0 + \delta m^2_j`, exactly, so the pair phase is exact however small the splitting;
+    the phases between different pairs carry only the relative rounding of :math:`m^2`, as in
+    any three-flavor calculation.  In vacuum :math:`d\phi/d\ln E = -\phi` exactly, so no
+    derivative is estimated either.  Within :math:`1.1\times10^{-16}` of the reference at every
+    ratio from :math:`10^{-4}` down to :math:`4\times10^{-16}`.
+
+    :func:`magnus.oscprob.osc_prob_pseudo_dirac_vacuum` with ``average=True`` calls this.
+
+    .. versionadded:: 1.2.0
+
+    Parameters
+    ----------
+    mixing_matrix : list or np.ndarray
+        The ``n_active`` x ``n_active`` unitary mixing matrix of the active sector.
+    mass_squared : list or np.ndarray
+        The ``n_active`` mass-squared values, in eV\ :sup:`2`.
+    pairs : dict
+        Mapping from mass-state index to its splitting :math:`\delta m^2_j` > 0, in eV\ :sup:`2`,
+        as in :func:`magnus.hamiltonians.pseudo_dirac_mixing_matrix`.
+    energy : float or np.ndarray
+        Neutrino energy [eV], shape ``(...)``.
+    baseline : float or np.ndarray
+        Length of the path [:math:`\text{eV}^{-1}`], broadcast against ``energy``.
+    spread : float, optional
+        Relative energy spread :math:`\sigma`.  Default: :data:`AVG_PHASE_SPREAD`.
+    nubar : bool, optional
+        If True, antineutrinos: the mixing matrix is conjugated, as in the builders.
+
+    Returns
+    -------
+    (np.ndarray, np.ndarray)
+        The probability matrix, shape ``(..., d, d)`` with ``d = n_active + len(pairs)`` and the
+        initial flavor as the row index; and :math:`\max |\sigma\, \partial P/\partial\sigma|` over
+        its entries, shape ``(...)``, as :func:`phase_averaged_probabilities_constant_hamiltonian`
+        returns it.
+
+    Examples
+    --------
+    A splitting of 1e-18 eV\ :sup:`2` at 1 TeV, over the baseline that develops a pair phase of
+    3 rad: the result depends on the splitting only through that phase.
+
+    .. jupyter-execute::
+
+        import numpy as np
+        import magnus.avgprob as ap
+        import magnus.hamiltonians as hams
+
+        U = hams.pmns_mixing_matrix(0.5558, 0.6856, 0.1499, 3.7001)
+        E = 1.0e12
+        P, _ = ap.phase_averaged_probabilities_pseudo_dirac(
+            U, [0.0, 7.5e-5, 2.511e-3], {2: 1.0e-18}, E, 3.0*2.0*E/1.0e-18)
+        print(np.round(P[:3, :3], 4))
+    """
+    from magnus.hamiltonians import hamiltonians_pseudodirac as _pd
+
+    m2 = np.asarray(mass_squared, dtype=float).ravel()
+    U = np.asarray(mixing_matrix, dtype=complex)
+    if U.shape != (m2.size, m2.size):
+        raise ValueError(_v._msg('avgprob.phase_averaged_probabilities_pseudo_dirac',
+            "mass_squared must have one value per row of mixing_matrix: got " + str(m2.size)
+            + " values for a " + str(U.shape) + " matrix."))
+    if spread is None:
+        spread = AVG_PHASE_SPREAD
+    pairs = {} if pairs is None else pairs
+    W = _pd.pseudo_dirac_mixing_matrix(U, pairs)       # validates pairs, and is exactly unitary
+    if nubar:
+        W = np.conj(W)
+    columns, _ = _pd._pair_layout(m2.size, pairs)
+    base = np.array([m2[j] for j, _sign in columns])
+    split = np.array([float(pairs[j]) if sign == -1 else 0.0 for j, sign in columns])
+    # The mass-squared difference of every pair of columns, as a difference of the standard
+    # masses plus a difference of the splittings.  For the two members of one pair the first is
+    # exactly 0 and the second exactly delta: the splitting never meets the mass it splits.
+    dM2 = (base[:, None] - base[None, :]) + (split[:, None] - split[None, :])
+    E = np.asarray(energy, dtype=float)
+    L = np.asarray(baseline, dtype=float)
+    E, L = np.broadcast_arrays(E, L)
+    phi = dM2*(L/(2.0*E))[..., None, None]
+    # In vacuum H = M^2/2E, so d(phi)/d(ln E) = -phi exactly, and the weight of each term is
+    # exp(-sigma^2 phi^2/2), as in phase_averaged_probabilities_constant_hamiltonian.
+    x2 = (spread*phi)**2
+    w = np.exp(-0.5*x2)
+    rot = np.exp(-1j*phi)
+    V = np.broadcast_to(W, E.shape + W.shape)
+    X = V.conj()[..., :, None, :]*V[..., None, :, :]
+    K = np.stack([rot*w, rot*(-x2*w)], axis=-3)
+    Xc = X.conj()
+    Kt = np.swapaxes(K, -1, -2)
+    Y = Xc[..., None, :, :, :] @ Kt[..., :, None, :, :]
+    PS = np.real(np.sum(X[..., None, :, :, :]*Y, axis=-1))
     P, S = PS[..., 0, :, :], PS[..., 1, :, :]
     return P, np.max(np.abs(S), axis=(-2, -1))
 

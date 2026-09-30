@@ -58,6 +58,14 @@ There is no "vacuum + NSI" family: NSI couplings scale the matter
 potential, and vacuum has none to scale (the CLI rejects this combination
 explicitly; see :doc:`cli`).
 
+Pseudo-Dirac neutrinos in vacuum, with a sterile partner on any of the three
+mass states, have their own function,
+:py:func:`~magnus.oscprob.osc_prob_pseudo_dirac_vacuum`.  It takes the pairing
+and the splittings, and returns :math:`(3 + n_\text{pairs})`-dimensional
+probabilities.  Its ``average=True`` forms each pair phase from its splitting,
+and stays exact where the generic route loses a small splitting; see
+:ref:`avg-pseudo-dirac`.
+
 Matter, constant density
 ---------------------------
 

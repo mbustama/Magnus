@@ -20510,6 +20510,31 @@ for spread in (0.01, 0.1, 0.3, 1.0):
           % (spread, float(P_mid), '   (PhaseAveragingWarning)' if warned else ''))
 print('  naive sum (decohered)        <P_ee> = %.5f' % naive_sum(W_mid, 0, 0))'''),
 
+    md(r"""The call above passes the Hamiltonian to `osc_prob_energy_baseline`, which finds each
+pair's phase as the difference of two eigenvalues. An eigendecomposition resolves that
+difference only to about $10^{-16}$ of the largest eigenvalue, and here the splitting is
+$10^{-14}$ of it, so a little of the pair phase is round-off. `osc_prob_pseudo_dirac_vacuum`
+takes the pairing itself and forms each pair phase from $\delta m^2$ directly, so its
+average is exact at any splitting (issue #165). Here the two differ in the sixth decimal. At
+$\delta m^2 = 10^{-18}$ eV$^2$, over a baseline 30 times longer, the pair phase is the same and
+the standard phases are still averaged away, so the answer must not move. The pseudo-Dirac
+function returns the same value; the generic route is off by $4\times10^{-3}$."""),
+
+    code(r'''print('%-28s %-12s %-12s %s' % ('', 'generic', 'pseudo-Dirac', '|difference|'))
+for label, dm2, L_here in (('dm2 = 3e-17, 100 Mpc', 3.0e-17, L_100MPC),
+                          ('dm2 = 1e-18, 3000 Mpc', 1.0e-18, 30.0*L_100MPC)):
+    pairs_here = {j: dm2 for j in range(3)}
+    H_here = hamiltonians.hamiltonian_pseudo_dirac_vacuum_energy_independent(U, M2, pairs_here)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', oscprob.PhaseAveragingWarning)
+        P_generic = float(oscprob.osc_prob_energy_baseline(
+            lambda e: H_here/e, 100.0*gd.UNIT_TEV, L_here, 0.0, nu_i=gd.NUE, nu_f=gd.NUE,
+            H_func_is_function_only_of_energy=True, average=True, average_spread=0.1))
+        P_exact = float(oscprob.osc_prob_pseudo_dirac_vacuum(
+            100.0*gd.UNIT_TEV, L_here, pairs_here, mixing_matrix=U, mass_squared=M2,
+            nu_i=gd.NUE, nu_f=gd.NUE, average=True, average_spread=0.1))
+    print('%-28s %-12.6f %-12.6f %.1e' % (label, P_generic, P_exact, abs(P_generic - P_exact)))'''),
+
     md(r"""## 7. On Earth, the effect is invisible
 
 A useful negative result, and the guard against assuming the feature matters everywhere. At a

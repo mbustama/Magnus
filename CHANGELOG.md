@@ -318,6 +318,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`osc_prob_pseudo_dirac_vacuum`, with an exact phase average** (issue #165).  `average=True`
+  on a pseudo-Dirac Hamiltonian, through `osc_prob_energy_baseline`, takes each pair's phase
+  from the difference of two eigenvalues, which loses a small splitting: against a 50-digit
+  reference it is off by 7e-5 at δm²/max m² = 1e-12 and by 0.25 at 4e-16.  The new function
+  takes the pairing (`pairs`) and the standard parameters, or a mixing matrix and masses, and
+  with `average=True` forms every phase from the masses and splittings directly, through
+  `avgprob.phase_averaged_probabilities_pseudo_dirac`; it is within 1.1e-16 of the reference
+  from 1e-4 down to 4e-16.  Without `average` it is the generic route, bit for bit.  Nothing
+  that existed changes.
 - **NSI and LIV oscillograms in compute mode** (issue #146 §1).  `plot_oscillogram`,
   `plot_probability_with_profile` and `plot_biprobability` pick the `_nsi` Earth wrapper when
   `wrapper_kw` or `osc_params` holds an `eps_*` key, and the `_liv` one when it holds `b*`,

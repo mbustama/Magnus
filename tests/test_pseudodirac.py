@@ -304,3 +304,193 @@ def test_small_splitting_is_not_lost_to_cancellation(state, delta):
     assert np.allclose(H, np.conj(H.T), rtol=0.0, atol=0.0)
     recovered = -4.0*H[0, 3]/U[0, state]
     assert abs(recovered/delta - 1.0) < 1.0e-12
+
+
+# ----------------------------------------------------------------------
+# osc_prob_pseudo_dirac_vacuum and its exact phase average (issue #165)
+# ----------------------------------------------------------------------
+
+TEV = 1.0e3*gd.UNIT_GEV
+
+
+def _generic(pairs, energy, L, **kw):
+    """The generic route: osc_prob_energy_baseline on the pseudo-Dirac Hamiltonian."""
+    H0 = hams.hamiltonian_pseudo_dirac_vacuum_energy_independent(
+        _pmns(), _mass_squared(), pairs, nubar=kw.pop('nubar', False))
+    return np.asarray(op.osc_prob_energy_baseline(lambda e: H0/e, energy, L, 0.0, None, None,
+                                                  True, **kw))
+
+
+def _wrapper(pairs, energy, L, **kw):
+    return np.asarray(op.osc_prob_pseudo_dirac_vacuum(
+        energy, L, pairs, mixing_matrix=_pmns(), mass_squared=_mass_squared(), **kw))
+
+
+@pytest.mark.parametrize('state', [0, 1, 2])
+@pytest.mark.parametrize('phase', [0.5, 3.0, 20.0])
+@pytest.mark.parametrize('delta', [1.0e-18, 1.0e-12])
+def test_the_average_of_one_pair_is_the_closed_form(state, phase, delta):
+    """#165: with the standard phases averaged away, one pair on state j gives
+    sum_{k != j} |U_ak U_bk|^2 + |U_aj U_bj|^2 (1 + w cos phi)/2, w = exp(-sigma^2 phi^2/2).
+    The generic route is off by up to 0.25 at delta = 1e-18 (docs/dev/measurements/
+    issue165_pseudo_dirac_resolution); this route is exact at any delta."""
+    L = phase*2.0*TEV/delta
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', op.PhaseAveragingWarning)
+        P = _wrapper({state: delta}, TEV, L, average=True, average_spread=0.3)
+    A = np.abs(_pmns())**2
+    w = np.exp(-0.5*(0.3*phase)**2)
+    expected = A @ A.T - np.outer(A[:, state], A[:, state])*(1.0 - w*np.cos(phase))/2.0
+    assert np.max(np.abs(P[:3, :3] - expected)) < 1.0e-15
+
+
+def test_the_average_depends_on_the_splitting_only_through_the_pair_phase():
+    """Scale delta by 1e-6 and L by 1e6: the pair phase is unchanged and the standard phases stay
+    averaged away, so nothing may move.  The generic route moves by 0.12 here."""
+    pairs = {j: 4.0e-12 for j in range(3)}
+    small = {j: 4.0e-18 for j in range(3)}
+    L = 3.0*2.0*TEV/4.0e-12
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = _wrapper(pairs, TEV, L, average=True)
+        P_small = _wrapper(small, TEV, 1.0e6*L, average=True)
+    assert np.max(np.abs(P - P_small)) < 1.0e-14
+
+
+@pytest.mark.parametrize('nubar', [False, True])
+@pytest.mark.parametrize('initial', ['flavor', 'decohered'])
+def test_the_average_agrees_with_the_generic_route_where_that_resolves_the_pairs(nubar, initial):
+    """At delta/max m^2 = 4e-8 the generic route is good to its finite-difference floor, 1.9e-8."""
+    pairs = {0: 1.0e-10, 2: 3.0e-10}
+    E = np.array([0.5, 1.0, 2.0, 4.0])*TEV
+    L = 3.0*2.0*TEV/1.0e-10
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = _wrapper(pairs, E, L, average=True, nubar=nubar, average_initial_state=initial)
+        P_generic = _generic(pairs, E, L, average=True, nubar=nubar,
+                             average_initial_state=initial)
+    assert P.shape == P_generic.shape == (4, 5, 5)
+    assert np.max(np.abs(P - P_generic)) < 1.0e-7
+
+
+def test_the_average_is_a_probability_and_antineutrinos_transpose_it():
+    pairs = {1: 2.0e-17}
+    E = np.geomspace(10.0, 1000.0, 7)*TEV
+    L = 100.0*MPC_IN_KM*gd.UNIT_KM
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = _wrapper(pairs, E, L, average=True)
+        P_bar = _wrapper(pairs, E, L, average=True, nubar=True)
+    assert np.max(np.abs(P.sum(axis=-1) - 1.0)) < 1.0e-14
+    assert np.max(np.abs(P.sum(axis=-2) - 1.0)) < 1.0e-14
+    assert np.min(P) > -1.0e-15
+    # In vacuum, CPT: P(nubar_a -> nubar_b) = P(nu_b -> nu_a)
+    assert np.max(np.abs(P_bar - np.swapaxes(P, -1, -2))) < 1.0e-14
+
+
+def test_without_average_it_is_the_generic_route_bit_for_bit():
+    """Same Hamiltonian, same engine: what notebook 29 computes by hand."""
+    pairs = {j: 3.0e-17 for j in range(3)}
+    E = np.linspace(1.0, 3.0, 6)*gd.UNIT_GEV
+    L = 1300.0*gd.UNIT_KM
+    U, M2 = _pmns(), _mass_squared()
+
+    def H(energy):
+        return hams.hamiltonian_pseudo_dirac_vacuum(energy, U, M2, pairs)
+
+    expected = np.asarray(op.osc_prob_energy_baseline(H, E, L, 0.0, None, None, True))
+    assert np.array_equal(_wrapper(pairs, E, L), expected)
+    expected_ee = op.osc_prob_energy_baseline(H, 2.0*gd.UNIT_GEV, L, 0.0, gd.NUE, gd.NUE, True)
+    assert _wrapper(pairs, 2.0*gd.UNIT_GEV, L, nu_i=gd.NUE, nu_f=gd.NUE) == expected_ee
+
+
+def test_the_angles_default_to_the_parameter_set():
+    """No mixing given: the standard parameters, from default_osc_params_set_name."""
+    o = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
+    U = hams.pmns_mixing_matrix(o['s12'], o['s23'], o['s13'], o['dCP'])
+    pairs = {2: 1.0e-17}
+    E, L = 1.0*gd.UNIT_GEV, 1300.0*gd.UNIT_KM
+    by_default = np.asarray(op.osc_prob_pseudo_dirac_vacuum(E, L, pairs))
+    by_matrix = np.asarray(op.osc_prob_pseudo_dirac_vacuum(
+        E, L, pairs, mixing_matrix=U, mass_squared=[0.0, o['D21'], o['D31']]))
+    by_angles = np.asarray(op.osc_prob_pseudo_dirac_vacuum(
+        E, L, pairs, s12=o['s12'], s23=o['s23'], s13=o['s13'], dCP=o['dCP'], D21=o['D21'],
+        D31=o['D31']))
+    assert np.array_equal(by_default, by_matrix)
+    assert np.array_equal(by_default, by_angles)
+
+
+def test_with_no_pairs_the_average_is_the_three_flavor_one():
+    E = np.array([0.5, 1.0, 2.0])*gd.UNIT_GEV
+    L = 1.0e4*gd.UNIT_KM
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        P = np.asarray(op.osc_prob_pseudo_dirac_vacuum(E, L, {}, average=True))
+        P3 = np.asarray(op.osc_prob_3nu_vacuum(E, L, average=True))
+    assert np.max(np.abs(P - P3)) < 1.0e-7
+
+
+def test_the_shapes_follow_osc_prob_vacuum():
+    pairs = {0: 1.0e-17}
+    L = 100.0*MPC_IN_KM*gd.UNIT_KM
+    for average in (False, True):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            single = op.osc_prob_pseudo_dirac_vacuum(TEV, L, pairs, nu_i=gd.NUE, nu_f=3,
+                                                     average=average)
+            matrix = op.osc_prob_pseudo_dirac_vacuum(TEV, L, pairs, average=average)
+            stack = op.osc_prob_pseudo_dirac_vacuum([TEV, 2.0*TEV], L, pairs, average=average)
+            column = op.osc_prob_pseudo_dirac_vacuum([TEV, 2.0*TEV], L, pairs, nu_i=gd.NUMU,
+                                                     nu_f=gd.NUMU, average=average)
+        assert np.ndim(single) == 0
+        assert np.shape(matrix) == (4, 4)
+        assert np.shape(stack) == (2, 4, 4)
+        assert np.shape(column) == (2,)
+
+
+def test_the_average_warns_where_it_depends_on_the_spread():
+    """As the generic route does, on notebook 29's middle band."""
+    pairs = {j: 3.0e-17 for j in range(3)}
+    L = 100.0*MPC_IN_KM*gd.UNIT_KM
+    with pytest.warns(op.PhaseAveragingWarning, match='depends on the energy spread'):
+        op.osc_prob_pseudo_dirac_vacuum(100.0*TEV, L, pairs, average=True, average_spread=0.1)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', op.PhaseAveragingWarning)
+        op.osc_prob_pseudo_dirac_vacuum(100.0*TEV, L, pairs, average=True,
+                                        average_initial_state='decohered')
+
+
+def test_strategy_info_reports_the_average():
+    info = {}
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob_pseudo_dirac_vacuum(TEV, 1.0e30, {0: 1.0e-17}, average=True,
+                                        strategy_info=info)
+    assert info['engine'] == 'average'
+
+
+@pytest.mark.parametrize('kw, match', [
+    (dict(s12=0.55, mixing_matrix=np.eye(3), mass_squared=[0.0, 1.0e-4, 2.0e-3]),
+     'given twice'),
+    (dict(mixing_matrix=np.eye(3)), 'go together'),
+    (dict(mixing_matrix=np.eye(3), mass_squared=[0.0, 1.0e-4]), 'one value per row'),
+    (dict(nu_i=4, nu_f=0), r'outside the 4 flavors'),
+    (dict(average_spread=0.1), 'no effect without it'),
+    (dict(average_initial_state='decohered'), 'no effect without it'),
+    (dict(average=True, average_n_samples=5), 'samples nothing'),
+    (dict(average=True, return_evolution_operator=True), 'cannot be combined'),
+    (dict(average=True, rtol=1.0e-6), 'no engine settings'),
+    (dict(average=True, average_spread=-0.1), 'average_spread'),
+    (dict(L0=1.0), 'L0 is not an argument'),
+    (dict(t_breakpoints=[1.0e10]), 't_breakpoints'),
+])
+def test_the_wrapper_refuses(kw, match):
+    with pytest.raises(ValueError, match=match):
+        op.osc_prob_pseudo_dirac_vacuum(TEV, 1.0e25, {0: 1.0e-17}, **kw)
+
+
+def test_a_bad_pairing_is_refused_by_the_builder():
+    with pytest.raises(ValueError, match='outside the range of mass states'):
+        op.osc_prob_pseudo_dirac_vacuum(TEV, 1.0e25, {3: 1.0e-17})
+    with pytest.raises(ValueError, match='must be positive'):
+        op.osc_prob_pseudo_dirac_vacuum(TEV, 1.0e25, {0: 0.0}, average=True)
