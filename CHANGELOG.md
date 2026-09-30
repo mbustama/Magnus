@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`MixingAngleConventionWarning` judges by the active angles, and says how to silence it**
+  (issue #160 §11).  With `angles='deg'`, sines in the active slots went unnoticed when sterile
+  angles of a few degrees were also given, since the check looked at the largest of all angles.
+  It now looks at θ₁₂, θ₁₃, θ₂₃ (or θ at two flavors), and its text says that genuinely tiny
+  angles set it off and how to filter it.
 - **An angle beyond ±90° under `angles='rad'` or `'deg'` is refused** (issue #160 §11).  The
   cosine is taken as `+sqrt(1 - sin^2)`, so θ₁₂ = 2.0 rad silently gave the rotation of
   π − 2.0, 0.0175 off in probability.  The message names the angle and the in-quadrant angle

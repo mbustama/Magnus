@@ -142,10 +142,17 @@ def validate_convention(source_func_name: str, angles: str) -> str:
         " in radians, and 'deg' the angle in degrees.")
 
 
+#: The angles the heuristic below judges by: the three measured active angles, and the one
+#: angle of a two-flavor call.  Sterile and LIV angles have no measured scale to compare with.
+_ACTIVE_ANGLES = frozenset(('s12', 's13', 's23', 'sth'))
+
+
 def _warn_if_angles_are_probably_sines(source_func_name, values):
     r"""Warns when every angle declared to be in degrees is too small to be one.
 
-    Called only for ``angles='deg'``.  See :data:`IMPLAUSIBLE_MIXING_ANGLE_DEG`.
+    Called only for ``angles='deg'``, with the active angles of :data:`_ACTIVE_ANGLES` when
+    the call has any, so that sterile angles cannot hide sines in the active slots.  See
+    :data:`IMPLAUSIBLE_MIXING_ANGLE_DEG`.
 
     .. versionadded:: 1.0.0
     """
@@ -169,7 +176,9 @@ def _warn_if_angles_are_probably_sines(source_func_name, values):
         " degrees is about fifty times too small.  The call will return a converged,"
         " unitary, entirely wrong probability rather than an error.  Either drop"
         " angles='deg' (its default, 'sin', is what load_nufit_params returns), or pass"
-        " the angles themselves.",
+        " the angles themselves.  Genuinely tiny angles set this off too; if yours are,"
+        " silence it with warnings.filterwarnings('ignore',"
+        " category=gd.MixingAngleConventionWarning).",
         # 4, not matter.py's 3: this chain is one frame deeper -- warn, this function,
         # resolve, the builder -- so 4 is what attributes it to the builder's caller.
         gd.MixingAngleConventionWarning, stacklevel=4)
@@ -253,7 +262,11 @@ def resolve(source_func_name: str, angles: str, sines: dict, phases: dict = None
     _validate_range(source_func_name, sines, -360.0, 360.0, 'deg',
                     "an angle in degrees and must lie in [-360, 360]")
     _refuse_negative_cosine(source_func_name, sines, 'deg', np.radians)
-    _warn_if_angles_are_probably_sines(source_func_name, list(sines.values()))
+    # The measured angles only (issue #160 §11): sterile or LIV angles of a few degrees made the
+    # largest angle look plausible while the active slots held sines.
+    active = [v for k, v in sines.items() if k in _ACTIVE_ANGLES]
+    _warn_if_angles_are_probably_sines(source_func_name,
+                                       active if active else list(sines.values()))
     return ({name: np.sin(np.radians(np.asarray(value, dtype=float)))
              for name, value in sines.items()},
             {name: np.radians(np.asarray(value, dtype=float))

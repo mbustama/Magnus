@@ -5,6 +5,8 @@ Each test reproduces the case the audit (``docs/dev/audit/audit160.py``) found f
 a warning, or the documented behaviour.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -45,3 +47,26 @@ def test_angle_in_first_or_fourth_quadrant_is_accepted(s12, angles):
         kw.update(s23=40.0, s13=8.6, dCP=200.0)
     P = op.osc_prob_3nu_vacuum(E, L, s12=s12, angles=angles, **kw)
     assert np.allclose(np.sum(P, axis=-1), 1.0)
+
+
+# §11 angle-convention warning ---------------------------------------------------------------
+
+def test_angle_warning_judges_by_the_active_angles():
+    """Sines in the active slots are not hidden by 5-degree sterile angles."""
+    with pytest.warns(gd.MixingAngleConventionWarning):
+        op.osc_prob_4nu_vacuum(E, L, s12=0.55, s23=0.75, s13=0.15, dCP=1.0, s14=5.0, s24=5.0,
+                               s34=5.0, d14=0.0, d24=0.0, D21=7.5e-5, D31=2.5e-3, D41=1.0,
+                               angles='deg')
+
+
+def test_angle_warning_says_how_to_silence_a_false_positive():
+    with pytest.warns(gd.MixingAngleConventionWarning, match='filterwarnings'):
+        op.osc_prob_2nu_vacuum(E, L, sth=0.5, Dm2=7.5e-5, angles='deg')
+
+
+def test_angle_warning_is_quiet_for_real_degrees():
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', gd.MixingAngleConventionWarning)
+        op.osc_prob_4nu_vacuum(E, L, s12=33.7, s23=43.3, s13=8.6, dCP=212.0, s14=0.5, s24=0.5,
+                               s34=0.5, d14=0.0, d24=0.0, D21=7.5e-5, D31=2.5e-3, D41=1.0,
+                               angles='deg')
