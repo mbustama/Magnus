@@ -4912,6 +4912,13 @@ def _avg_prob_dispatch(
         ``NotImplemented`` if ``average`` is falsy.
     """
     if not average:
+        # Only the energy-window route samples, and a call without average takes no route at
+        # all, so the sample count was accepted and ignored there (issue #160 §1).  The spread
+        # and the initial state are documented as ignored without average, and stay so.
+        if average_n_samples is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                "average_n_samples is the number of energies the phase average samples, and "
+                "has no effect without average=True.")
         return NotImplemented
 
     spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
@@ -8143,7 +8150,8 @@ def osc_prob_energy_baseline(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -9106,7 +9114,8 @@ def osc_prob_vacuum(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -9473,7 +9482,8 @@ def osc_prob_matter_std_potential(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -10125,7 +10135,8 @@ def osc_prob_matter_nsi(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -10684,7 +10695,8 @@ def osc_prob_liv(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -14918,7 +14930,8 @@ def osc_prob_earth(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -15173,7 +15186,8 @@ def _osc_prob_with_potential(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1
@@ -16445,7 +16459,8 @@ def osc_prob_sun(
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
         falls as the inverse square root of this number, and each sample costs a full
-        propagation.  No other route samples, so it is refused there.  Default: None,
+        propagation.  No other route samples, nor does a call without ``average``, so it is
+        refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
         .. versionadded:: 1.1.1

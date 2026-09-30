@@ -300,3 +300,16 @@ def test_scenario_functions_refuse_a_vacuum_hamiltonian_they_would_ignore(scenar
     args = (4,) + ((3.0*gd.UNIT_G_PER_CM3,) if scenario != 'osc_prob_vacuum' else ()) + \
         (1.0e9, 1000.*KM, params)
     _refused('h_vac_energy_indep', getattr(op, scenario), *args, h_vac_energy_indep=H4)
+
+
+def test_sample_count_without_average_is_refused():
+    _refused('average_n_samples', op.osc_prob_3nu_vacuum, 1.0e9, 1000.*KM, average_n_samples=11,
+             **OSC)
+    _refused('average_n_samples', op.osc_prob_3nu_earth, 1.0e9, costhz=-0.5, L=5000.*KM,
+             average_n_samples=11, **OSC)
+
+
+def test_spread_and_initial_state_stay_ignored_without_average():
+    plain = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **OSC)
+    for kw in (dict(average_spread=0.1), dict(average_initial_state='decohered')):
+        assert np.array_equal(op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **kw, **OSC), plain)

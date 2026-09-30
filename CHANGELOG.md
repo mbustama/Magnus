@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`average_n_samples` without `average=True` is refused** (issue #160 §1).  It was accepted
+  and ignored; it was already refused on the averaging routes that do not sample.
+  `average_spread` and `average_initial_state` stay documented as ignored without `average`.
 - **The scenario functions refuse an `h_vac_energy_indep` they would ignore** (issue #160 §1).
   Up to five flavors the vacuum Hamiltonian is built from `osc_params`, so a matrix passed
   there was accepted and ignored; `osc_prob_energy_baseline` is the way to propagate one's own.
