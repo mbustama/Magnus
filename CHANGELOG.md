@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **An odd `magnus_exp_order` with `integration_method='gl'` is refused** (issue #160 §5).  The
+  Gauss-Legendre schemes have even orders only, and an odd order ran the next even one bit for
+  bit (checked on main at orders 1, 3, 5 and 7 through every engine): `magnus_exp_order=3` was
+  order 4 under another name.  The error names the even order.  Odd orders still run on
+  `'trapezoid'` and `'simpson'`.  A constant Hamiltonian's single-slab shortcut now runs at
+  order 2 instead of 1, with results bit-identical to before.  The notebooks that passed odd
+  orders now pass the even order they were running, so their outputs are unchanged; notebook
+  24's order table shows 2, 4 and 6.
 - **Flags given as `None`, and `validate_input` given as anything but a bool, are refused**
   (issue #160 §4).  The entry checks skipped every `None`, so `nubar=None`, `average=None`,
   `cumulative=None` and seven more flags read as False; `validate_input` was truth-tested

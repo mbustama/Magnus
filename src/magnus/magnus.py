@@ -1779,7 +1779,8 @@ def _gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).  The propagation
+        entry points take the even orders only; see :func:`magnus.oscprob.osc_prob`.
 
     Returns
     -------
@@ -2676,6 +2677,7 @@ def _validate(order: int, integration_method: str):
             "accuracy for less total work. Shown once per session.",
             MagnusHighOrderCostWarning, stacklevel=3)
 
+    _v.check_gl_order(order, integration_method, 'magnus.magnus_expansion')
     if (integration_method == 'gl') and (order > MAGNUS_EXP_ORDER_MAX_GL):
         raise ValueError(
             "Error in magnus: magnus._validate: integration_method 'gl' supports orders up to "
@@ -2934,7 +2936,8 @@ def gl_nodes(order: int) -> np.ndarray:
     ----------
     order : int
         Requested Magnus order; mapped to the smallest GL scheme with at least that order
-        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).
+        (1-2 -> 1 node, 3-4 -> 2 nodes, 5-6 -> 3 nodes, 7-8 -> 4 nodes).  The propagation
+        entry points take the even orders only; see :func:`magnus.oscprob.osc_prob`.
 
     Returns
     -------

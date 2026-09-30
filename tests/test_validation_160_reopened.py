@@ -383,3 +383,33 @@ def test_validate_input_false_and_numpy_bools_still_work():
     a = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, validate_input=False, **OSC)
     b = op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, validate_input=np.bool_(True), **OSC)
     assert np.array_equal(a, b)
+
+
+# §5 Gauss-Legendre orders -----------------------------------------------------------------------
+
+def _castle(l):
+    import magnus.hamiltonians as hams
+    H0 = hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    return H0/1.0e9 + 1.0e-13*(1.0 + np.sin(l/(300.*KM)))*np.diag([1.0, 0.0, 0.0])
+
+
+@pytest.mark.parametrize('order', [1, 3, 5, 7])
+def test_odd_gl_order_is_refused_naming_the_even_one(order):
+    with pytest.raises(ValueError, match='magnus_exp_order=%d is odd.*magnus_exp_order=%d'
+                                         % (order, order + 1)):
+        op.osc_prob(_castle, 0.0, 3000.*KM, magnus_exp_order=order)
+    _refused('magnus_exp_order', op.osc_prob_3nu_matter_exp_density, 1.0e9, 1000.*KM, 0.0, 3.0,
+             300.*KM, density_matter_is_in_g_per_cm3=True, magnus_exp_order=order, **OSC)
+
+
+@pytest.mark.parametrize('method', ['trapezoid', 'simpson'])
+def test_odd_orders_still_run_on_the_quadrature_methods(method):
+    a = op.osc_prob(_castle, 0.0, 3000.*KM, magnus_exp_order=3, integration_method=method)
+    assert np.allclose(np.sum(a, axis=1), 1.0)
+
+
+def test_constant_hamiltonian_shortcut_is_unchanged_at_order_two():
+    import magnus.hamiltonians as hams
+    H = hams.hamiltonian_3nu_vacuum_energy_independent(**OSC)/1.0e9
+    assert np.array_equal(op.osc_prob(H, 0.0, 1000.*KM),
+                          op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, **OSC))

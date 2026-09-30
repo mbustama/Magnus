@@ -32,6 +32,7 @@ Routine listings
     * check_slab_edges - A gap-free partition of the path into [start, end] pairs
     * check_hamiltonian_sample - A finite, square, Hermitian matrix (or stack)
     * check_refinement - The tolerance, slab and engine keywords, by one rule table
+    * check_gl_order - Refuse an odd Magnus order on the Gauss-Legendre method
     * check_physics_params - A Hamiltonian builder's physics arguments, by name
     * validated - Decorator applying a rule table to calls from outside the package
     * r_real - Rule factory: a real number
@@ -437,12 +438,30 @@ def check_refinement(where: str, values: dict) -> None:
             rule(key, x, where)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
+    if 'magnus_exp_order' in values:
+        check_gl_order(values['magnus_exp_order'], values.get('integration_method', 'gl'), where)
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
                            ('min_n_tpts_per_slab', 'max_n_tpts_per_slab')):
         lo, hi = values.get(lo_key), values.get(hi_key)
         if lo is not None and hi is not None and lo > hi:
             raise ValueError(_msg(where, lo_key + " (" + str(lo) + ") must be <= " + hi_key +
                                   " (" + str(hi) + ")."))
+
+
+def check_gl_order(order, integration_method, where: str) -> None:
+    r"""Refuses an odd Magnus order on the Gauss-Legendre method (issue #160 §5).
+
+    Each Gauss-Legendre scheme integrates to an even order: an odd request ran the scheme of the
+    next even order and returned its result bit for bit, so ``magnus_exp_order=3`` was order 4
+    under another name.  Refused, naming the order that was being computed.
+    """
+    if integration_method in (None, 'gl') and isinstance(order, (int, np.integer)) and \
+            not isinstance(order, bool) and order % 2 == 1:
+        raise ValueError(_msg(where, "magnus_exp_order=" + str(order) + " is odd, and the "
+                              "Gauss-Legendre schemes of integration_method='gl' have even "
+                              "orders only: this ran order " + str(order + 1) + ", bit for bit.  "
+                              "Pass magnus_exp_order=" + str(order + 1) + ", or "
+                              "integration_method='trapezoid' or 'simpson' for an odd order."))
 
 
 # ---------------------------------------------------------------------------------------------

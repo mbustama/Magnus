@@ -2085,6 +2085,9 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
         merged = dict(values, **kw)
     else:
         merged = values
+    if merged.get('magnus_exp_order') is not None:
+        _v.check_gl_order(merged['magnus_exp_order'], merged.get('integration_method', 'gl'),
+                          where)
     # A floor above its ceiling is a contradiction.  n_slabs above max_n_slabs is not: it is
     # clipped to the cap, with ToleranceNotAchievedWarning, by design.
     for lo_key, hi_key in (('min_n_slabs', 'max_n_slabs'),
@@ -3991,7 +3994,12 @@ def osc_prob(
         a shock front calls for.
     magnus_exp_order : int, optional
         Order at which the Magnus expansion is truncated (1 to
-        ``globaldefs.MAGNUS_EXP_ORDER_MAX``).
+        ``globaldefs.MAGNUS_EXP_ORDER_MAX``).  With ``integration_method='gl'``, an even
+        order from 2 to 8: each Gauss-Legendre scheme has an even order, so an odd one is
+        refused rather than run as the next even scheme under another name.
+
+        .. versionchanged:: 1.2.0
+           An odd order with ``'gl'`` is refused; it ran the next even order, bit for bit.
     n_jobs : int, optional
         Accepted and ignored.  The per-slab parallelization it used to select was
         retired: every slab is now computed in a single vectorized call, which was
@@ -4478,7 +4486,9 @@ def osc_prob(
         H_constant = H
         def H_func(l: float) -> np.ndarray:
             return H
-        magnus_exp_order = 1
+        # 2, not 1: the Gauss-Legendre schemes have even orders only (issue #160 §5), and on a
+        # constant Hamiltonian every order is exact on one slab anyway.
+        magnus_exp_order = 2
         n_slabs = 1
         n_tpts_per_slab = 2
         rtol = None
@@ -4497,7 +4507,7 @@ def osc_prob(
             for f in [None, file_log] if save_log else [None]:
                 warn_msg = gd.WARNING_MSG_IN_COLOR if f is None else gd.WARNING_MSG_NO_COLOR
                 print("\n" + warn_msg + " The provided Hamiltonian is time-independent. " + \
-                    "Overwriting the run parameters to magnus_exp_order = 1, n_slabs = 1, " + \
+                    "Overwriting the run parameters to magnus_exp_order = 2, n_slabs = 1, " + \
                     "n_tpts_per_slab = 2, rtol = None, atol = None, and n_jobs = 1 for speed-up.",
                     file=f)
 
@@ -7292,7 +7302,7 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     :data:`AUTO_LADDER_MAX_FLOOR_FRACTION` of ``max_n_slabs``, the resolved cap.  ``rtol`` and
     ``atol`` are the dispatcher's, with a ``None`` already made 0.0; the tighter of the nonzero
     ones is the tolerance.  Below :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120) only with
-    ``integration_method='gl'``, an order it supports (an integer from 1 to 8; any other order
+    ``integration_method='gl'``, an order it supports (an even integer from 2 to 8; any other order
     keeps the hybrid strategy's path and its errors) and a single baseline, and the ladder then
     runs at the requested tolerance rather than a tenth of it.  A baseline scan, which the
     cumulative scan would answer, was not measured there and keeps the hybrid strategy (issue

@@ -206,7 +206,7 @@ def test_constant_A_is_exact():
         return Aconst
 
     T = 2.5
-    U = magnus_expansion(A, 0.0, T, n_tpts=2, order=1)
+    U = magnus_expansion(A, 0.0, T, n_tpts=2, order=2)
     assert maxabs(U - sp.linalg.expm(Aconst*T)) < 1e-12
 
 
@@ -240,7 +240,7 @@ def test_no_convergence_warning_for_constant_A():
     import warnings
     with warnings.catch_warnings():
         warnings.simplefilter("error", MagnusConvergenceWarning)
-        magnus_expansion(A, 0.0, 5.0, n_tpts=2, order=1)
+        magnus_expansion(A, 0.0, 5.0, n_tpts=2, order=2)
 
 
 # ----------------------------------------------------------------------
