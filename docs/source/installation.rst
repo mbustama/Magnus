@@ -431,6 +431,7 @@ File tree
        ├── test_hamiltonians.py        # Hamiltonian/mixing-matrix builders
        ├── test_input_fuzz.py          # Issue #160: each bad argument refused by name, each valid edge accepted
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
+       ├── test_liv_antineutrino_sign.py  # The LIV term for antineutrinos: conjugated, and its CPT-odd part flipped (issue #162)
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
        ├── test_neither_engine_converges.py  # When neither engine of strategy='auto' converges, the better supported answer is returned (issue #167)
        ├── test_one_sided_breakpoints.py  # 'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values

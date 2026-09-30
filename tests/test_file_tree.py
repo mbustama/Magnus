@@ -427,6 +427,8 @@ TREE = [
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_input_fuzz.py', 'Issue #160: each bad argument refused by name, each valid edge accepted'),
     ('tests/test_invariants.py', 'Properties that must hold across the whole engine matrix'),
+    ('tests/test_liv_antineutrino_sign.py',
+     'The LIV term for antineutrinos: conjugated, and its CPT-odd part flipped (issue #162)'),
     ('tests/test_magnus_expansion.py', 'Magnus-core correctness (terms, orders, GL rates, unitarity)'),
     ('tests/test_neither_engine_converges.py',
      "When neither engine of strategy='auto' converges, the better supported answer is returned (issue #167)"),
