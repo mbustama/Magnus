@@ -27,15 +27,15 @@ In matter of constant density, the Hamiltonian does not depend on position. Ever
        print('%5.1f g/cm3  Pme = %.6f'
              % (rho, P[gd.NUMU][gd.NUE]))
    #   0.0 g/cm3  Pme = 0.003773
-   #   3.0 g/cm3  Pme = 0.013475
-   #   8.0 g/cm3  Pme = 0.049843
-   #  13.0 g/cm3  Pme = 0.111807
+   #   3.0 g/cm3  Pme = 0.013589
+   #   8.0 g/cm3  Pme = 0.050497
+   #  13.0 g/cm3  Pme = 0.113343
 
    # Two flavors: one angle and one splitting
    P = oscprob.osc_prob_2nu_matter_constant_density(
        E, L, rho=3.0, sth=osc['s13'], Dm2=osc['D31'],
        density_matter_is_in_g_per_cm3=True)
-   # P[0][1] = 0.005651
+   # P[0][1] = 0.005766
 
    # Two hundred energies in one call
    Es = np.logspace(-1, 1, 200)*gd.UNIT_GEV

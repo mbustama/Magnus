@@ -184,7 +184,7 @@ oscillation:
                                     density_profile='BS05-AGS-OP', strategy='magnus',
                                     t_breakpoints=rows, n_slabs=200_000,
                                     max_n_slabs=10_000_000)
-    print('P_ee = %.9f' % P_ee)    # 0.333876132
+    print('P_ee = %.9f' % P_ee)    # 0.126766302
 
 On the same eleven cases this came within :math:`4\times10^{-9}` of the reference, with no
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two still raised

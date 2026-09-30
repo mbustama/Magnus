@@ -446,16 +446,16 @@ How much burying the detector changes the probability depends on the zenith angl
        costhz)*gd.UNIT_KM
    oscprob.osc_prob_3nu_earth(E, costhz=costhz,
        L=L, **kw)
-                                  # 0.905580
+                                  # 0.911587
 
    # 2 km down, the depth fixes the baseline
    oscprob.osc_prob_3nu_earth(
        E, costhz=costhz,
        detector_depth=2.0*gd.UNIT_KM, **kw)
-                                  # 0.905595
+                                  # 0.911600
 
 
-The two differ by :math:`2 \cdot 10^{-5}`. In contrast, a neutrino arriving horizontally, at :math:`\cos \theta_z = 0`, does not cross the Earth to reach a detector on the surface, but it does to reach one 2 km down:
+The two differ by :math:`1 \cdot 10^{-5}`. In contrast, a neutrino arriving horizontally, at :math:`\cos \theta_z = 0`, does not cross the Earth to reach a detector on the surface, but it does to reach one 2 km down:
 
 .. code-block:: python
 
@@ -489,15 +489,15 @@ PREM puts 3 km of ocean at the top of the Earth. That describes KM3NeT in the M
              nu_f=gd.NUE)
    E = 1.0*gd.UNIT_GEV
    oscprob.osc_prob_3nu_earth(E, **kw)
-                                  # 0.020928
+                                  # 0.020930
    # Under ice, as at IceCube
    oscprob.osc_prob_3nu_earth(E, **kw,
-       density_matter_ocean=0.92) # 0.020898
+       density_matter_ocean=0.92) # 0.020900
    # Under rock, as at SNOLAB
    oscprob.osc_prob_3nu_earth(E, **kw,
        density_matter_ocean=2.65,
        electron_fraction_ocean=0.4952)
-                                  # 0.021319
+                                  # 0.021325
 
 
 .. _ex-sec-custom-earth:

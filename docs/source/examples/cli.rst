@@ -18,8 +18,8 @@ Magνs installs a console script, ``magnus``, that computes one probability, or 
    E = 1 GeV, L = 1000 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9855  0.0134  0.0012
-   nu_mu     0.0135  0.9864  0.0001
+   nu_e      0.9853  0.0135  0.0012
+   nu_mu     0.0136  0.9863  0.0001
    nu_tau    0.0011  0.0002  0.9987
 
    $ magnus --flavors 3 --environment earth \
@@ -28,7 +28,7 @@ Magνs installs a console script, ``magnus``, that computes one probability, or 
    Magνs 1.1.1 -- osc_prob_3nu_earth
    E = 2.5 GeV
 
-   P = 0.0722
+   P = 0.0724
 
 
 Every environment except the Earth needs ``--baseline``. Through the Earth, the pair ``--loc-ini`` and ``--loc-fin`` fixes both the chord and its length, as in the second call of Listing :ref:`The command-line interface <ex-lst-cli>`. The option ``--costhz`` fixes only the direction of the chord, so it needs ``--baseline`` beside it, or ``--detector-depth`` or ``--source-depth``, from which the length is computed.
@@ -55,7 +55,7 @@ Adding ``--json`` prints the result as a JSON object instead, for use in a pipel
      "nubar": false,
      "energy_eV": 1000000000.0,
      "baseline_eV-1": 5067730000000.0,
-     "probability": 0.013475467612077624
+     "probability": 0.013589091782265706
    }
 
 

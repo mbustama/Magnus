@@ -86,7 +86,7 @@ Without the ``average`` keyword, the same call returns the instantaneous probabi
     5.0*gd.UNIT_MEV, R - dL, 0.0, **osc,
     nu_i=gd.NUE, nu_f=gd.NUE,
     density_profile=model)
-   # P = 0.208, 0.773, 0.349 in about 7 s
+   # P = 0.666, 0.092, 0.259 in about 7 s
 
 
 These values are not numerical noise. The hybrid engine of :doc:`/adiabatic_strategy` computes and certifies them: two successive passes, on finer grids, agree to the requested tolerance, :math:`10^{-3}` by default.
@@ -113,7 +113,7 @@ Varying the production point
     5.0*gd.UNIT_MEV, R,
     0.05*gd.SUN_RADIUS*gd.UNIT_KM,
     **osc, **run)
-   # P = 0.390, against 0.375 from the center
+   # P = 0.389, against 0.375 from the center
 
 
 At 5 MeV, moving the production point from the center to :math:`0.05\,R_\odot`, in the middle of where the :math:`^8`\ B neutrinos are made, raises the average by 0.014.
