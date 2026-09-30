@@ -202,7 +202,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a broadcasting error or, when its length equalled `d`, returned one matrix mixing the entries
   without a word.  An `H_func` built from these builders now takes the vectorized path.  An array
   `energy` is checked entry by entry; scalar calls cost what they did.
-- **Every public argument is validated once per call, by one set of rules** (issue #160).
+- **The public arguments are validated once per call, by one set of rules** (issue #160).
+  Not every argument in every combination: the checklist audit in
+  `docs/dev/measurements/issue160_audit/` lists what is checked, case by case, and the
+  entries above name the cases found open after this one and closed since.
   Before, most checks lived in the general refinement ladder, so whether a value was refused
   depended on which engine answered: `max_n_slabs=-1` was refused by the ladder and answered
   by the adiabatic engine.  The rules, now applied at the entry of every scenario function,
