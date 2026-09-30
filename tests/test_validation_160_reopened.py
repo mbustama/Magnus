@@ -616,3 +616,22 @@ def test_scalar_only_density_warns_once_naming_rho_func():
                                              density_matter_is_in_g_per_cm3=True)
     assert not [w for w in caught if type(w.message).__name__ == 'ScalarHamiltonianWarning']
     assert np.array_equal(a, b)
+
+
+# §12 plotting -----------------------------------------------------------------------------------
+
+@pytest.fixture
+def mp():
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import magnus.plotting as plotting
+    yield plotting
+    plt.close('all')
+
+
+def test_log_y_axis_refuses_a_curve_with_nothing_to_show(mp):
+    x = np.linspace(1, 5, 50)
+    _refused('yscale', mp.plot_curves, x, [np.zeros(50)], yscale='log')
+    _refused('yscale', mp.plot_curves_stacked, x, [[np.zeros(50)]], yscale='log')
+    mp.plot_curves_stacked(x, [[np.linspace(0, 1, 50)]], yscale='log')

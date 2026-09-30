@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A curve with nothing above 0 is refused on a log y axis** (issue #160 §12).
+  `plot_curves` and `plot_curves_stacked` drew an empty axis for it, without a word.
+  `plot_curves_stacked` now checks each panel's curves as `plot_curves` does.
 - **A scalar-only `rho_func` is warned about by name, once** (issues #144 §4, #160 §7).  The
   engine's `ScalarHamiltonianWarning` told the caller to rewrite `H_func`, a function they never
   wrote.  The scenario functions now probe `rho_func` at three points; if it cannot take an

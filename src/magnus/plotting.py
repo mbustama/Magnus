@@ -323,6 +323,22 @@ def _r_curves(xname, probability=False):
                                          " points and " + xname + " has " + str(n) + "."))
             if probability:
                 _check_probability(name + "[" + str(i) + "]", y, where)
+            # A curve with no positive point has nothing a log axis can show: it was drawn as
+            # an empty axis, without a word (issue #160 §12).
+            if a.get('yscale') == 'log' and not np.any(np.asarray(y, dtype=float) > 0.0):
+                raise ValueError(_v._msg(where, name + "[" + str(i) + "] has no entry above 0, "
+                                         "so a log y axis cannot show any of it; pass "
+                                         "yscale='linear'."))
+    return rule
+
+
+def _r_panels(xname):
+    r"""Each panel of :func:`plot_curves_stacked` checked as :func:`plot_curves` checks its curves."""
+    curves = _r_curves(xname)
+
+    def rule(name, x, where, a):
+        for j, panel in enumerate(x):
+            curves(name + "[" + str(j) + "]", panel, where, a)
     return rule
 
 
@@ -693,7 +709,7 @@ def plot_curves(
     return fig, ax
 
 
-@_v.validated(_rules(x=_r_abscissa))
+@_v.validated(_rules(x=_r_abscissa, panels=_r_panels('x')))
 def plot_curves_stacked(
     x: Sequence[float],
     panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
