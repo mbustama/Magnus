@@ -8,7 +8,7 @@ Compute two-neutrino Hamiltonians for selected scenarios.
 This module contains the routines to compute the two-neutrino
 Hamiltonians for the following scenarios: oscillations in vacuum, in
 matter of constant density, in matter with non-standard interactions
-(NSI), and in a CPT-odd Lorentz invariance-violating background (LIV).
+(NSI), and in a Lorentz invariance-violating background (LIV).
 
 Routine listings
 ----------------
@@ -487,7 +487,7 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     nubar: Optional[bool]=False, angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a Lorentz
     invariance-violating background.  Same as
     :func:`hamiltonian_2nu_liv_energy_independent`, but with the
     :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
@@ -497,6 +497,8 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     .. versionchanged:: 1.2.0
        ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
        §2).
+       ``nubar`` takes effect: for antineutrinos, the term changes sign when ``n_liv`` is even
+       (a CPT-odd operator).  It used to be ignored (issue #162).
 
     Parameters
     ----------
@@ -515,10 +517,11 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
     n_liv : int
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
     nubar : bool, optional
-        Accepted for interface parity with :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_liv` and its
-        4nu/5nu siblings, which conjugate their (complex) LIV mixing matrix for antineutrinos.  The
-        2-flavor LIV rotation has no CP-violating phase (only the real angle ``sxi``), so there is
-        nothing to conjugate and this parameter currently has no effect. Default: False.
+        If True, compute the Hamiltonian for antineutrinos: when ``n_liv`` is even, the term
+        changes sign; the real 2-flavor rotation has nothing to conjugate.  An operator of
+        dimension ``n_liv + 3`` is CPT-odd for odd dimension (even ``n_liv``) and
+        CPT-even for even dimension, as in the Standard-Model Extension (Kostelecky & Mewes, Phys.
+        Rev. D 85, 096005 (2012)).  Default: False.
     angles : str, optional
         How ``sxi`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
         *squared*, ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any
@@ -537,14 +540,15 @@ def hamiltonian_2nu_liv(energy: float, sxi: float, b1: float, b2: float, Lambda:
         if type(energy) not in _broadcast.SCALARS and np.ndim(energy):
             energy = _broadcast.stacked(energy)
     return pow(energy, n_liv) * hamiltonian_2nu_liv_energy_independent(
-        sxi, b1, b2, Lambda, n_liv, angles=angles)
+        sxi, b1, b2, Lambda, n_liv, nubar=nubar, angles=angles)
 
 
 def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
-    Lambda: float, n_liv: int, angles: Optional[str]='sin') -> np.ndarray:
+    Lambda: float, n_liv: int, nubar: Optional[bool]=False,
+    angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the two-neutrino Hamiltonian for oscillations with LIV.
 
-    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a CPT-odd Lorentz
+    Computes and returns the 2x2 real two-neutrino Hamiltonian for oscillations in a Lorentz
     invariance-violating background, without the energy-dependent prefactor.
 
     .. versionadded:: 1.0.0
@@ -552,6 +556,8 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     .. versionchanged:: 1.2.0
        A LIV mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160
        §11).
+       Added ``nubar``: for antineutrinos, the term changes sign when ``n_liv`` is even (a
+       CPT-odd operator) (issue #162).
 
     Parameters
     ----------
@@ -566,6 +572,12 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
         Energy scale of the LIV operator B2.
     n_liv : int
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
+    nubar : bool, optional
+        If True, compute the Hamiltonian for antineutrinos: when ``n_liv`` is even, the term
+        changes sign; the real 2-flavor rotation has nothing to conjugate.  An operator of
+        dimension ``n_liv + 3`` is CPT-odd for odd dimension (even ``n_liv``) and
+        CPT-even for even dimension, as in the Standard-Model Extension (Kostelecky & Mewes, Phys.
+        Rev. D 85, 096005 (2012)).  Default: False.
     angles : str, optional
         How ``sxi`` is stated: ``'sin'`` (default) its sine, ``'sin2'`` its sine
         *squared*, ``'rad'`` the angle itself in radians, or ``'deg'`` in degrees.  Any
@@ -579,7 +591,7 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     # Checked for calls from outside the package only (issue #160 §11); the wrappers
     # reach this with arguments already validated.
     if not _v._called_from_inside(2):
-        _v.check_physics_params('hamiltonians.hamiltonian_2nu_liv_energy_independent', {'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv})
+        _v.check_physics_params('hamiltonians.hamiltonian_2nu_liv_energy_independent', {'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv, 'nubar': nubar})
     # Until now the LIV angle went through no guard at all: only the vacuum builders
     # validated their sines, so an out-of-range sxi reached np.sqrt(1 - sxi*sxi) and
     # became a NaN Hamiltonian in silence.  resolve() closes that as a side effect of
@@ -592,8 +604,13 @@ def hamiltonian_2nu_liv_energy_independent(sxi: float, b1: float, b2: float,
     # off-diagonal sign below was previously flipped relative to this convention (a confirmed bug).
     cxi = np.sqrt(1.0 - sxi * sxi)
     delta_b = b2 - b1
+    # Antineutrinos (issue #162): the operator is transposed in flavor space, which leaves this
+    # real symmetric matrix as it is, and its CPT-odd part changes sign (Kostelecky & Mewes,
+    # Phys. Rev. D 85, 096005 (2012), Eq. 78).  An operator of dimension n_liv + 3 is CPT-odd
+    # when that is odd, i.e. when n_liv is even.
+    sign = -1.0 if (nubar and n_liv % 2 == 0) else 1.0
 
-    return pow(1.0 / Lambda, n_liv) * np.array([
+    return sign * pow(1.0 / Lambda, n_liv) * np.array([
         [b1 * cxi * cxi + b2 * sxi * sxi, delta_b * cxi * sxi],
         [delta_b * cxi * sxi, b2 * cxi * cxi + b1 * sxi * sxi]
     ], dtype=np.float64)

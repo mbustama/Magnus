@@ -9,6 +9,20 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The LIV term changes sign for antineutrinos when `n_liv` is even** (issue #162).  For
+  antineutrinos the Lorentz-violating operator is transposed in flavor space and its CPT-odd
+  part changes sign; an operator of dimension `n_liv + 3` is CPT-odd when that is odd
+  (Kostelecky & Mewes, Phys. Rev. D 85, 096005 (2012), Eq. 78).  `nubar=True` only conjugated
+  the term, whatever `n_liv`: right for odd `n_liv`, the wrong sign for even `n_liv`, the
+  default `n_liv=0` included.  At two flavors `nubar` did not reach the LIV builder at all.
+  Now every LIV builder and wrapper applies the sign, `hamiltonian_2nu_liv_energy_independent`
+  takes `nubar`, and `osc_prob_2nu_vacuum_liv` declares it, so the CLI's `--nubar`, which it
+  used to drop there without a word, now reaches it.  Antineutrino results at even
+  `n_liv` change: on the paper's Fig. 13 chord ($\cos\theta_z = -0.9$, $b_3 = 5.4\cdot10^{-14}$
+  eV, `n_liv=0`) the $\bar\nu_\mu$ survival probability at 1.46 GeV goes from 0.536 to 0.353.
+  Neutrinos and odd `n_liv` are unchanged, and no notebook or paper figure computes LIV for
+  antineutrinos.  The docs no longer call every LIV term CPT-odd.
+
 - **An energy scan whose slab count starts at the cap says it checked nothing** (issue #184).
   Across the Sun at `rtol=atol` of 1e-4 or tighter, every energy's slab count starts at
   `max_n_slabs`, so the energy-batched ladder computes one level with nothing to compare it

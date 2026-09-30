@@ -8,7 +8,7 @@ Compute five-neutrino (3+2 sterile) Hamiltonians for selected scenarios.
 This module contains the routines to compute the five-neutrino
 Hamiltonians for the following scenarios: oscillations in vacuum, in
 matter of constant density, in matter with non-standard interactions
-(NSI), and in a CPT-odd Lorentz invariance-violating background (LIV).
+(NSI), and in a Lorentz invariance-violating background (LIV).
 
 Routine listings
 ----------------
@@ -775,7 +775,7 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
 
-    Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a CPT-odd
+    Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a
     Lorentz invariance-violating background.  Same as
     :func:`hamiltonian_5nu_liv_energy_independent`, but with the
     :math:`E^{n_{\rm liv}}` energy dependence of the LIV operator applied.
@@ -785,6 +785,8 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     .. versionchanged:: 1.2.0
        ``energy`` may be an array: the result is a stack of matrices, one per energy (issue #155
        §2).
+       For antineutrinos, the term changes sign when ``n_liv`` is even (a CPT-odd operator); it
+       used to be only conjugated, which is right only for odd ``n_liv`` (issue #162).
 
     Parameters
     ----------
@@ -812,8 +814,11 @@ def hamiltonian_5nu_liv(energy: float, sxi12: float, sxi23: float, sxi13:float, 
     n_liv : int
         Power of the energy dependence of the LIV operator (dimension of the operator minus 3).
     nubar : bool, optional
-        If True, compute the Hamiltonian for antineutrinos (conjugates the LIV mixing matrix).
-        Default: False.
+        If True, compute the Hamiltonian for antineutrinos: the LIV mixing matrix is conjugated
+        and, when ``n_liv`` is even, the term changes sign.  An operator of dimension
+        ``n_liv + 3`` is CPT-odd for odd dimension (even ``n_liv``) and
+        CPT-even for even dimension, as in the Standard-Model Extension (Kostelecky & Mewes, Phys.
+        Rev. D 85, 096005 (2012)).  Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
     angles : str, optional
@@ -851,7 +856,7 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     angles: Optional[str]='sin') -> np.ndarray:
     r"""Returns the five-neutrino Hamiltonian for oscillations w/ LIV.
 
-    Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a CPT-odd
+    Computes and returns the 5x5 complex five-neutrino Hamiltonian for oscillations in a
     Lorentz invariance-violating background, without the energy-dependent prefactor.
 
     .. versionadded:: 1.0.0
@@ -859,6 +864,8 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
     .. versionchanged:: 1.2.0
        A LIV mixing angle beyond 90 degrees, whose cosine is negative, is refused (issue #160
        §11).
+       For antineutrinos, the term changes sign when ``n_liv`` is even (a CPT-odd operator); it
+       used to be only conjugated, which is right only for odd ``n_liv`` (issue #162).
 
     Parameters
     ----------
@@ -884,8 +891,11 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
         Power of the energy dependence of the LIV operator; enters through the
         :math:`\Lambda^{-n_{\rm liv}}` normalization of the eigenvalues.
     nubar : bool, optional
-        If True, compute the Hamiltonian for antineutrinos (conjugates the LIV mixing matrix).
-        Default: False.
+        If True, compute the Hamiltonian for antineutrinos: the LIV mixing matrix is conjugated
+        and, when ``n_liv`` is even, the term changes sign.  An operator of dimension
+        ``n_liv + 3`` is CPT-odd for odd dimension (even ``n_liv``) and
+        CPT-even for even dimension, as in the Standard-Model Extension (Kostelecky & Mewes, Phys.
+        Rev. D 85, 096005 (2012)).  Default: False.
     compute_matrix_multiplication : bool, optional
         Forwarded to :func:`mixing_matrix_5x5`.
     angles : str, optional
@@ -926,4 +936,9 @@ def hamiltonian_5nu_liv_energy_independent(sxi12: float, sxi23: float, sxi13:flo
             dxi24, sxi25, sxi34, sxi35, dxi35,
             compute_matrix_multiplication=compute_matrix_multiplication))
 
-    return pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4, b5]) @ np.conj(R.T)
+    # Antineutrinos (issue #162): the operator is transposed in flavor space -- conjugated, being
+    # Hermitian, which conjugating R does -- and its CPT-odd part changes sign (Kostelecky &
+    # Mewes, Phys. Rev. D 85, 096005 (2012), Eq. 78).  An operator of dimension n_liv + 3 is
+    # CPT-odd when that is odd, i.e. when n_liv is even.
+    sign = -1.0 if (nubar and n_liv % 2 == 0) else 1.0
+    return sign * pow(1.0/Lambda, n_liv) * R @ np.diag([b1, b2, b3, b4, b5]) @ np.conj(R.T)

@@ -1447,6 +1447,7 @@ def test_no_wrapper_redeclares_standard_refinement_kwargs():
 
 @pytest.mark.parametrize("family_prefix", ['osc_prob_{n}nu_matter_nsi_constant_density',
                                            'osc_prob_{n}nu_matter_nsi_exp_density',
+                                           'osc_prob_{n}nu_vacuum_liv',
                                            'osc_prob_{n}nu_matter_liv_constant_density',
                                            'osc_prob_{n}nu_matter_liv_exp_density',
                                            'osc_prob_{n}nu_earth_nsi', 'osc_prob_{n}nu_earth_liv',

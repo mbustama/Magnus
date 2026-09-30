@@ -11671,6 +11671,8 @@ def osc_prob_liv(
        A scalar-only rho_func is evaluated position by position and warned about by name (issue
        #144 §4); flags given as None are refused (issue #160 §4).
        average_spread and average_initial_state are refused without average=True (issue #160).
+       For antineutrinos, the LIV term changes sign when ``n_liv`` is even, at every flavor count
+       (issue #162).
 
     Parameters
     ----------
@@ -11696,7 +11698,8 @@ def osc_prob_liv(
         at or below it, where it would be ignored.
     h_liv_energy_indep : list or np.ndarray, optional
         Precomputed energy-independent LIV Hamiltonian, used instead of ``liv_params`` when
-        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.
+        ``num_flavors`` exceeds ``globaldefs.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS``.  It is used
+        as given, ``nubar`` or not: for antineutrinos, pass the antineutrino operator.
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         Ratio of the number of neutrons to protons in matter.  Scales the sterile
         states' entry in the matter term (see
@@ -11713,7 +11716,10 @@ def osc_prob_liv(
     electron_fraction : int or float, optional
         Electron fraction. Default: 0.5.
     nubar : bool, optional
-        If True, compute the probability for antineutrinos. Default: False.
+        If True, compute the probability for antineutrinos: the mixing matrices are
+        conjugated, the matter potential changes sign, and so does the LIV term when ``n_liv``
+        is even, an operator of dimension ``n_liv + 3`` being CPT-odd when that is odd (see
+        :func:`magnus.hamiltonians.hamiltonians3nu.hamiltonian_3nu_liv`). Default: False.
     nu_i : int, optional
         Initial flavor index. If given together with ``nu_f``, a single channel is returned
         instead of the full probability matrix.
@@ -11970,8 +11976,8 @@ def osc_prob_liv(
     # If num_flavors > MAGNUS_MAX_PREDEFINED_NUM_FLAVORS, we use the h_liv_energy_indep that was
     # passed to the function.
     if num_flavors == 2:
-        h_liv_energy_indep = hamiltonians.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2, 
-            Lambda, n_liv, angles=angles)
+        h_liv_energy_indep = hamiltonians.hamiltonian_2nu_liv_energy_independent(sxi, b1, b2,
+            Lambda, n_liv, nubar=nubar, angles=angles)
     elif num_flavors == 3:
         h_liv_energy_indep = hamiltonians.hamiltonian_3nu_liv_energy_independent(sxi12, sxi23,
             sxi13, dxiCP, b1, b2, b3, Lambda, n_liv, nubar=nubar, angles=angles)
@@ -21782,6 +21788,7 @@ def osc_prob_2nu_vacuum_liv(
     close_file_log_upon_exit: Optional[bool]=True,
     verbose: Optional[int]=0,
     angles: Optional[str]='sin',
+    nubar: Optional[bool]=False,
     **kwargs) -> Union[float, np.ndarray]:
     r"""Compute and return the two-neutrino oscillation probability in
     vacuum under (one form of) Lorentz-invariance violation.
@@ -21790,6 +21797,8 @@ def osc_prob_2nu_vacuum_liv(
 
     .. versionchanged:: 1.2.0
        L0 and t_breakpoints are refused by name (issue #160 §1).
+       Declares ``nubar``, which now has an effect: the LIV term changes sign for
+       antineutrinos when ``n_liv`` is even (issue #162).
 
     Parameters
     ----------
@@ -21845,6 +21854,11 @@ def osc_prob_2nu_vacuum_liv(
         ``'sin2'`` their sines *squared* -- which is what global fits report --
         ``'rad'`` the angles themselves in radians, or ``'deg'`` in degrees.  Any other
         value raises.
+    nubar : bool, optional
+        If True, compute the probability for antineutrinos.  In vacuum at two flavors this
+        matters only through the LIV term, which changes sign for antineutrinos when
+        ``n_liv`` is even (see :func:`magnus.hamiltonians.hamiltonians2nu.hamiltonian_2nu_liv`).  Default:
+        False.
 
     Returns
     -------
@@ -21863,6 +21877,7 @@ def osc_prob_2nu_vacuum_liv(
         L=L,
         osc_params={'sth': sth, 'Dm2': Dm2},
         liv_params={'sxi': sxi, 'b1': b1, 'b2': b2, 'Lambda': Lambda, 'n_liv': n_liv},
+        nubar=nubar,
         nu_i=nu_i,
         nu_f=nu_f,
         validate_input=validate_input,

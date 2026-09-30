@@ -79,7 +79,8 @@ because each surprises someone eventually, and none survives away from it:
   since the antineutrino replaces :math:`V` by :math:`V^*` and
   :math:`|V^*|^2 = |V|^2`.  :math:`\delta_{\rm CP}` still enters through the
   magnitudes :math:`|V_{\alpha i}|`, but produces no difference between the
-  two.  In matter they differ, because the potential changes sign.
+  two.  In matter they differ, because the potential changes sign; so does a
+  Lorentz-violating term of even ``n_liv``, in vacuum as well.
 * It does **not depend on the baseline**, and depends on the energy only
   through the eigenvectors.  In vacuum those do not change with energy,
   since :math:`H \propto 1/E`, so the result is a constant and a single
