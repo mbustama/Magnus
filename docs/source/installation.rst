@@ -431,6 +431,7 @@ File tree
        ├── test_input_fuzz.py          # Issue #160: each bad argument refused by name, each valid edge accepted
        ├── test_invariants.py          # Properties that must hold across the whole engine matrix
        ├── test_magnus_expansion.py    # Magnus-core correctness (terms, orders, GL rates, unitarity)
+       ├── test_neither_engine_converges.py  # When neither engine of strategy='auto' converges, the better supported answer is returned (issue #167)
        ├── test_one_sided_breakpoints.py  # 'trapezoid'/'simpson' sample each side of a declared breakpoint with its own values
        ├── test_oscprob.py             # Oscillation-probability engine, closed-form and ODE cross-checks
        ├── test_palindrome.py          # The palindromic-profile optimization and its gate

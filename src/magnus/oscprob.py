@@ -1469,6 +1469,17 @@ class ToleranceNotAchievedWarning(UserWarning):
     ``max_n_slabs`` rather than from a converged probe.  That instance is worth its own message
     because the consequence is larger than one point: the whole scan inherits the capped grid.
 
+    Also raised when **neither engine of** ``strategy='auto'`` **reached the tolerance** at a
+    point (issue #167): the hybrid declined it uncertified, and the ladder that answered instead
+    ran out of room with no two levels to compare, or with two further apart than the hybrid's
+    error estimate.  The hybrid's answer is then returned, and ``strategy_info`` names the hybrid
+    as the engine, with ``certified=False`` and its ``'error_estimate'`` in ``'trace'``: its
+    :data:`magnus.adiabatic.GAMMA_TO_ERROR` times the largest non-adiabaticity along the path, a
+    bound on the unpatched adiabatic answer's error.  At 1 MeV across the Sun at
+    ``rtol=atol=1e-8`` the ladder's single level of 20000 slabs was 4.0e-3 off; the hybrid's
+    answer is 1.7e-6 off, against an estimate of 1.9e-5.  Any slab-width or tolerance warning
+    raised before it describes the ladder's answer, which was not returned.
+
     Three subclasses narrow the diagnosis: :class:`HybridCertificationWarning`,
     :class:`UnmarkedDiscontinuityWarning` and :class:`HiddenFeatureWarning`.  Code filtering
     on this class catches all three.
@@ -1481,6 +1492,10 @@ class ToleranceNotAchievedWarning(UserWarning):
     convergence has been *verified*, not before it has been *achieved*.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Also raised when neither engine of ``strategy='auto'`` reached the tolerance and the
+       hybrid's uncertified answer was returned (issue #167).
     """
 
 
@@ -1499,7 +1514,9 @@ class HybridCertificationWarning(ToleranceNotAchievedWarning):
     of the verbosity setting. With the default ``strategy='auto'``, an
     uncertified point instead goes to another engine (the general
     slab-refinement method raises :class:`ToleranceNotAchievedWarning`
-    itself if *it* also fails to converge), so for a probability this
+    itself if *it* also fails to converge, and a point it answers one at a time then gets the
+    hybrid's answer back when the ladder has less to show for its own; see that class), so for
+    a probability this
     warning fires only when ``strategy='hybrid'`` was explicitly requested.
     With ``average=True`` it fires under any strategy, when the
     level-crossing probabilities of the averaged route could not be
@@ -6069,6 +6086,26 @@ def _note_engine(label: str, answered: bool = True, **detail) -> None:
         trace.append(dict(engine=label, answered=answered, **detail))
 
 
+def _hybrid_fallback(energy: float, L: float, L0: float) -> Optional[Dict]:
+    r"""The uncertified hybrid answer at this point, if the hybrid declined it in this call.
+
+    Read from the decline note ``_hybrid_propagator_scan`` leaves under ``strategy='auto'``, and
+    only if no engine has answered since: nested probes share one trace, and a note left by an
+    earlier call is behind that call's answer.  None otherwise.
+
+    .. versionadded:: 1.2.0
+    """
+    trace = _ENGINE_TRACE.get()
+    for entry in reversed(trace or ()):
+        if entry['answered']:
+            return None
+        fallback = entry.get('_fallback')
+        if ((fallback is not None) and (fallback['energy'] == float(energy))
+                and (fallback['L'] == float(L)) and (fallback['L0'] == float(L0))):
+            return fallback
+    return None
+
+
 @contextmanager
 def _engine_probe(disabled=(), info=None, extra=None):
     r"""Watch which engine answers, and optionally forbid some of them.
@@ -8131,10 +8168,19 @@ def _hybrid_propagator_scan(
 
         if not certified:
             if strategy == 'auto':
+                # The uncertified answer is kept on the decline note: if the ladder that answers
+                # instead runs out of slabs, osc_prob_energy_baseline returns this one when it is
+                # the better supported of the two (issue #167).  Not on an unresolved profile,
+                # where the adiabatic answer means nothing.
+                fallback = None if unresolved else dict(
+                    energy=float(energy_arr[i]), L=float(L_arr[i]), L0=float(L0),
+                    P=np.swapaxes(U.real**2 + U.imag**2, -1, -2),
+                    error_estimate=adiabatic.GAMMA_TO_ERROR*float(info['gamma_max']))
                 _note_engine('hybrid', answered=False, certified=False,
                     reason=('the profile is not resolved at the probe scale'
                             if unresolved
-                            else 'did not self-certify at the requested tolerance'))
+                            else 'did not self-certify at the requested tolerance'),
+                    _fallback=fallback)
                 if unresolved:
                     _warn_hybrid_unresolved()
                 return NotImplemented
@@ -8501,7 +8547,9 @@ def osc_prob_energy_baseline(
        array is refused by name (issue #160 §7).
        average_spread and average_initial_state are refused without average=True (issue #160).
        Finds jumps nobody declared and declares them, with UnmarkedDiscontinuityWarning (issue
-       #161): see UNDECLARED_JUMP_STEP_TOLERANCE.
+       #161): see UNDECLARED_JUMP_STEP_TOLERANCE.  Where strategy='auto' declined a point on
+       the hybrid and the ladder then ran out of room, returns the hybrid's answer when the
+       ladder has less to show for its own, with ToleranceNotAchievedWarning (issue #167).
 
     Parameters
     ----------
@@ -9196,6 +9244,8 @@ def osc_prob_energy_baseline(
             UnmarkedDiscontinuityWarning, stacklevel=5)
         return True
 
+    from_hybrid = []    # points answered by the hybrid's uncertified answer (issue #167)
+
     def compute_single_point(enu: float, baseline: float):
         if jump_check and not jumps_checked[0]:
             steps = []
@@ -9218,6 +9268,32 @@ def osc_prob_energy_baseline(
         else:
             out = osc_prob(H_at_energy(enu), L0, baseline, **osc_prob_kwargs)
         P, U = out if return_evolution_operator else (out, None)
+        # Neither engine reached the tolerance (issue #167).  Under strategy='auto' the hybrid
+        # declined this point uncertified and the ladder then ran out of room: at 1 MeV across
+        # the Sun at 1e-8, its one level of 20000 slabs was 4.0e-3 off, where the hybrid's
+        # answer was 1.7e-6 off.  The hybrid's answer is returned when the ladder has less to
+        # show for its own: no two levels to compare, or two further apart than the hybrid's
+        # error estimate.  Read only after the ladder failed, so a call that converges pays nothing.
+        # conv_info describes this point only while it is passed to osc_prob; the parallel
+        # workers run without it.
+        if ((conv_info.get('tolerance_achieved') is False) and not return_evolution_operator
+                and ('convergence_info' in osc_prob_kwargs)):
+            fallback = _hybrid_fallback(enu, baseline, L0)
+            gap = conv_info.get('last_gap')
+            if (fallback is not None) and ((gap is None) or (gap > fallback['error_estimate'])):
+                P = fallback['P']
+                from_hybrid.append(dict(error_estimate=fallback['error_estimate'],
+                                        ladder_last_gap=gap))
+                warnings.warn(
+                    "osc_prob_energy_baseline (strategy='auto'): neither engine reached the "
+                    "requested tolerance at this point.  The adiabatic hybrid did not certify it, "
+                    "and the Magnus ladder then reached max_n_slabs without converging.  The "
+                    "hybrid's answer was returned, since the ladder had less to show for its own: "
+                    "its estimated error is in strategy_info['trace'] ('error_estimate'), and any "
+                    "slab-width or tolerance warning above describes the ladder's answer, which "
+                    "was not returned.  For an answer certified at this tolerance, raise "
+                    "max_n_slabs; or request rtol/atol no tighter than the accuracy you need. "
+                    "Shown once per session.", ToleranceNotAchievedWarning, stacklevel=4)
         # Select one oscillation channel if requested; otherwise keep the full matrix
         if ((nu_i is not None) and (nu_f is not None)):
             P = P[nu_i][nu_f]
@@ -9277,8 +9353,17 @@ def osc_prob_energy_baseline(
         probs = run_points(parallelize_over_points)
     except _JumpsDeclared:
         # Every point, the ones already computed included, again with the jumps declared.
+        from_hybrid.clear()
         probs = run_points(parallelize_over_points)
 
+    # Which engine answered: the hybrid, when every point is its answer; otherwise the ladder,
+    # with the hybrid's points noted before it.
+    hybrid_note = (dict(certified=False, n_points=len(from_hybrid),
+                        error_estimate=max(p['error_estimate'] for p in from_hybrid),
+                        reason='the ladder did not converge either')
+                   if from_hybrid else None)
+    if hybrid_note and len(from_hybrid) < n_points:
+        _note_engine('hybrid', **hybrid_note)
     # The private '_hamiltonian' payload is what lets cross_check_strategies build the 'expm'
     # reference without rebuilding any wrapper's physics: this is the one place every entry
     # point's Hamiltonian arrives already assembled.  Stripped from strategy_info.
@@ -9287,6 +9372,8 @@ def osc_prob_energy_baseline(
         # The caller's own breakpoints: jumps found by the search below are this call's business,
         # and the 'expm' reference of cross_check_strategies must see what the caller declared.
         t_breakpoints=kwargs.get('t_breakpoints')))
+    if hybrid_note and len(from_hybrid) == n_points:
+        _note_engine('hybrid', **hybrid_note)
     # The call to __getitem__ below is a way to return a single float (or single probability
     # matrix) if both energy and L were given as floats.
     sel = 0 if return_float else slice(None)

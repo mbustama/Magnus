@@ -9,6 +9,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A tight tolerance on the Sun no longer returns a worse answer than the default** (issue
+  #167).  At 1 MeV across the Sun, `rtol=atol=1e-8` is beyond what the adiabatic hybrid
+  certifies, so `strategy='auto'` declined it and the Magnus ladder answered instead; that
+  ladder needs about 2e6 slabs, stopped at `max_n_slabs` = 20 000 on a single level, and returned
+  it 4.0e-3 off, where the default tolerance gives 8.8e-6.  (The issue read this as `'auto'`
+  choosing the ladder up front; it tries the hybrid first.)  The hybrid's uncertified answer is
+  now kept when it declines, and a point the per-point ladder then fails to converge gets it back
+  when the ladder has less to show for its own: no two levels to compare, or two further apart
+  than the hybrid's error estimate (`GAMMA_TO_ERROR` times the largest non-adiabaticity along
+  the path).  `ToleranceNotAchievedWarning` says so, and `strategy_info` names the hybrid,
+  uncertified, with the estimate.  Against a 2e6-slab reference at 1e-8: 4.0e-3 → 1.7e-6 at
+  1 MeV, 7.9e-4 → 1.9e-5 at 10 MeV, 1.9e-3 → 7.4e-8 on `B16-GS98`, 9.3e-4 → 1.1e-6 with NSI,
+  5.5e-3 → 1.4e-6 at four flavors.  Calls that converge are untouched: 139 of 140 benchmark
+  calls are bitwise identical, and the 140th, the 5-flavor Sun at 8 MeV and the default
+  tolerance, moved from 2.9e-4 to 3.5e-6 off a converged reference.  Still open: a scan of
+  several energies at such a tolerance is answered by the energy-batched engine, which this
+  does not reach (4.0e-3 at 1 and 10 MeV).
+
 - **Undeclared jumps and narrow spikes no longer end the refinement ladder on a wrong answer**
   (issue #161).  One point at a time, a slab straddling a density jump nobody declared converges
   as 1/n, and the ladder stopped wherever two levels happened to agree: the castle wall of the
