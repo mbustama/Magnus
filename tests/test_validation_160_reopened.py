@@ -657,3 +657,39 @@ def test_computed_plot_names_the_plotting_routine_in_a_wrapper_error(mp):
     _refused('plotting.plot_oscillogram: computing the probability with '
              'oscprob.osc_prob_3nu_earth', mp.plot_oscillogram, np.linspace(-1, -0.1, 4),
              np.linspace(0, 1, 5), nu_i=1, nu_f=0, num_flavors=3, osc_params=dict(OSC, dcp=1.0))
+
+
+# #144 §1: "once per session" only where it is true -----------------------------------------------
+
+def _messages(call, category_name):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        call()
+    return [str(w.message) for w in caught if type(w.message).__name__ == category_name]
+
+
+def test_warnings_carrying_runtime_values_do_not_claim_once_per_session():
+    import magnus.magnus as mm
+    RS_ = gd.SUN_RADIUS*KM
+    window = _messages(lambda: op.osc_prob_3nu_sun(10*gd.UNIT_MEV, RS_, 0.0, nu_i=gd.NUE,
+                                                   nu_f=gd.NUE, average=True,
+                                                   t_breakpoints=[0.5*RS_], **OSC),
+                       'PhaseAveragingWarning')
+    order = _messages(lambda: mm.magnus_expansion(lambda t: np.diag([1.0, -1.0])*t, 0.0, 1.0,
+                                                  n_tpts=11, order=7,
+                                                  integration_method='trapezoid'),
+                      'MagnusHighOrderCostWarning')
+    H = _h0()/gd.UNIT_GEV
+    matrix = _messages(lambda: op.osc_prob_energy_baseline(H, gd.UNIT_GEV, 1000.*KM, 0.0,
+                                                           average=True, nu_i=1, nu_f=1),
+                       'PhaseAveragingWarning')
+    spread = _messages(lambda: op.osc_prob_3nu_vacuum(1.0e9, 1300.*KM, average=True, **OSC),
+                       'PhaseAveragingWarning')
+    for msgs in (window, order, matrix, spread):
+        assert msgs and not any('once per session' in m for m in msgs), msgs
+
+
+def test_fixed_text_warnings_keep_once_per_session():
+    import magnus.magnus as mm
+    msgs = _messages(lambda: mm._warn_scalar_hamiltonian(), 'ScalarHamiltonianWarning')
+    assert msgs and all('once per session' in m for m in msgs)

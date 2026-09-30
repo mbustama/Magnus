@@ -9,6 +9,12 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **"Shown once per session" is said only where it is true** (issue #144 §1).  Python's default
+  filter shows each distinct message once per call site, so a warning whose text reports a count,
+  a window, an error or a slab number shows again for each new value.  The phrase is gone from the
+  nine such warnings (the averaging, hybrid-certification, energy-batched and cumulative-scan
+  ones, and `MagnusHighOrderCostWarning`) and kept on the fixed-text ones and on those whose text
+  is one of a few fixed phrases by design.  `diagnostics.rst` says the same.
 - **Compute-mode plots name the plotting routine in a wrapper's error** (issue #160 §12).  A
   mistyped physics argument was refused naming only `oscprob.osc_prob_3nu_earth`, a function
   the caller never called; the message now starts with the plotting routine and keeps the

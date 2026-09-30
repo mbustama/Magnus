@@ -2674,7 +2674,7 @@ def _validate(order: int, integration_method: str):
             "the same grid), because the number of commutator terms roughly doubles per "
             "order. It does converge faster in the slab width, so this may still be the "
             "right trade; but narrowing the slabs at order 4 or 6 often reaches a given "
-            "accuracy for less total work. Shown once per session.",
+            "accuracy for less total work.",
             MagnusHighOrderCostWarning, stacklevel=3)
 
     _v.check_gl_order(order, integration_method, 'magnus.magnus_expansion')

@@ -51,8 +51,9 @@ model.
 
 *The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
-warnings, each shown once per session by default; ``warnings.simplefilter('always')`` shows
-every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
+warnings, so Python's default filter shows each distinct message once per place it is raised:
+a warning with fixed text once per session, and one that reports a count or a width once for
+each value it reports.  ``warnings.simplefilter('always')`` shows every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
 catches every warning that an answer may be outside the tolerance.  They err on the side of
 caution, firing often on answers that prove accurate, because most flag a property of the
 input rather than predict the error.  Less often an answer is inaccurate and none fires: on

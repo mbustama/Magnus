@@ -5239,7 +5239,7 @@ def _avg_prob_dispatch(
             "standard error of the mean here is " + format(worst_sem, '.2e') + ".  Pass "
             "average_spread to set the half-width of the window to the resolution of the "
             "measurement, and average_n_samples to reduce the error, which falls as the "
-            "inverse square root of the number of samples.  Shown once per session.",
+            "inverse square root of the number of samples.",
             PhaseAveragingWarning, stacklevel=3)
 
     else:
@@ -5307,15 +5307,15 @@ def _avg_prob_dispatch(
             "probability there ignores whatever the jump does and may be far off.  Pass "
             "t_breakpoints at the discontinuity: the call then averages over an energy window "
             "instead, measured within two standard errors of a decohered reference on a "
-            "supernova shock.  Shown once per session.",
+            "supernova shock.",
             UnmarkedDiscontinuityWarning, stacklevel=3)
     if uncertified_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the "
             "level-crossing probabilities could not be certified at " +
             str(uncertified_points) + " of " + str(n_pts) + " (energy, L) point(s) -- a local "
             "Magnus patch across a crossing did not converge, or the refinement that located "
-            "the crossings did not certify them -- so they are not trustworthy there.  Shown "
-            "once per session.", HybridCertificationWarning, stacklevel=3)
+            "the crossings did not certify them -- so they are not trustworthy there.",
+            HybridCertificationWarning, stacklevel=3)
 
     if spread_sensitive_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase-averaged "
@@ -5324,22 +5324,22 @@ def _avg_prob_dispatch(
             "spread average_spread=" + format(spread, 'g') + ", so the result changes by more than "
             + format(avgprob.PHASE_SPREAD_SENSITIVITY_THRESHOLD, 'g') + " per e-fold of it "
             "(largest " + format(largest_sensitivity, '.1e') + ").  It is the average over that "
-            "spread; pass average_spread to match the resolution of the measurement.  Shown once "
-            "per session.", PhaseAveragingWarning, stacklevel=3)
+            "spread; pass average_spread to match the resolution of the measurement.",
+            PhaseAveragingWarning, stacklevel=3)
     if unaveraged_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the phase "
             "average could not be formed at " + str(unaveraged_points) + " of " + str(n_pts) +
             " (energy, L) point(s), where too many interference terms survive across the "
-            "non-adiabatic windows; the decohered limit was returned there instead.  Shown once "
-            "per session.", PhaseAveragingWarning, stacklevel=3)
+            "non-adiabatic windows; the decohered limit was returned there instead.",
+            PhaseAveragingWarning, stacklevel=3)
 
     if undecided_points > 0:
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": the averaged "
             "probability was requested at " + str(undecided_points) + " of " +
             str(len(energy_arr)) + " (energy, L) point(s) where at least one pair of eigenvalues "
             "has neither decohered nor stayed coherent, so no averaged expression describes it.  "
-            "The oscillation probability itself (average=False) is the meaningful quantity there. "
-            "Shown once per session.", PhaseAveragingWarning, stacklevel=3)
+            "The oscillation probability itself (average=False) is the meaningful quantity there.",
+            PhaseAveragingWarning, stacklevel=3)
 
     window_detail = (dict(window_half_width=window, n_samples=n_samples, largest_sem=worst_sem)
                      if sample_numerically else {})
@@ -6270,7 +6270,7 @@ def _osc_prob_scan_separable_ladder(
                 "refined only the points per slab; that verifies the quadrature inside each "
                 "slab but not the number of slabs, so the returned probabilities may be "
                 "inaccurate. Raise max_n_slabs, or use integration_method='gl' (default cap " +
-                str(MAX_N_SLABS_DEFAULT['gl']) + "). Shown once per session.",
+                str(MAX_N_SLABS_DEFAULT['gl']) + ").",
                 ToleranceNotAchievedWarning, stacklevel=3)
             warned['slab_cap'] = True
         n_slabs_prev_level = n_slabs
@@ -8791,8 +8791,7 @@ def osc_prob_energy_baseline(
                     "this scan inherits that grid, so the whole scan is affected, not one "
                     "point. Raise max_n_slabs (currently "
                     + str(_resolve_max_n_slabs(max_n_slabs, integration_method))
-                    + "), or shorten the longest baseline, which is what sets the grid. Shown "
-                      "once per session.",
+                    + "), or shorten the longest baseline, which is what sets the grid.",
                     ToleranceNotAchievedWarning, stacklevel=2)
 
         # A jump the caller did not declare is the one way this grid goes wrong that adding
