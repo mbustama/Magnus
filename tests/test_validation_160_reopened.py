@@ -588,3 +588,13 @@ def test_custom_hamiltonian_returning_an_array_still_runs():
         warnings.simplefilter('ignore')
         P = op.osc_prob_sun(lambda E, l, V: H0/E + np.asarray(V)[..., None, None]*e00, 1.0e7, RS)
     assert np.allclose(np.sum(P, axis=1), 1.0)
+
+
+def test_hybrid_propagator_refuses_a_hamiltonian_that_turns_nan_on_the_path():
+    import magnus.adiabatic as ad
+    H = lambda l: (np.array([[l - 5, .3], [.3, 5 - l]], dtype=complex) if l < 5
+                   else np.full((2, 2), np.nan))
+    _refused('H_func', ad.hybrid_propagator, H, 0, 10)
+    U, _, _ = ad.hybrid_propagator(lambda l: np.array([[l - 5, .3], [.3, 5 - l]], dtype=complex),
+                                   0, 10)
+    assert np.all(np.isfinite(U))

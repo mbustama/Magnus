@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`adiabatic.hybrid_propagator` refuses a Hamiltonian that turns NaN along the path** (issue
+  #160 §7).  Only the first sample was checked, so a NaN past it came back as a NaN propagator,
+  silently.
 - **A custom Sun or Earth Hamiltonian is checked at its first sample** (issue #160 §7).
   `osc_prob_sun` ran an `H_func` returning a list; it is now refused by name, as it already was
   by `osc_prob_energy_baseline`, and a non-square, non-finite or non-Hermitian first sample is
