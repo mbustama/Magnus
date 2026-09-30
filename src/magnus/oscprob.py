@@ -9807,7 +9807,7 @@ def osc_prob_pseudo_dirac_vacuum(
 
     Without ``average`` this is the ordinary oscillation probability, from the same
     Hamiltonian and the same engine as ``osc_prob_energy_baseline`` given
-    :func:`magnus.hamiltonians.hamiltonian_pseudo_dirac_vacuum`, bit for bit.
+    :func:`magnus.hamiltonians.hamiltonians_pseudodirac.hamiltonian_pseudo_dirac_vacuum`, bit for bit.
 
     With ``average=True`` it is the phase average of :func:`osc_prob_energy_baseline`, but
     computed from the known eigensystem instead of an eigendecomposition
@@ -9832,7 +9832,7 @@ def osc_prob_pseudo_dirac_vacuum(
         broadcast when one of the two is a single value.
     pairs : dict
         Mapping from mass-state index (0, 1 or 2) to its splitting :math:`\delta m^2_j`
-        [eV^2]; see :func:`magnus.hamiltonians.pseudo_dirac_mixing_matrix`.  An empty
+        [eV^2]; see :func:`magnus.hamiltonians.hamiltonians_pseudodirac.pseudo_dirac_mixing_matrix`.  An empty
         mapping is the ordinary three-flavor spectrum.
     s12, s23, s13, dCP, D21, D31 : int or float, optional
         The standard three-flavor parameters, read as ``angles`` says; each one left at
@@ -9906,7 +9906,7 @@ def osc_prob_pseudo_dirac_vacuum(
         L = 100.0*3.0856775814913673e19*gd.UNIT_KM          # 100 Mpc
         P = oscprob.osc_prob_pseudo_dirac_vacuum(
                 100.0*gd.UNIT_TEV, L, {0: 1.0e-17, 1: 1.0e-17, 2: 1.0e-17},
-                nu_i=gd.NUE, nu_f=gd.NUE, average=True, average_spread=1.0)
+                nu_i=gd.NUE, nu_f=gd.NUE, average=True, average_spread=0.01)
         print(round(float(P), 6))
     """
     _where = 'osc_prob_pseudo_dirac_vacuum'

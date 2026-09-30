@@ -1199,7 +1199,7 @@ def phase_averaged_probabilities_pseudo_dirac(
         The ``n_active`` mass-squared values, in eV\ :sup:`2`.
     pairs : dict
         Mapping from mass-state index to its splitting :math:`\delta m^2_j` > 0, in eV\ :sup:`2`,
-        as in :func:`magnus.hamiltonians.pseudo_dirac_mixing_matrix`.
+        as in :func:`magnus.hamiltonians.hamiltonians_pseudodirac.pseudo_dirac_mixing_matrix`.
     energy : float or np.ndarray
         Neutrino energy [eV], shape ``(...)``.
     baseline : float or np.ndarray
@@ -1757,4 +1757,5 @@ __all__ = [
     'PHASE_AVERAGE_PHASE_TOL',
     'phase_averaged_probabilities_constant_hamiltonian',
     'phase_averaged_probabilities_adiabatic',
+    'phase_averaged_probabilities_pseudo_dirac',
 ]

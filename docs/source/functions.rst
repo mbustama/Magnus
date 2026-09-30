@@ -64,7 +64,7 @@ mass states, have their own function,
 and the splittings, and returns :math:`(3 + n_\text{pairs})`-dimensional
 probabilities.  Its ``average=True`` forms each pair phase from its splitting,
 and stays exact where the generic route loses a small splitting; see
-:ref:`avg-pseudo-dirac`.
+:ref:`the note on pseudo-Dirac pairs <avg-pseudo-dirac>`.
 
 Matter, constant density
 ---------------------------
