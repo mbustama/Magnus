@@ -1484,9 +1484,9 @@ class ToleranceNotAchievedWarning(UserWarning):
     **The same for a scan of several energies** (issue #184), answered by the energy-batched
     engine.  An energy it ends without converging takes the hybrid's answer when the two
     disagree by more than twice the hybrid's error estimate -- when the estimate bounds the
-    hybrid's error, the ladder's is then the larger, so no energy is answered worse than the
-    ladder would have answered it.  An energy the hybrid certified before it declined the scan
-    keeps its certified answer; any other is computed with one refinement iteration, where the
+    hybrid's error, the ladder's is then the larger.  An energy the hybrid certified before it
+    declined the scan keeps its certified answer, within the tolerance certified but not
+    necessarily closer than the ladder's (and see issue #187); any other is computed with one refinement iteration, where the
     answer has stopped improving, and whose estimate says so where it has not: across the Sun
     the ladder's one level at the slab cap was 2.0e-3 off on the exponential profile but 1e-6
     to 8e-6 on B16-GS98, where the one-iteration hybrid was 2e-3 to 8e-3 off with estimates of
@@ -6119,6 +6119,8 @@ def _hybrid_error_estimate(info: Dict) -> float:
     when only one level was computed -- then the estimate is infinite: on B16-GS98 a first
     level whose patches failed was returned 2.2e-3 off with a non-adiabaticity bound of
     1.9e-6.  Together they were at or above the error at all 120, by a median factor of 5-7.
+    They do not bound a certified full refinement: on B16-GS98 at 0.7 MeV one certified at 1e-6
+    was 1.8e-5 off with an estimate of 1.9e-6 (issue #187).
 
     .. versionadded:: 1.2.0
     """
@@ -6167,9 +6169,12 @@ def _hybrid_is_better(P_ladder: np.ndarray, answer: Dict) -> bool:
 
     When the hybrid's error is at most its ``'error_estimate'`` e, and the two answers differ by
     d, the ladder's error is at least d - e; so d > 2e means the ladder's is the larger, and the
-    answer returned is never worse than the ladder's.  That bound held at all 156 solar points
-    measured (0.5-20 MeV; 3nu, NSI, 4nu; exponential and B16-GS98 profiles).  A certified hybrid
-    answer is taken outright.
+    answer returned is no worse than the ladder's.  The estimate was at or above the error of
+    every uncertified hybrid answer measured (0.5-20 MeV; 3nu, NSI, 3+1, antineutrinos; the
+    exponential, B16-GS98 and BP04 profiles).  A certified answer is taken as certified, which
+    is not the same thing: it is within the tolerance the hybrid certified, and may be less
+    accurate than the ladder's (BP04 at 1e-4: 8.9e-5 against 7.2e-6); and on a tabulated
+    profile the hybrid can certify an answer outside its tolerance (issue #187).
 
     .. versionadded:: 1.2.0
     """

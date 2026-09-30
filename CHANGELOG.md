@@ -33,10 +33,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
   on `B16-GS98` the capped ladder is 1e-6 to 8e-6 off and the one-iteration hybrid 2e-3 to
   8e-3, and its estimate says so, so the ladder is kept there.  The estimate is now the larger
   of the non-adiabaticity bound and the change between the hybrid's last two levels, and
-  infinite with only one level; it was at or above the error at all 156 solar points measured.
-  Worst errors, main against now, at 1e-4 / 1e-6 / 1e-8: exponential profile 2.0e-3 against
-  5.2e-4; NSI 1.3e-4 against 3.0e-5; 3+1 3.4e-3 against 7.2e-5; B16-GS98 8.5e-6 against
-  3.2e-5 / 1.8e-5 / 8.5e-6, the difference being answers the hybrid certified.  Time on these
+  infinite with only one level; it was at or above the error of every uncertified hybrid
+  answer measured.  Worst errors, main against now, at 1e-4 / 1e-6 / 1e-8: exponential profile
+  2.0e-3 against 5.2e-4; antineutrinos on it 2.5e-3 against 1.5e-5; NSI 1.3e-4 against 3.0e-5;
+  3+1 3.4e-3 against 7.2e-5.  Where the scan keeps answers the hybrid certified before it
+  declined, they are within the tolerance certified but can be less accurate than the ladder's
+  unverified level (BP04 at 1e-4: 8.9e-5 against 2.3e-5, both inside); and on a tabulated
+  profile the hybrid can certify an answer outside its tolerance (issue #187), which a scan now
+  returns where it returned the ladder's before (B16-GS98 at 1e-6: 1.8e-5 against 8.5e-6).  Time on these
   scans -3 % to +10 %, and +27 % to +30 % on the exponential profile at 1e-6 and 1e-8, where
   every energy is compared.  All 140 benchmark calls are bitwise identical, and their timings
   are within the noise measured between two runs of main.
