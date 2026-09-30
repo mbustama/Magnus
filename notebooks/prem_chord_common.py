@@ -27,6 +27,11 @@ from magnus import earth, globaldefs as gd, matter
 
 COSTHZ = -0.9
 ELECTRON_FRACTION = 0.5
+# The package's n_e per unit density until 1.2.0 over its value now: the mean free-nucleon
+# mass against the atomic mass unit, and the gram's old rounding, 1.783e-33 eV per gram
+# against e/c^2 (issue #168).  See chord().
+PINNED_NORMALIZATION = (gd.ATOMIC_MASS_UNIT/(0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON))
+                        * gd.CONV_EV_TO_G/1.783e-33)
 
 
 def chord():
@@ -71,9 +76,17 @@ def chord():
     # polynomial, which is vectorized already.  Magnus paid the old cost and
     # the closed-form comparison did not, since that route builds its potential from
     # earth.earth_slabs and never calls this -- so it was a handicap on one code only.
+    #
+    # THE NORMALIZATION IS PART OF THE PROBLEM'S DEFINITION, and is pinned at the value it had
+    # when the reference (prem_chord_reference.json) and the external benchmarks were built:
+    # the mean free-nucleon mass and the gram as converted until 1.2.0.  Since 1.2.0 the
+    # package converts with the atomic mass unit (issue #168), which would raise this chord's
+    # potential by 0.81% and silently invalidate every frozen number built on it.  The
+    # benchmark measures accuracy on a given Hamiltonian, so which normalization defines it
+    # does not matter; that it does not drift does.
     per_unit_rho = matter.VCC_func(0.0, lambda _l: matter.num_density_e_func(
         0.0, lambda _x: 1.0, electron_fraction=ELECTRON_FRACTION,
-        density_matter_is_in_g_per_cm3=True))
+        density_matter_is_in_g_per_cm3=True)) * PINNED_NORMALIZATION
 
     def vcc(l):
         """V_CC in eV at distance ``l`` (eV^-1) along the chord."""

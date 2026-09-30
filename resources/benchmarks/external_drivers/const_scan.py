@@ -19,8 +19,8 @@ import mpmath as mp
 
 sys.path.insert(0, 'src')
 
-import globaldefs as gd
-import earth
+from magnus import globaldefs as gd
+from magnus import earth
 import hamiltonians3nu
 
 BASELINE_KM = 1300.0

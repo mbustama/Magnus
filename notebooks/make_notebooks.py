@@ -10944,10 +10944,12 @@ dial is evidence about the *setup*, not yet about the solver.'''),
 #
 # EVERY CODE IS SCORED AGAINST A REFERENCE BUILT IN ITS OWN CONVENTIONS, which is what
 # the benchmark manifest in resources/benchmarks asks for and is not a formality here.
-# Mag(nu)s' charged-current potential sits 1.9e-04 below NuOscProbExact's at the same
-# density -- CONV_EV_TO_G is 1.783e-33 here and 1.78266192e-33 there -- so the two
-# 50-digit references differ by 4.8e-06 in P(numu -> numu), five orders above anything
-# either solver contributes.  Sharing one would report that rounding as Magnus' error.
+# Mag(nu)s' charged-current potential sits 0.81% above NuOscProbExact's at the same
+# density: since 1.2.0 it divides the mass density by the atomic mass unit, as nuSQuIDS,
+# GLoBES and Prob3++ do, where NuOscProbExact divides by the mean free-nucleon mass (issue
+# #168; until then the two differed only by the gram's rounding, 1.9e-04).  The two
+# 50-digit references differ by far more than either solver contributes, so sharing one
+# would report the convention as Magnus' error.
 PREM_EXT = json.loads(
     (pathlib.Path.cwd()/'external_prem_speed_accuracy_new.json').read_text())
 MG_REF = json.loads((pathlib.Path.cwd()/'magnus_own_reference.json').read_text())
@@ -10974,12 +10976,13 @@ STERILE_EXT = dict(s14=np.sqrt(_OP['sinsq_th14']), s24=np.sqrt(_OP['sinsq_th24']
 # self-consistent.  An earlier version of this cell instead matched the two potentials
 # by passing Y_e = 0.5000948, and scored Magnus against NuOscProbExact's reference.
 # That curve flattened at 1.6e-07 and no setting on either side reached beneath it.
-# The floor was the match, not the solver: on a chord Magnus derives the average
-# nucleon mass from the composition, r = (1 - Y_e)/Y_e layer by layer, so V_CC is NOT
-# linear in Y_e -- scaling it by 1.9e-04 moves the potential by a further 1.31e-07,
+# The floor was the match, not the solver: on a chord Magnus then derived the average
+# nucleon mass from the composition, r = (1 - Y_e)/Y_e layer by layer, so V_CC was NOT
+# linear in Y_e -- scaling it by 1.9e-04 moved the potential by a further 1.31e-07,
 # which is exactly the height the curve flattened at.  Matching a potential through a
-# composition parameter is only ever good to that order; a per-code reference has no
-# such limit, and the cell after the figure measures both statements.
+# composition parameter was only ever good to that order; a per-code reference has no
+# such limit, and the cell after the figure measures both statements.  (Since 1.2.0 V_CC
+# is rho N_A Y_e, linear in Y_e, and the floor would not arise; issue #168.)
 YE_EXT = 0.5
 
 # Magnus' own P(numu -> numu) on the two chords, from magnus_own_reference.json.
@@ -11187,14 +11190,15 @@ about four orders of magnitude.'''),
     print('         at Magnus\'s own V_CC   (scale %.3f), residual %.2e'
           % (scales[unity], gaps[unity]))'''),
     md(r'''In vacuum nuSQuIDS reproduces the exact answer to $\sim10^{-8}$ -- its solver is doing
-its job. In matter, the disagreement is minimized at a matter potential about **1% larger**
-than the one Mag$\nu$s builds from the same nominal $\rho$ and $Y_e$. That is a difference in
-how the electron number density is derived from a mass density -- the average nucleon mass and
-the electron fraction convention -- and **not** an accuracy difference in either code.
+its job. In matter, the scan finds the potential at which the two agree. Since 1.2.0 both codes
+convert a mass density as $\rho N_A Y_e$, so the minimum should sit at Mag$\nu$s's own
+potential, a scale of 1.000. Until then Mag$\nu$s divided by the mean free-nucleon mass, and
+the minimum sat about **1% higher** (issue #168): a difference in how the electron number density
+is derived from a mass density, and **not** an accuracy difference in either code.
 
 This is why the accuracy column in section 3 is only quoted for codes sharing Mag$\nu$s's
 potential, and why the honest cross-code accuracy statement is the vacuum one. Fixing it
-properly means agreeing a conversion, not tightening a tolerance.
+properly meant agreeing a conversion, not tightening a tolerance, which is what 1.2.0 did.
 
 '''),
     md(r'''## 7. Speed against accuracy, across six codes

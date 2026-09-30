@@ -304,7 +304,7 @@ def test_our_own_constants_are_derived_not_transcribed():
     sys.path.insert(0, str(BENCH))
     sys.path.insert(0, str(TESTS.parent / 'src'))
     import conversions
-    import globaldefs as gd
+    from magnus import globaldefs as gd
 
     if not pathlib.Path(conversions.BUILD).is_dir():
         pytest.skip('external sources not built; run tests/bench/build.sh')

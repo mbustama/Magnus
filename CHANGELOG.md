@@ -9,6 +9,26 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A mass density becomes an electron density as ρ N_A Y_e** (issue #168).  The package
+  divided ρ Y_e by the mean free-nucleon mass, (m_p + r m_n)/(1 + r), which ignores nuclear
+  binding: matter weighs the atomic mass unit per nucleon, 931.494 MeV, not 938.9 MeV, so
+  every electron density converted from g/cm³ was 0.8% low.  It also converted grams with a
+  rounded e/c², 1.783e-33 g/eV, another 1.9e-4.  The Earth's Y_e values were already
+  electrons per atomic mass unit (iron's 26/55.845, seawater's 10/18.015), so for them
+  ρ N_A Y_e is exact; nuSQuIDS, GLoBES, Prob3++, NuFast, OscProb and nuCraft all use it.  Now
+  `matter.num_density_e_func` divides by the new `globaldefs.ATOMIC_MASS_UNIT`,
+  `CONV_EV_TO_G` is exact, and the neutron-to-proton ratio, which entered the conversion only
+  through the nucleon mass, no longer does (it still sets the sterile states' matter entry).
+  The tabulated solar models count electrons, and the neutron-to-proton ratio, from the
+  atomic masses of ¹H and ⁴He, the rest counted as helium: within 0.07% of BS05(OP)'s full
+  composition, where ρ(1 + X)/(2 m_N) was 0.1 to 0.4% low and the textbook ρ N_A (1 + X)/2
+  is 0.4 to 0.8% high.  **Every result computed from a mass density changes**: through the
+  Earth's core by up to 6.5e-2 in probability at 1-20 GeV, through the mantle 1e-2, at DUNE's
+  constant density 5e-4; averaged solar probabilities by up to 4.5e-4, and the exponential
+  solar fit, defined as an electron density with N_A, not at all.  The supernova-shock
+  model of the notebooks and the benchmark PREM chord keep their normalization, as model
+  definitions their frozen references were built on.
+
 - **The LIV term changes sign for antineutrinos when `n_liv` is even** (issue #162).  For
   antineutrinos the Lorentz-violating operator is transposed in flavor space and its CPT-odd
   part changes sign; an operator of dimension `n_liv + 3` is CPT-odd when that is odd

@@ -78,7 +78,7 @@ def canary():
     numbers are allowed into one sentence.
     """
     import numpy as np
-    import globaldefs as gd
+    from magnus import globaldefs as gd
     import hamiltonians3nu
     import oscprob3nu
 

@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__)))), 'src'))
 
-import globaldefs as gd                                       # noqa: E402
-import earth                                                  # noqa: E402
+from magnus import globaldefs as gd                                       # noqa: E402
+from magnus import earth                                                  # noqa: E402
 
 
 def main():

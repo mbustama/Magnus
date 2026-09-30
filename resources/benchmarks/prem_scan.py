@@ -206,8 +206,8 @@ from scipy.integrate import solve_ivp
 sys.path.insert(0, 'src')
 sys.path.insert(0, '/home/mbustamante/Research/AtmNu/nuCraft/trunk')
 
-import globaldefs as gd                                       # noqa: E402
-import earth                                                  # noqa: E402
+from magnus import globaldefs as gd                                       # noqa: E402
+from magnus import earth                                                  # noqa: E402
 import hamiltonians3nu                                        # noqa: E402
 import hamiltonians4nu                                        # noqa: E402
 import oscprob4nu                                             # noqa: E402

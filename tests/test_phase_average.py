@@ -563,7 +563,9 @@ def test_a_converged_call_does_not_warn_about_the_coarse_levels_of_its_windows()
     assert max(sink) < np.pi
     P, warned = call(*args, average=True, **CHORD_KW)
     assert 'MagnusConvergenceWarning' not in warned
-    assert abs(float(P) - 0.304987) < 1e-6
+    # 0.304987 until 1.2.0: this chord is near the atmospheric resonance, where the 0.4% higher
+    # solar electron density of issue #168 moves the average by 2e-2.
+    assert abs(float(P) - 0.283618) < 1e-6
 
 
 def test_a_window_ladder_still_warns_about_the_level_it_returns():
@@ -621,7 +623,8 @@ def test_a_hamiltonian_without_energy_dependence_keeps_the_decohered_limit():
 # The initial state of average=True (issue #73)
 # ----------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize('start, expected', [('flavor', 0.36263161), ('decohered', 0.45279506)])
+# The values moved with the electron density in 1.2.0, from 0.36263161 and 0.45279506 (issue #168).
+@pytest.mark.parametrize('start, expected', [('flavor', 0.36263347), ('decohered', 0.45316241)])
 def test_the_initial_state_means_the_same_on_every_route(start, expected):
     """The reproduction of issue #73: one medium through the constant route and, as an
     exponential profile of scale height 1e9 km, through the smooth route.  They used to give

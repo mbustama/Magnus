@@ -226,7 +226,7 @@ def earth_chord_romberg(code, energy_gev, costhz, ye, params,
     which is the honest thing to quote: it is measured on this problem rather
     than assumed from the convergence order.
     """
-    import earth as _earth
+    from magnus import earth as _earth
     mp.mp.dps = DPS
     m2 = mass_matrix(params['s12sq'], params['s13sq'], params['s23sq'],
                      params['dcp_rad'], params['dmsq21_ev2'],
@@ -254,12 +254,12 @@ def earth_chord_romberg(code, energy_gev, costhz, ye, params,
 
 def _prem_coeffs_mp():
     r"""Returns this library's PREM polynomial coefficients as mpf."""
-    import earth as _earth
+    from magnus import earth as _earth
     return [[_mpf(a) for a in row] for row in _earth._PREM_COEFFS]
 
 
 def _prem_boundaries_mp():
-    import earth as _earth
+    from magnus import earth as _earth
     return [_mpf(b) for b in _earth.PREM_BOUNDARIES]
 
 
@@ -269,7 +269,7 @@ def prem_density_mp(r, coeffs=None, bounds=None, radius=None):
     Horner in ``x = r/R``, with the shell selected the way ``density_prem``
     selects it (``searchsorted(B, r, side='left')``).
     """
-    import globaldefs as gd
+    from magnus import globaldefs as gd
     coeffs = coeffs if coeffs is not None else _prem_coeffs_mp()
     bounds = bounds if bounds is not None else _prem_boundaries_mp()
     radius = radius if radius is not None else _mpf(gd.EARTH_RADIUS)
@@ -328,7 +328,7 @@ def chord_slabs_mp(costhz, boundaries, n_per_segment, density_fn,
     for the three compiled Earth codes, whose profile is a stack of uniform
     shells: their reference carries no discretisation error at all.
     """
-    import globaldefs as gd
+    from magnus import globaldefs as gd
     # Set here rather than assumed: mpmath's default is 15 digits, so a
     # caller who reaches the geometry before anything else would silently
     # get a double-precision chord out of a function whose whole purpose is
@@ -433,8 +433,8 @@ def profile_for(code, n_shells=256):
 
     Returns ``(boundaries, density_fn, piecewise_constant)``.
     """
-    import earth as _earth
-    import globaldefs as gd
+    from magnus import earth as _earth
+    from magnus import globaldefs as gd
     radius = _mpf(gd.EARTH_RADIUS)
     coeffs, bounds = _prem_coeffs_mp(), _prem_boundaries_mp()
 
@@ -530,7 +530,7 @@ def earth_chord_reference(code, energy_gev, costhz, ye, params,
     # built on one: scoring a code against its own approximation forgives the
     # discretisation, which measured as a spurious six-order advantage for
     # Prob3++ and GLoBES over this library on the same physics.
-    import globaldefs as gd
+    from magnus import globaldefs as gd
     _coeffs, _bounds = _prem_coeffs_mp(), _prem_boundaries_mp()
     _radius = _mpf(gd.EARTH_RADIUS)
     boundaries, constant = _bounds, False
@@ -596,7 +596,7 @@ def earth_chord(code, energy_gev, costhz, ye, params, n_slabs=256,
     given, promoted exactly.  Their double-precision widths are the problem
     statement, not an approximation of it.
     """
-    import earth as _earth
+    from magnus import earth as _earth
     mp.mp.dps = DPS
     m2 = mass_matrix(params['s12sq'], params['s13sq'], params['s23sq'],
                      params['dcp_rad'], params['dmsq21_ev2'],
@@ -642,7 +642,7 @@ def self_test(code='NuOscProbExact', costhz=-0.9, energy_gev=10.0, ye=0.5):
     m2 = mass_matrix(params['s12sq'], params['s13sq'], params['s23sq'],
                      params['dcp_rad'], params['dmsq21_ev2'],
                      params['dmsq31_ev2'])
-    import earth as _earth
+    from magnus import earth as _earth
     raw = {}
     for n in (32, 64, 128, 256):
         widths, densities = _earth.earth_slabs(costhz, n_slabs_per_segment=n)
