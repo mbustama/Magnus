@@ -1281,3 +1281,45 @@ def test_oscillogram_computed_for_antineutrinos_is_labelled_as_such():
         warnings.simplefilter('ignore')
         fig, ax = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3)
     assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE)
+
+
+@pytest.mark.parametrize('routine', ['plot_probability_vs_energy', 'plot_probability_vs_baseline'])
+def test_curves_can_be_declared_antineutrino(routine):
+    """#145 §2: the curve routines had no way to label antineutrino probabilities."""
+    E = np.linspace(0.5, 5.0, 20)
+    y = np.full(20, 0.1)
+    f = getattr(mp, routine)
+    _, ax = f(E, [y], nu_i=gd.NUMU, nu_f=gd.NUE, nubar=True)
+    assert mp.prob_label(gd.NUMU, gd.NUE, nubar=True) in ax.get_ylabel()
+    _, ax = f(E, [y], nu_i=gd.NUMU, nu_f=gd.NUE)
+    assert mp.prob_label(gd.NUMU, gd.NUE) in ax.get_ylabel()
+    plt.close('all')
+
+
+def test_oscillogram_nubar_keyword_computes_and_labels_antineutrinos():
+    CZ = np.linspace(-1.0, -0.1, 4)
+    lg = np.linspace(0.0, 1.0, 4)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        fig, ax, P = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                         nubar=True, return_probability=True)
+        _, _, Pk = mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                                       wrapper_kw=dict(nubar=True), return_probability=True)
+    assert np.array_equal(P, Pk)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    # plot-only mode labels, and a contradiction is refused
+    _, ax = mp.plot_oscillogram(CZ, lg, np.full((4, 4), 0.5), nu_i=gd.NUMU, nu_f=gd.NUE,
+                                nubar=True)
+    assert ax.texts[0].get_text() == mp.prob_label(gd.NUMU, gd.NUE, nubar=True)
+    with pytest.raises(ValueError, match='contradicts'):
+        mp.plot_oscillogram(CZ, lg, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=False,
+                            wrapper_kw=dict(nubar=True))
+    plt.close('all')
+
+
+def test_profile_plot_nubar_contradiction_is_refused():
+    with pytest.raises(ValueError, match='contradicts'):
+        mp.plot_probability_with_profile(np.linspace(1.0, 1000.0, 20),
+                                         trajectories=[dict(costhz=-0.5)], energy=1.0,
+                                         nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3, nubar=True,
+                                         wrapper_kw=dict(nubar=False), xscale='linear')

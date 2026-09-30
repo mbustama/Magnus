@@ -396,7 +396,7 @@ _COMMON_RULES = dict(
     ylabel_labelpad=_v.r_real(), shared_ylabel_labelpad=_v.r_real(),
     residual_height=_OPEN_UNIT, profile_height=_OPEN_UNIT,
     legend=_v.r_bool, grid=_v.r_bool, tight_layout=_v.r_bool, return_probability=_v.r_bool,
-    show_profile=_BOOL_OR_NONE, panel_per_trajectory=_BOOL_OR_NONE, nubar=_v.r_bool,
+    show_profile=_BOOL_OR_NONE, panel_per_trajectory=_BOOL_OR_NONE, nubar=_BOOL_OR_NONE,
     legend_panel=_v.r_int(lo=0), legend_on_panel=_v.r_int(lo=-1), levels=_v.r_int(lo=1),
     num_flavors=_v.r_int(allow_none=True), nu_i=_r_channel, nu_f=_r_channel,
     energy_unit=_v.r_choice(_ENERGY_UNITS),
@@ -964,6 +964,7 @@ def plot_probability_vs_baseline(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     xlabel: str = r'Baseline, $L$ [km]',
     ylabel: Optional[str] = None,
@@ -993,6 +994,9 @@ def plot_probability_vs_baseline(
     num_flavors : int, optional
         If given, prefixes the ordinate label with ``'Two-'``, ``'Three-'``,
         ``'Four-'`` or ``'Five-neutrino probability'``.
+    nubar : bool, optional
+        True if the curves are antineutrino probabilities, for the default ordinate label.
+        Default: None, read as False.
     xlabel : str, optional
         Abscissa label.
     ylabel : str, optional
@@ -1036,7 +1040,7 @@ def plot_probability_vs_baseline(
     """
     _check_forwarded('plot_probability_vs_baseline', _forbidden)
     if ylabel is None and nu_i is not None and nu_f is not None:
-        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors)
+        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors, nubar=bool(nubar))
     return plot_curves(
         distances, curves, xlabel=xlabel, ylabel=ylabel, ylim=ylim,
         xscale=xscale, ymajor=ymajor, yminor=yminor, **_forbidden)
@@ -1049,6 +1053,7 @@ def plot_probability_vs_energy(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     energy_unit: str = 'GeV',
     xlabel: Optional[str] = None,
@@ -1075,6 +1080,9 @@ def plot_probability_vs_energy(
         Flavor pair for the ordinate label.
     num_flavors : int, optional
         Flavor count, for the ordinate label prefix.
+    nubar : bool, optional
+        True if the curves are antineutrino probabilities, for the default ordinate label.
+        Default: None, read as False.
     energy_unit : str, optional
         Unit shown in the abscissa label. Default is ``'GeV'``.
     xlabel : str, optional
@@ -1121,7 +1129,7 @@ def plot_probability_vs_energy(
     if xlabel is None:
         xlabel = r'Neutrino energy, $E_\nu$ [%s]' % energy_unit
     if ylabel is None and nu_i is not None and nu_f is not None:
-        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors)
+        ylabel = _probability_ylabel(nu_i, nu_f, num_flavors, nubar=bool(nubar))
     return plot_curves(
         energies, curves, xlabel=xlabel, ylabel=ylabel, ylim=ylim,
         xscale=xscale, ymajor=ymajor, yminor=yminor, **_forbidden)
@@ -1130,12 +1138,31 @@ def plot_probability_vs_energy(
 _FLAVOR_WORD = {2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five'}
 
 
-def _probability_ylabel(nu_i, nu_f, num_flavors):
+def _resolve_nubar(caller, nubar, wrapper_kw, computing):
+    r"""The ``nubar`` a figure is drawn and labelled for, and the ``wrapper_kw`` to compute with.
+
+    ``nubar=None`` means not given.  In compute mode a given ``nubar`` is also passed to the
+    wrapper, so that the grid and its label cannot disagree; one that contradicts
+    ``wrapper_kw['nubar']`` is refused (issue #145 §2).
+
+    .. versionadded:: 1.2.0
+    """
+    in_kw = (wrapper_kw or {}).get('nubar')
+    if nubar is not None and in_kw is not None and bool(in_kw) != bool(nubar):
+        raise ValueError('Error in magnus: plotting.%s: nubar=%r contradicts '
+                         'wrapper_kw[\'nubar\']=%r; give it once.' % (caller, nubar, in_kw))
+    if nubar is not None and computing:
+        wrapper_kw = dict(wrapper_kw or {}, nubar=bool(nubar))
+    effective = bool(nubar) if nubar is not None else bool(in_kw)
+    return effective, wrapper_kw
+
+
+def _probability_ylabel(nu_i, nu_f, num_flavors, nubar=False):
     r"""Build the notebooks' ordinate label for a probability panel.
 
     .. versionadded:: 1.0.0
     """
-    label = prob_label(nu_i, nu_f)
+    label = prob_label(nu_i, nu_f, nubar=bool(nubar))
     if num_flavors is None:
         return 'Probability, ' + label
     if num_flavors not in _FLAVOR_WORD:
@@ -1158,6 +1185,7 @@ def plot_probability_with_profile(
     energy: Optional[float] = None,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     osc_params: Optional[Dict[str, float]] = None,
     electron_fraction: Optional[float] = None,
@@ -1275,6 +1303,10 @@ def plot_probability_with_profile(
         :data:`magnus.globaldefs.NUMU` and :data:`magnus.globaldefs.NUE`.
     num_flavors : int, optional
         2, 3, 4 or 5: which Earth wrapper computes the probabilities.
+    nubar : bool, optional
+        True for antineutrinos.  In compute mode it is also passed to the wrapper, so the
+        curves and their label agree; a value contradicting ``wrapper_kw['nubar']`` is refused.
+        Default: None, which reads ``wrapper_kw['nubar']`` in compute mode and False otherwise.
     osc_params : dict, optional
         Mixing parameters, passed to the wrapper as keywords: ``sth`` and
         ``Dm2`` (required) at two flavors; at three to five flavors any of the
@@ -1444,6 +1476,8 @@ def plot_probability_with_profile(
             xscale='linear', return_probability=True)
         print(len(ax), P[0].shape)
     """
+    nubar_label, wrapper_kw = _resolve_nubar('plot_probability_with_profile', nubar,
+                                             wrapper_kw, trajectories is not None)
     computing = dict(x_axis=x_axis, x_unit=x_unit, energy=energy, nu_i=nu_i, nu_f=nu_f,
                      num_flavors=num_flavors, osc_params=osc_params,
                      electron_fraction=electron_fraction,
@@ -2233,6 +2267,7 @@ def plot_oscillogram(
     *,
     nu_i: Optional[int] = None,
     nu_f: Optional[int] = None,
+    nubar: Optional[bool] = None,
     num_flavors: Optional[int] = None,
     osc_params: Optional[Dict[str, float]] = None,
     electron_fraction: Optional[float] = None,
@@ -2307,6 +2342,10 @@ def plot_oscillogram(
         :math:`2 \times 2` matrix (0 or 1).
     num_flavors : int, optional
         2, 3, 4 or 5: which Earth wrapper computes the probability.
+    nubar : bool, optional
+        True for antineutrinos.  In compute mode it is also passed to the wrapper, so the
+        grid and its label agree; a value contradicting ``wrapper_kw['nubar']`` is refused.
+        Default: None, which reads ``wrapper_kw['nubar']`` in compute mode and False otherwise.
     osc_params : dict, optional
         Mixing parameters, passed to the wrapper by name (``sth`` and ``Dm2``
         at two flavors, where they are required; ``s12``, ..., ``D31`` and the
@@ -2434,6 +2473,9 @@ def plot_oscillogram(
                      electron_fraction_ocean=electron_fraction_ocean,
                      ratio_number_neutrons_to_protons=ratio_number_neutrons_to_protons,
                      wrapper_kw=wrapper_kw)
+    nubar_label, wrapper_kw = _resolve_nubar('plot_oscillogram', nubar, wrapper_kw,
+                                             probability is None)
+    computing['wrapper_kw'] = wrapper_kw
     if probability is None:
         probability = _oscillogram_through_earth_wrappers(costhz, log10_energy, nu_i, nu_f,
                                                           **computing)
@@ -2466,7 +2508,6 @@ def plot_oscillogram(
 
     # A grid computed with nubar=True is the antineutrino probability, and is labelled as one
     # (issue #145 §1): the labels used to say nu whatever the grid held.
-    nubar_label = bool((wrapper_kw or {}).get('nubar', False))
     label = cbar_label
     if label is None and nu_i is not None and nu_f is not None:
         label = cbar_label_prefix + prob_label(nu_i, nu_f, nubar=nubar_label)

@@ -105,6 +105,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`nubar=` on the probability plots** (issue #145 §2).  `plot_probability_vs_energy`,
+  `plot_probability_vs_baseline`, `plot_probability_with_profile` and `plot_oscillogram` take a
+  keyword `nubar`: in plot-only mode it labels the curves as antineutrino probabilities, which
+  was not possible before; in compute mode it is also passed to the wrapper, so the numbers and
+  the label agree, and a value contradicting `wrapper_kw['nubar']` is refused.
 - **`gd.EnergyUnitWarning`**, for an energy below 1 keV, most likely MeV or GeV left
   unconverted (issue #141).  `gd.BaselineUnitWarning` now also covers `t_breakpoints` given
   in kilometers.
