@@ -9,6 +9,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`n_jobs > 1` no longer costs a second or more on a small scan** (issue #155 §3).
+  `osc_prob_energy_baseline` computes the first point in the calling process; if the rest would
+  take under `N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that pace, it finishes there too instead of
+  starting workers.  A 5-point millisecond scan with `n_jobs=2` took 1.43 s and now takes
+  0.09 s, with the same numbers as `n_jobs=1`; a scan heavy enough to pay for the workers still
+  uses them.  The `n_jobs` docstring of `osc_prob_energy_baseline`, which said the argument
+  was forwarded to `osc_prob`, now says what it does.
 - **`average_spread` sets the energy window of `average=True` across declared discontinuities**
   (issue #134).  On that route the window was always the default, ±10%, and a caller's
   `average_spread` was accepted and silently ignored.  It is now the half-width of the window

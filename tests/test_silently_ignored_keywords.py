@@ -152,3 +152,35 @@ def test_unknown_keyword_lists_wrapper_physics_keywords(call, bad, listed):
     assert "'" + bad + "'" in msg
     assert listed in msg
     assert 'validate_input' not in msg and 'n_slabs, n_tpts' not in msg.split('engine keywords')[0]
+
+
+def test_small_parallel_scan_runs_in_the_calling_process(monkeypatch):
+    """#155 §3: n_jobs=2 on a millisecond 5-point scan cost about 1.4 s starting workers."""
+    H0v = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    H = lambda En, l: H0v/En + (1e-13*np.exp(-np.asarray(l, float)/(300*KM)))[..., None, None]*np.diag([1., 0, 0])
+    E5 = np.linspace(1.0, 5.0, 5)*gd.UNIT_GEV
+    started = []
+    real = op.Parallel
+    monkeypatch.setattr(op, 'Parallel', lambda *a, **k: started.append(k) or real(*a, **k))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        serial = op.osc_prob_energy_baseline(H, E5, L, n_jobs=1)
+        par = op.osc_prob_energy_baseline(H, E5, L, n_jobs=2)
+    assert started == []
+    assert np.array_equal(serial, par)
+
+
+def test_heavy_parallel_scan_still_uses_the_workers(monkeypatch):
+    import time
+    H0v = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**OSC)
+    def H(En, l):
+        time.sleep(0.05)
+        return H0v/En + 0.0*np.asarray(l, float)[..., None, None]
+    started = []
+    real = op.Parallel
+    monkeypatch.setattr(op, 'Parallel', lambda *a, **k: started.append(k) or real(*a, **k))
+    monkeypatch.setattr(op, 'N_JOBS_MIN_PARALLEL_WORK_S', 0.01)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        op.osc_prob_energy_baseline(H, np.linspace(1.0, 2.0, 3)*gd.UNIT_GEV, L, n_jobs=2)
+    assert len(started) == 1

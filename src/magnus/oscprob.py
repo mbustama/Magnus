@@ -296,6 +296,7 @@ import os
 import numbers
 import numpy as np
 import sys
+import time
 import warnings
 import weakref
 from contextlib import contextmanager, nullcontext
@@ -804,6 +805,23 @@ milliseconds for that is the right way round.
 # adiabatic.find_hidden_features, which looks at the profile rather than at the answers.
 #
 # Reproduce: docs/dev/adversarial_batteries/crosscheck_benefit.py and weak_band.py.
+
+N_JOBS_MIN_PARALLEL_WORK_S = 1.0
+r"""float: Module-level constant
+
+Seconds of serial work below which ``n_jobs > 1`` finishes a per-point scan in the calling
+process instead of starting worker processes (issue #155 §3).
+
+:func:`osc_prob_energy_baseline` always computes the first point serially, to warm-start the
+rest.  Its time, multiplied by the points left, estimates what the rest would cost serially.  A
+process pool pays for starting its workers and importing Magnus in each before the first task
+runs: measured at 1.2 to 2.2 s for 2 to 4 workers on a 5-point scan whose serial cost was
+0.07 s (1.4 to 3 s in the beta test that reported it).  Below 1 s of serial work, then, the pool
+cannot win, and the scan runs serially: faster, never slower.  Above it the pool runs as
+before.
+
+.. versionadded:: 1.2.0
+"""
 
 HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8
 r"""int: Module-level constant
@@ -7920,7 +7938,13 @@ def osc_prob_energy_baseline(
     magnus_exp_order : int
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     n_jobs : int
-        Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
+        Number of worker processes over the (energy, L) points of a per-point scan: 1 (the
+        default) runs in the calling process, -1 uses every core, and any other positive value
+        is capped at the points left and the cores.  The first point is always computed here,
+        to warm-start the rest; if the rest would take under
+        :data:`N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that point's pace, they are computed here
+        too, since starting the workers costs more (issue #155 §3).  A scan that a batched
+        engine would answer takes the per-point path instead when ``n_jobs != 1``.
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
@@ -8529,13 +8553,23 @@ def osc_prob_energy_baseline(
             P = P[nu_i][nu_f]
         return (P, U) if return_evolution_operator else P
 
+    probs = None
     if parallelize_over_points:
         # Compute the first point serially to learn the refinement parameters, then distribute
         # the remaining points over the workers, warm-started from the first point.  (The shared
         # conv_info dict cannot be updated across processes, so it is dropped from the parallel
         # calls.)
+        _t_first = time.perf_counter()
         probs = [compute_single_point(energy[0], L[0])]
+        _t_first = time.perf_counter() - _t_first
         apply_warm_start()
+        # Too little work left to pay for starting the workers (issue #155 §3): finish here.
+        if _t_first*(len(energy) - 1) < N_JOBS_MIN_PARALLEL_WORK_S:
+            parallelize_over_points = False
+            for enu, baseline in zip(energy[1:], L[1:]):
+                apply_warm_start()
+                probs.append(compute_single_point(enu, baseline))
+    if parallelize_over_points:
         osc_prob_kwargs.pop('convergence_info', None)
 
         # A module global does not cross a process boundary: loky re-imports magnus in each
@@ -8558,7 +8592,7 @@ def osc_prob_energy_baseline(
         _n_workers = min(_workers, _cores) if n_jobs == -1 else min(n_jobs, _workers, _cores)
         probs += Parallel(n_jobs=_n_workers)(delayed(compute_single_point_in_worker)(
             enu, baseline) for enu, baseline in zip(energy[1:], L[1:]))
-    else:
+    elif probs is None:
         probs = []
         for enu, baseline in zip(energy, L):
             apply_warm_start()
@@ -25226,6 +25260,7 @@ __all__ = [
     'BATCHED_PHASE_GROUPING',
     'BATCH_WORKING_ENTRIES',
     'CUMULATIVE_AUTO_MIN_POINTS',
+    'N_JOBS_MIN_PARALLEL_WORK_S',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
     'CUMULATIVE_N_ACC_SAFETY',
     'AUTO_LADDER_MAX_PHASE',
