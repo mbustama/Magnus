@@ -687,13 +687,10 @@ def test_an_unknown_initial_state_raises(bad):
                                average_initial_state=bad)
 
 
-def test_the_initial_state_is_ignored_without_average():
-    P = op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC,
-                               average_initial_state='decohered')
-    assert np.array_equal(np.asarray(P), np.asarray(op.osc_prob_3nu_vacuum(
-        1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC)))
-    # Ignored, but still validated: an unknown value is refused wherever it is passed
-    # (issue #160 §4).
-    with pytest.raises(ValueError, match='average_initial_state'):
-        op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC,
-                               average_initial_state='bogus')
+def test_the_initial_state_is_refused_without_average():
+    """It was ignored without average=True, as documented; by the author's decision on
+    issue #160 it is refused by name, valid value or not."""
+    for value in ('decohered', 'bogus'):
+        with pytest.raises(ValueError, match='average_initial_state'):
+            op.osc_prob_3nu_vacuum(1.0*gd.UNIT_GEV, 1000.0*gd.UNIT_KM, **OSC,
+                                   average_initial_state=value)

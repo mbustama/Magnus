@@ -5033,6 +5033,25 @@ _OSC_PROB_TPTS_DEFAULTS = tuple(signature(osc_prob).parameters[_k].default
                                 for _k in _TPTS_SETTINGS)
 
 
+def _refuse_average_keywords(source_func_name: str, average_spread, average_n_samples,
+                             average_initial_state) -> None:
+    r"""Refuses the keywords that shape ``average=True`` on a call without it.
+
+    A call without ``average`` takes no averaging route at all, so these were accepted and
+    ignored: the sample count (issue #160 §1), and the spread and the initial state (issue
+    #160, by the author's decision).  None is the default of all three, and passes.
+
+    .. versionadded:: 1.2.0
+    """
+    for name, value in (('average_n_samples', average_n_samples),
+                        ('average_spread', average_spread),
+                        ('average_initial_state', average_initial_state)):
+        if value is not None:
+            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
+                + name + " sets how average=True averages, and has no effect without it; "
+                "pass average=True or remove " + name + ".")
+
+
 def _avg_prob_dispatch(
     htot: Callable,
     htot_is_function_only_of_energy: bool,
@@ -5073,7 +5092,8 @@ def _avg_prob_dispatch(
        Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
 
     .. versionchanged:: 1.2.0
-       Refuses average_n_samples without average (issue #160 §1); the energy-window route raises
+       Refuses average_n_samples, average_spread and average_initial_state without average
+       (issue #160 §1); the energy-window route raises
        one warning per class (issue #144 §2); the warning for an energy-independent Hamiltonian
        says no spread can decohere it (issue #144 §3).
 
@@ -5130,13 +5150,8 @@ def _avg_prob_dispatch(
         ``NotImplemented`` if ``average`` is falsy.
     """
     if not average:
-        # Only the energy-window route samples, and a call without average takes no route at
-        # all, so the sample count was accepted and ignored there (issue #160 §1).  The spread
-        # and the initial state are documented as ignored without average, and stay so.
-        if average_n_samples is not None:
-            raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": "
-                "average_n_samples is the number of energies the phase average samples, and "
-                "has no effect without average=True.")
+        _refuse_average_keywords(source_func_name, average_spread, average_n_samples,
+                                 average_initial_state)
         return NotImplemented
 
     spread = avgprob.AVG_PHASE_SPREAD if average_spread is None else average_spread
@@ -6667,8 +6682,8 @@ def _osc_prob_scan_separable_dispatch(
     r"""Decide whether the energy-batched scan engine applies; run it if so.
 
     Returns NotImplemented when the request does not fit the engine, in which case the
-    caller falls back to the generic per-point path.  It declines ``cumulative=True``;
-    unknown extra arguments; user-provided slab edges; parallel or logged runs;
+    caller falls back to the generic per-point path.  It declines ``cumulative=True`` on a
+    position-dependent potential, or across several energies; unknown extra arguments; user-provided slab edges; parallel or logged runs;
     ``verbose >= 1``; a baseline below ``L0`` (or NaN); an order or quadrature, or
     refinement bounds, the ladder would reject; a callable ``h_matt`` over a constant
     potential; and, for a position-dependent potential, fewer than two energies or unequal
@@ -6676,6 +6691,10 @@ def _osc_prob_scan_separable_dispatch(
     (:func:`_osc_prob_scan_constant_h`), single points and per-point baselines included.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       ``cumulative=True`` over a constant potential, at one energy, is served by the constant
+       engine: the same answer, 2-3x faster (issue #160).
 
     Parameters
     ----------
@@ -6716,7 +6735,13 @@ def _osc_prob_scan_separable_dispatch(
         The oscillation probability (or single channel), computed via the batched engine; or the
         ``NotImplemented`` singleton if the request does not fit it.
     """
-    if scan_kwargs.get('cumulative') is True:
+    # cumulative=True asks for one pass along the baselines, reusing each prefix.  A constant
+    # potential needs no pass at all: the constant engine's one exact exponential per baseline
+    # is the same answer, 2-3x faster (issue #160, by the author's decision), so the request
+    # goes there, and strategy_info names 'constant'.  A position-dependent potential keeps
+    # the cumulative engine it asked for.
+    cumulative_asked = scan_kwargs.get('cumulative') is True
+    if cumulative_asked and callable(VCC_func):
         return NotImplemented
     # A constant potential is not a degenerate case of the separable engine but a different
     # (exact, unrefined) one, so it gets its own name and its own disable switch.  It used to
@@ -6758,6 +6783,10 @@ def _osc_prob_scan_separable_dispatch(
 
     energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
     if not ok:
+        return NotImplemented
+    # A cumulative scan is one energy along many baselines; several energies are refused, by
+    # name, on the cumulative path, and are sent there to be.
+    if cumulative_asked and not np.all(energy_arr == energy_arr[0]):
         return NotImplemented
     # Answering before the per-point path means answering before its validation, so anything
     # the ladder would have rejected has to be rejected here or it is silently accepted.
@@ -8318,6 +8347,7 @@ def osc_prob_energy_baseline(
        A scan with n_jobs > 1 that would finish within N_JOBS_MIN_PARALLEL_WORK_S runs in the
        calling process (issue #155 §3); an H_func taking no argument or returning an object
        array is refused by name (issue #160 §7).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -8502,8 +8532,8 @@ def osc_prob_energy_baseline(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -8522,7 +8552,7 @@ def osc_prob_energy_baseline(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     strategy_info : dict, optional
@@ -8703,6 +8733,11 @@ def osc_prob_energy_baseline(
     # evaluation-mode probe below, which the averaged routes never use.  The size check that
     # the ordinary path runs further down is run here first, since this route allocates its
     # result the same way.
+    if not average:
+        # The wrappers refuse these inside _avg_prob_dispatch, which this route reaches only
+        # with average=True.
+        _refuse_average_keywords('osc_prob_energy_baseline', average_spread,
+                                 average_n_samples, average_initial_state)
     if average:
         # This route answers without reaching osc_prob, whose keyword check the per-point
         # route relies on, so a typo here (rtoll=...) used to be ignored in silence (#114).
@@ -9456,6 +9491,7 @@ def osc_prob_vacuum(
 
     .. versionchanged:: 1.2.0
        L0 and t_breakpoints are refused, and flags given as None (issue #160 §1, §4).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -9481,8 +9517,8 @@ def osc_prob_vacuum(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -9501,7 +9537,7 @@ def osc_prob_vacuum(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     nubar : bool, optional
@@ -9795,6 +9831,7 @@ def osc_prob_matter_std_potential(
     .. versionchanged:: 1.2.0
        A scalar-only rho_func is evaluated position by position and warned about by name (issue
        #144 §4); flags given as None are refused (issue #160 §4).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -9858,8 +9895,8 @@ def osc_prob_matter_std_potential(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -9878,7 +9915,7 @@ def osc_prob_matter_std_potential(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     strategy : str, optional
@@ -10451,6 +10488,7 @@ def osc_prob_matter_nsi(
     .. versionchanged:: 1.2.0
        A scalar-only rho_func is evaluated position by position and warned about by name (issue
        #144 §4); flags given as None are refused (issue #160 §4).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -10517,8 +10555,8 @@ def osc_prob_matter_nsi(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -10537,7 +10575,7 @@ def osc_prob_matter_nsi(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     strategy : str, optional
@@ -11018,6 +11056,7 @@ def osc_prob_liv(
     .. versionchanged:: 1.2.0
        A scalar-only rho_func is evaluated position by position and warned about by name (issue
        #144 §4); flags given as None are refused (issue #160 §4).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -11083,8 +11122,8 @@ def osc_prob_liv(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -11103,7 +11142,7 @@ def osc_prob_liv(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     strategy : str, optional
@@ -15255,6 +15294,7 @@ def osc_prob_earth(
     .. versionchanged:: 1.2.0
        L0 is refused by name, and so are t_breakpoints of which none lies on the path (issue
        #160 §1, §6).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -15376,8 +15416,8 @@ def osc_prob_earth(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -15396,7 +15436,7 @@ def osc_prob_earth(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
 
@@ -15555,6 +15595,7 @@ def _osc_prob_with_potential(
 
     .. versionchanged:: 1.2.0
        H_func's first sample is checked: an array, square, finite and Hermitian (issue #160 §7).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -15633,8 +15674,8 @@ def _osc_prob_with_potential(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -15653,7 +15694,7 @@ def _osc_prob_with_potential(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     \**kwargs
@@ -16870,6 +16911,7 @@ def osc_prob_sun(
     .. versionchanged:: 1.2.0
        A negative L0 and electron_fraction, which has no effect, are refused; H_func's first
        sample is checked (issue #160 §1, §7).
+       average_spread and average_initial_state are refused without average=True (issue #160).
 
     Parameters
     ----------
@@ -16939,8 +16981,8 @@ def osc_prob_sun(
         :data:`magnus.avgprob.AVG_PHASE_SPREAD`).  On a profile with declared
         discontinuities, where ``average=True`` averages over an energy window instead, it is
         the half-width of that window as a fraction of the energy, and must lie between 0
-        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Ignored without
-        ``average``.  Default: None, meaning 0.1.
+        and 1 (see :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`).  Refused without
+        ``average=True``.  Default: None, meaning 0.1.
     average_n_samples : int, optional
         Number of energies sampled across the window by ``average=True`` on a profile with
         declared discontinuities, at least 2.  The standard error of the window average
@@ -16959,7 +17001,7 @@ def osc_prob_sun(
         e.g. one arriving at the Sun from a distant source.  The two differ only where the phases
         from production onward have not averaged away (paper Eq. (flavor_vs_decohered)).  Not
         available on a profile with declared discontinuities, whose average starts in flavor.
-        Ignored without ``average``.  Default: None, meaning ``'flavor'``.
+        Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
         .. versionadded:: 1.1.1
     density_profile : str, optional

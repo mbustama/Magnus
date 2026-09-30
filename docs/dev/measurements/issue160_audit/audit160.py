@@ -161,12 +161,14 @@ def _hvac():
     return cls is not None and 'h_vac_energy_indep' in msg
 C(s, 'h_vac_energy_indep at 4 flavors: used or refused', _hvac, 'refused naming it (or used)')
 R(s, 'no effect: t_breakpoints on vacuum', lambda: vac(t_breakpoints=[0.5*L]), 't_breakpoints')
-# Revised: cumulative=True is not ignored on a constant density; it runs the cumulative engine.
+# Revised: cumulative=True is not ignored on a constant density.  After #175 it ran the
+# cumulative engine; by the author's later decision it is served by the constant engine, the
+# same answer 2-3x faster.
 def _cumulative_served():
     info = {}
     con(cumulative=True, L0=0.0, strategy_info=info)
-    return info.get('engine') == 'cumulative'
-C(s, 'cumulative=True on constant density is served by the cumulative engine', _cumulative_served, 'engine cumulative')
+    return info.get('engine') == 'constant'
+C(s, 'cumulative=True on constant density is served by the constant engine', _cumulative_served, 'engine constant')
 R(s, 'no effect: electron_fraction on tabulated Sun', lambda: sun(density_profile='B16-GS98', electron_fraction=0.5), 'electron_fraction')
 R(s, 'no effect: ratio n/p on tabulated Sun', lambda: sun(density_profile='B16-GS98', ratio_number_neutrons_to_protons=1.0), 'ratio_number_neutrons_to_protons')
 R(s, "no effect: integration_method='foo' on vacuum", lambda: vac(integration_method='foo'), 'integration_method')
