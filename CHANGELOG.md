@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A scalar-only `rho_func` is warned about by name, once** (issues #144 §4, #160 §7).  The
+  engine's `ScalarHamiltonianWarning` told the caller to rewrite `H_func`, a function they never
+  wrote.  The scenario functions now probe `rho_func` at three points; if it cannot take an
+  array, the warning names `rho_func` and the NumPy fix, and it is evaluated position by position
+  so the Hamiltonian stays array-capable and the engine does not warn again.  Per-point results
+  are bit-identical (14 of 14 cases across the three scenario functions and both strategies).
+  An energy scan at one baseline now stays on the batched engine instead of falling back to one
+  ladder per energy: it moves within the tolerance (4.4e-15 at the default, 6.5e-8 at
+  rtol=1e-6 on a 40-energy scan) and runs about twice as fast at the default tolerance.
 - **`adiabatic.hybrid_propagator` refuses a Hamiltonian that turns NaN along the path** (issue
   #160 §7).  Only the first sample was checked, so a NaN past it came back as a NaN propagator,
   silently.

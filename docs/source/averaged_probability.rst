@@ -533,6 +533,12 @@ see above.
             nu_i=gd.NUE, nu_f=gd.NUE, average=True)
     round(float(P), 4)
 
+The density function may be written for one position or for an array of them.  Both give
+the same numbers; the array form is faster, since the engine samples the density at every
+quadrature node.  A function written for one position at a time, ``3.0 if l < mid else
+8.0``, raises a ``ScalarHamiltonianWarning`` that names ``rho_func``; ``np.where(l < mid,
+3.0, 8.0)`` is the same density, vectorized.
+
 ``osc_prob`` itself, which computes one point, does not take the keyword and
 says so if handed it.
 

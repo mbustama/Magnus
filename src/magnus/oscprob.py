@@ -7267,6 +7267,55 @@ def _earth_breakpoints(prem_breakpoints, user_breakpoints, L, source_func_name: 
     return np.unique(np.concatenate([bp, user]))
 
 
+def _array_capable_rho(rho_func, L0, L, where: str):
+    r"""``rho_func`` as a callable that takes an array of positions, warning if it could not.
+
+    A scalar-only ``rho_func`` -- ``lambda l: 3.0 if l < mid else 8.0`` -- makes the whole
+    Hamiltonian scalar-only, and the engine's :class:`magnus.magnus.ScalarHamiltonianWarning`
+    then told the caller to rewrite ``H_func``, a function they never wrote (issue #144 §4,
+    issue #160 §7).  Probed once here, at three points of the path: if the array call raises,
+    returns the wrong shape, or disagrees with the calls one position at a time, the warning
+    names ``rho_func`` and the fix, and ``rho_func`` is evaluated position by position here, so
+    the Hamiltonian built on it stays array-capable and the engine does not warn a second time.
+    The values are the ones the engine would have computed point by point.
+
+    .. versionadded:: 1.2.0
+    """
+    Lr = _minmax_1d(L)
+    if not callable(rho_func) or Lr is None or not _v.is_real_scalar(L0):
+        return rho_func
+    pts = np.array([float(L0), 0.5*(float(L0) + Lr[1]), Lr[1]])
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            vec = rho_func(pts)
+            one = [rho_func(float(x)) for x in pts]
+        ok = (np.ndim(vec) == 0 or np.shape(vec) == pts.shape) and np.allclose(
+            np.broadcast_to(np.asarray(vec, dtype=float), pts.shape),
+            np.asarray(one, dtype=float), rtol=1e-12, atol=0.0, equal_nan=True)
+    except Exception:
+        ok = False
+    if ok:
+        return rho_func
+    frame, level = sys._getframe(0), 1
+    while frame is not None and frame.f_globals.get('__name__', '').startswith('magnus'):
+        frame, level = frame.f_back, level + 1
+    warnings.warn(
+        "oscprob." + where + ": rho_func could not be evaluated for several positions at once, "
+        "so it is being called one position at a time.  This is correct but slower, since the "
+        "engine samples the density at every quadrature node of every slab.  To take the fast "
+        "path, write rho_func with NumPy operations so that it accepts an array of positions: "
+        "np.where(l < mid, 3.0, 8.0) rather than '3.0 if l < mid else 8.0'.",
+        magnus.ScalarHamiltonianWarning, stacklevel=level)
+
+    def rho_one_at_a_time(l):
+        a = np.asarray(l, dtype=float)
+        if a.ndim == 0:
+            return rho_func(float(a))
+        return np.array([rho_func(float(x)) for x in a.ravel()], dtype=float).reshape(a.shape)
+    return functools.update_wrapper(rho_one_at_a_time, rho_func)
+
+
 def _refuse_start_keyword(where: str, kwargs: dict, environment: str) -> None:
     r"""Refuses ``L0`` where the entry point fixes the start of the path itself (issue #160 §1).
 
@@ -9659,7 +9708,10 @@ def osc_prob_matter_std_potential(
         Number of neutrino flavors (2, 3, 4, or 5; or higher, if ``h_vac_energy_indep`` is given).
     rho_func : Callable, int, or float
         Matter density (or electron number density, if ``density_is_of_number_of_electrons`` is
-        True), either as a function of position or as a constant.
+        True), either as a function of position or as a constant.  A function may take one
+        position or an array of them; the two give the same numbers, and the array form is
+        faster.  One written for a single position raises
+        :class:`magnus.magnus.ScalarHamiltonianWarning` naming ``rho_func``.
     energy : int, float, list, or np.ndarray
         Neutrino energy/energies.
     L : int, float, list, or np.ndarray
@@ -10019,6 +10071,8 @@ def osc_prob_matter_std_potential(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
+    if validate_input:
+        rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV]
@@ -10640,6 +10694,8 @@ def osc_prob_matter_nsi(
     # Build the coherent forward potential function, VCC_func, from the density function, rho_func.
     # If the provided rho_func is the matter density (e.g., g cm^{-3}), convert rho_func to a 
     # function that returns the electron number density [eV^3].
+    if validate_input:
+        rho_func = _array_capable_rho(rho_func, L0, L, _where)
     VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
         electron_fraction, nubar, density_matter_is_in_g_per_cm3,
         density_is_of_number_of_electrons) # [eV] 
@@ -11187,6 +11243,8 @@ def osc_prob_liv(
         # Build the coherent forward potential function, VCC_func, from the density function,
         # rho_func. If the provided rho_func is the matter density (e.g., g cm^{-3}), convert
         # rho_func to a function that returns the electron number density [eV^3].
+        if validate_input:
+            rho_func = _array_capable_rho(rho_func, L0, L, _where)
         VCC_func = matter.vcc_func_from_rho_func(rho_func, L0, ratio_number_neutrons_to_protons,
             electron_fraction, nubar, density_matter_is_in_g_per_cm3,
             density_is_of_number_of_electrons) # [eV]

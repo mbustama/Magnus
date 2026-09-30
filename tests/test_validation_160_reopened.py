@@ -598,3 +598,21 @@ def test_hybrid_propagator_refuses_a_hamiltonian_that_turns_nan_on_the_path():
     U, _, _ = ad.hybrid_propagator(lambda l: np.array([[l - 5, .3], [.3, 5 - l]], dtype=complex),
                                    0, 10)
     assert np.all(np.isfinite(U))
+
+
+def test_scalar_only_density_warns_once_naming_rho_func():
+    mid = 500.*KM
+    step = lambda l: 3.0 if l < mid else 8.0
+    vec = lambda l: np.where(np.asarray(l) < mid, 3.0, 8.0)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        a = op.osc_prob_matter_std_potential(3, step, 1.0e9, 1000.*KM, OSC, t_breakpoints=[mid],
+                                             density_matter_is_in_g_per_cm3=True)
+    scalar = [w for w in caught if type(w.message).__name__ == 'ScalarHamiltonianWarning']
+    assert len(scalar) == 1 and 'rho_func' in str(scalar[0].message)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        b = op.osc_prob_matter_std_potential(3, vec, 1.0e9, 1000.*KM, OSC, t_breakpoints=[mid],
+                                             density_matter_is_in_g_per_cm3=True)
+    assert not [w for w in caught if type(w.message).__name__ == 'ScalarHamiltonianWarning']
+    assert np.array_equal(a, b)
