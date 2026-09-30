@@ -64,11 +64,13 @@ def _rst_blocks(path):
 
 CASES = [
     ('README.md', _readme_blocks),
-    ('quickstart.rst', lambda: _rst_blocks(ROOT/'docs'/'source'/'quickstart.rst')),
+    # docs/ is not in the sdist (issue #164 §1); README.md is.
+    pytest.param('quickstart.rst', lambda: _rst_blocks(ROOT/'docs'/'source'/'quickstart.rst'),
+                 marks=pytest.mark.checkout_only),
 ]
 
 
-@pytest.mark.parametrize("name,loader", CASES, ids=[c[0] for c in CASES])
+@pytest.mark.parametrize("name,loader", CASES, ids=['README.md', 'quickstart.rst'])
 def test_documented_examples_run(name, loader):
     blocks = loader()
     assert blocks, "no code blocks found in %s -- the extractor has drifted" % name

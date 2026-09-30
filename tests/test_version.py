@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 
 import magnus.version as ver
+import pytest
 
 PYPROJECT = Path(__file__).resolve().parents[1] / 'pyproject.toml'
 
@@ -45,6 +46,7 @@ def test_plot_and_fast_extras_stay_declared_and_empty():
     assert '"matplotlib' in deps and '"numba' in deps
 
 
+@pytest.mark.checkout_only     # the installed package has no pyproject.toml beside it
 def test_version_from_pyproject_matches_the_declared_version():
     """The source-checkout route. This is the branch that never runs when
     the package is installed, which is exactly why it needs a test."""

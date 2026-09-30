@@ -334,6 +334,7 @@ Magnus/
 ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
 ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
 ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
+├── MANIFEST.in                     # Adds tests/conftest.py to the sdist, which skips the checkout-only tests there
 ├── README.md                       # This file
 ├── docs/                           # Sphinx documentation configuration and source
 ├── fig/                            # Plots produced by the example notebooks

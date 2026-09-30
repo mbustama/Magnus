@@ -134,7 +134,10 @@ knowing what it establishes:
   own CI job for the same reason.
 
 Skips are expected rather than a sign of trouble: tests that need an optional
-tool stand down when it is absent.
+tool stand down when it is absent.  Run from an unpacked sdist, the tests that check
+the repository rather than the library -- the documentation, the notebooks, the
+paper's assets, the CI workflows -- skip as well, since the sdist does not ship those
+files; each says so in its skip reason.
 
 Measuring test coverage
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,11 +191,12 @@ File tree
    │       ├── notebooks.yml           # Executes every notebook; paths-filtered, so docs-only changes skip it
    │       ├── pages.yml               # GitHub Pages deployment for the Sphinx documentation
    │       ├── publish.yml             # PyPI (OIDC) automated publishing workflow, on GitHub Release
-   │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage
+   │       └── tests.yml               # GitHub Actions CI testing pipeline (Python 3.10-3.13), coverage, and the sdist's own tests
    ├── .gitignore                      # Build, cache and generated-output artifacts
    ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
    ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
    ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
+   ├── MANIFEST.in                     # Adds tests/conftest.py to the sdist, which skips the checkout-only tests there
    ├── README.md                       # This file
    ├── docs/                           # Sphinx documentation configuration and source
    │   ├── Makefile                    # Build commands for Unix

@@ -31,6 +31,7 @@ anything.
 import os
 import subprocess
 import sys
+import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 README = os.path.join(ROOT, 'README.md')
@@ -57,12 +58,14 @@ TREE = [
     ('.github/workflows/notebooks.yml', 'Executes every notebook; paths-filtered, so docs-only changes skip it'),
     ('.github/workflows/pages.yml', 'GitHub Pages deployment for the Sphinx documentation'),
     ('.github/workflows/publish.yml', 'PyPI (OIDC) automated publishing workflow, on GitHub Release'),
-    ('.github/workflows/tests.yml', 'GitHub Actions CI testing pipeline (Python 3.10-3.13) + coverage'),
+    ('.github/workflows/tests.yml',
+     'GitHub Actions CI testing pipeline (Python 3.10-3.13), coverage, and the sdist\'s own tests'),
     ('.gitignore',
      'Build, cache and generated-output artifacts'),
     ('CHANGELOG.md', 'Version history (Keep a Changelog format)'),
     ('CITATION.cff', 'Machine-readable citation metadata; drives GitHub\'s "Cite this repository"'),
     ('LICENSE', 'GNU GPL v3 (GPL-3.0-only), the full license text'),
+    ('MANIFEST.in', 'Adds tests/conftest.py to the sdist, which skips the checkout-only tests there'),
     ('README.md', 'This file'),
     ('docs/', 'Sphinx documentation configuration and source'),
     ('docs/Makefile', 'Build commands for Unix'),
@@ -571,6 +574,7 @@ def write():
     return changed
 
 
+@pytest.mark.checkout_only
 def test_tree_matches_git():
     r"""The file entries in `TREE` are exactly the tracked files.
 
@@ -591,6 +595,7 @@ def test_tree_matches_git():
         'listed in TREE but not tracked: %s' % ', '.join(stale))
 
 
+@pytest.mark.checkout_only
 def test_collapsed_directories_are_listed_and_non_empty():
     r"""Each collapsed directory appears as an entry, and still has contents."""
     listed = {p for p, _ in TREE}
@@ -653,6 +658,7 @@ def test_every_top_level_directory_is_described():
     assert not missing, 'top-level entries without a comment: %s' % missing
 
 
+@pytest.mark.checkout_only
 def test_installation_rst_tree_is_generated():
     r"""installation.rst carries the same tree, indented for rst."""
     assert current_install_tree() == render_tree(), (

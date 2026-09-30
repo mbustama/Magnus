@@ -28,6 +28,11 @@ from pathlib import Path
 
 import pytest
 
+from conftest import skip_module_without_checkout
+
+# Reads docs/source/cli.rst while collecting (issue #164 §1).
+skip_module_without_checkout()
+
 REPO = Path(__file__).resolve().parents[1]
 CLI_RST = REPO / 'docs' / 'source' / 'cli.rst'
 README = REPO / 'README.md'

@@ -21,7 +21,12 @@ sources are compared.
 import pathlib
 import sys
 
-import nbformat
+from conftest import skip_module_without_checkout
+
+# Imports notebooks/make_notebooks.py while collecting (issue #164 §1).
+skip_module_without_checkout()
+
+import nbformat  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NOTEBOOKS = ROOT/'notebooks'

@@ -18,6 +18,10 @@ import inspect
 import pkgutil
 import re
 from pathlib import Path
+import pytest
+
+# Reads files the sdist does not ship (issue #164 §1).
+pytestmark = pytest.mark.checkout_only
 
 REPO = Path(__file__).resolve().parents[1]
 DIAGNOSTICS = REPO / 'docs' / 'source' / 'diagnostics.rst'

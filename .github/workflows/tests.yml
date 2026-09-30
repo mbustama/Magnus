@@ -67,6 +67,43 @@ jobs:
         # of that, so it alone sets the floor.
         run: pytest tests/ -v -n auto
 
+  sdist:
+    # What a user who downloads the sdist from PyPI gets when they run its tests.  The job
+    # above tests a checkout; this one builds the sdist and the wheel, installs the wheel
+    # into a clean virtual environment, and runs the sdist's own tests against it, with
+    # src/ removed so that nothing but the installed package can be imported.  The sdist
+    # ships no docs/, notebooks/, resources/ or .github/, so the tests that read them must
+    # skip there, and nothing may fail (issue #164 §1).
+    name: sdist tests
+    # Same fork-only rule as the matrix job above.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Build the sdist and the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --outdir dist
+
+      - name: Install the wheel into a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl pytest pytest-xdist
+
+      - name: Run the sdist's tests against the installed wheel
+        run: |
+          mkdir "$RUNNER_TEMP/sdist"
+          tar -xzf dist/*.tar.gz -C "$RUNNER_TEMP/sdist"
+          cd "$RUNNER_TEMP"/sdist/magnuspy-*
+          rm -rf src
+          "$RUNNER_TEMP/venv/bin/python" -m pytest tests/ -q -n auto -rs
+
   coverage:
     # Deliberately a separate job rather than a fourth axis of the matrix above, or a flag
     # added to it.  Instrumentation is not cheap here: measured locally, the suite goes
