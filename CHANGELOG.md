@@ -227,6 +227,13 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **`cumulative=True` over a constant density takes the constant engine** (issue #160).  A
+  cumulative scan reuses each baseline's propagator for the next, which a constant Hamiltonian
+  does not need: the constant engine's one exact exponential per baseline gives the same
+  answer.  It ran the cumulative engine, 2 to 3 times slower (0.53 against 0.26 ms for one
+  point, 0.72 against 0.25 ms for 200 baselines, three flavors), and `strategy_info` now reports
+  `'constant'`.  A position-dependent potential keeps the cumulative engine, and several
+  energies are still refused.
 - **`diagnostics.rst` measures how the true error compares with `rtol` on smooth profiles**
   (issue #161).  The page said an answer that stopped at a tolerance is "typically better" than
   it, without a number.  It now quotes 48 calls on two PREM chords, under three quadrature

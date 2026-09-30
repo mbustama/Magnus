@@ -6682,8 +6682,8 @@ def _osc_prob_scan_separable_dispatch(
     r"""Decide whether the energy-batched scan engine applies; run it if so.
 
     Returns NotImplemented when the request does not fit the engine, in which case the
-    caller falls back to the generic per-point path.  It declines ``cumulative=True``;
-    unknown extra arguments; user-provided slab edges; parallel or logged runs;
+    caller falls back to the generic per-point path.  It declines ``cumulative=True`` on a
+    position-dependent potential, or across several energies; unknown extra arguments; user-provided slab edges; parallel or logged runs;
     ``verbose >= 1``; a baseline below ``L0`` (or NaN); an order or quadrature, or
     refinement bounds, the ladder would reject; a callable ``h_matt`` over a constant
     potential; and, for a position-dependent potential, fewer than two energies or unequal
@@ -6691,6 +6691,10 @@ def _osc_prob_scan_separable_dispatch(
     (:func:`_osc_prob_scan_constant_h`), single points and per-point baselines included.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       ``cumulative=True`` over a constant potential, at one energy, is served by the constant
+       engine: the same answer, 2-3x faster (issue #160).
 
     Parameters
     ----------
@@ -6731,7 +6735,13 @@ def _osc_prob_scan_separable_dispatch(
         The oscillation probability (or single channel), computed via the batched engine; or the
         ``NotImplemented`` singleton if the request does not fit it.
     """
-    if scan_kwargs.get('cumulative') is True:
+    # cumulative=True asks for one pass along the baselines, reusing each prefix.  A constant
+    # potential needs no pass at all: the constant engine's one exact exponential per baseline
+    # is the same answer, 2-3x faster (issue #160, by the author's decision), so the request
+    # goes there, and strategy_info names 'constant'.  A position-dependent potential keeps
+    # the cumulative engine it asked for.
+    cumulative_asked = scan_kwargs.get('cumulative') is True
+    if cumulative_asked and callable(VCC_func):
         return NotImplemented
     # A constant potential is not a degenerate case of the separable engine but a different
     # (exact, unrefined) one, so it gets its own name and its own disable switch.  It used to
@@ -6773,6 +6783,10 @@ def _osc_prob_scan_separable_dispatch(
 
     energy_arr, L_arr, return_float, ok = _normalize_energy_L(energy, L)
     if not ok:
+        return NotImplemented
+    # A cumulative scan is one energy along many baselines; several energies are refused, by
+    # name, on the cumulative path, and are sent there to be.
+    if cumulative_asked and not np.all(energy_arr == energy_arr[0]):
         return NotImplemented
     # Answering before the per-point path means answering before its validation, so anything
     # the ladder would have rejected has to be rejected here or it is silently accepted.

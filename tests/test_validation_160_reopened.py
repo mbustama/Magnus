@@ -774,3 +774,24 @@ def test_sample_count_without_average_is_refused_on_the_direct_route():
     _refused('average_n_samples', op.osc_prob_energy_baseline,
              lambda e: np.diag([0.0, 7.4e-5, 2.5e-3])/(2.0*e), 1.0e9, 1000.*KM,
              H_func_is_function_only_of_energy=True, average_n_samples=11)
+
+
+def test_cumulative_scan_on_a_constant_density_takes_the_constant_engine():
+    """#160, by the author's decision: cumulative=True at constant density ran the cumulative
+    engine, 2-3x slower than the constant engine for the same answer."""
+    L = np.linspace(100.0, 8000.0, 50)*KM
+    info = {}
+    P = np.asarray(op.osc_prob_3nu_matter_constant_density(1.0e9, L, 3.0, cumulative=True,
+                                                           strategy_info=info, **OSC))
+    assert info['engine'] == 'constant'
+    Q = np.asarray(op.osc_prob_3nu_matter_constant_density(1.0e9, L, 3.0, **OSC))
+    assert np.array_equal(P, Q)
+
+
+def test_cumulative_scan_keeps_its_engine_and_its_refusal_elsewhere():
+    info = {}
+    op.osc_prob_3nu_earth(1.0e9, costhz=-0.5, L=np.linspace(100.0, 5000.0, 20)*KM,
+                          cumulative=True, strategy_info=info, **OSC)
+    assert info['engine'] == 'cumulative'
+    _refused('one energy', op.osc_prob_3nu_matter_constant_density, np.array([1.0e9, 2.0e9]),
+             1000.*KM, 3.0, cumulative=True, **OSC)

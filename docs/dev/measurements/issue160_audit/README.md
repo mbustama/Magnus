@@ -20,7 +20,9 @@ Run it from the repository root against a source tree:
 Nine cases are marked "Revised" in the script: they expect the behaviour decided on the branch
 rather than the one the checklist first asked for, and each says why.
 
-* `cumulative=True` on a constant density is not ignored: it runs the cumulative engine.
+* `cumulative=True` on a constant density is not ignored.  In #175 it ran the cumulative engine;
+  it is now served by the constant engine, the same answer 2-3x faster (the author's decision).
+  The case was revised to match.
 * `rtol` in vacuum stays accepted, since the command line and shared calls forward one set of
   numerics to every wrapper; the vacuum docstrings say it has no effect there.
 * A points-per-slab setting under `integration_method='gl'` warns
