@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`earth.earth_radial_distance_from_depth` checks the position `l`** (issue #160 §3).  A NaN,
+  negative or `True` position was accepted (NaN returned NaN).  It is refused now, at the cost of
+  one array comparison, which also catches -inf.
 - **`earth.dms_to_decimal` refuses out-of-range degrees and ambiguous signs** (issue #160 §3).
   Degrees of 500 were converted, and `(10, -1, 0)` was read as 10°1′ south.  The degrees now
   lie in [-360, 360], and a negative part after a positive one is refused, as the chord

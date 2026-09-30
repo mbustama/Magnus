@@ -162,3 +162,15 @@ def test_chord_helpers_name_the_longitude_beyond_360(fn):
 def test_dms_to_decimal_still_reads_signed_triples(args, value):
     import magnus.earth as earth
     assert abs(earth.dms_to_decimal(*args) - value) < 1e-12
+
+
+@pytest.mark.parametrize('l', [np.nan, -10.0, True, np.array([10.0, np.nan])])
+def test_earth_radial_distance_from_depth_checks_the_position(l):
+    import magnus.earth as earth
+    with pytest.raises(ValueError, match=r'\bl must be'):
+        earth.earth_radial_distance_from_depth(-0.5, l)
+
+
+def test_earth_radial_distance_from_depth_still_accepts_positions():
+    import magnus.earth as earth
+    assert np.all(np.isfinite(earth.earth_radial_distance_from_depth(-0.5, np.array([0.0, 100.0]))))

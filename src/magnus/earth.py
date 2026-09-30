@@ -507,7 +507,17 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
     source_depth, detector_depth = _depths_or_zero(source_depth, detector_depth)
 
     scalar_input = (np.ndim(l) == 0)
+    if scalar_input and isinstance(l, (bool, np.bool_)):
+        raise _v.InputTypeError(_v._msg('earth.earth_radial_distance_from_depth',
+                                        'l must be a real number, not a bool.'))
     l = np.asarray(l, dtype=float)
+    # One comparison catches NaN, a negative position and -inf together (issue #160 §3); +inf
+    # is caught by the chord check below.
+    if not np.all(l >= -tol):
+        bad = np.ravel(l)[np.argmax(~(np.ravel(l) >= -tol))]
+        raise ValueError(_v._msg('earth.earth_radial_distance_from_depth', 'l must be a finite '
+                                 'position along the chord, 0 or more; got ' + repr(float(bad))
+                                 + '.'))
 
     d = distance_traveled_inside_earth(costhz, source_depth, detector_depth)
 
