@@ -1142,6 +1142,20 @@ def plot_probability_vs_energy(
         print(ax.get_xlabel())
     """
     _check_forwarded('plot_probability_vs_energy', _forbidden)
+    # Energies left in eV, the package's own unit, under the default 'GeV' label: axis values
+    # a billion times too large, labelled as if right (issue #160 §12).  Read as eV-sized when
+    # the numbers reach 1e6 and would put the axis above 100 PeV in the unit named.
+    _e_max = float(np.max(np.asarray(energies, dtype=float)))
+    _scale = {'eV': 1.0, 'keV': 1e3, 'MeV': 1e6, 'GeV': 1e9, 'TeV': 1e12, 'PeV': 1e15,
+              'EeV': 1e18}[energy_unit]
+    if energy_unit != 'eV' and _e_max >= 1.0e6 and _e_max*_scale >= 1.0e17:
+        import warnings
+        import magnus.globaldefs as gd
+        warnings.warn(gd.WARNING_MSG_NO_COLOR + " plotting.plot_probability_vs_energy: the "
+            "energies reach " + format(_e_max, '.4g') + ", labelled as " + energy_unit + ", "
+            "which is " + format(_e_max*_scale, '.3g') + " eV.  They look like energies in eV, "
+            "the package's own unit, left unconverted: divide by gd.UNIT_" + energy_unit.upper() +
+            " or pass energy_unit='eV'.", gd.EnergyUnitWarning, stacklevel=2)
     if xlabel is None:
         xlabel = r'Neutrino energy, $E_\nu$ [%s]' % energy_unit
     if ylabel is None and nu_i is not None and nu_f is not None:

@@ -635,3 +635,14 @@ def test_log_y_axis_refuses_a_curve_with_nothing_to_show(mp):
     _refused('yscale', mp.plot_curves, x, [np.zeros(50)], yscale='log')
     _refused('yscale', mp.plot_curves_stacked, x, [[np.zeros(50)]], yscale='log')
     mp.plot_curves_stacked(x, [[np.linspace(0, 1, 50)]], yscale='log')
+
+
+def test_energies_left_in_ev_under_a_gev_label_warn(mp):
+    x, y = np.linspace(1, 10, 50), np.full(50, 0.3)
+    with pytest.warns(gd.EnergyUnitWarning, match='energies'):
+        mp.plot_probability_vs_energy(x*1e9, [y], nu_i=1, nu_f=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', gd.EnergyUnitWarning)
+        mp.plot_probability_vs_energy(x, [y], nu_i=1, nu_f=0)
+        mp.plot_probability_vs_energy(x*1e9, [y], nu_i=1, nu_f=0, energy_unit='eV')
+        mp.plot_probability_vs_energy(x, [y], nu_i=1, nu_f=0, energy_unit='EeV')

@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`plot_probability_vs_energy` warns when the energies look like eV under a larger unit**
+  (issue #160 §12).  Energies left in eV, the package's unit, were drawn under the default
+  `GeV` label a billion times too large.  `EnergyUnitWarning` fires when the values reach 1e6
+  and would put the axis above 100 PeV.
 - **A curve with nothing above 0 is refused on a log y axis** (issue #160 §12).
   `plot_curves` and `plot_curves_stacked` drew an empty axis for it, without a word.
   `plot_curves_stacked` now checks each panel's curves as `plot_curves` does.
