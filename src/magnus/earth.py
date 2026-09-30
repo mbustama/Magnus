@@ -265,7 +265,7 @@ def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " = " +
             repr(tuple(dms)) + " is ambiguous: the sign goes on the first nonzero part only, "
             "e.g. (-46, 12, 0) for 46 deg 12 min south or west.")
-    value = dms_to_decimal(d, m, s)
+    value = _dms_value(d, m, s)
     if not (lo <= value <= hi):
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " " + where + ": " + name + " must lie in [" +
             format(lo, 'g') + ", " + format(hi, 'g') + "] degrees; got " + repr(tuple(dms)) +
@@ -716,14 +716,33 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
     float
         Coordinate in decimal degrees.
     """
-    # Finite reals, minutes and seconds within (-60, 60) (issue #160 §3).  Range of the
-    # degrees is the caller's to set: a latitude and a longitude differ.
+    # Finite reals, minutes and seconds within (-60, 60) (issue #160 §3).  The degrees lie in
+    # [-360, 360], the widest range either coordinate takes; a latitude's tighter range is its
+    # caller's to set.  A negative part after a positive one is ambiguous, as in _check_dms.
     _where = 'earth.dms_to_decimal'
-    degrees = _v.check_real('degrees', degrees, _where)
+    degrees = _v.check_real('degrees', degrees, _where, lo=-360.0, hi=360.0)
     minutes = _v.check_real('minutes', minutes, _where, lo=-60.0, hi=60.0, lo_open=True,
                             hi_open=True)
     seconds = _v.check_real('seconds', seconds, _where, lo=-60.0, hi=60.0, lo_open=True,
                             hi_open=True)
+    _parts = (('degrees', degrees), ('minutes', minutes), ('seconds', seconds))
+    _first = next((i for i, (_, x) in enumerate(_parts) if x != 0.0), 3)
+    if _first < 3 and _parts[_first][1] > 0.0:
+        for _name, _x in _parts[_first + 1:]:
+            if _x < 0.0:
+                raise ValueError(_v._msg(_where, _name + " = " + repr(_x) + " is negative after "
+                                         "a positive " + _parts[_first][0] + ": the sign goes on "
+                                         "the first nonzero part only, e.g. (-46, 12, 0) for 46 "
+                                         "deg 12 min south or west."))
+    return _dms_value(degrees, minutes, seconds)
+
+
+def _dms_value(degrees: float, minutes: float, seconds: float) -> float:
+    r"""The decimal degrees of an already checked (degrees, minutes, seconds) triple.
+
+    Shared by :func:`dms_to_decimal` and ``_check_dms``, whose own range check names the
+    caller's argument (``lon1_dms``) rather than ``degrees``.
+    """
     sign = 1.0
     for part in (degrees, minutes, seconds):
         if part != 0 or np.copysign(1.0, part) < 0:

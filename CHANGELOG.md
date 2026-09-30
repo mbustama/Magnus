@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`earth.dms_to_decimal` refuses out-of-range degrees and ambiguous signs** (issue #160 §3).
+  Degrees of 500 were converted, and `(10, -1, 0)` was read as 10°1′ south.  The degrees now
+  lie in [-360, 360], and a negative part after a positive one is refused, as the chord
+  helpers already did: the sign goes on the first nonzero part.
 - **The per-node matter helpers check their fractions** (issue #160 §11).
   `earth.electron_fraction_func_prem`, `earth.neutron_to_proton_ratio_from_electron_fraction` and
   `matter.num_density_e_func` accepted negative, NaN, infinite and `True` electron fractions (or

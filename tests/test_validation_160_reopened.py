@@ -139,3 +139,26 @@ def test_commutator_with_mismatched_shapes_names_its_arguments():
     _refused('X and Y', mm.commutator, np.eye(2), np.eye(3))
     X = np.array([[0.0, 1.0], [0.0, 0.0]])
     assert np.array_equal(mm.commutator(X, X.T), X @ X.T - X.T @ X)
+
+
+# §3 Earth helpers -------------------------------------------------------------------------------
+
+@pytest.mark.parametrize('args, name', [((500, 0, 0), 'degrees'), ((-361, 0, 0), 'degrees'),
+                                        ((10, -1, 0), 'minutes'), ((10, 5, -3), 'seconds')])
+def test_dms_to_decimal_refuses_out_of_range_and_ambiguous_signs(args, name):
+    import magnus.earth as earth
+    _refused(name, earth.dms_to_decimal, *args)
+
+
+@pytest.mark.parametrize('fn', ['chord_length_inside_earth', 'costhz_between_points_on_surface'])
+def test_chord_helpers_name_the_longitude_beyond_360(fn):
+    import magnus.earth as ea
+    lat = (41, 50, 0)
+    _refused('lon1_dms', getattr(ea, fn), lat, (400, 0, 0), (44, 21, 0), (-103, 45, 0))
+
+
+@pytest.mark.parametrize('args, value', [((-46, 12, 0), -46.2), ((0, -30, 0), -0.5),
+                                         ((359, 30, 0), 359.5), ((-88, -15, -36), -88.26)])
+def test_dms_to_decimal_still_reads_signed_triples(args, value):
+    import magnus.earth as earth
+    assert abs(earth.dms_to_decimal(*args) - value) < 1e-12
