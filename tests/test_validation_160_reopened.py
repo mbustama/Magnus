@@ -651,3 +651,9 @@ def test_energies_left_in_ev_under_a_gev_label_warn(mp):
 def test_computed_oscillogram_refuses_energies_above_the_planck_scale(mp):
     _refused('log10_energy', mp.plot_oscillogram, np.linspace(-1, -0.1, 4), np.array([30., 31.]),
              nu_i=1, nu_f=0, num_flavors=3)
+
+
+def test_computed_plot_names_the_plotting_routine_in_a_wrapper_error(mp):
+    _refused('plotting.plot_oscillogram: computing the probability with '
+             'oscprob.osc_prob_3nu_earth', mp.plot_oscillogram, np.linspace(-1, -0.1, 4),
+             np.linspace(0, 1, 5), nu_i=1, nu_f=0, num_flavors=3, osc_params=dict(OSC, dcp=1.0))

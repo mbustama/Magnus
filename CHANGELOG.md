@@ -9,6 +9,10 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Compute-mode plots name the plotting routine in a wrapper's error** (issue #160 §12).  A
+  mistyped physics argument was refused naming only `oscprob.osc_prob_3nu_earth`, a function
+  the caller never called; the message now starts with the plotting routine and keeps the
+  wrapper's own text.
 - **A computed oscillogram refuses `log10_energy` above 19, the Planck scale in GeV** (issue
   #160 §12).  `[30, 31]` was computed as if meaningful.
 - **`plot_probability_vs_energy` warns when the energies look like eV under a larger unit**

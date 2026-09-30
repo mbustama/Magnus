@@ -2661,4 +2661,30 @@ def _earth_wrapper_and_arguments(caller, nu_i, nu_f, num_flavors, osc_params, wr
         raise ValueError(where + 'there is no %d-flavor Earth wrapper for %s parameters.  '
                          'Compute the grid yourself and pass it as probability.'
                          % (num_flavors, 'NSI' if nsi else 'LIV'))
-    return fn, dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition, **wrapper_kw)
+    return _named_by(caller, fn), dict(nu_i=nu_i, nu_f=nu_f, **osc_params, **composition,
+                                       **wrapper_kw)
+
+
+def _named_by(caller: str, fn):
+    r"""``fn``, with its argument errors prefixed by the plotting routine the caller called.
+
+    In compute mode the physics arguments reach an ``oscprob`` wrapper, and its refusals named
+    only that wrapper -- a function the caller never called (issue #160 §12).  The wrapper's
+    own message is kept whole after the plotting routine's name.
+
+    .. versionadded:: 1.2.0
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def named(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (TypeError, ValueError) as error:
+            text = str(error)
+            if 'Error in magnus' not in text:
+                raise
+            body = text.split('Error in magnus: ', 1)[1]
+            raise type(error)('Error in magnus: plotting.' + caller + ': computing the '
+                              'probability with ' + body) from error
+    return named
