@@ -88,7 +88,8 @@ They are the standard ones, stated here so that you can check them against other
   :math:`= m_3^2 - m_1^2`.  The ordering is the sign of ``D31``: positive is
   normal, negative is inverted.
 * **Antineutrinos**: ``nubar=True`` conjugates the mixing matrix and flips the sign
-  of the matter potential.
+  of the matter potential, and of a Lorentz-violating term of even ``n_liv``
+  (:doc:`conventions`).
 * **Matter**: an electron fraction :math:`Y_e = 0.5` unless ``electron_fraction``
   is given.  The Earth functions use one value per layer (0.4656 in the core,
   0.4957 in the mantle); :doc:`functions` lists them.

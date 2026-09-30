@@ -40,7 +40,10 @@ At a glance
        ``D31`` :math:`= \Delta m^2_{32} + \Delta m^2_{21}`
    * - Antineutrinos
      - ``nubar=True`` conjugates the mixing matrix and flips the sign of the matter
-       potential
+       potential.  A Lorentz-violating term is conjugated too, and changes sign when
+       ``n_liv`` is even: an operator of dimension ``n_liv + 3`` is CPT-odd when that is
+       odd, as in the Standard-Model Extension (Kostelecky & Mewes, Phys. Rev. D 85,
+       096005 (2012))
    * - Matter potential
      - :math:`V_{CC} = +\sqrt{2} G_F n_e` on the :math:`\nu_e` entry; :math:`Y_e = 0.5`
        by default, and one value per layer in the Earth (0.4656 core, 0.4957 mantle)

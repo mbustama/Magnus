@@ -293,7 +293,7 @@ Salient features
   named detector sites), the Sun on an exponential fit or any of twelve standard
   solar models (:doc:`solar_models`), or any density profile you supply.
 * **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
-  and CPT-odd Lorentz-invariance violation (LIV), for every flavor count and
+  and Lorentz-invariance violation (LIV), for every flavor count and
   environment above.
 * **Magnus expansion to order 10**, with the term recursion verified
   term-by-term against the literature, and three integration methods.  The
