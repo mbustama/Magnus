@@ -9,6 +9,11 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The docs say that a parallel scan agrees with the serial one to within the tolerance, not
+  bit for bit** (issue #166 §1).  `n_jobs > 1` sends a scan to the per-point path, one
+  refinement ladder per point, where the batched engine runs one for all of them: up to 3.7e-5
+  apart on a 40-energy Earth chord at the default 1e-3.  Stated in the `n_jobs` docstring of
+  `osc_prob_energy_baseline` and on the performance page.
 - **`n_jobs > 1` no longer costs a second or more on a small scan** (issue #155 §3).
   `osc_prob_energy_baseline` computes the first point in the calling process; if the rest would
   take under `N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that pace, it finishes there too instead of

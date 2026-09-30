@@ -7944,7 +7944,10 @@ def osc_prob_energy_baseline(
         to warm-start the rest; if the rest would take under
         :data:`N_JOBS_MIN_PARALLEL_WORK_S` (1 s) at that point's pace, they are computed here
         too, since starting the workers costs more (issue #155 §3).  A scan that a batched
-        engine would answer takes the per-point path instead when ``n_jobs != 1``.
+        engine would answer takes the per-point path instead when ``n_jobs != 1``, which runs
+        one refinement ladder per point where the batched engine runs one for all of them: the
+        two agree to within the tolerance, not bit for bit (up to 3.7e-5 on a 40-energy Earth
+        chord at the default 1e-3; issue #166 §1).
     integration_method : str
         Forwarded to :func:`osc_prob` for each (energy, L) point; see its docstring.
     rtol : int or float, optional
