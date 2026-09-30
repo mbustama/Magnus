@@ -7078,6 +7078,23 @@ def _cumulative_scan_would_serve(energy_arr, L_arr, L0, min_points):
                 and np.all(np.asarray(L_arr, dtype=float) >= L0))
 
 
+def _refuse_start_keyword(where: str, kwargs: dict, environment: str) -> None:
+    r"""Refuses ``L0`` where the entry point fixes the start of the path itself (issue #160 §1).
+
+    The vacuum and Earth entry points declare no ``L0``: vacuum paths start at 0, and an Earth
+    path starts where ``costhz`` and the depths put it.  One passed anyway reached the engine
+    through ``**kwargs`` and collided with the start set there, as a ``TypeError`` naming a
+    function the caller never called -- or, on the vacuum LIV wrappers, was used as the start.
+
+    .. versionadded:: 1.2.0
+    """
+    if 'L0' in kwargs:
+        why = ("a vacuum path starts at 0: give its length as L" if environment == 'vacuum' else
+               "the start of an Earth path is fixed by costhz and source_depth, or by loc_ini")
+        raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + where + ": L0 is not an argument "
+            "here; " + why + ".")
+
+
 def _refuse_breakpoints_in_vacuum(where: str, kwargs: dict) -> None:
     r"""Refuses ``t_breakpoints`` on a vacuum call (issue #160 §1).
 
@@ -9258,6 +9275,7 @@ def osc_prob_vacuum(
     _where = _caller_name('osc_prob_vacuum')
     if validate_input:
         _validate_entry(_where, locals(), osc_prob_vacuum)
+    _refuse_start_keyword(_where, kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum(_where, kwargs)
     energy, L = _as_float(energy), _as_float(L)
 
@@ -13561,6 +13579,7 @@ def osc_prob_2nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -13917,6 +13936,7 @@ def osc_prob_3nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -14291,6 +14311,7 @@ def osc_prob_4nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -14686,6 +14707,7 @@ def osc_prob_5nu_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -15048,6 +15070,7 @@ def osc_prob_earth(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_earth', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -18318,6 +18341,7 @@ def osc_prob_2nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -18691,6 +18715,7 @@ def osc_prob_3nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -19095,6 +19120,7 @@ def osc_prob_4nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -19537,6 +19563,7 @@ def osc_prob_5nu_earth_nsi(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth_nsi', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -20695,6 +20722,7 @@ def osc_prob_2nu_vacuum_liv(
     # If any of the flavor indices is > 1, fix it (read the docstring above).
     nu_i, nu_f = valid_flavor_indices_2nu(nu_i, nu_f)
 
+    _refuse_start_keyword('osc_prob_2nu_vacuum_liv', kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum('osc_prob_2nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=2,
@@ -20830,6 +20858,7 @@ def osc_prob_3nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_3nu_vacuum_liv', kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum('osc_prob_3nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=3,
@@ -21006,6 +21035,7 @@ def osc_prob_4nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_4nu_vacuum_liv', kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum('osc_prob_4nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=4,
@@ -21220,6 +21250,7 @@ def osc_prob_5nu_vacuum_liv(
         Oscillation probability matrix (or single channel, if ``nu_i``/``nu_f`` are given) for each (energy, L) point.
     """
 
+    _refuse_start_keyword('osc_prob_5nu_vacuum_liv', kwargs, 'vacuum')
     _refuse_breakpoints_in_vacuum('osc_prob_5nu_vacuum_liv', kwargs)
     return osc_prob_liv(
         num_flavors=5,
@@ -23076,6 +23107,7 @@ def osc_prob_2nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_2nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -23460,6 +23492,7 @@ def osc_prob_3nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_3nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -23882,6 +23915,7 @@ def osc_prob_4nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_4nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(
@@ -24343,6 +24377,7 @@ def osc_prob_5nu_earth_liv(
     # required for the quadrature to be O(h^2) across a density jump, so dropping them
     # silently would be the defect t_breakpoints exists to prevent.  To place every edge
     # yourself instead, pass t_slab_edges, which is the complete set.
+    _refuse_start_keyword('osc_prob_5nu_earth_liv', kwargs, 'earth')
     _user_breakpoints = kwargs.pop('t_breakpoints', None)
     if _user_breakpoints is not None:
         t_breakpoints = np.unique(np.concatenate(

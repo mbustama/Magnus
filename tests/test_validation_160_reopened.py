@@ -323,3 +323,18 @@ def test_vacuum_refuses_breakpoints():
     _refused('t_breakpoints', op.osc_prob_3nu_vacuum_liv, 1.0e9, 1000.*KM, sxi12=0.3,
              sxi23=0.4, sxi13=0.2, dxiCP=0.1, b1=1e-23, b2=2e-23, b3=3e-23, Lambda=1e9,
              n_liv=0, t_breakpoints=[500.*KM], **OSC)
+
+
+LIV = dict(sxi12=0.3, sxi23=0.4, sxi13=0.2, dxiCP=0.1, b1=1e-23, b2=2e-23, b3=3e-23, Lambda=1e9,
+           n_liv=0)
+
+
+@pytest.mark.parametrize('call', [
+    lambda: op.osc_prob_3nu_vacuum(1.0e9, 1000.*KM, L0=0.0, **OSC),
+    lambda: op.osc_prob_3nu_vacuum_liv(1.0e9, 1000.*KM, L0=500.*KM, **LIV, **OSC),
+    lambda: op.osc_prob_3nu_earth(1.0e9, costhz=-0.5, L=1000.*KM, L0=0.0, **OSC),
+    lambda: op.osc_prob_3nu_earth_nsi(1.0e9, costhz=-0.5, L=1000.*KM, L0=0.0, **OSC),
+])
+def test_entry_points_with_a_fixed_start_refuse_L0_by_name(call):
+    with pytest.raises(ValueError, match='Error in magnus.*L0 is not an argument here'):
+        call()

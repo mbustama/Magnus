@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`L0` on a vacuum or Earth entry point is refused by name** (issue #160 §1).  None of them
+  declares it, and one passed anyway collided with the start the entry point sets, as a
+  `TypeError` naming an internal function; the vacuum LIV wrappers used it as the start.
 - **The vacuum wrappers refuse `t_breakpoints`** (issue #160 §1).  The vacuum Hamiltonian has no
   discontinuity to mark, so breakpoints were accepted and ignored.  The refinement keywords
   (`rtol`, `atol`, the slab and order controls) stay accepted, since the command line and
