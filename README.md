@@ -53,6 +53,9 @@ import numpy as np
 import magnus.earth as earth
 
 osc = gd.load_nufit_params('NuFIT 6.1')          # best-fit parameters, as sines
+# Angles come back as sines (s12 = 0.556 is sin(theta12), so sin^2 = 0.309),
+# phases in radians.  Leaving **osc out gives the same numbers: unset
+# parameters default to this same fit.
 
 # 200 energies through the Earth in one call: cos(theta_z) = -0.8 fixes the
 # direction of the chord, and magnus.earth gives its length
@@ -75,7 +78,9 @@ P, U = oscprob.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=-0.8, L=L,
                                   return_evolution_operator=True, **osc)
 ```
 
-The [numerical recipes](https://mbustama.github.io/Magnus/recipes.html) page has
+A phase-averaged result (`average=True`) depends on `average_spread` unless the
+phases are large; a `PhaseAveragingWarning` says when.  The
+[numerical recipes](https://mbustama.github.io/Magnus/recipes.html) page has
 a runnable snippet for each common task.
 
 ### Or from the command line
@@ -108,7 +113,7 @@ dimension and any profile, given as a function of position.
 **Fast.**  An energy scan is one batched call rather than a loop, worth about an
 order of magnitude per probability; an oscillogram is one such call per zenith
 angle.  The median call over 164 Earth and solar configurations is
-**2 ms**; [Performance](#performance) has the rest.
+**2 ms**, warm, on a laptop; [Performance](#performance) has the rest.
 
 **Accurate.**  Internally, Magνs propagates the evolution operator with the
 **Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
@@ -178,7 +183,8 @@ Three advantages follow from the method, whatever the Hamiltonian contains.
 Magνs is **robust**: the evolution operator is exactly unitary.  It is **fast**
 without giving up accuracy: its cost follows the profile, not the phase, where
 an ODE solver pays for every radian it resolves, and a scan over energy or
-direction is one batched call on compiled kernels.  And it is **flexible**: the
+baseline is one batched call on compiled kernels (an oscillogram, one such call per
+zenith angle).  And it is **flexible**: the
 Hamiltonian is a callable returning a Hermitian matrix of any size.
 
 Reach for it when the density varies fast against the oscillation length, as in
@@ -209,7 +215,11 @@ probabilities and stops there.
 
 A single three-flavor Earth probability takes about 2 ms at the default
 tolerance of 10⁻³; across 164 Earth and solar configurations the median call
-takes 2 ms and the slowest under a second.
+takes 2 ms and the slowest under a second.  These are per call, on the laptop
+behind every timing in the paper, with the first call of the session discarded:
+that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first
+time on a machine, when they compile.  The timing harness is
+[`docs/dev/adversarial_batteries/timing.py`](docs/dev/adversarial_batteries/timing.py).
 
 **Pass arrays instead of looping.**  Every wrapper takes an array of energies,
 of baselines or of both, and shares work across the points: worth about an order
@@ -221,10 +231,22 @@ with identical output.  The trick is broadcasting the potential into a stack of
 matrices:
 
 ```python
+import numpy as np
+import magnus.globaldefs as gd
+import magnus.hamiltonians as hams
+from magnus import oscprob
+
+energy = 1.0*gd.UNIT_GEV
+h_vac = hams.hamiltonian_3nu_vacuum_energy_independent(**gd.load_nufit_params('NuFIT 6.1'))
+e00 = np.diag([1.0, 0.0, 0.0])                      # the nu_e entry of the matter term
+VCC_central, l_scale = 1.1e-13, 3000.0              # potential [eV], scale height [km]
+
 def H_func(l):
     l = np.asarray(l, dtype=float)
     VCC = VCC_central*np.exp(-(l/gd.UNIT_KM)/l_scale)   # an array
     return (1.0/energy)*h_vac + VCC[..., None, None]*e00
+
+P = oscprob.osc_prob(H_func, 0.0, 1000.0*gd.UNIT_KM)
 ```
 
 A Hamiltonian that ignores its argument is detected and broadcast already.  The
@@ -242,10 +264,11 @@ unitary at any order and tolerance.  The rest is measured:
 | Checked against | Result |
 |---|---|
 | Every expansion term, Ω₁ to Ω₁₀, against an independent recursion | relative 10⁻¹¹ |
-| 2ν and 3ν vacuum, 2ν constant-density matter: the closed forms | 10⁻¹² |
+| 2ν and 3ν vacuum, 2ν constant-density matter, ν and ν̄: the closed forms | 10⁻¹² |
 | Halving the slab width at orders 2 / 4 / 6, against DOP853 | error ÷ 4 / 16 / 64 |
 | Repeated calls, and a baseline scan in any order | identical, bit for bit |
 | A parallel run against a serial one | to the requested tolerance |
+| The energy-batched scan against the per-point path, grid pinned | 10⁻¹² asserted, 10⁻¹⁴ measured |
 | 40 random smooth profiles, default tolerance | median 10⁻⁸, one silent miss |
 | 120 random step profiles, edges undeclared | 19 outside tolerance, all warned |
 

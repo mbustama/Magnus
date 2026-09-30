@@ -222,7 +222,7 @@ A 3+2 sterile scenario (5 flavors), machine-readable output:
 With ``s14 = s15 = s24 = s25 = s34 = s35 = 0`` (their defaults), the two
 sterile states stay perfectly decoupled from the three active flavors and
 from each other, as expected -- this exact check is one of the CLI's
-regression tests (``tests/test_cli.py``).
+regression tests (``tests/test_cli.py``, in a source checkout).
 
 Choosing a propagation strategy
 ------------------------------------
@@ -265,6 +265,10 @@ traceback:
    $ magnus --flavors 2 --environment vacuum --energy 1 --baseline 1300
    usage: magnus [-h] [-V] {prob} ...
    magnus: error: --sth and --dm2 are both required for --flavors 2.
+
+At two flavors the table's rows and columns are labelled ``0`` and ``1`` rather than by
+flavor: a two-flavor system stands for whichever pair ``--sth`` and ``--dm2`` describe, and
+``--nu-i``/``--nu-f`` take 0 or 1 accordingly.
 
 Full flag reference
 ----------------------

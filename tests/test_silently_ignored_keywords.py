@@ -137,3 +137,18 @@ def test_energy_baseline_fills_strategy_info(route):
 def test_energy_baseline_average_rejects_unknown_keyword():
     with pytest.raises(ValueError, match="unrecognized keyword argument.*'rtoll'"):
         op.osc_prob_energy_baseline(H0/E, E, 1.0e8*KM, average=True, rtoll=1.0e-6)
+
+
+@pytest.mark.parametrize('call, bad, listed', [
+    (lambda **kw: op.osc_prob_3nu_vacuum(E, L, **kw), 'theta12', 's12, s23, s13, dCP'),
+    (lambda **kw: op.osc_prob_3nu_matter_nsi_constant_density(E, L, 3.0, density_matter_is_in_g_per_cm3=True, **kw),
+     'eps_mue', 'eps_ee, eps_em, eps_et'),
+])
+def test_unknown_keyword_lists_wrapper_physics_keywords(call, bad, listed):
+    """#152: a misspelled physics keyword names the wrapper's own keywords, not only the engine's."""
+    with pytest.raises(ValueError) as err:
+        call(**{bad: 0.1})
+    msg = str(err.value)
+    assert "'" + bad + "'" in msg
+    assert listed in msg
+    assert 'validate_input' not in msg and 'n_slabs, n_tpts' not in msg.split('engine keywords')[0]
