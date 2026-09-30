@@ -2246,12 +2246,14 @@ def validate_input_battery(
 
     if validate_energy_and_L:
 
+        # A single-entry array against a longer one is broadcast, as osc_prob_energy_baseline
+        # always did (issue #160 §1); the wrappers used to refuse it.
         if ( (isinstance(energy, list) or isinstance(energy, np.ndarray)) and \
             (isinstance(L, list) or isinstance(L, np.ndarray)) and \
-            (len(energy) != len(L)) ):
+            (len(energy) != len(L)) and len(energy) != 1 and len(L) != 1 ):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + \
                 ": since the input energy and L are both lists or NumPy arrays, they must have " + \
-                "the same length.")
+                "the same length, or one of them a single entry.")
 
         # An energy that looks like MeV or GeV left unconverted (issue #160 §1); see
         # globaldefs.EnergyUnitWarning.

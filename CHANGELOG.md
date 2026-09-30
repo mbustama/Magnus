@@ -9,6 +9,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The wrappers broadcast a single-entry `energy` or `L` against a longer one** (issue #160 §1).
+  `osc_prob_energy_baseline` always did; the `osc_prob_*` wrappers refused `[1e9]` against
+  three baselines as a length mismatch.  Unequal lengths above one are still refused.
 - **The Sun wrappers refuse a negative `L0` and arguments with no effect** (issue #160 §1).
   `L0` is the radius where the path starts; a negative one was accepted.  `electron_fraction`
   was accepted and ignored by every Sun wrapper, which uses the solar model's electron density

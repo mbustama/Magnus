@@ -249,3 +249,19 @@ def test_sun_docs_say_L0_is_a_single_radius():
     if os.path.exists(rst):
         text = ' '.join(open(rst).read().split())
         assert 'may not, so for several production points call once per point' in text
+
+
+@pytest.mark.parametrize('energy, L', [
+    ([1.0e9], [100.*KM, 300.*KM, 800.*KM]),
+    ([1.0e9, 2.0e9, 3.0e9], np.array([500.*KM])),
+])
+def test_wrappers_broadcast_a_single_entry_like_osc_prob_energy_baseline(energy, L):
+    got = op.osc_prob_3nu_vacuum(energy, L, **OSC)
+    n = max(len(energy), len(L))
+    expected = op.osc_prob_3nu_vacuum(np.broadcast_to(energy, n).copy(),
+                                      np.broadcast_to(L, n).copy(), **OSC)
+    assert np.array_equal(got, expected)
+
+
+def test_wrappers_still_refuse_unequal_lengths_above_one():
+    _refused('single entry', op.osc_prob_3nu_vacuum, [1.0e9, 2.0e9], [1.*KM, 2.*KM, 3.*KM], **OSC)
