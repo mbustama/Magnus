@@ -438,6 +438,7 @@ TREE = [
     ('tests/test_separable_slab_cap.py',
      'The energy-batched engine at its slab cap: an agreement there warns (issue #71)'),
     ('tests/test_solarmodels.py', 'Solar-model tables, their profiles, and the Sun wrappers that use them'),
+    ('tests/test_thread_safety.py', 'Concurrent calls from several threads match the serial answer (issue #153)'),
     ('tests/test_tolerance.py', 'What rtol/atol promise, and the effective-refinement gate'),
     ('tests/test_validation.py', 'Input-validation guards and their error messages'),
     ('tests/test_validation_160_reopened.py',

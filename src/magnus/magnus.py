@@ -89,6 +89,7 @@ __author__ = "Mauricio Bustamante"
 __email__ = "mbustamante@gmail.com"
 
 
+import contextvars
 import os
 import warnings
 import weakref
@@ -1818,10 +1819,11 @@ def _gl_nodes(order: int) -> np.ndarray:
     return _GL4_NODES
 
 
-_SLAB_NORM_SINK = None
-r"""list or None: when a caller has opened ``_deferred_slab_norm``, every ``||Omega||_2`` the
-convergence check computes is collected here instead of warned about immediately.  ``None`` (and
-therefore free) otherwise."""
+_SLAB_NORM_SINK = contextvars.ContextVar('_SLAB_NORM_SINK', default=None)
+r"""ContextVar holding a list or None: when a caller has opened ``_deferred_slab_norm``, every
+``||Omega||_2`` the convergence check computes is collected here instead of warned about
+immediately.  ``None`` (and therefore free) otherwise.  A context variable, not a module global,
+so that concurrent calls in different threads each see their own (issue #153)."""
 
 
 @contextmanager
@@ -1867,20 +1869,20 @@ def _deferred_slab_norm():
     list of float
         Every norm seen inside the block, in the order seen.
     """
-    global _SLAB_NORM_SINK
-    prev = _SLAB_NORM_SINK
+    prev = _SLAB_NORM_SINK.get()
     sink = prev if prev is not None else []
-    _SLAB_NORM_SINK = sink
+    token = _SLAB_NORM_SINK.set(sink)
     try:
         yield sink
     finally:
-        _SLAB_NORM_SINK = prev
+        _SLAB_NORM_SINK.reset(token)
 
 
-_ROW_NORM_SINK = None
-r"""list or None: when a caller has opened ``_row_slab_norms``, each call of ``_expm_stack``
-on a stack of shape ``(n, ..., d, d)`` appends here the largest ``||Omega||_2`` of each of its
-``n`` leading rows.  ``None`` (and therefore free) otherwise."""
+_ROW_NORM_SINK = contextvars.ContextVar('_ROW_NORM_SINK', default=None)
+r"""ContextVar holding a list or None: when a caller has opened ``_row_slab_norms``, each call of
+``_expm_stack`` on a stack of shape ``(n, ..., d, d)`` appends here the largest ``||Omega||_2``
+of each of its ``n`` leading rows.  ``None`` (and therefore free) otherwise.  Per thread, as
+``_SLAB_NORM_SINK`` (issue #153)."""
 
 
 @contextmanager
@@ -1903,14 +1905,12 @@ def _row_slab_norms():
     list of np.ndarray
         One array of row norms per ``_expm_stack`` call, in call order.
     """
-    global _ROW_NORM_SINK
-    prev = _ROW_NORM_SINK
     sink = []
-    _ROW_NORM_SINK = sink
+    token = _ROW_NORM_SINK.set(sink)
     try:
         yield sink
     finally:
-        _ROW_NORM_SINK = prev
+        _ROW_NORM_SINK.reset(token)
 
 
 def _warn_slab_norm(nmax: float):
@@ -1930,10 +1930,11 @@ def _warn_slab_norm(nmax: float):
     -------
     None
     """
-    if _SLAB_NORM_SINK is not None:
+    sink = _SLAB_NORM_SINK.get()
+    if sink is not None:
         # A caller is running a refinement ladder and will decide, once it knows which level it
         # is returning, whether this is worth saying.  See deferred_slab_norm.
-        _SLAB_NORM_SINK.append(float(nmax))
+        sink.append(float(nmax))
         return
     if nmax < np.pi:
         return
@@ -2573,6 +2574,7 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         :math:`\exp(\Omega)`, same shape as ``Om``.
     """
     backend = _resolve_expm_backend(expm_backend)
+    row_sink = _ROW_NORM_SINK.get()     # once per call; per thread (issue #153)
     Om = np.asarray(Om)
     if (_antiherm_scale_dev_kernel is not None and Om.dtype == np.complex128
             and Om.size and Om.flags.c_contiguous):
@@ -2591,8 +2593,8 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
         scale = np.max(np.abs(K))
         dev = np.max(np.abs(K - Kh))
     if scale == 0.0:
-        if (_ROW_NORM_SINK is not None) and warn_wide and not A_is_const:
-            _ROW_NORM_SINK.append(np.zeros(Om.shape[0]))
+        if (row_sink is not None) and warn_wide and not A_is_const:
+            row_sink.append(np.zeros(Om.shape[0]))
         return np.broadcast_to(np.eye(Om.shape[-1], dtype=complex),
                                Om.shape).copy()
     if dev <= 1.e-12*scale:
@@ -2634,12 +2636,12 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
             # (3.19 against 1.94 on a 3-flavor exponential profile), and no tolerance silenced it.
             # The row norms kept for the batched GL gate are unchanged.
             nmax_c = _traceless_max(lam)   # ||Om - tr(Om)/d||_2 = max |lambda - mean|
-            if _ROW_NORM_SINK is None:
+            if row_sink is None:
                 _warn_slab_norm(nmax_c)
             else:
                 # The full maximum, taken per leading row first (see _row_slab_norms).
                 rows = np.abs(lam).reshape(Om.shape[0], -1).max(axis=1)
-                _ROW_NORM_SINK.append(rows)
+                row_sink.append(rows)
                 _warn_slab_norm(nmax_c)
         return U
     # General (non-anti-Hermitian) fallback
@@ -2648,16 +2650,16 @@ def _expm_stack(Om: np.ndarray, warn_wide: bool = False,
             d = Om.shape[-1]
             Om_c = Om - (np.trace(Om, axis1=-2, axis2=-1)/d)[..., None, None]*np.eye(d)
             sv_c = np.linalg.svd(Om_c, compute_uv=False)   # traceless, as above
-            if _ROW_NORM_SINK is None:
+            if row_sink is None:
                 _warn_slab_norm(np.max(sv_c))
             else:
                 sv = np.linalg.svd(Om, compute_uv=False)
                 rows = sv.reshape(Om.shape[0], -1).max(axis=1)
-                _ROW_NORM_SINK.append(rows)
+                row_sink.append(rows)
                 _warn_slab_norm(np.max(sv_c))
         except np.linalg.LinAlgError:
-            if _ROW_NORM_SINK is not None:
-                _ROW_NORM_SINK.append(np.zeros(Om.shape[0]))   # unknown: no gate, as before
+            if row_sink is not None:
+                row_sink.append(np.zeros(Om.shape[0]))   # unknown: no gate, as before
     try:
         return np.asarray(sp.linalg.expm(Om))
     except Exception:

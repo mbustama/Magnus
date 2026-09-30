@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Calls from several threads no longer interfere** (issue #153).  Four pieces of per-call
+  state were module globals: the two slab-norm collectors of `magnus.magnus` and the engine
+  trace and disabled set of `magnus.oscprob`.  Concurrent batched Earth energy scans overwrote
+  each other's collector -- over 100 threaded calls, 14 to 20 raised `ValueError: need at least
+  one array to concatenate` and 7 more returned different numbers -- and `strategy='magnus'` in
+  one thread disabled the other engines for every thread while it ran (30 of 40 mixed-strategy
+  calls differed from serial).  They are `contextvars.ContextVar`s now, so each thread has its
+  own; concurrent calls match the serial answer bit for bit.  `performance.rst` says so, and
+  that `n_jobs` uses processes.
 - **The sdist's own tests pass against the installed package** (issue #164 §1).  Thirty-eight
   tests check the repository rather than the library -- the documentation, the notebooks, the
   paper's assets, the CI workflows -- and the sdist ships none of those files, so run from an

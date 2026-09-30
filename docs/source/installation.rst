@@ -439,6 +439,7 @@ File tree
        ├── test_separable_gl_gate.py   # The energy-batched 'gl' ladder refuses an agreement while an energy's slabs are wide (issue #71)
        ├── test_separable_slab_cap.py  # The energy-batched engine at its slab cap: an agreement there warns (issue #71)
        ├── test_solarmodels.py         # Solar-model tables, their profiles, and the Sun wrappers that use them
+       ├── test_thread_safety.py       # Concurrent calls from several threads match the serial answer (issue #153)
        ├── test_tolerance.py           # What rtol/atol promise, and the effective-refinement gate
        ├── test_validation.py          # Input-validation guards and their error messages
        ├── test_validation_160_reopened.py  # The #160 sub-cases found open after the first validation pass, one test each
