@@ -15935,8 +15935,9 @@ def osc_prob_earth(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     ratio_number_neutrons_to_protons : int or float, optional
-        Accepted and **inert on this entry point**.  The density derives its own ratio from
-        the layered :math:`Y_e`, and with a caller-supplied ``H_func`` there is no
+        Accepted and **inert on this entry point**.  The density does not use it
+        (:math:`n_e = \rho N_A Y_e` since 1.2.0, issue #168), and with a caller-supplied
+        ``H_func`` there is no
         package-built matter projector for the ratio to enter -- sterile entries, if any,
         are ``H_func``'s own business.  Changing it moves nothing: the largest difference
         between ``r = 1.0`` and ``r = 0.1`` is exactly 0.0, at three flavors and at four.

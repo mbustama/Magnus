@@ -735,9 +735,9 @@ def vcc_func_from_rho_func(
     Returns
     -------
     float, np.ndarray, or Callable
-        V_CC [eV], as a function of position if ``rho_func`` is a function, or if a callable
-        ``ratio_number_neutrons_to_protons`` makes the *matter-density* conversion
-        position-dependent.  Otherwise a constant, evaluated once at ``L0``: an array when
+        V_CC [eV], as a function of position if ``rho_func`` is a function, or if
+        ``ratio_number_neutrons_to_protons`` is callable (a function of constant value
+        since 1.2.0, when the ratio left the conversion; issue #168).  Otherwise a constant, evaluated once at ``L0``: an array when
         ``rho_func`` is an array-valued constant, a float otherwise.  Never an int.
 
         When ``rho_func`` carries an ``l_scale`` attribute, the returned callable is stamped
