@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **`average=True` no longer returns zero at small phase on a constant Hamiltonian** (issue
+  #163).  In vacuum or at constant density, the phase average was computed and then discarded
+  for the zero-phase limit wherever the two differed by less than 1e-4 in absolute terms,
+  whatever `rtol` and `atol`: at 1 GeV over 1 to 3 km, P(numu -> nue) = 4.7e-7 came back as
+  1e-32, with no warning.  The comparison is now relative as well as absolute, and follows the
+  caller's tolerance on every route, as it already did on a profile.  Results that were right
+  are unchanged, bit for bit; the averaged values in the docs and the paper do not move.
+
 - **A mass density becomes an electron density as ρ N_A Y_e** (issue #168).  The package
   divided ρ Y_e by the mean free-nucleon mass, (m_p + r m_n)/(1 + r), which ignores nuclear
   binding: matter weighs the atomic mass unit per nucleon, 931.494 MeV, not 938.9 MeV, so

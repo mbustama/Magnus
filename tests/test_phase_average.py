@@ -506,8 +506,10 @@ def test_rtol_and_atol_are_the_tolerance_of_the_phase_average(monkeypatch):
 
 
 def test_the_decohered_limit_stands_only_within_the_tolerance_asked_for(monkeypatch):
-    """A phase average 5e-5 from the limit: inside the gate of 1e-4 at the default tolerance,
-    so the limit comes back bit for bit; outside it at atol = 1e-5, so the phase average does."""
+    """A phase average 5e-5 (relative) from the limit: inside the gate of 1e-4 at the default
+    tolerance, so the limit comes back bit for bit; outside it at atol = 1e-5, so the phase
+    average does.  Relative, because the gate is relative as well as absolute since issue #163:
+    a uniform 5e-5 is 5% of a probability of 1e-3, and is a change."""
     old = {}
     real_old = ap.averaged_probabilities_adiabatic
 
@@ -517,7 +519,7 @@ def test_the_decohered_limit_stands_only_within_the_tolerance_asked_for(monkeypa
         return P, report
 
     def near_new(*args, **kwargs):
-        return old['P'] + 5.0e-5, dict(sigma_sensitivity=0.0, patches_converged=True,
+        return old['P']*(1.0 + 5.0e-5), dict(sigma_sensitivity=0.0, patches_converged=True,
                                        phases_converged=True)
 
     monkeypatch.setattr(ap, 'averaged_probabilities_adiabatic', spy_old)
@@ -528,7 +530,7 @@ def test_the_decohered_limit_stands_only_within_the_tolerance_asked_for(monkeypa
     P, _ = call(*args, average=True, **CHORD_KW)
     assert float(P) == old['P'][0, 0]
     P, _ = call(*args, average=True, atol=1.0e-5, **CHORD_KW)
-    assert float(P) == old['P'][0, 0] + 5.0e-5
+    assert float(P) == old['P'][0, 0]*(1.0 + 5.0e-5)
 
 
 def test_the_module_tolerances_are_read_at_each_call(monkeypatch):
