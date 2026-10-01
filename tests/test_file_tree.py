@@ -462,6 +462,7 @@ TREE = [
      'The #160 sub-cases found open after the first validation pass, one test each'),
     ('tests/test_validate_helpers.py', 'The shared argument checks: reals, integers, bools, slab edges, Hamiltonians'),
     ('tests/test_version.py', 'Version resolution from pyproject.toml / installed metadata'),
+    ('tests/test_warn_once.py', 'Issue #205: "Shown once per session" warnings are, across filter changes'),
 ]
 
 

@@ -1533,7 +1533,9 @@ class ToleranceNotAchievedWarning(UserWarning):
 
     .. versionchanged:: 1.2.0
        Also raised when neither engine of ``strategy='auto'`` reached the tolerance and the
-       hybrid's uncertified answer was returned (issue #167).
+       hybrid's uncertified answer was returned (issue #167).  The messages that say "Shown
+       once per session", here and in the subclasses, are, even when the warning filters change
+       between calls (issue #205).
     """
 
 
@@ -4902,7 +4904,7 @@ def osc_prob(
                 # message would send the reader after a setting that cannot help them.
                 knobs = ("max_n_slabs" if integration_method == 'gl'
                          else "max_n_slabs and max_n_tpts_per_slab")
-                warnings.warn("osc_prob: requested tolerance not achieved (" + knobs +
+                magnus._warn_once("osc_prob: requested tolerance not achieved (" + knobs +
                     " reached), " + _shortfall_phrase(last_gap, rtol, atol) + ", so "
                     "convergence could not be verified by successive refinement and the "
                     "returned probabilities may be inaccurate. Raise " + knobs + ". This can "
@@ -8180,7 +8182,7 @@ def _warn_hybrid_unresolved() -> None:
 
     .. versionadded:: 1.0.0
     """
-    warnings.warn(
+    magnus._warn_once(
         "osc_prob (hybrid strategy): the Hamiltonian is not resolved at the scale this method "
         "samples it on -- a density jump, or a feature narrower than the probe grid can see -- "
         "and no t_breakpoints were given. The adiabatic strategy is built on finite differences "
@@ -8298,7 +8300,7 @@ def _hybrid_propagator_scan(
         _warn_hybrid_unresolved()
 
     if any_uncertified:
-        warnings.warn("osc_prob (hybrid strategy): requested tolerance not achieved for at "
+        magnus._warn_once("osc_prob (hybrid strategy): requested tolerance not achieved for at "
             "least one (energy, L) point; the returned probabilities remain exactly unitary "
             "but their accuracy is not certified -- unverified, which is not the same as "
             "wrong. To get a certified answer: use strategy='auto', which falls back to the "
@@ -9233,7 +9235,7 @@ def osc_prob_energy_baseline(
             if not (adiabatic._profile_is_resolved(H_fixed, float(L0), float(L_sorted[-1]), 200)
                     or adiabatic._profile_is_resolved(H_fixed, float(L0),
                                                       float(L_sorted[-1]), 6400)):
-                warnings.warn(
+                magnus._warn_once(
                     "osc_prob_energy_baseline (cumulative scan): the Hamiltonian is "
                     "discontinuous at the scale of the grid this scan builds, and no "
                     "t_breakpoints were given. A slab straddling a density jump degrades the "
@@ -9381,7 +9383,7 @@ def osc_prob_energy_baseline(
                 P = fallback['P']
                 from_hybrid.append(dict(error_estimate=fallback['error_estimate'],
                                         ladder_last_gap=gap))
-                warnings.warn(
+                magnus._warn_once(
                     "osc_prob_energy_baseline (strategy='auto'): neither engine reached the "
                     "requested tolerance at this point.  The adiabatic hybrid did not certify it, "
                     "and the Magnus ladder then reached max_n_slabs without converging.  The "

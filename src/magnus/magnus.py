@@ -163,6 +163,8 @@ class ScalarHamiltonianWarning(UserWarning):
     warning) when a scalar-only Hamiltonian is genuinely unavoidable.
 
     .. versionadded:: 1.0.0
+    .. versionchanged:: 1.2.0
+       Shown once per session even when the warning filters change between calls (issue #205).
     """
 
 
@@ -224,8 +226,44 @@ class MagnusConvergenceWarning(UserWarning):
 
     .. versionchanged:: 1.2.0
        The norm excludes the trace, a global phase that does not affect convergence, so a large
-       trace no longer triggers it (issue #155 §1).
+       trace no longer triggers it (issue #155 §1).  Shown once per session even when the
+       warning filters change between calls (issue #205).
     """
+
+
+# Several warnings say "Shown once per session".  Python's default filter cannot promise that:
+# it remembers a message per call site, and forgets everything whenever any code changes the
+# filters -- every warnings.catch_warnings() block, including this package's own (issue #205,
+# where one run printed the same MagnusConvergenceWarning four times).  Its 'once' action is
+# no better: CPython keys it on the same per-module memory.  So the messages that make the
+# promise go through _warn_once, which keeps it -- unless a filter the caller set says
+# otherwise: 'always' shows every one, 'error' raises every one, 'ignore' shows none.
+_SHOWN_ONCE = set()
+
+
+def _filter_action(message, category):
+    """The action ``warnings`` would apply to ``message``, from the filters that do not name a
+    module or line (those cannot be judged without the call site)."""
+    for action, msg, cat, mod, lineno in warnings.filters:
+        if mod is None and not lineno and issubclass(category, cat) \
+                and (msg is None or msg.match(message)):
+            return action
+    return warnings.defaultaction
+
+
+def _warn_once(message, category, stacklevel=1):
+    """``warnings.warn``, but at most once per session for each message under the default filter.
+
+    .. versionadded:: 1.2.0
+       Issue #205.
+    """
+    action = _filter_action(message, category)
+    key = (category, message)
+    if key in _SHOWN_ONCE and action in ('default', 'once', 'module'):
+        return
+    if action != 'ignore':
+        _SHOWN_ONCE.add(key)
+    warnings.warn(message, category, stacklevel=stacklevel + 1)
 
 
 # Bernoulli numbers B_k (negative-B_1 convention), kept for reference.
@@ -843,7 +881,7 @@ def _warn_scalar_hamiltonian() -> None:
 
     .. versionadded:: 1.0.0
     """
-    warnings.warn(
+    _warn_once(
         "magnus: the Hamiltonian could not be evaluated for several positions "
         "at once, so it is being called one position at a time. This is "
         "correct but slower -- about 5x on a long 3nu chord at a tight "
@@ -1976,7 +2014,7 @@ def _warn_slab_norm(nmax: float):
         how_far = "over by up to a factor of ten"
     else:
         how_far = "over by more than a factor of ten"
-    warnings.warn(
+    _warn_once(
         "at least one time slab is too wide for guaranteed convergence of the Magnus "
         "series (||Omega||_2 >= pi, " + how_far + "). This is a statement about the slab "
         "width, not about the answer: it reports that a sufficient condition for "
