@@ -20,3 +20,12 @@ next to the script. The table gives the line in `main.tex`, what the paper says,
 measurement, and suggested text rounded as the paper rounds. Check the stability-control
 line first: if the drift ratio goes above 1.10, the machine was busy and that run should be
 repeated. The last lines print the command that re-times notebook 28's cache (#194 part 2).
+
+After the two items that run several worker processes (2 and 8), the script waits for the
+laptop to cool before the control and the next item: it waits 30 s, then re-measures the
+control every 2 s until two readings in a row are within 1.05 of the start, for at most 3
+minutes in all, and prints the wait. Without it the
+control read 1.61 and 1.37 right after those items on a machine at load 0.1, because the
+clock drops under all-core load. It also runs the control workload for 2 s before the first control,
+so that the reference is not taken at an idle clock: after a minute of idle, one run's start
+read 1.86 ms against the usual 0.80 ms, and every later control then looked fast.

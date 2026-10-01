@@ -196,7 +196,7 @@ def med(times):
     return statistics.median(times)
 
 
-def control(label):
+def control_time():
     """A fixed CPU-bound workload: best of 20 products of a 300x300 matrix."""
     a = np.random.default_rng(0).normal(size=(300, 300))
     best = math.inf
@@ -204,9 +204,53 @@ def control(label):
         t0 = time.perf_counter()
         a @ a
         best = min(best, time.perf_counter() - t0)
+    return best
+
+
+def control(label):
+    best = control_time()
     CONTROL.append((label, best))
     print('  [control %-14s %.3f ms, drift %.3f]'
           % (label, 1e3*best, best/CONTROL[0][1]), flush=True)
+
+
+def warm_up_cpu(seconds=2.0):
+    """Run the control workload for a while before the first control, so that its reference is
+    not taken at an idle clock: after a minute of idle, one run's start read 1.86 ms against the
+    usual 0.80 ms, and every later control then looked fast."""
+    end = time.perf_counter() + seconds
+    while time.perf_counter() < end:
+        control_time()
+
+
+# Items that run several worker processes at once (n_jobs > 1).
+PARALLEL_ITEMS = (2, 8)
+
+
+def cool_down(after, limit=1.05, min_wait=30.0, max_wait=180.0, step=2.0, in_a_row=2):
+    """Let the laptop shed the heat of an item that ran several worker processes.
+
+    Under all-core load a laptop lowers its clock, and the single-core control and the next
+    item then run slower for a while: on the first runs the control read a drift of 1.61 right
+    after item 2 (n_jobs=10) and 1.37 right after item 8 (n_jobs=4), on a machine at load 0.1.
+    So the script waits `min_wait` seconds, then re-measures the control every `step` seconds
+    until `in_a_row` readings in a row are within `limit` of the start, for at most `max_wait`
+    seconds in all, and prints the wait.  One reading is not enough: on one run a reading
+    within the limit was followed by a recorded control of 1.13.  A machine that is busy for
+    any other reason does not recover in that time, and its drift still shows in the control.
+    """
+    if QUICK:
+        return
+    time.sleep(min_wait)
+    waited, good = min_wait, 0
+    while waited < max_wait:
+        good = good + 1 if control_time() <= limit*CONTROL[0][1] else 0
+        if good >= in_a_row:
+            break
+        time.sleep(step)
+        waited += step
+    RAW['cool-down after item %d seconds' % after] = waited
+    print('  [cool-down after item %d: %.0f s]' % (after, waited), flush=True)
 
 
 # ------------------------------------------------------------------ 1. Listing 1
@@ -612,12 +656,16 @@ def main():
           % (' (QUICK: numbers mean nothing)' if QUICK else '', '/'.join(PINNED),
              os.getloadavg()[0]), flush=True)
     started = time.perf_counter()
+    if not QUICK:
+        warm_up_cpu()
     control('start')
     for k in chosen:
         print('item %d' % k, flush=True)
         t0 = time.perf_counter()
         ITEMS[k]()
         RAW['item %d seconds' % k] = time.perf_counter() - t0
+        if k in PARALLEL_ITEMS:
+            cool_down(k)
         control('after item %d' % k)
 
     drift = [c/CONTROL[0][1] for _, c in CONTROL]
