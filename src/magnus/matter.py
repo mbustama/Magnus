@@ -66,7 +66,7 @@ def _fraction_rule(name, x, where, a):
     _v.check_real_array(name, x, where, nonnegative=True)
     if np.any(np.asarray(x, dtype=float) > 1.0):
         raise ValueError(_v._msg(where, name + " must be between 0 and 1 (the number of "
-                                 "electrons per nucleon); got " + repr(x) + "."))
+                                 "electrons per atomic mass unit); got " + repr(x) + "."))
 
 
 class DensityUnitWarning(UserWarning):

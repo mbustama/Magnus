@@ -2589,7 +2589,7 @@ def validate_input_battery(
                           ratio_number_neutrons_to_protons, _where, nonnegative=True)
 
         _v.check_real('electron_fraction', electron_fraction, _where, lo=0.0, hi=1.0,
-                      what="between 0 and 1 (the number of electrons per nucleon)")
+                      what="between 0 and 1 (the number of electrons per atomic mass unit)")
 
         if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
