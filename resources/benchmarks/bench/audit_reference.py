@@ -82,8 +82,8 @@ def profile_fidelity():
 
     # nuSQuIDS: sample its own density along a chord.
     try:
-        import earth
-        import globaldefs as gd
+        from magnus import earth
+        from magnus import globaldefs as gd
         import nuSQuIDS as nsq
         from nusquids import _aligned_radii
 

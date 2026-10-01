@@ -29,7 +29,6 @@ R_SUN = gd.SUN_RADIUS*gd.UNIT_KM
 E = 10.0*gd.UNIT_MEV
 OSC = gd.OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']
 OSC3 = {k: OSC[k] for k in ('s12', 's23', 's13', 'dCP', 'D21', 'D31')}
-M_N = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
 
 SUN_WRAPPERS = [f'osc_prob_{n}nu_sun{s}' for n in (2, 3, 4, 5) for s in ('', '_nsi', '_liv')]
 STERILE_WRAPPERS = [w for w in SUN_WRAPPERS if w.startswith(('osc_prob_4nu', 'osc_prob_5nu'))]
@@ -98,9 +97,13 @@ def test_names_match_in_any_case_and_unknown_ones_are_refused():
 
 @pytest.mark.parametrize('name', sm.SOLAR_MODELS)
 def test_electron_density_at_the_rows_is_the_tabulated_one(name):
-    """n_e = rho (1 + X)/(2 m_N), the formula notebooks 13 and 28 use."""
+    """n_e = rho N_A [X/m_H + 2(1 - X)/m_He], the formula notebooks 13 and 28 use: hydrogen
+    and helium-4 at their atomic masses, the rest counted as helium (issue #168; it was
+    rho (1 + X)/(2 m_N), with the mean free-nucleon mass)."""
     t = sm.load_solar_model(name)
-    expected = t['rho_g_per_cm3']*gd.UNIT_G_PER_CM3/M_N*0.5*(1.0 + t['x_hydrogen'])
+    X = t['x_hydrogen']
+    expected = (t['rho_g_per_cm3']*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+                *(X/1.00782503 + 2.0*(1.0 - X)/4.00260325))
     got = sm.electron_density_profile(name)(t['r_over_r_sun']*R_SUN)
     np.testing.assert_allclose(got, expected, rtol=1e-12)
 
@@ -138,11 +141,15 @@ def test_profile_accepts_scalars_and_arrays():
 def test_neutron_to_proton_ratio_is_the_tabulated_composition(name):
     t = sm.load_solar_model(name)
     X = t['x_hydrogen']
+    # Helium's neutrons over all the protons, at the atomic masses of 1H and 4He (issue #168;
+    # it was (1 - X)/(1 + X), counting mass numbers).
+    helium = 2.0*(1.0 - X)/4.00260325
+    expected = helium/(X/1.00782503 + helium)
     got = sm.neutron_to_proton_ratio_profile(name)(t['r_over_r_sun']*R_SUN)
-    np.testing.assert_allclose(got, (1.0 - X)/(1.0 + X), rtol=1e-14)
+    np.testing.assert_allclose(got, expected, rtol=1e-14)
     # Held at the last tabulated value past the edge.
     assert sm.neutron_to_proton_ratio_profile(name)(2.0*R_SUN) == pytest.approx(
-        (1.0 - X[-1])/(1.0 + X[-1]), rel=1e-14)
+        expected[-1], rel=1e-14)
 
 
 # ---------------------------------------------------------------------------------------------

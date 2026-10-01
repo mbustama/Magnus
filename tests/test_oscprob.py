@@ -67,8 +67,8 @@ def test_2nu_constant_matter_matches_closed_form_nu_and_nubar():
     sth, Dm2 = 0.4, 2.5e-3
     rho = 5.0  # [g cm^-3]
     energy, L = 2.0*gd.UNIT_GEV, 2000.0*gd.UNIT_KM
-    ne = rho*gd.CONV_G_TO_EV/((gd.MASS_PROTON + gd.MASS_NEUTRON)/2.0)*0.5 \
-        / gd.CONV_CM3_TO_INV_EV3   # [eV^3]
+    # rho Y_e / m_u [eV^3], i.e. rho N_A Y_e (issue #168; it divided by (m_p + m_n)/2).
+    ne = rho*gd.CONV_G_TO_EV/gd.ATOMIC_MASS_UNIT*0.5/gd.CONV_CM3_TO_INV_EV3
     VCC = np.sqrt(2.0)*gd.GF*ne    # [eV]
     for nubar, sign in [(False, +1.0), (True, -1.0)]:
         P = op.osc_prob_2nu_matter_constant_density(

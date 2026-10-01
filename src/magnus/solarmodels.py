@@ -96,9 +96,22 @@ r"""tuple of str: The standard solar models that ship with the package, oldest f
 
 _BY_KEY = {name.lower(): name for name in SOLAR_MODELS}
 
-# The nucleon mass the electron density is counted in, and the formula for it, are the ones the
-# paper's notebooks use, so that a model named here reproduces the numbers they were built on.
-_MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+# Electrons and neutrons per atomic mass unit of the solar plasma (issue #168).  The tables give
+# the hydrogen mass fraction X; the rest, 1 - X, is counted as helium-4, and the metals with it.
+# With the atomic masses of 1H and 4He [u], hydrogen carries 1/1.00783 electrons per atomic mass
+# unit and helium 2/4.00260, each helium atom as many neutrons as electrons.  Against the full
+# composition of BS05(OP) -- 1H, 4He, 3He, 12C, 14N, 16O at their atomic masses -- this is within
+# 0.002% at the centre and 0.07% at worst, near 0.3 R_sun where 3He (0.66 electrons per u) peaks;
+# the metals, at about 0.496, move it by 0.01%.  The textbook rho N_A (1 + X)/2 is 0.4 to 0.8%
+# higher, and the mean free-nucleon mass used until 1.2.0 put n_e 0.1 to 0.4% lower.
+_MASS_H1_U = 1.00782503
+_MASS_HE4_U = 4.00260325
+
+
+def _per_atomic_mass_unit(X):
+    """Electrons and neutrons per atomic mass unit for a hydrogen mass fraction X."""
+    helium = (1.0 - X)*2.0/_MASS_HE4_U
+    return X/_MASS_H1_U + helium, helium
 
 
 def available_solar_models() -> Tuple[str, ...]:
@@ -270,13 +283,20 @@ def _positions(name: str) -> np.ndarray:
 def electron_density_profile(name: str) -> Callable:
     r"""Electron number density of a standard solar model along a radial path.
 
-    The density is :math:`n_e = \rho\,(1 + X)/(2 m_N)`, the hydrogen mass fraction :math:`X`
-    counting one electron per nucleon and everything heavier one per two, with :math:`m_N` the
-    mean nucleon mass.  It is interpolated linearly in :math:`\ln n_e`.  Below the first
+    The density is :math:`n_e = \rho N_A\,[X/m_{\rm H} + 2(1 - X)/m_{\rm He}]`, with :math:`X`
+    the hydrogen mass fraction and :math:`m_{\rm H} = 1.00783`, :math:`m_{\rm He} = 4.00260`
+    the atomic masses of :math:`^1`\ H and :math:`^4`\ He in atomic mass units; everything
+    heavier than hydrogen is counted as helium-4.  Against a model's full composition this is
+    within 0.07%; the textbook :math:`\rho N_A (1 + X)/2`, which Bahcall's electron-density
+    tables follow, is 0.4 to 0.8% higher.  It is interpolated linearly in :math:`\ln n_e`.  Below the first
     tabulated radius it holds its first value; past the last, it continues along the logarithmic
     slope of the last interval (see the module notes).
 
     .. versionadded:: 1.1.1
+
+    .. versionchanged:: 1.2.0
+       Counts electrons with the atomic masses of hydrogen and helium.  It divided by the mean
+       free-nucleon mass, :math:`n_e = \rho(1 + X)/(2 m_N)`, 0.1 to 0.4% low (issue #168).
 
     Parameters
     ----------
@@ -305,8 +325,8 @@ def electron_density_profile(name: str) -> Callable:
     """
     model = load_solar_model(name)
     x = _positions(name)
-    log_ne = np.log(model['rho_g_per_cm3']*gd.UNIT_G_PER_CM3/_MEAN_NUCLEON
-                    *(0.5*(1.0 + model['x_hydrogen'])))
+    electrons, _ = _per_atomic_mass_unit(model['x_hydrogen'])
+    log_ne = np.log(model['rho_g_per_cm3']*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT*electrons)
     slope = (log_ne[-1] - log_ne[-2])/(x[-1] - x[-2])
     x_first, x_last, first, last = x[0], x[-1], log_ne[0], log_ne[-1]
 
@@ -323,13 +343,16 @@ def electron_density_profile(name: str) -> Callable:
 def neutron_to_proton_ratio_profile(name: str) -> Callable:
     r"""Neutron-to-proton ratio of a standard solar model along a radial path.
 
-    With the hydrogen mass fraction :math:`X` and everything heavier holding as many neutrons as
-    protons, :math:`n_n/n_p = (1 - X)/(1 + X)`, the ratio the sterile states' matter term needs;
-    it is the :math:`(1 - Y_e)/Y_e` of the Earth's layers, with :math:`Y_e = (1 + X)/2`.
-    :math:`X` is interpolated linearly, and held at its first and last tabulated values outside
-    the table.
+    With the hydrogen mass fraction :math:`X` and everything heavier counted as helium-4, as in
+    :func:`electron_density_profile`, :math:`n_n/n_p = [2(1 - X)/m_{\rm He}]/[X/m_{\rm H} +
+    2(1 - X)/m_{\rm He}]`, the ratio the sterile states' matter term needs.  :math:`X` is
+    interpolated linearly, and held at its first and last tabulated values outside the table.
 
     .. versionadded:: 1.1.1
+
+    .. versionchanged:: 1.2.0
+       From the atomic masses of hydrogen and helium, like the electron density.  It was
+       :math:`(1 - X)/(1 + X)`, counting mass numbers, 0.4% lower at the centre (issue #168).
 
     Parameters
     ----------
@@ -346,8 +369,8 @@ def neutron_to_proton_ratio_profile(name: str) -> Callable:
     x, X = _positions(name), model['x_hydrogen']
 
     def ratio(l):
-        Xl = np.interp(np.asarray(l, dtype=float), x, X)
-        out = (1.0 - Xl)/(1.0 + Xl)
+        electrons, neutrons = _per_atomic_mass_unit(np.interp(np.asarray(l, dtype=float), x, X))
+        out = neutrons/electrons
         return out[()] if np.ndim(out) == 0 else out
 
     return ratio

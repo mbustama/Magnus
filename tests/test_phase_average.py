@@ -389,7 +389,9 @@ def _step_by_hand(relative_spread, n_samples):
 
 def test_average_spread_and_n_samples_set_the_energy_window():
     """Issue #134: across declared discontinuities, average_spread was accepted and ignored, and
-    the sample count could not be set.  Both now reach the window, bit for bit."""
+    the sample count could not be set.  Both now reach the window: the wrapper's average is
+    the by-hand one to round-off.  Bit for bit on some platforms, one ulp apart on others
+    (CI's Python 3.11 to 3.13 runners, since the #168 conversion changed the potential)."""
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         P = _step_window_average(average_spread=0.05, average_n_samples=11)
@@ -397,8 +399,8 @@ def test_average_spread_and_n_samples_set_the_energy_window():
         expected, _ = _step_by_hand(0.05, 11)
         expected_default, _ = _step_by_hand(ap.AVG_DEFAULT_ENERGY_SPREAD,
                                             ap.AVG_DEFAULT_N_SAMPLES)
-    assert float(P) == float(expected)
-    assert float(P_default) == float(expected_default)
+    assert abs(float(P) - float(expected)) < 1e-14
+    assert abs(float(P_default) - float(expected_default)) < 1e-14
     assert abs(float(P) - float(P_default)) > 1e-3     # the keywords are not ignored
 
 
@@ -563,7 +565,9 @@ def test_a_converged_call_does_not_warn_about_the_coarse_levels_of_its_windows()
     assert max(sink) < np.pi
     P, warned = call(*args, average=True, **CHORD_KW)
     assert 'MagnusConvergenceWarning' not in warned
-    assert abs(float(P) - 0.304987) < 1e-6
+    # 0.304987 until 1.2.0: this chord is near the atmospheric resonance, where the 0.4% higher
+    # solar electron density of issue #168 moves the average by 2e-2.
+    assert abs(float(P) - 0.283618) < 1e-6
 
 
 def test_a_window_ladder_still_warns_about_the_level_it_returns():
@@ -621,7 +625,8 @@ def test_a_hamiltonian_without_energy_dependence_keeps_the_decohered_limit():
 # The initial state of average=True (issue #73)
 # ----------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize('start, expected', [('flavor', 0.36263161), ('decohered', 0.45279506)])
+# The values moved with the electron density in 1.2.0, from 0.36263161 and 0.45279506 (issue #168).
+@pytest.mark.parametrize('start, expected', [('flavor', 0.36263347), ('decohered', 0.45316241)])
 def test_the_initial_state_means_the_same_on_every_route(start, expected):
     """The reproduction of issue #73: one medium through the constant route and, as an
     exponential profile of scale height 1e9 km, through the smooth route.  They used to give

@@ -2589,7 +2589,7 @@ def validate_input_battery(
                           ratio_number_neutrons_to_protons, _where, nonnegative=True)
 
         _v.check_real('electron_fraction', electron_fraction, _where, lo=0.0, hi=1.0,
-                      what="between 0 and 1 (the number of electrons per nucleon)")
+                      what="between 0 and 1 (the number of electrons per atomic mass unit)")
 
         if ((callable(rho_func)) and (_n_required_params(rho_func) > 1)):
             raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ":"+\
@@ -2866,17 +2866,11 @@ def _earth_composition(costhz, electron_fraction, ratio_number_neutrons_to_proto
 
     def rho_func(l):
         r = earth.earth_radial_distance_from_depth(costhz, l/gd.UNIT_KM, **_depths)
-        ye = ye_of_r(r)
-        # ALWAYS derived from Y_e here, never taken from the caller's
-        # `ratio_number_neutrons_to_protons`.  In this conversion the ratio only sets the
-        # average nucleon mass, which is a property of the local composition and so has to
-        # follow Y_e layer by layer.  The ratio's other role -- the sterile states' entry
-        # in the matter projector -- is resolved below, from this same Y_e by default.
+        # rho N_A Y_e, the layer's own Y_e (issue #168: the neutron-to-proton ratio no longer
+        # enters the conversion).  The ratio's one role, the sterile states' entry in the
+        # matter projector, is resolved below, from this same Y_e by default.
         return matter.num_density_e_func(
-            r, density_of_r,
-            ratio_number_neutrons_to_protons=
-                earth.neutron_to_proton_ratio_from_electron_fraction(ye),
-            electron_fraction=ye,
+            r, density_of_r, electron_fraction=ye_of_r(r),
             density_matter_is_in_g_per_cm3=True)      # [eV^3] (l in eV^{-1})
 
     # The projector's ratio, resolved next to the density's own Y_e so the two cannot
@@ -10474,8 +10468,7 @@ def osc_prob_matter_std_potential(
         states' entry in the matter term (see
         :func:`magnus.matter.matter_potential_projector`); a callable is read as
         :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
-        that entry -- and, when a matter density is being converted, the average
-        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        that entry follow the local composition.  This is how the Earth wrappers
         feed their layered :math:`Y_e` through.  A callable with structure away from
         ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
         Default: 1.0.
@@ -11134,8 +11127,7 @@ def osc_prob_matter_nsi(
         states' entry in the matter term (see
         :func:`magnus.matter.matter_potential_projector`); a callable is read as
         :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
-        that entry -- and, when a matter density is being converted, the average
-        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        that entry follow the local composition.  This is how the Earth wrappers
         feed their layered :math:`Y_e` through.  A callable with structure away from
         ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
         Default: 1.0.
@@ -11705,8 +11697,7 @@ def osc_prob_liv(
         states' entry in the matter term (see
         :func:`magnus.matter.matter_potential_projector`); a callable is read as
         :math:`r(l)`, a function of the same position ``rho_func`` takes, and makes
-        that entry -- and, when a matter density is being converted, the average
-        nucleon mass -- follow the local composition.  This is how the Earth wrappers
+        that entry follow the local composition.  This is how the Earth wrappers
         feed their layered :math:`Y_e` through.  A callable with structure away from
         ``t_breakpoints`` is subject to the same sampling limits as ``rho_func``.
         Default: 1.0.
@@ -15944,8 +15935,9 @@ def osc_prob_earth(
     nu_f : int, optional
         Final flavor index; see ``nu_i``.
     ratio_number_neutrons_to_protons : int or float, optional
-        Accepted and **inert on this entry point**.  The density derives its own ratio from
-        the layered :math:`Y_e`, and with a caller-supplied ``H_func`` there is no
+        Accepted and **inert on this entry point**.  The density does not use it
+        (:math:`n_e = \rho N_A Y_e` since 1.2.0, issue #168), and with a caller-supplied
+        ``H_func`` there is no
         package-built matter projector for the ratio to enter -- sterile entries, if any,
         are ``H_func``'s own business.  Changing it moves nothing: the largest difference
         between ``r = 1.0`` and ``r = 0.1`` is exactly 0.0, at three flavors and at four.
@@ -17124,13 +17116,13 @@ def osc_prob_4nu_sun(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left
@@ -17388,13 +17380,13 @@ def osc_prob_5nu_sun(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left
@@ -21353,13 +21345,13 @@ def osc_prob_4nu_sun_nsi(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left
@@ -21670,13 +21662,13 @@ def osc_prob_5nu_sun_nsi(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left
@@ -26187,13 +26179,13 @@ def osc_prob_4nu_sun_liv(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left
@@ -26503,13 +26495,13 @@ def osc_prob_5nu_sun_liv(
         :func:`magnus.matter.matter_potential_projector`.  Default: None, which means 1.0
         (isoscalar matter, i.e. :math:`Y_e = 0.5`) with the exponential profile, as before,
         and the model's own composition with a standard solar model:
-        :math:`r = (1 - X)/(1 + X)` at every radius, from its hydrogen mass fraction :math:`X`
-        (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
+        :math:`r` at every radius from its hydrogen mass fraction :math:`X`, the rest
+        counted as helium-4 (see :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`).  A value passed here
         is used as given, with either profile.
 
-        **The Sun is not isoscalar.**  It is hydrogen-rich, so :math:`Y_e = (1 + X)/2` runs
-        from about 0.68 at the center to 0.88 near the surface, and :math:`r` from about 0.47
-        down to 0.14 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
+        **The Sun is not isoscalar.**  It is hydrogen-rich, so its electrons per atomic mass
+        unit run from about 0.67 at the center to 0.86 near the surface, and :math:`r` from
+        about 0.49 down to 0.15 -- nowhere near 1.0, unlike the Earth where the isoscalar value at least
         sits among the layers.  The exponential profile is a fit to the electron *number*
         density and carries no composition to derive :math:`r` from, so 1.0 is kept there as
         before; naming a standard solar model through ``density_profile`` supplies one.  Left

@@ -423,6 +423,7 @@ File tree
        ├── test_cross_check_unverified.py  # The cross-check names the engines that did not reach the tolerance (issue #166)
        ├── test_engines.py             # Which engine answers, and the cross-checks between them
        ├── test_auto_ladder.py         # When strategy='auto' takes the ladder (issue #70)
+       ├── test_electron_density_convention.py  # A mass density becomes an electron density as rho N_A Y_e (issue #168)
        ├── test_expansionterms.py      # The symbolic term generator against the hand-written orders
        ├── test_expm_backend.py        # The two matrix-exponential backends, their switch, and degeneracies
        ├── test_fuzz_statistics.py     # Randomized profiles, scored in bulk

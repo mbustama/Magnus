@@ -54,6 +54,7 @@ import runner                                                      # noqa: E402
 import magnus.earth as earth                                       # noqa: E402
 import magnus.globaldefs as gd                                     # noqa: E402
 import magnus.oscprob as oscprob                                   # noqa: E402
+from prem_chord_common import PINNED_NORMALIZATION                  # noqa: E402
 
 REFERENCE = json.loads((HERE/'magnus_own_reference.json').read_text())
 COSTHZ = -0.9
@@ -94,7 +95,9 @@ class MagnusAdapter(object):
             costhz=COSTHZ, L=earth.distance_traveled_inside_earth(COSTHZ)*gd.CONV_KM_TO_INV_EV,
             s12=math.sqrt(problem.s12sq), s23=math.sqrt(problem.s23sq),
             s13=math.sqrt(problem.s13sq), D21=problem.dm21, D31=problem.dm31,
-            electron_fraction=problem.ye, ratio_number_neutrons_to_protons=1.0,
+            # The reference was built with the conversion used until 1.2.0 (issue #168).
+            electron_fraction=problem.ye*PINNED_NORMALIZATION,
+            ratio_number_neutrons_to_protons=1.0,
             nu_i=None, nu_f=None, strategy=self._strategy)
         if self._n == 4:
             self._fixed.update(s14=math.sqrt(par['sinsq_th14']), s24=math.sqrt(par['sinsq_th24']),

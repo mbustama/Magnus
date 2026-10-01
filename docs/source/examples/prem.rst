@@ -129,11 +129,11 @@ Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>` sh
                           E_TEV, **s5)
 
 
-In the top row, the ordinary matter resonance depletes the :math:`\nu_\mu` and leaves the :math:`\bar{\nu}_\mu` almost unaffected, because the matter potential enters their Hamiltonians with opposite signs. The two-flavor panel shows this cleanly. A :math:`(\nu_e, \nu_\mu)` system has no :math:`\theta_{23}` oscillation, so the only structure left is the resonance: the :math:`\nu_\mu` survival probability dips to 0.25 at 4 GeV, while the :math:`\bar{\nu}_\mu` one stays above 0.9. The three-flavor panel restores the :math:`\theta_{23}` oscillation, which is near-maximal. Both curves then swing between zero and one several times, and the resonance is no longer easy to see. It still shows as a difference between the :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` curves, which oscillate out of step: below 5 GeV they differ by up to 0.84, and the difference shrinks as the energy rises, until the two curves coincide above 20 GeV.
+In the top row, the ordinary matter resonance depletes the :math:`\nu_\mu` and leaves the :math:`\bar{\nu}_\mu` almost unaffected, because the matter potential enters their Hamiltonians with opposite signs. The two-flavor panel shows this cleanly. A :math:`(\nu_e, \nu_\mu)` system has no :math:`\theta_{23}` oscillation, so the only structure left is the resonance: the :math:`\nu_\mu` survival probability dips to 0.25 at 4 GeV, while the :math:`\bar{\nu}_\mu` one stays above 0.9. The three-flavor panel restores the :math:`\theta_{23}` oscillation, which is near-maximal. Both curves then swing between zero and one several times, and the resonance is no longer easy to see. It still shows as a difference between the :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` curves, which oscillate out of step: below 5 GeV they differ by up to 0.86, and the difference shrinks as the energy rises, until the two curves coincide above 20 GeV.
 
 In the bottom row, for 3+1 and 3+2, it is the other way around: the resonance depletes the :math:`\bar{\nu}_\mu` and leaves the :math:`\nu_\mu` almost unaffected. A sterile state feels no matter potential at all. The active states all feel the same neutral-current potential, :math:`V_{\rm NC}`, which is common to them and cancels out of their oscillations; the :math:`\nu_e` also feels the charged-current potential, :math:`V_{\rm CC}`, since only it scatters off electrons that way. Measured from the active states, each sterile state therefore carries :math:`-V_{\rm NC}`. A resonance needs a positive potential on the flavor that is mostly the lighter of the two mixing mass states, or a negative one on the flavor that is mostly the heavier. At two and three flavors, :math:`V_{\rm CC}` is positive for neutrinos and acts on the :math:`\nu_e`, which in the normal mass ordering is mostly the lighter state, so the :math:`\nu_\mu` resonates and is depleted. At 3+1 and 3+2, the potential that matters is the one on the sterile state, :math:`-V_{\rm NC}`. For neutrinos, it is positive, but it acts on the heavier state, since :math:`\Delta m^2_{41} > 0` makes the sterile state mostly the heavier one, so there is no resonance. For antineutrinos, the potential changes sign, so the :math:`\bar{\nu}_\mu` resonates instead.
 
-At 3+1, the resonance shows as a dip of the :math:`\bar{\nu}_\mu` survival probability to 0.27 near 1.4 TeV, while the :math:`\nu_\mu` one falls no lower than 0.70. Searches for a sterile state in atmospheric neutrinos look for exactly this dip  :cite:p:`IceCube:2016rnb,IceCube:2020phf`. At 3+2, the second sterile state adds a second dip, at three times the energy, deeper than the first (nearly to zero) and about three times as wide. Above 10 TeV, both curves come back together.
+At 3+1, the resonance shows as a dip of the :math:`\bar{\nu}_\mu` survival probability to 0.26 near 1.4 TeV, while the :math:`\nu_\mu` one falls no lower than 0.70. Searches for a sterile state in atmospheric neutrinos look for exactly this dip  :cite:p:`IceCube:2016rnb,IceCube:2020phf`. At 3+2, the second sterile state adds a second dip, at three times the energy, deeper than the first (nearly to zero) and about three times as wide. Above 10 TeV, both curves come back together.
 
 .. _ex-sec-named-baselines:
 
@@ -446,16 +446,16 @@ How much burying the detector changes the probability depends on the zenith angl
        costhz)*gd.UNIT_KM
    oscprob.osc_prob_3nu_earth(E, costhz=costhz,
        L=L, **kw)
-                                  # 0.905580
+                                  # 0.911587
 
    # 2 km down, the depth fixes the baseline
    oscprob.osc_prob_3nu_earth(
        E, costhz=costhz,
        detector_depth=2.0*gd.UNIT_KM, **kw)
-                                  # 0.905595
+                                  # 0.911600
 
 
-The two differ by :math:`2 \cdot 10^{-5}`. In contrast, a neutrino arriving horizontally, at :math:`\cos \theta_z = 0`, does not cross the Earth to reach a detector on the surface, but it does to reach one 2 km down:
+The two differ by :math:`1 \cdot 10^{-5}`. In contrast, a neutrino arriving horizontally, at :math:`\cos \theta_z = 0`, does not cross the Earth to reach a detector on the surface, but it does to reach one 2 km down:
 
 .. code-block:: python
 
@@ -489,15 +489,15 @@ PREM puts 3 km of ocean at the top of the Earth. That describes KM3NeT in the M
              nu_f=gd.NUE)
    E = 1.0*gd.UNIT_GEV
    oscprob.osc_prob_3nu_earth(E, **kw)
-                                  # 0.020928
+                                  # 0.020930
    # Under ice, as at IceCube
    oscprob.osc_prob_3nu_earth(E, **kw,
-       density_matter_ocean=0.92) # 0.020898
+       density_matter_ocean=0.92) # 0.020900
    # Under rock, as at SNOLAB
    oscprob.osc_prob_3nu_earth(E, **kw,
        density_matter_ocean=2.65,
        electron_fraction_ocean=0.4952)
-                                  # 0.021319
+                                  # 0.021325
 
 
 .. _ex-sec-custom-earth:

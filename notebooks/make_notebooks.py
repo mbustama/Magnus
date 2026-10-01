@@ -6323,9 +6323,11 @@ wrapper given `density_profile=MODEL` builds the electron density from them, and
 details in that are easy to get wrong:
 
 * **The electron fraction is not 0.5.** For fully ionized H + He,
-  $n_e = \rho\,N_A\,(1+X)/2$, and the hydrogen mass fraction $X$ runs from 0.36 at the
-  center to 0.76 at the outer edge of the table. A fixed $Y_e = 0.5$ therefore understates
-  $n_e$ by 37 % at the center and by 76 % at the edge, which is why we build the number
+  $n_e = \rho\,N_A\,[X/m_{\rm H} + 2(1 - X)/m_{\rm He}]$, with $m_{\rm H} = 1.00783$ and
+  $m_{\rm He} = 4.00260$ the atomic masses of hydrogen and helium-4 (everything heavier counted
+  as helium), and the hydrogen mass fraction $X$ runs from 0.36 at the center to 0.76 at the
+  outer edge of the table. A fixed $Y_e = 0.5$ therefore understates $n_e$ by 36 % at the
+  center and 75 % at the edge, which is why we build the number
   density ourselves rather than handing a mass density to `vcc_func_from_rho_func` (that
   function takes a *scalar* electron fraction).
 * **Interpolate in $\log n_e$.** The density spans five orders of magnitude; a linear
@@ -6342,9 +6344,10 @@ table = solarmodels.load_solar_model(MODEL)
 r_over_rsun = table['r_over_r_sun']
 rho_cgs, x_hydrogen = table['rho_g_per_cm3'], table['x_hydrogen']
 
-# n_e = rho * N_A * (1 + X) / 2, in the package's natural units [eV^3].
-MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-ne_ev3 = rho_cgs*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_hydrogen))
+# n_e = rho N_A [X/m_H + 2(1 - X)/m_He], in the package's natural units [eV^3]: electrons per
+# atomic mass unit from the atomic masses of 1H and 4He, the rest counted as helium.
+ne_ev3 = (rho_cgs*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+          *(x_hydrogen/1.00782503 + 2.0*(1.0 - x_hydrogen)/4.00260325))
 
 x_nat = r_over_rsun*gd.SUN_RADIUS*gd.UNIT_KM          # radius in eV^-1
 log_ne = np.log(ne_ev3)
@@ -6744,8 +6747,8 @@ $\mathrm{diag}(1, 0, 0, r/2)$, and it comes from `matter.matter_potential_projec
 being written out --- writing it out is exactly how notebook 25's own PREM referee was wrong by
 $2.6\times10^{-2}$ until recently.
 
-The Sun wrappers take $r$ from the model: $(1 - X)/(1 + X)$ at each radius, from 0.47 at the
-center of this table to 0.14 at its edge. An explicit `ratio_number_neutrons_to_protons`, a
+The Sun wrappers take $r$ from the model at each radius: helium's neutrons over all the protons,
+with the same atomic masses, from 0.47 at the center of this table to 0.14 at its edge. An explicit `ratio_number_neutrons_to_protons`, a
 number or a function of position, overrides it.
 
 **So the check that matters is whether that entry is live**, and it is easy: vary $r$ and watch
@@ -7087,7 +7090,13 @@ import magnus.oscprob as oscprob
 plt.rcParams["figure.dpi"] = 110
 
 KM = gd.UNIT_KM
-MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+# The profile's normalization: a model's density in g/cm^3 times Y_e, over this mass.  It is
+# part of the model's definition, and is kept at the mean free-nucleon mass, (m_p + m_n)/2,
+# with the gram as it was converted until 1.2.0, because the frozen references
+# (shock_reference*.json) and the external benchmarks were built on exactly this profile.
+# The package itself converts with the atomic mass unit since 1.2.0 (issue #168); on this
+# profile that would only rescale the density by 0.83%.
+MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)*1.783e-33/gd.CONV_EV_TO_G
 
 R_CONTACT_KM, R_FORWARD_KM = 12348.0, 30323.0
 R0_KM, R1_KM = 1.0e4, 8.0e4              # the ray we integrate along
@@ -9618,13 +9627,12 @@ CHORD_KM = earth.distance_traveled_inside_earth(COSTHZ)
 def vcc_prem_at(l):
     """V_CC at distance l along the chord, with PREM's composition.
 
-    Y_e and the neutron-to-proton ratio are passed rather than left to their
-    defaults.  Leaving them was this cell's bug: the referee integrated an Earth
-    of uniform Y_e = 0.5 while `osc_prob_3nu_earth` takes Y_e from PREM layer by
-    layer, and the gap between the two Earths swamped every truncation the cell
-    exists to measure.  Both arguments are needed rather than just the first,
-    because `oscprob` derives the average nucleon mass from r = (1 - Y_e)/Y_e,
-    so V_CC is not linear in Y_e.
+    Y_e is passed rather than left to its default.  Leaving it was this cell's
+    bug: the referee integrated an Earth of uniform Y_e = 0.5 while
+    `osc_prob_3nu_earth` takes Y_e from PREM layer by layer, and the gap between the
+    two Earths swamped every truncation the cell exists to measure.  (The ratio is
+    passed too, as the wrapper derives it; since 1.2.0 it no longer enters V_CC,
+    which is rho N_A Y_e.)
     """
     km = l/gd.CONV_KM_TO_INV_EV
     r = np.sqrt(gd.EARTH_RADIUS**2 + km*km + 2.0*gd.EARTH_RADIUS*km*COSTHZ)
@@ -9751,9 +9759,10 @@ discretization, and is the sign that the floor is real.
 `vcc_prem_at` built its potential with the default electron fraction of 0.5 while
 `osc_prob_3nu_earth` takes $Y_e$ from PREM layer by layer -- 0.4656 in the core, 0.4957 in the
 mantle, 0.4952 in the crust and 0.5551 in the ocean. The two integrated different Earths, and
-that gap swamped the truncation the cell exists to measure. Matching the composition needs two
-arguments rather than one: `oscprob` derives the average nucleon mass from $r = (1 - Y_e)/Y_e$,
-so $V_{\rm CC}$ is not linear in $Y_e$, and passing $Y_e$ alone still leaves $7\times10^{-5}$.'''),
+that gap swamped the truncation the cell exists to measure. Passing $Y_e$ layer by layer is what
+matches the two: $V_{\rm CC} = \sqrt{2} G_F \rho N_A Y_e$ is linear in it. (Until 1.2.0 the
+conversion also divided by an average nucleon mass taken from $r = (1 - Y_e)/Y_e$, so the ratio
+had to be passed as well; issue #168.)'''),
     code(r'''fig, ax = plt.subplots(figsize=(6.4, 4.4))
 for order, t, err in rows_ord:
     ax.loglog(1.0e3*t, max(err, 1.0e-16), 'o', ms=9, mfc='white', color='k', mew=1.4,
@@ -9789,8 +9798,9 @@ with open(TABLE_ORD) as fh:
             except ValueError:
                 continue
 _solar = np.array(_rows)
-_mean_nucleon = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-_ne = _solar[:, 3]*gd.UNIT_G_PER_CM3/_mean_nucleon*(0.5*(1.0 + _solar[:, 6]))
+# Electrons per atomic mass unit: 1H, and the rest counted as 4He, at their atomic masses.
+_ne = (_solar[:, 3]*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+       *(_solar[:, 6]/1.00782503 + 2.0*(1.0 - _solar[:, 6])/4.00260325))
 _x = _solar[:, 1]*gd.SUN_RADIUS*gd.UNIT_KM
 _logne = np.log(_ne)
 R_SUN_ORD = float(_x[-1])
@@ -9935,7 +9945,10 @@ $3\times10^4$ km and a width of a thousandth of the ray. Only the requested tole
 Sweeping a *physical* parameter does not show this. Measured across four decades of baseline
 and three of energy on smooth exponential profiles, the answer is `hybrid`/`adiabatic` every
 time with nothing declined. The tolerance is the axis that moves it.'''),
-    code(r'''MEAN_NUCLEON_D = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+    code(r'''# The shock model's normalization, pinned as notebook 14 defines it: the mean free-nucleon
+# mass and the gram as converted until 1.2.0, on which its frozen references were built
+# (issue #168).
+MEAN_NUCLEON_D = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)*1.783e-33/gd.CONV_EV_TO_G
 R0_D, R1_D, W_D, RF_D = 1.0e4, 8.0e4, 1.0e-3, 3.0e4
 KM_D = gd.CONV_KM_TO_INV_EV
 
@@ -10903,7 +10916,8 @@ $1.9\times10^{-4}$ below NuOscProbExact's at the same density, the two rounding 
 mass differently, so the two $50$-digit references differ by $4.8\times10^{-6}$ in
 $P(\nu_\mu \to \nu_\mu)$ -- five orders above anything either solver contributes. Sharing one
 would report that rounding as Mag$\nu$s' error. Ours is frozen in `magnus_own_reference.json`
-and Mag$\nu$s is measured live against it.
+and Mag$\nu$s is measured live against it, at the conversion that reference was built with,
+the one used until 1.2.0 (issue #168).
 
 Each referee is a Richardson extrapolation of a high-precision slab product on the *continuous*
 profile, cross-checked against an adaptive DOP853 integration sharing none of that machinery.
@@ -10931,10 +10945,12 @@ dial is evidence about the *setup*, not yet about the solver.'''),
 #
 # EVERY CODE IS SCORED AGAINST A REFERENCE BUILT IN ITS OWN CONVENTIONS, which is what
 # the benchmark manifest in resources/benchmarks asks for and is not a formality here.
-# Mag(nu)s' charged-current potential sits 1.9e-04 below NuOscProbExact's at the same
-# density -- CONV_EV_TO_G is 1.783e-33 here and 1.78266192e-33 there -- so the two
-# 50-digit references differ by 4.8e-06 in P(numu -> numu), five orders above anything
-# either solver contributes.  Sharing one would report that rounding as Magnus' error.
+# Mag(nu)s' charged-current potential sits 0.81% above NuOscProbExact's at the same
+# density: since 1.2.0 it divides the mass density by the atomic mass unit, as nuSQuIDS,
+# GLoBES and Prob3++ do, where NuOscProbExact divides by the mean free-nucleon mass (issue
+# #168; until then the two differed only by the gram's rounding, 1.9e-04).  The two
+# 50-digit references differ by far more than either solver contributes, so sharing one
+# would report the convention as Magnus' error.
 PREM_EXT = json.loads(
     (pathlib.Path.cwd()/'external_prem_speed_accuracy_new.json').read_text())
 MG_REF = json.loads((pathlib.Path.cwd()/'magnus_own_reference.json').read_text())
@@ -10961,13 +10977,17 @@ STERILE_EXT = dict(s14=np.sqrt(_OP['sinsq_th14']), s24=np.sqrt(_OP['sinsq_th24']
 # self-consistent.  An earlier version of this cell instead matched the two potentials
 # by passing Y_e = 0.5000948, and scored Magnus against NuOscProbExact's reference.
 # That curve flattened at 1.6e-07 and no setting on either side reached beneath it.
-# The floor was the match, not the solver: on a chord Magnus derives the average
-# nucleon mass from the composition, r = (1 - Y_e)/Y_e layer by layer, so V_CC is NOT
-# linear in Y_e -- scaling it by 1.9e-04 moves the potential by a further 1.31e-07,
+# The floor was the match, not the solver: on a chord Magnus then derived the average
+# nucleon mass from the composition, r = (1 - Y_e)/Y_e layer by layer, so V_CC was NOT
+# linear in Y_e -- scaling it by 1.9e-04 moved the potential by a further 1.31e-07,
 # which is exactly the height the curve flattened at.  Matching a potential through a
-# composition parameter is only ever good to that order; a per-code reference has no
-# such limit, and the cell after the figure measures both statements.
-YE_EXT = 0.5
+# composition parameter was only ever good to that order; a per-code reference has no
+# such limit, and the cell after the figure measures both statements.  (Since 1.2.0 V_CC
+# is rho N_A Y_e, linear in Y_e, and the floor would not arise; issue #168.)
+# magnus_own_reference.json was built with the conversion used until 1.2.0, so Y_e is
+# scaled by PINNED_NORMALIZATION, which gives exactly the potential that reference used.
+from prem_chord_common import PINNED_NORMALIZATION
+YE_EXT = 0.5*PINNED_NORMALIZATION
 
 # Magnus' own P(numu -> numu) on the two chords, from magnus_own_reference.json.
 MG_P_REF = {'three_flavor': np.array([row[1] for row in
@@ -11009,7 +11029,7 @@ def timed_batch(call, n_energies, repeat=7, min_block=0.05):
 
 print('frozen dataset: costhz = %.2f, chord %.1f km, P(numu -> numu), NuFIT 4.0 NO'
       % (COSTHZ_EXT, PREM_EXT['baseline_km']))
-print('our chord at that costhz: %.1f km   Magnus at its own Y_e = %.4f'
+print('our chord at that costhz: %.1f km   Magnus at its own Y_e = %.7f'
       % (mg_earth.distance_traveled_inside_earth(COSTHZ_EXT), YE_EXT))
 for _k in ('three_flavor', 'sterile_3plus1'):
     print('  %-14s double-precision cross-check follows the external referee to %.1e and '
@@ -11174,14 +11194,15 @@ about four orders of magnitude.'''),
     print('         at Magnus\'s own V_CC   (scale %.3f), residual %.2e'
           % (scales[unity], gaps[unity]))'''),
     md(r'''In vacuum nuSQuIDS reproduces the exact answer to $\sim10^{-8}$ -- its solver is doing
-its job. In matter, the disagreement is minimized at a matter potential about **1% larger**
-than the one Mag$\nu$s builds from the same nominal $\rho$ and $Y_e$. That is a difference in
-how the electron number density is derived from a mass density -- the average nucleon mass and
-the electron fraction convention -- and **not** an accuracy difference in either code.
+its job. In matter, the scan finds the potential at which the two agree. Since 1.2.0 both codes
+convert a mass density as $\rho N_A Y_e$, so the minimum should sit at Mag$\nu$s's own
+potential, a scale of 1.000. Until then Mag$\nu$s divided by the mean free-nucleon mass, and
+the minimum sat about **1% higher** (issue #168): a difference in how the electron number density
+is derived from a mass density, and **not** an accuracy difference in either code.
 
 This is why the accuracy column in section 3 is only quoted for codes sharing Mag$\nu$s's
 potential, and why the honest cross-code accuracy statement is the vacuum one. Fixing it
-properly means agreeing a conversion, not tightening a tolerance.
+properly meant agreeing a conversion, not tightening a tolerance, which is what 1.2.0 did.
 
 '''),
     md(r'''## 7. Speed against accuracy, across six codes
@@ -11601,8 +11622,9 @@ with open(TABLE) as fh:
                 continue
 solar = np.array(rows)
 r_over_rsun, rho_cgs, x_h = solar[:, 1], solar[:, 3], solar[:, 6]
-MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-ne_solar = rho_cgs*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_h))
+# Electrons per atomic mass unit: 1H, and the rest counted as 4He, at their atomic masses.
+ne_solar = (rho_cgs*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+            *(x_h/1.00782503 + 2.0*(1.0 - x_h)/4.00260325))
 x_solar = r_over_rsun*gd.SUN_RADIUS*gd.UNIT_KM
 log_ne_solar = np.log(ne_solar)
 R_SUN = float(x_solar[-1])
@@ -12895,7 +12917,10 @@ It is drawn as markers on a faint line for that reason: a confident curve throug
 points would claim a resolution that no affordable sampling has. The points themselves are
 trustworthy --- against those converged values the settings used here are worst-case
 $3.6 \times 10^{-3}$ over the whole sweep, which is well under the width of the marker.'''),
-    code(r'''MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+    code(r'''# The shock model's normalization, pinned as notebook 14 defines it: the mean free-nucleon
+# mass and the gram as converted until 1.2.0, on which its frozen references were built
+# (issue #168).
+MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)*1.783e-33/gd.CONV_EV_TO_G
 R0_SHOCK, R1_SHOCK = 1.0e4, 8.0e4          # the ray, in km
 E_SHOCK = 15.0*MEV
 W_SHOCK = 1.0e-3                            # front width, as a fraction of the ray
@@ -12984,8 +13009,9 @@ with open(SOLAR_TABLE) as fh:
             except ValueError:
                 continue
 _solar = np.array(_rows)
-_mean_nucleon = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-_ne_solar = _solar[:, 3]*gd.UNIT_G_PER_CM3/_mean_nucleon*(0.5*(1.0 + _solar[:, 6]))
+# Electrons per atomic mass unit: 1H, and the rest counted as 4He, at their atomic masses.
+_ne_solar = (_solar[:, 3]*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT
+             *(_solar[:, 6]/1.00782503 + 2.0*(1.0 - _solar[:, 6])/4.00260325))
 _x_solar = _solar[:, 1]*gd.SUN_RADIUS*gd.UNIT_KM
 _log_ne = np.log(_ne_solar)
 R_SUN_AVG = float(_x_solar[-1])
@@ -16747,7 +16773,7 @@ save(fig, 'cavity_sweep.pdf')'''),
 
 The four curves come from the Sun wrappers, which take the BS2005-AGS,OP table by name
 (`density_profile='BS05-AGS-OP'`).  For the two sterile cases they also read the
-neutron-to-proton ratio from it, $(1 - X)/(1 + X)$ at each radius, where the scenario
+neutron-to-proton ratio from it at each radius (helium's neutrons over all the protons), where the scenario
 functions this figure used before held it at 1; that moves the $3+1$ and $3+2$ curves by
 a few $10^{-3}$, and an explicit `ratio_number_neutrons_to_protons` overrides it.  The
 standard and NSI curves are unchanged bit for bit.
@@ -16772,8 +16798,13 @@ references take $n_n/n_p$ at each end of the ray from the same table, as the wra
 # The columns are read here only to draw the density and to build the reference below.
 solar = solarmodels.load_solar_model('BS05-AGS-OP')
 r_over_rsun, rho_cgs, x_h = solar['r_over_r_sun'], solar['rho_g_per_cm3'], solar['x_hydrogen']
-MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
-ne_tab = rho_cgs*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_h))
+# Electrons per atomic mass unit: 1H, and the rest counted as 4He, at their atomic masses, as
+# magnus.solarmodels counts them (issue #168).
+def electrons_per_u(X):
+    return X/1.00782503 + 2.0*(1.0 - X)/4.00260325
+
+
+ne_tab = rho_cgs*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT*electrons_per_u(x_h)
 x_solar = r_over_rsun*gd.SUN_RADIUS*gd.UNIT_KM
 log_ne = np.log(ne_tab)
 R_SUN = float(x_solar[-1])
@@ -16794,7 +16825,7 @@ _inside = np.linspace(0.0, R_SUN, 2001)
 assert np.array_equal(ne_sun(_inside), _ne_pkg(_inside))
 
 # The sterile states' neutral-current term needs n_n/n_p; the wrappers read it from the
-# same table, (1 - X)/(1 + X), radius by radius.
+# same table, radius by radius, from the same atomic masses as the electron density.
 RATIO_SUN = solarmodels.neutron_to_proton_ratio_profile('BS05-AGS-OP')
 RATIO0, RATIO1 = float(RATIO_SUN(0.0)), float(RATIO_SUN(R_SUN))
 
@@ -16960,7 +16991,7 @@ structure file Aldo Serenelli distributed at `ice.csic.es/personal/aldos/Solar_D
 The columns are read here only to draw the densities.'''),
     code(r'''B16 = solarmodels.load_solar_model('B16-GS98')
 r_b16, rho_b16, x_b16 = B16['r_over_r_sun'], B16['rho_g_per_cm3'], B16['x_hydrogen']
-ne_b16_tab = rho_b16*gd.UNIT_G_PER_CM3/MEAN_NUCLEON*(0.5*(1.0 + x_b16))
+ne_b16_tab = rho_b16*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT*electrons_per_u(x_b16)
 x_b16_grid = r_b16*gd.SUN_RADIUS*gd.UNIT_KM
 log_ne_b16 = np.log(ne_b16_tab)
 R_B16 = float(x_b16_grid[-1])
@@ -17578,7 +17609,7 @@ def solar_bgrid(energy_gev):
 
 
 def matter_phase(br, n=4001):
-    # The integral of V_CC along the chord, in rad: 8676 across the diameter.
+    # The integral of V_CC along the chord, in rad: 8699 across the diameter.
     ne_b, hl = solar_chord_ne(br)
     l = np.linspace(0.0, 2*hl, n)
     v = PER_NE*ne_b(l)
@@ -18320,7 +18351,10 @@ $\Delta m^2_{21}$ available at 15 MeV it spans 0.998 to 1.000.
 is *not* what runs here: a baseline scan at one energy goes to the cumulative engine, and
 declared breakpoints make the hybrid stand aside in any case. The cell prints it.'''),
     code(r'''KM = gd.UNIT_KM
-MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+# The shock model's normalization, pinned as notebook 14 defines it: the mean free-nucleon
+# mass and the gram as converted until 1.2.0, on which its frozen references were built
+# (issue #168).
+MEAN_NUCLEON = 0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)*1.783e-33/gd.CONV_EV_TO_G
 R_CONTACT_KM, R_FORWARD_KM = 12348.0, 30323.0
 R0_KM, R1_KM = 1.0e4, 8.0e4
 L0, L1 = R0_KM*KM, R1_KM*KM
@@ -18366,7 +18400,9 @@ def shock_breakpoints(width_frac):
 WIDTHS = (1.0e-6, 1.0e-3)
 OSC4 = dict(OSC); OSC4.update(STERILE4); OSC4.update(d14=0.0, d24=0.0)
 OSC5_SHOCK = dict(OSC); OSC5_SHOCK.update(STERILE5)
-OSC5_SHOCK.update(d14=0.0, d24=0.0, d15=0.0, d25=0.0, d35=0.0)
+# No d25: the 5nu parametrization has no independent phase there, and osc_params refuses the
+# key since issue #160; it was 0.0, so dropping it changes nothing.
+OSC5_SHOCK.update(d14=0.0, d24=0.0, d15=0.0, d35=0.0)
 OSC2 = dict(sth=OSC['s12'], Dm2=OSC['D21'])
 HALF_KM = 75.0
 WIN = (R_FORWARD_KM - HALF_KM, R_FORWARD_KM + HALF_KM)
@@ -19890,31 +19926,33 @@ reference, matching the two charged-current potentials by handing Mag$\nu$s an e
 fraction of $0.5000948$ instead of $0.5$. That curve flattened near $1.6 \cdot 10^{-7}$
 and no solver setting on either side reached beneath it. The floor was not a property of
 either solver, and it was not, as we first read it, the potential match running out in
-some general way. It has a single identifiable cause, and the cell below names it.'''),
+some general way. It had a single identifiable cause, and the cell below names it. Since 1.2.0
+the cause is gone: the conversion is $\rho N_A Y_e$, linear in $Y_e$ (issue #168).'''),
     code(r'''# Why matching V_CC through the electron fraction leaves a floor, and what the
 # floor is worth.  This is a note about a measurement convention, not about the solver:
 # every number the paper quotes for Magnus is measured against Magnus' OWN reference,
 # where no such floor exists.
-VCC_MATCH = 1.0001896489716906     # NuOscProbExact's V_CC over ours, at any density
+VCC_MATCH = 1.0001896489716906     # NuOscProbExact's V_CC over ours, at any density, until 1.2.0
 
-print('On an Earth chord V_CC is NOT linear in Y_e.  oscprob.py derives the average')
-print('nucleon mass from the composition -- r = (1-Y_e)/Y_e, layer by layer -- because')
-print('a medium with Y_e = 0.4656 and r = 1 is matter that cannot exist.  So scaling')
-print('Y_e scales the potential by very slightly more than the scale asked for:')
+print('Until 1.2.0, V_CC on an Earth chord was NOT linear in Y_e: oscprob.py divided by an')
+print('average nucleon mass derived from the composition -- r = (1-Y_e)/Y_e, layer by')
+print('layer.  So scaling Y_e scaled the potential by very slightly more than the scale')
+print('asked for (since 1.2.0 it divides by the atomic mass unit, and is linear; #168):')
 r_half = earth.neutron_to_proton_ratio_from_electron_fraction(0.5)
 r_match = earth.neutron_to_proton_ratio_from_electron_fraction(0.5*VCC_MATCH)
 
 
 def avg_nucleon(r):
+    """The average nucleon mass the conversion divided by until 1.2.0."""
     return (gd.MASS_PROTON + gd.MASS_NEUTRON*r)/(1.0 + r)
 
 
 slip = avg_nucleon(r_half)/avg_nucleon(r_match) - 1.0
 print('  r  goes %.10f -> %.10f' % (r_half, r_match))
-print('  the average nucleon mass moves with it, and V_CC picks up a further %.3e' % slip)
+print('  the average nucleon mass moved with it, and V_CC picked up a further %.3e' % slip)
 print('  which is exactly the height the matched curve used to flatten at.')
 print()
-print('Matching a potential through the composition is therefore only ever good to')
+print('Matching a potential through the composition was therefore only ever good to')
 print('that order.  The measurement this paper reports avoids the question entirely:')
 print('the benchmark manifest asks for a per-code reference in each code\'s own')
 print('conventions, so Magnus is scored at Y_e = 1/2 against a reference built with')

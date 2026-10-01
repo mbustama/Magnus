@@ -42,7 +42,7 @@ def _ours_matter_constant():
 
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__)))), 'src'))
-    import globaldefs as gd
+    from magnus import globaldefs as gd
 
     rho_ye = gd.DENSITY_MATTER_CRUST_G_PER_CM3*gd.ELECTRON_FRACTION_EARTH_CRUST
     potential = math.sqrt(2.0)*gd.GF*gd.NUM_DENSITY_E_EARTH_CRUST
@@ -56,7 +56,7 @@ def _ours_km_to_inv_ev():
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__)))), 'src'))
-    import globaldefs as gd
+    from magnus import globaldefs as gd
     return gd.CONV_KM_TO_INV_EV
 
 
@@ -231,7 +231,15 @@ def matter_constant(code):
         # sqrt2 is a mathematical constant, not one of theirs to round.
         return math.sqrt(2.0)*c.GF*c.Na*c.cm**-3.0*2.0e9
     if code == 'NuOscProbExact':
-        return OURS['matter']
+        # Same author, and until 1.2.0 the same conversion as this library: rho Y_e over the
+        # mean free-nucleon mass, (m_p + m_n)/2, with the exact e/c^2.  Since 1.2.0 this
+        # library divides by the atomic mass unit instead (issue #168), so NuOscProbExact's
+        # potential is ours times m_u / [(m_p + m_n)/2] = 0.992093.
+        import os, sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))), 'src'))
+        from magnus import globaldefs as gd
+        return OURS['matter']*gd.ATOMIC_MASS_UNIT/(0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON))
     theirs, _ = extract(code)
     if code == 'GLoBES':
         # GLB_V_FACTOR is V per (g/cm^3) where the others carry A = 2 E V per

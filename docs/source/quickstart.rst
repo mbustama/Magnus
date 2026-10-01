@@ -208,7 +208,7 @@ other, never both:
    # T2K: 295 km, 0.6 GeV, 2.6 g/cm^3
    P_t2k = oscprob.osc_prob_3nu_matter_constant_density(
        0.6*gd.UNIT_GEV, 295.0*gd.UNIT_KM, 2.6*gd.UNIT_G_PER_CM3,
-       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0524 (0.0318 with nubar=True)
+       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0525 (0.0318 with nubar=True)
 
 A density that falls exponentially, as in a supernova envelope, takes a central
 density and a scale length:
@@ -233,7 +233,7 @@ through the Earth's center, 0 is horizontal, and a neutrino with
 
    # Fermilab to the Sanford lab (DUNE): the chord is computed from the sites
    P = oscprob.osc_prob_3nu_earth(2.5*gd.UNIT_GEV, loc_ini='fermilab',
-                                  loc_fin='homestake')     # P[1][0] = 0.0722
+                                  loc_fin='homestake')     # P[1][0] = 0.0724
 
    # An upgoing atmospheric neutrino, cos(theta_z) = -0.8: a 10194 km chord
    costhz = -0.8
@@ -296,7 +296,7 @@ potential.  Unset couplings are zero; the diagonal ones (``eps_ee``, ``eps_mm``,
 
    P_nsi = oscprob.osc_prob_3nu_matter_nsi_constant_density(
        2.5*gd.UNIT_GEV, L, rho, eps_ee=0.1, eps_em=0.05j,
-       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0845
+       nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0848
 
    # Lorentz-invariance violation, in vacuum: b1, b2, b3 and Lambda in eV
    P_liv = oscprob.osc_prob_3nu_vacuum_liv(

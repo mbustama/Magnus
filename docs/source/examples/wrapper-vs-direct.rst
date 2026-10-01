@@ -27,7 +27,7 @@ Using wrappers vs. scenario calls vs. direct calls
    P_vac = oscprob.osc_prob_3nu_vacuum(E, L, **osc)
    P_mat = oscprob.osc_prob_3nu_matter_constant_density(
        E, L, rho=3.0, density_matter_is_in_g_per_cm3=True, **osc)
-   # Pme = 0.00377306 in vacuum, 0.01347547 in
+   # Pme = 0.00377306 in vacuum, 0.01358909 in
    # matter, in 0.090 ms
 
    P_scan = oscprob.osc_prob_3nu_matter_constant_density(
@@ -135,8 +135,8 @@ Every wrapper takes its arguments in the same four groups: the energy, the geome
        density_matter_is_in_g_per_cm3=True,
        **osc,           # 3. Mixing
        eps_em=0.05)     # 4. New physics
-   # Pme = 0.016972.  Dropping eps_em gives
-   # 0.013475, the standard wrapper's answer
+   # Pme = 0.017126.  Dropping eps_em gives
+   # 0.013589, the standard wrapper's answer
 
 
 The fourth group (“new physics”) exists only in the wrappers whose name carries ``_nsi`` or ``_liv``; Table :ref:`ex-tab-parameters` lists its parameters. Every one of them defaults to zero, so one of those wrappers called without them returns the standard result, bit for bit identical to what the standard wrapper of the same environment returns. That makes it the control for any new-physics scan.
@@ -185,7 +185,7 @@ Every scenario function takes its arguments in the same groups, with the flavor 
        E, L,            # 3. Energy, baseline
        osc_params=osc,  # 4. Mixing
        nsi_params=nsi)  # 5. New physics
-   # Pme = 0.016972, the same number the
+   # Pme = 0.017126, the same number the
    # wrapper above returns
 
 
@@ -211,7 +211,7 @@ The wrapper and scenario function above both reach the probability from named pa
    # proj for three flavors is diag(1, 0, 0)
    proj = matter.matter_potential_projector(3)
 
-   V = gd.VCC_EARTH_CRUST # About 1.14e-13 eV
+   V = gd.VCC_EARTH_CRUST # About 1.145e-13 eV
    H_nsi = hamiltonians.hamiltonian_3nu_nsi(
        V, 0.0, 0.05, 0.0, 0.0, 0.0, 0.0)
 
@@ -219,10 +219,10 @@ The wrapper and scenario function above both reach the probability from named pa
    H = H_vac + V*proj + H_nsi
 
    P = oscprob.osc_prob(H, 0.0, L)   # 4. path
-   # Pme = 0.016972 again
+   # Pme = 0.017126 again
 
 
-``hamiltonian_3nu_nsi`` returns the non-standard term alone, :math:`V_{\rm CC}` times the matrix of couplings, Eq. :eq:`ex-equ-h-nsi-3nu`, without the standard charged-current term. The standard term is a separate summand, which means that leaving ``V*proj`` out of the sum does not raise an error: it returns a converged, unitary probability of 0.005942 for a medium with no ordinary matter effect in it. However, this would represent a physically impossible scenario, since NSI co-exist with standard interactions. Preventing this is up to you.
+``hamiltonian_3nu_nsi`` returns the non-standard term alone, :math:`V_{\rm CC}` times the matrix of couplings, Eq. :eq:`ex-equ-h-nsi-3nu`, without the standard charged-current term. The standard term is a separate summand, which means that leaving ``V*proj`` out of the sum does not raise an error: it returns a converged, unitary probability of 0.005962 for a medium with no ordinary matter effect in it. However, this would represent a physically impossible scenario, since NSI co-exist with standard interactions. Preventing this is up to you.
 
 Assembling the Hamiltonian rarely means writing a matrix from scratch. Magνs ships forty-two Hamiltonian builders: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, in position-dependent and position-independent forms, and three for a pseudo-Dirac spectrum. Listing :ref:`Vacuum and constant density, three ways <ex-lst-constant>` uses one of them for the vacuum term and takes the projector from ``matter``. :ref:`ex-sec-hamiltonians` lists them all, so a direct call is usually a shipped Hamiltonian with something you added to it, e.g., a new non-standard contribution.
 
@@ -345,7 +345,7 @@ Where it is not damped away, the two differ; on the chord of :ref:`ex-sec-solar-
    H = H_vac/E + gd.VCC_EARTH_CRUST*proj
    P = oscprob.osc_prob_energy_baseline(
        H, E, FAR, average=True)
-   # P[0, 0] = 0.8926: the decohered limit,
+   # P[0, 0] = 0.8934: the decohered limit,
    # now from the eigenvectors in matter
 
 

@@ -32,8 +32,8 @@ E00 = np.diag([1.0, 0.0, 0.0])
 
 
 def _vcc(rho):
-    return (np.sqrt(2.0)*gd.GF*rho*gd.UNIT_G_PER_CM3
-            / ((gd.MASS_PROTON + gd.MASS_NEUTRON)/2.0)*0.5)
+    """sqrt(2) G_F rho N_A Y_e at Y_e = 1/2, the package's conversion since 1.2.0 (issue #168)."""
+    return (np.sqrt(2.0)*gd.GF*rho*gd.UNIT_G_PER_CM3/gd.ATOMIC_MASS_UNIT*0.5)
 
 
 def _dop853(H, L, splits):

@@ -261,8 +261,10 @@ in a source checkout).
 
 Two differences matter at the level of the comparison itself:
 
-* **The matter potential for a given density.**  Each code converts g cm\ :sup:`-3` to an
-  electron density with its own rounding of the nucleon mass.  GLoBES's potential is 0.992093
-  times that of Magνs at the same density and :math:`Y_e`, a shift of 0.8%;
-  the comparison drivers rescale for it.
+* **The matter potential for a given density.**  Every code converts g cm\ :sup:`-3` to an
+  electron density as :math:`\rho N_A Y_e`, but with its own rounding of the constant
+  :math:`\sqrt{2} G_F N_A`: Prob3++'s is 0.04% below it and nuCraft's 0.06%; the comparison
+  drivers rescale for each.  Until 1.2.0 Magνs divided by the mean free-nucleon mass instead,
+  0.8% below all of them (issue #168); the stored benchmark data were measured then, and
+  their rescaling factors, 0.992 for GLoBES, carry that 0.8%.
 * **Prob3++ takes Δm²32.**  Passing Δm²31 in its place changes probabilities by up to 0.26.

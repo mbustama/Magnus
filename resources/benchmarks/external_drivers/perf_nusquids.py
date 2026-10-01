@@ -15,7 +15,7 @@ import numpy as np
 
 sys.path.insert(0, '/home/mbustamante/Research/NuOscProb/NuOscProbExact/src')
 
-import globaldefs as gd
+from magnus import globaldefs as gd
 import nuSQuIDS as nsq
 
 U = nsq.Const()

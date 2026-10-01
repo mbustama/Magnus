@@ -66,7 +66,7 @@ def _fraction_rule(name, x, where, a):
     _v.check_real_array(name, x, where, nonnegative=True)
     if np.any(np.asarray(x, dtype=float) > 1.0):
         raise ValueError(_v._msg(where, name + " must be between 0 and 1 (the number of "
-                                 "electrons per nucleon); got " + repr(x) + "."))
+                                 "electrons per atomic mass unit); got " + repr(x) + "."))
 
 
 class DensityUnitWarning(UserWarning):
@@ -545,11 +545,19 @@ def num_density_e_func(l: float, density_matter_func: Callable,
 
     Converts the matter density [:math:`\text{g cm}^{-3}`] to electron number density
     [:math:`\text{eV}^{3}`], for a given matter density profile, density_matter_func,
-    and position, l. The composition is set by ``ratio_number_neutrons_to_protons``
-    and ``electron_fraction``, isoscalar matter being their defaults of 1.0 and 0.5;
-    the Earth path passes both as arrays, one value per radius.
+    and position, l, as :math:`n_e = \rho\, Y_e / m_u`, i.e. :math:`\rho N_A Y_e`, with
+    :math:`m_u` the atomic mass unit (:data:`magnus.globaldefs.ATOMIC_MASS_UNIT`) and
+    :math:`Y_e` = ``electron_fraction`` the electrons per atomic mass unit of the material,
+    :math:`\sum_i w_i Z_i/A_i` with atomic weights :math:`A_i`.  The Earth path passes it
+    as an array, one value per radius.
 
     .. versionadded:: 1.0.0
+
+    .. versionchanged:: 1.2.0
+       Divides by the atomic mass unit.  It divided by the mean free-nucleon mass,
+       :math:`(m_p + r\,m_n)/(1 + r)`, which ignores nuclear binding and put every electron
+       density 0.8% low; ``ratio_number_neutrons_to_protons`` entered only through that mass
+       and no longer affects the result (issue #168).
 
     .. note::
        Its arguments are not validated: it runs at every quadrature node, and they are
@@ -570,8 +578,8 @@ def num_density_e_func(l: float, density_matter_func: Callable,
         Matter density as a function of l [:math:`\text{g cm}^{-3}`] (or, if
         ``density_matter_is_in_g_per_cm3`` is False, already in natural units).
     ratio_number_neutrons_to_protons : float or np.ndarray, optional
-        Ratio of the number of neutrons to protons in matter, used to compute the average
-        nucleon mass. Default: 1.0.
+        Accepted and checked for a signature shared with the callers; since 1.2.0 it does not
+        enter the electron density, which the electron fraction alone fixes. Default: 1.0.
     electron_fraction : float or np.ndarray, optional
         Electron fraction. Default: 0.5.
     density_matter_is_in_g_per_cm3 : bool, optional
@@ -610,13 +618,6 @@ def num_density_e_func(l: float, density_matter_func: Callable,
         raise _v.InputTypeError(_v._msg('matter.num_density_e_func', 'density_matter_func '
                                         'must be callable (a function of position); got '
                                         + type(density_matter_func).__name__ + '.'))
-    avg_mass_nucleon = (gd.MASS_PROTON+gd.MASS_NEUTRON*ratio_number_neutrons_to_protons) \
-                        / (1.0+ratio_number_neutrons_to_protons)
-
-    # num_density_e = density_matter_func(l) * gd.CONV_G_TO_EV \
-    #                     / avg_mass_nucleon * electron_fraction \
-    #                     / gd.CONV_CM3_TO_INV_EV3 # [eV^3]
-
     # If the matter density is given in g cm^{-3} (density_matter_is_in_g_per_cm3 == True), convert it
     # natural units of eV^4.  Otherwise, it is assumed that the matter density is in natural units
     # already.
@@ -628,7 +629,9 @@ def num_density_e_func(l: float, density_matter_func: Callable,
     else:
         _warn_if_density_is_probably_in_g_per_cm3(density, 'num_density_e_func')
 
-    return density / avg_mass_nucleon * electron_fraction * \
+    # Electrons per atomic mass unit times the number of atomic mass units per volume: with
+    # Y_e = sum w_i Z_i/A_i over atomic weights, this is rho N_A Y_e exactly (issue #168).
+    return density / gd.ATOMIC_MASS_UNIT * electron_fraction * \
         (gd.UNIT_G_PER_CM3 if density_matter_is_in_g_per_cm3 else 1.0) # num_density_e [eV^3]
 
 
@@ -708,12 +711,10 @@ def vcc_func_from_rho_func(
         by construction). Default: 0.0.
     ratio_number_neutrons_to_protons : int, float, or Callable, optional
         Ratio of the number of neutrons to protons in matter. Default: 1.0.  A callable is
-        read as :math:`r(l)` and evaluated at each position when converting a matter
-        density -- it sets the average nucleon mass, a property of the local composition --
-        so a position-resolved composition feeds the potential and the sterile projector
-        consistently (see :func:`matter_potential_projector`).  A constant ``rho_func``
-        with a callable ratio therefore still yields a position-*dependent* V_CC.  Ignored
-        when ``density_is_of_number_of_electrons`` is True, where no conversion happens.
+        read as :math:`r(l)` and evaluated at each position.  It sets the sterile states'
+        entry in the matter projector (see :func:`matter_potential_projector`); since 1.2.0
+        it does not enter the electron density (issue #168).  A constant ``rho_func`` with a
+        callable ratio still returns V_CC as a function of position, of constant value.
 
         .. versionchanged:: 1.1.0
            A callable is accepted; it used to have to be a scalar.
@@ -734,9 +735,9 @@ def vcc_func_from_rho_func(
     Returns
     -------
     float, np.ndarray, or Callable
-        V_CC [eV], as a function of position if ``rho_func`` is a function, or if a callable
-        ``ratio_number_neutrons_to_protons`` makes the *matter-density* conversion
-        position-dependent.  Otherwise a constant, evaluated once at ``L0``: an array when
+        V_CC [eV], as a function of position if ``rho_func`` is a function, or if
+        ``ratio_number_neutrons_to_protons`` is callable (a function of constant value
+        since 1.2.0, when the ratio left the conversion; issue #168).  Otherwise a constant, evaluated once at ``L0``: an array when
         ``rho_func`` is an array-valued constant, a float otherwise.  Never an int.
 
         When ``rho_func`` carries an ``l_scale`` attribute, the returned callable is stamped
@@ -835,9 +836,9 @@ def vcc_func_from_rho_func(
                     else ratio_number_neutrons_to_protons),
                 electron_fraction=electron_fraction,
                 density_matter_is_in_g_per_cm3=density_matter_is_in_g_per_cm3)
-        # Coherent forward potential, VCC [eV].  A callable ratio makes the average nucleon
-        # mass -- and so the conversion -- position-dependent even over a constant matter
-        # density, which is why it takes the function branch alongside a callable rho_func.
+        # Coherent forward potential, VCC [eV].  A callable ratio takes the function branch
+        # alongside a callable rho_func: until 1.2.0 it set the nucleon mass of the
+        # conversion, and the branch is kept so that no call changes engine (issue #168).
         if callable(rho_func) or ratio_is_of_l:
             # Return VCC as a function, since the density is a function
             def vcc(l):

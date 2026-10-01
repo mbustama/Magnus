@@ -33,8 +33,8 @@ sys.path.insert(0, os.path.join(_REPO, 'src'))
 
 import numpy as np                                             # noqa: E402
 
-import globaldefs as gd                                        # noqa: E402
-import earth                                                   # noqa: E402
+from magnus import globaldefs as gd                                        # noqa: E402
+from magnus import earth                                                   # noqa: E402
 import hamiltonians3nu                                         # noqa: E402
 import oscprob3nu                                              # noqa: E402
 

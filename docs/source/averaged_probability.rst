@@ -273,7 +273,7 @@ declared discontinuities the average is over an energy window started in flavor,
        P = oscprob.osc_prob_3nu_matter_constant_density(E, L=L, rho=3.0,
            density_matter_is_in_g_per_cm3=True, nu_i=gd.NUMU, nu_f=gd.NUMU, average=True,
            average_initial_state=start, **osc)
-       print(start, float(np.ravel(P)[0]))      # 0.3626 and 0.4528
+       print(start, float(np.ravel(P)[0]))      # 0.3626 and 0.4532
 
 .. _avg-varying:
 

@@ -138,9 +138,9 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
    E = 1 GeV, L = 10193.6 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9129  0.0861  0.0010
-   nu_mu     0.0638  0.6912  0.2449
-   nu_tau    0.0233  0.2227  0.7540
+   nu_e      0.9093  0.0900  0.0007
+   nu_mu     0.0666  0.6870  0.2465
+   nu_tau    0.0241  0.2230  0.7529
 
 The baseline, 10193.6 km, is the length of the chord at
 :math:`\cos\theta_z = -0.8`, which ``magnus.earth.distance_traveled_inside_earth``
@@ -162,9 +162,9 @@ their names in any case):
    E = 10 MeV, L = 300000 km, B16-GS98 solar model
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.5739  0.1825  0.2436
-   nu_mu     0.1588  0.6341  0.2071
-   nu_tau    0.2673  0.1834  0.5493
+   nu_e      0.3580  0.4787  0.1632
+   nu_mu     0.4704  0.4154  0.1141
+   nu_tau    0.1715  0.1058  0.7226
 
 ``--stop-at-table-edge`` returns ``nan``, with a warning, for a baseline that
 ends past the model's last tabulated radius, instead of continuing the profile
@@ -181,9 +181,9 @@ Constant-density matter with non-standard interactions:
    E = 1 GeV, L = 1000 km
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.9895  0.0095  0.0010
-   nu_mu     0.0096  0.9903  0.0001
-   nu_tau    0.0009  0.0002  0.9989
+   nu_e      0.9894  0.0096  0.0010
+   nu_mu     0.0097  0.9903  0.0001
+   nu_tau    0.0009  0.0001  0.9989
 
 Vacuum with a (deliberately large, for illustration) Lorentz-invariance-violating
 term -- compare to the plain-vacuum result above at the same energy and baseline:

@@ -100,11 +100,12 @@ def test_both_density_units_rejected(name):
 
 def test_each_density_unit_alone_unchanged():
     # The values quoted in #112: the g/cm^3 reading, and rho = 3 eV^3 of electrons (vacuum).
+    # The first was 0.013475 until 1.2.0, when n_e became rho N_A Y_e (issue #168).
     P_g = op.osc_prob_3nu_matter_constant_density(E, L, rho=3.0,
                                                   density_matter_is_in_g_per_cm3=True)
     P_e = op.osc_prob_3nu_matter_constant_density(E, L, rho=3.0,
                                                   density_is_of_number_of_electrons=True)
-    assert abs(P_g[1][0] - 0.013475) < 5.0e-7
+    assert abs(P_g[1][0] - 0.013589) < 5.0e-7
     assert abs(P_e[1][0] - 0.003773) < 5.0e-7
 
 

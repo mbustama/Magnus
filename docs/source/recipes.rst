@@ -68,8 +68,8 @@ operator itself, phases included.
     content = abs(R.conj().T @ U)**2
     P_far = abs(R)**2 @ content
 
-    print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])   # 0.7824
-    print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])           # 0.4933
+    print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])   # 0.7818
+    print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])           # 0.4929
 
 ``P`` is what the same call returns without the keyword; ``U`` is complex and
 unitary, indexed ``U[final, initial]``, so ``(abs(U)**2).T`` is ``P``. See
@@ -125,7 +125,7 @@ aligned with the layer boundaries all follow.
     P = np.asarray(oscprob.osc_prob_3nu_earth(10.0*gd.UNIT_GEV, costhz=costhz, L=L))
 
     print('chord   = %.0f km' % (L/gd.UNIT_KM))
-    print('P_mue   = %.6f' % P[1][0])                 # 0.133678
+    print('P_mue   = %.6f' % P[1][0])                 # 0.132224
 
 A detector underground is the same call with its depth named. The zenith angle
 is measured at the detector, so the baseline follows from the geometry and is
@@ -223,7 +223,7 @@ mine, over 200 energies: one call for neutrinos and one for antineutrinos.
     i = np.argmax(np.where(E_dune > 1.5*gd.UNIT_GEV, P_nu[:, 1, 0], 0.0))
     print('shape:', P_nu.shape)                                          # (200, 3, 3)
     print('first maximum at %.2f GeV' % (E_dune[i]/gd.UNIT_GEV))         # 2.06 GeV
-    print('P_mue = %.4f, P_mue-bar = %.4f' % (P_nu[i, 1, 0], P_nubar[i, 1, 0]))   # 0.0796, 0.0145
+    print('P_mue = %.4f, P_mue-bar = %.4f' % (P_nu[i, 1, 0], P_nubar[i, 1, 0]))   # 0.0799, 0.0143
     print('both spectra: %.1f ms' % (1e3*(t1 - t0)))
 
 The two spectra take a few milliseconds together once warm (under 10 ms on a CI runner); the

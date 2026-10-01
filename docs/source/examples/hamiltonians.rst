@@ -144,7 +144,7 @@ A builder marked ``_energy_independent`` returns the same matrix without its :ma
 
 .. code-block:: python
 
-   V = gd.VCC_EARTH_CRUST         # 1.14e-13 eV
+   V = gd.VCC_EARTH_CRUST         # 1.145e-13 eV
    H = ham.hamiltonian_3nu_matter(V)
    H.shape                        # (3, 3)
 
@@ -413,7 +413,7 @@ There are two ways to build a Hamiltonian that Magνs does not ship. The first i
 
    P = oscprob.osc_prob(H_func, 0.0, L,
                         rtol=1e-8, atol=1e-8)
-   # Pme = 0.021084
+   # Pme = 0.021309
 
 
 The second way is to write the matrix directly. ``osc_prob`` requires only a function that returns a Hermitian matrix, of any size, so an entirely new term reaches the solver in the same way as a shipped one. For instance, an off-diagonal term between :math:`\nu_e` and :math:`\nu_\tau` that grows along the path is

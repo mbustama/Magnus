@@ -44,8 +44,8 @@ sys.path.insert(0, os.path.dirname(_HERE))                # for conversions
 import numpy as np                                             # noqa: E402
 
 import conversions                                             # noqa: E402
-import globaldefs as gd                                        # noqa: E402
-import earth                                                   # noqa: E402
+from magnus import globaldefs as gd                                        # noqa: E402
+from magnus import earth                                                   # noqa: E402
 
 # Importing nuCraft installs a `warnings.showwarning` replacement with the
 # Python 2 signature, which raises TypeError the moment nuCraft actually

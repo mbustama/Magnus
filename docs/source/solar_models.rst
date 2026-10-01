@@ -92,15 +92,22 @@ is
 
 .. math::
 
-   n_e = \frac{\rho}{m_N}\,\frac{1 + X}{2},
+   n_e = \rho N_A \left(\frac{X}{m_{\rm H}} + \frac{2(1 - X)}{m_{\rm He}}\right),
 
-with :math:`m_N` the mean nucleon mass: hydrogen brings one electron per nucleon, and
-everything heavier one per two.  This is the formula notebooks 13 and 28 use; inside the
-table, ``'BS05-AGS-OP'`` gives notebook 28's profile bit for bit.  :math:`n_e` is
-interpolated linearly in its logarithm.
+with :math:`m_{\rm H} = 1.00783` and :math:`m_{\rm He} = 4.00260` the atomic masses of
+:math:`^1`\ H and :math:`^4`\ He in atomic mass units: everything heavier than hydrogen is
+counted as helium-4.  Against the full composition of BS05(OP) (:math:`^1`\ H,
+:math:`^4`\ He, :math:`^3`\ He, :math:`^{12}`\ C, :math:`^{14}`\ N, :math:`^{16}`\ O) this is
+within 0.002% at the centre and 0.07% at worst, near :math:`0.3\,R_\odot` where
+:math:`^3`\ He peaks.  The textbook :math:`\rho N_A (1 + X)/2`, which Bahcall's own
+electron-density tables follow, is 0.4 to 0.8% higher, and the mean free-nucleon mass
+used until 1.2.0, :math:`\rho (1 + X)/(2 m_N)`, put :math:`n_e` 0.1 to 0.4% lower (issue
+#168).  Notebooks 13 and 28 use the same formula; inside the table, ``'BS05-AGS-OP'`` gives
+notebook 28's profile bit for bit.  :math:`n_e` is interpolated linearly in its logarithm.
 
 For the wrappers with sterile states, the neutral-current term needs the
-neutron-to-proton ratio, :math:`n_n/n_p = (1 - X)/(1 + X)`.  With a solar model and
+neutron-to-proton ratio, helium's neutrons over all the protons, from the same atomic
+masses: :math:`n_n/n_p = [2(1 - X)/m_{\rm He}]/[X/m_{\rm H} + 2(1 - X)/m_{\rm He}]`.  With a solar model and
 ``ratio_number_neutrons_to_protons`` left at its default, ``None``, the wrappers take it
 from the same table, radius by radius; a value or a callable passed explicitly is used
 instead.  The exponential fit carries no composition, and keeps the 1.0 it always had.
@@ -177,7 +184,7 @@ oscillation:
                                     density_profile='BS05-AGS-OP', strategy='magnus',
                                     t_breakpoints=rows, n_slabs=200_000,
                                     max_n_slabs=10_000_000)
-    print('P_ee = %.9f' % P_ee)    # 0.333876132
+    print('P_ee = %.9f' % P_ee)    # 0.126766302
 
 On the same eleven cases this came within :math:`4\times10^{-9}` of the reference, with no
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two still raised

@@ -376,11 +376,16 @@ Multiplicative conversion factor from :math:`\text{cm}^{-3}` to :math:`\text{eV}
 Units: [:math:`\text{cm}^{3}~\text{eV}^{3}`]
 """
 
-CONV_EV_TO_G = 1.783e-33
+CONV_EV_TO_G = 1.602176634e-19/299792458.0**2*1.0e3
 r"""float: Module-level constant
 
-Multiplicative conversion factor from eV to grams: the mass equivalent of one eV.
+Multiplicative conversion factor from eV to grams: the mass equivalent of one eV,
+:math:`e/c^2` in grams, exact in the SI (:math:`1.78266192\times10^{-33}`).
 Units: [:math:`\text{g eV}^{-1}`]
+
+.. versionchanged:: 1.2.0
+   Exact.  It was rounded to :math:`1.783\times10^{-33}`, which put every density given in
+   :math:`\text{g cm}^{-3}` :math:`1.9\times10^{-4}` low (issue #168).
 """
 
 CONV_G_TO_EV = 1./CONV_EV_TO_G
@@ -433,6 +438,20 @@ Neutron mass.
 Units: [eV]
 """
 
+ATOMIC_MASS_UNIT = 931.49410242e6
+r"""float: Module-level constant
+
+Atomic mass unit, :math:`m_u = m(^{12}\text{C})/12` (CODATA 2018).  A mass density
+becomes an electron density as :math:`n_e = \rho\, Y_e / m_u`, with :math:`Y_e` the
+electrons per atomic mass unit of the material, :math:`\sum_i w_i Z_i / A_i` over its
+elements with their atomic weights :math:`A_i`; this is :math:`\rho N_A Y_e`.  The
+nucleon masses, :data:`MASS_PROTON` and :data:`MASS_NEUTRON`, do not enter: nuclear
+binding makes matter about 0.8% lighter per nucleon than free nucleons.
+Units: [eV]
+
+.. versionadded:: 1.2.0
+"""
+
 ELECTRON_FRACTION_EARTH_CRUST = 0.5
 r"""float: Module-level constant
 
@@ -454,20 +473,19 @@ Avogadro constant
 Units: [:math:`\text{mol}^{-1}`]
 """
 
-# NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
-#                             / ((MASS_PROTON+MASS_NEUTRON)/2.0) \
-#                             * ELECTRON_FRACTION_EARTH_CRUST \
-#                             / pow(CONV_CM_TO_INV_EV, 3.0)
 NUM_DENSITY_E_EARTH_CRUST = DENSITY_MATTER_CRUST_G_PER_CM3 * CONV_G_TO_EV \
-                            / ((MASS_PROTON+MASS_NEUTRON)/2.0) \
+                            / ATOMIC_MASS_UNIT \
                             * ELECTRON_FRACTION_EARTH_CRUST \
                             / pow(CONV_CM_TO_INV_EV, 3.0)
 r"""float: Module-level constant
 
-Electron number density in the Earth's crust.  The mean nucleon mass is taken as
-:math:`(m_p + m_n)/2`, not the atomic mass unit, which puts this about 0.8% below the
-textbook :math:`\rho N_A Y_e`; :data:`VCC_EARTH_CRUST` inherits the same convention.
+Electron number density in the Earth's crust, :math:`\rho N_A Y_e`: the density divided
+by :data:`ATOMIC_MASS_UNIT`.  :data:`VCC_EARTH_CRUST` follows from it.
 Units: [:math:`\text{eV}^{3}`]
+
+.. versionchanged:: 1.2.0
+   Divides by the atomic mass unit instead of the mean free-nucleon mass
+   :math:`(m_p + m_n)/2`, which put it 0.8% low (issue #168).
 """
 
 VCC_EARTH_CRUST = np.sqrt(2.0)*GF*NUM_DENSITY_E_EARTH_CRUST
@@ -1409,6 +1427,7 @@ __all__ = [
     'MASS_ELECTRON',
     'MASS_PROTON',
     'MASS_NEUTRON',
+    'ATOMIC_MASS_UNIT',
     'ELECTRON_FRACTION_EARTH_CRUST',
     'DENSITY_MATTER_CRUST_G_PER_CM3',
     'N_AV',
