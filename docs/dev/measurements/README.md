@@ -23,6 +23,7 @@ measurement (runner, case list, DOP853 references).
 | `issue161_rtol_gap/` | The measured true-error-to-tolerance ratios on smooth PREM chords in `diagnostics.rst` ("What `rtol` and `atol` actually control") |
 | `issue161_undeclared_features/` | How often undeclared jumps and narrow spikes ended the ladder on a wrong answer, and the 140-call benchmark (values and timing) behind the #161 entry of `CHANGELOG.md` |
 | `issue165_pseudo_dirac_resolution/` | The accuracy of `average=True` on a pseudo-Dirac pair, generic route against `osc_prob_pseudo_dirac_vacuum`, in their docstrings, `CHANGELOG.md` and `averaged_probability.rst` |
+| `issue192_sec6_numbers/` | Every number of paper Sec. 6 re-run against the code; the results comment on #108 |
 | `listing1_timing/` | The paper's timing sentence for Listing 1 |
 
 The plan these came from is `docs/dev/HANDOVER_AUTO_TIGHT.md`.  Not kept, and archived outside
