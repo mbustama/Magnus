@@ -5,9 +5,18 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-01
 
 ### Fixed
+
+- **Warnings that say "Shown once per session" are shown once per session** (issue #205).
+  Python's default filter remembers a message per call site and forgets it whenever any code
+  changes the filters, which the package itself does during a calculation; one run of the
+  paper's cavity example printed the same `MagnusConvergenceWarning` four times.  These
+  messages (`MagnusConvergenceWarning`, `ScalarHamiltonianWarning`,
+  `ToleranceNotAchievedWarning` and its subclasses) now go through one helper that remembers
+  what it has shown.  A filter the caller sets still decides: `'always'` shows every one,
+  `'error'` raises, `'ignore'` hides.
 
 - **The windowed average counts the propagations that warned, not the warnings** (issue
   #193).  One propagation can raise the same class twice, so the summary read "Raised by 10

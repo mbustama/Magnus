@@ -21,8 +21,8 @@ keywords:
   - sterile neutrinos
   - non-standard interactions
 license: GPL-3.0-only
-version: 1.1.0
-date-released: "2026-09-06"
+version: 1.2.0
+date-released: "2026-10-01"
 
 # The method this package implements, and the Earth model it ships.  Cited here as well
 # as in README.md and docs/source/refs.bib so that a tool reading only this file still
