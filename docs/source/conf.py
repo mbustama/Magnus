@@ -121,6 +121,37 @@ nitpick_ignore_regex = [
     (r'py:.*', r'(TextIOWrapper|StringIO)'),
 ]
 
+# The Python inventory is the one most often down (docs.python.org returned 503 for hours on
+# 2026-10-01), and its failure is a warning without a type, so -W fails the strict build on it
+# and on every standard-library reference it would have resolved.  When it cannot be fetched
+# within intersphinx_timeout, leave it out and ignore unresolved references to the standard
+# library and the builtins, and only those: NumPy, SciPy, Matplotlib and Magnus's own
+# references stay strict, and the links return on the first build after the site does.
+_PYTHON_INVENTORY = intersphinx_mapping['python'][0] + '/objects.inv'
+
+
+def _inventory_reachable(url, timeout):
+    import urllib.request
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+if not _inventory_reachable(_PYTHON_INVENTORY, intersphinx_timeout):
+    import builtins
+    import re as _re
+    import sys as _sys
+    print('conf.py: %s cannot be fetched; references to the Python standard library are left '
+          'unlinked in this build' % _PYTHON_INVENTORY)
+    del intersphinx_mapping['python']
+    _stdlib = sorted(set(_sys.stdlib_module_names) | {'builtins'})
+    nitpick_ignore_regex += [
+        (r'py:.*', r'(%s)(\..*)?' % '|'.join(_re.escape(m) for m in _stdlib)),
+        (r'py:.*', r'(%s)' % '|'.join(_re.escape(n) for n in sorted(dir(builtins)))),
+    ]
+
 suppress_warnings = ['autoapi.python_import_resolution', 'myst.header',
                      'toc.not_included']
 
