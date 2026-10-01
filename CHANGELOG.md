@@ -358,6 +358,20 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **A short baseline scan at a tight tolerance takes the cumulative scan** (issue #125).  Under
+  `strategy='auto'`, a single-energy scan of 2 to 7 baselines on a smooth profile at a
+  tolerance tighter than 1e-6 went to the hybrid strategy, since the threshold at which it
+  stands aside, `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8`, was set at loose tolerances.
+  Below 1e-6 it is now `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT = 2`.  Over 110 scans at
+  `rtol` = 1e-7 to 1e-12, scored against DOP853, the cumulative scan took 0.06 to 0.18 of the
+  time at the median (at most 1.08, where both sides already ran it), with no silent miss the
+  hybrid did not also make; on realistic profiles the hybrid had mostly declined and the
+  request reached the cumulative scan anyway.  Some of these scans now carry a
+  `ToleranceNotAchievedWarning`, as scans of 8 or more already did, on answers inside the
+  tolerance.  Unchanged at 1e-6 and looser, for single points and energy scans, and under
+  `strategy='hybrid'` or `cumulative=False`.  No result in the paper or its notebooks changes
+  engine.  Measurements in `docs/dev/measurements/issue125_baseline_scans/`.
+
 - **`cumulative=True` over a constant density takes the constant engine** (issue #160).  A
   cumulative scan reuses each baseline's propagator for the next, which a constant Hamiltonian
   does not need: the constant engine's one exact exponential per baseline gives the same

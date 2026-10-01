@@ -977,6 +977,44 @@ defect.  Pass ``cumulative=True`` to take the cumulative scan below the threshol
 """
 
 
+HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT = 2
+r"""int: Module-level constant
+
+What :data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` becomes below
+:data:`AUTO_LADDER_MIN_TOLERANCE` (issue #125): under ``strategy='auto'``, a single-energy scan of
+two or more baselines at a tolerance tighter than 1e-6 goes to the cumulative scan, not to the
+hybrid strategy.  ``tol = min(rtol, atol)``, over those of the two that are set, as for
+:data:`AUTO_LADDER_TIGHT_MAX_PHASE`.
+
+The threshold of 8 was set at 1e-3, where the hybrid strategy is cheap and the cumulative scan
+paid for its probe (up to 5.75x at N = 2 on a solar profile at three flavors).  At tight
+tolerances that trade reverses.  Measured on scans of 2, 4 and 7 baselines at ``rtol`` = 1e-7,
+1e-9 and 1e-12 (``atol`` a hundredth of it), orders 4 and 8, scored against ``solve_ivp``/DOP853 at
+1e-13 (``docs/dev/measurements/issue125/``):
+
+* 96 scans on exponential profiles (25 to 25 000 km, two to five flavors, NSI, LIV), a
+  multi-resonance profile and partial solar chords: the cumulative scan took 0.06 to 0.18 of the
+  time at the median and at most 0.66, with no silent miss the hybrid strategy did not also
+  make;
+* 14 scans on the physical population (tabulated profiles, the BS05 solar model, supernova
+  shocks and turbulence, an Earth crust without declared breakpoints): 0.07 and 0.17 at the
+  median, at most 1.08 where both sides already ran the cumulative scan, and no silent miss on
+  either side.  On these profiles the hybrid strategy declined in 24 of 28 cases and the
+  request reached the cumulative scan anyway, after the wasted attempt.
+
+What it costs: on 3 to 18 of the 96 scans per setting, a :class:`ToleranceNotAchievedWarning`
+where the hybrid strategy was silent, every one on an answer inside the requested tolerance (the
+cumulative scan saying it could not verify convergence, as it does above the threshold).
+
+At 1e-6 and looser nothing changes: there the cumulative scan already answers such scans on
+smooth profiles, and the threshold of 8 still keeps coherent solar scans of fewer baselines on
+the hybrid strategy, as measured.  Phase-averaged requests (``average=True``) never reach this
+choice.
+
+.. versionadded:: 1.2.0
+"""
+
+
 AUTO_LADDER_MAX_PHASE = 1.0e4
 r"""float: Module-level constant
 
@@ -1090,8 +1128,8 @@ measured for issue #70, with the ladder at a tenth of the tolerance
 (:data:`AUTO_LADDER_TOLERANCE_MARGIN`).  Below it, and only with ``integration_method='gl'`` at
 a single baseline, the phase limit shrinks with the tolerance and the order, capped at
 :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, and the ladder runs at the requested tolerance itself.  A
-baseline scan keeps the hybrid strategy there: the cumulative scan that would answer it was not
-measured at such tolerances (issue #125).
+baseline scan goes to the cumulative scan there instead
+(:data:`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT`, issue #125).
 
 Until issue #120 this was a cut-off: no tighter request went to the ladder, because at 1e-9 the
 ladder, run at a tenth of the tolerance, cost 0.9 to 1.3 times the hybrid strategy at four and
@@ -7839,9 +7877,10 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     ones is the tolerance.  Below :data:`AUTO_LADDER_MIN_TOLERANCE` (issue #120) only with
     ``integration_method='gl'``, an order it supports (an even integer from 2 to 8; any other order
     keeps the hybrid strategy's path and its errors) and a single baseline, and the ladder then
-    runs at the requested tolerance rather than a tenth of it.  A baseline scan, which the
-    cumulative scan would answer, was not measured there and keeps the hybrid strategy (issue
-    #125).  Records the decision in ``strategy_info`` when it is taken.
+    runs at the requested tolerance rather than a tenth of it.  A baseline scan gets here below it
+    only with ``cumulative=False``: otherwise the hybrid dispatcher stands aside for the
+    cumulative scan first (issue #125).
+    Records the decision in ``strategy_info`` when it is taken.
 
     With ``batched_scan`` -- several energies at one shared baseline, which the energy-batched
     engine answers in one pass -- the phase condition is dropped at
@@ -8051,9 +8090,17 @@ def _osc_prob_hybrid_dispatch(
     # cumulative=False, crossing the seam took the error from 1.16e-05 at N = 7 to 2.97e-03 at
     # N = 8, a factor of 256 and outside the requested 1e-3, on the strength of one extra
     # baseline.  Pinned by test_engines.test_hybrid_does_not_stand_aside_for_a_disabled_engine.
+    #
+    # Below AUTO_LADDER_MIN_TOLERANCE the threshold drops to
+    # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT (issue #125): there the hybrid's per-point cost
+    # is the larger, and on realistic profiles it mostly declines and reaches the cumulative
+    # scan anyway.
+    _set_tols = [t for t in (rtol, atol) if t > 0.0]
+    _min_points = (HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT
+                   if _set_tols and min(_set_tols) < AUTO_LADDER_MIN_TOLERANCE
+                   else HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS)
     if (strategy == 'auto') and (scan_kwargs.get('cumulative') is not False) \
-            and _cumulative_scan_would_serve(
-                energy_arr, L_arr, L0, HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS):
+            and _cumulative_scan_would_serve(energy_arr, L_arr, L0, _min_points):
         return NotImplemented
 
     magnus_exp_order = scan_kwargs['magnus_exp_order']
@@ -26750,6 +26797,7 @@ __all__ = [
     'CUMULATIVE_AUTO_MIN_POINTS',
     'N_JOBS_MIN_PARALLEL_WORK_S',
     'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS',
+    'HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT',
     'CUMULATIVE_N_ACC_SAFETY',
     'AUTO_LADDER_MAX_PHASE',
     'AUTO_LADDER_MIN_TOLERANCE',
