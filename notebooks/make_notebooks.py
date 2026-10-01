@@ -17605,7 +17605,7 @@ def solar_bgrid(energy_gev):
 
 
 def matter_phase(br, n=4001):
-    # The integral of V_CC along the chord, in rad: 8676 across the diameter.
+    # The integral of V_CC along the chord, in rad: 8699 across the diameter.
     ne_b, hl = solar_chord_ne(br)
     l = np.linspace(0.0, 2*hl, n)
     v = PER_NE*ne_b(l)
