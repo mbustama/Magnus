@@ -82,7 +82,7 @@ which is why `Independence, and why it matters`_ follows the table.
    * - 6
      - **Cumulative scan** (``'cumulative'``)
      - One pass along the longest baseline, recording the running product at every requested
-       baseline: :math:`U(0\to L_2) = U(L_1 \to L_2)\,U(0 \to L_1)`.
+       baseline: :math:`\mathbb{U}(0\to L_2) = \mathbb{U}(L_1 \to L_2)\,\mathbb{U}(0 \to L_1)`.
      - Many baselines at one energy, with a position-dependent ``H``.
      - Differing energies, ``t_slab_edges``, a baseline behind ``L0``, a constant ``H``.
    * - 7
@@ -146,8 +146,8 @@ engines in a fixed order, falling through on ``NotImplemented``:
    * - Taken when
      - Engine
      - Why it is first
-   * - ``average=True`` (on every entry point, ``osc_prob_energy_baseline`` and the
-       Earth and Sun routes included)
+   * - ``average=True`` (on every entry point that takes it, ``osc_prob_energy_baseline``
+       and the Earth and Sun routes included)
      - averaged probability, by one of its three routes
      - It answers a different question from the other engines: the average, not the
        probability at one energy
@@ -182,26 +182,27 @@ Each row falls through to the next on ``NotImplemented``, so the last row is
 reached whenever nothing above it applies.
 
 
-Two thresholds decide the seams, and both are constants with docstrings of their own:
+Three thresholds decide the seams.  Each is a constant whose docstring records the
+measurements behind its value:
 
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
   ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this
-  many points, because the cumulative scan answers all of them from one traversal.  This was
-  25; the constant's own docstring records why it moved, and why a later attempt to lower it
-  to 1 was reverted.
+  many points, because the cumulative scan answers all of them from one traversal.  The
+  cumulative scan is the cheaper of the two at every size measured; the threshold is not lower
+  because a hybrid that stands aside passes the request to the next engine that applies, which
+  is not always the cumulative scan.
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2. The same threshold
-  below a tolerance of 1e-6 (issue #125), where the hybrid strategy is the slower route for a
-  baseline scan: measured on 110 scans of 2 to 7 baselines at 1e-7 to 1e-12 against DOP853, the
-  cumulative scan took 0.06 to 0.18 of the time at the median, with no silent miss the hybrid
-  did not also make.
+  below a tolerance of 1e-6, where the hybrid strategy is the slower route for a baseline scan.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
   reuse.
 
-**The ladder route of** ``'auto'`` (issue #70).  On a smooth profile the hybrid strategy's cost
-is its window search, which does not follow the tolerance.  At a loose tolerance on a moderate
-phase that makes it the slower route.  So, at a tolerance ``min(rtol, atol)`` of
-:data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6 or looser, ``'auto'`` hands a request to
-the ladder ahead of the hybrid when both of these hold:
+.. _auto-ladder-route:
+
+**The ladder route of** ``'auto'``.  On a smooth profile the hybrid strategy's cost is its
+window search, which does not follow the tolerance, so at a loose tolerance on a moderate phase
+it is the slower route, by one to two orders of magnitude.  So, at a tolerance
+``min(rtol, atol)`` of :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6 or looser,
+``'auto'`` hands a request to the ladder ahead of the hybrid when both of these hold:
 
 * the estimated accumulated phase (the integral of the spread of ``H``'s eigenvalues up to the
   longest baseline) is at most :data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE` = 1e4 rad;
@@ -210,43 +211,34 @@ the ladder ahead of the hybrid when both of these hold:
   solar path on the hybrid.
 
 For an energy scan at one baseline that the energy-batched scan will take, the phase condition
-is dropped (issue #84).  That engine shares its slabs across the energies, so the phase limit,
-which prices the ladder one point at a time, does not apply: on 100 energies of a three-flavor,
-two-resonance profile whose phase estimate sat just above it, the hybrid took 62 s and the
-batched scan 0.4 s.
+is dropped: that engine shares its slabs across the energies, so a limit that prices the ladder
+one point at a time does not apply.
 
 The ladder then runs at a tenth of the tolerance
 (:data:`magnus.oscprob.AUTO_LADDER_TOLERANCE_MARGIN`), skips the interaction picture and starts
 on slabs over which the Magnus series is guaranteed to converge.  The hybrid's test for an
-undeclared density jump still runs, and still warns.  Over 20 smooth workloads with phases from
-5 to 1.2e4 rad, the ladder was 2 to 60 times faster than the hybrid on a single point and 12 to
-500 times faster per point of a 40-energy scan, within the tolerance on every one.  On the
-profile of the paper's Fig. 1, its four scans of 140 energies take 40 ms of computation at the
-default tolerance of 1e-3, where the hybrid took 8 s.
+undeclared density jump still runs, and still warns.
 
-**At a tighter tolerance** (issue #120) the route stays open on ``integration_method='gl'`` at a
-single baseline, with a phase limit that shrinks with the tolerance and the order:
+**At a tighter tolerance** the route stays open on ``integration_method='gl'`` at a single
+baseline, with a phase limit that shrinks with the tolerance and the order:
 ``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
-capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad.  The ladder's slab
-count grows as ``tol**(-1/p)``, while the hybrid's window search does not follow the tolerance.
-The limit applies to an energy scan as well, and the ladder runs at the tolerance itself: its
-rungs are then deep in the asymptotic regime, where the difference between two of them already
-overestimates the finer one's error, and a tenth of the tolerance had made it the slower route.
+capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad, which keeps partial
+solar chords on the hybrid.  The ladder's slab count grows as ``tol**(-1/p)``, while the
+hybrid's window search does not follow the tolerance.  The limit applies to an energy scan as
+well, and the ladder runs at the tolerance itself: its rungs are then deep in the asymptotic
+regime, where the difference between two of them already overestimates the finer one's error.
 The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
-``magnus_exp_order = 8``: the limit there is 1 000 rad, its four curves estimate 10 to 78, and
-the ladder answers them in 0.015 to 0.13 of the hybrid's time.  Over the 139 workloads measured
-at 1e-7, 1e-9 and 1e-12 against DOP853, the ladder at order 8 missed no tolerance without a
-warning and never warned where the hybrid had certified; the cap keeps the partial solar chords
-from 2 217 rad on, where it did, on the hybrid.  A baseline scan goes to the cumulative scan at
-such tolerances (issue #125).
+``magnus_exp_order = 8``: the limit there is 1 000 rad, and its four curves estimate 10 to 78.
+A baseline scan goes to the cumulative scan at such tolerances.
 
 **Which engine answers a request.**  Put together, the rules above give the engine that
-answers each kind of request under ``strategy='auto'``, by the shape of the request and the
-tolerance, ``min(rtol, atol)``.  "Many energies" are at one baseline, and "baselines" are at
-one energy.  "Too many slabs" means that the ladder would start with more than a quarter of its
-slab cap, as across the Sun.  "The tightened limit" is the phase limit of the paragraph above,
-on ``integration_method='gl'``; other quadratures keep the adiabatic engine first below 1e-6.
-``strategy_info`` reports the engine that answered.
+answers each kind of request to a scenario function or a wrapper under ``strategy='auto'``, by
+the shape of the request and the tolerance, ``min(rtol, atol)``.  A Hamiltonian of your own
+reaches fewer engines; see `The engines`_.  "Many energies" are at one
+baseline, and "baselines" are at one energy.  "Too many slabs" means that the ladder would
+start with more than a quarter of its slab cap, as across the Sun.  "The tightened limit" is
+the phase limit of the paragraph above, on ``integration_method='gl'``; other quadratures keep
+the adiabatic engine first below 1e-6.  ``strategy_info`` reports the engine that answered.
 
 .. list-table::
    :header-rows: 1
@@ -280,47 +272,21 @@ on ``integration_method='gl'``; other quadratures keep the adiabatic engine firs
      - ladder, energy-batched scan, or cumulative scan, by the shape of the request
      - the same
 
-At a tolerance tighter than 1e-6, a smooth-profile energy scan whose phase exceeds the tightened
-limit still goes to the adiabatic engine, which is the slower route for a scan.  Within the limit
-it now takes the energy-batched scan (issue #120): on 300 energies from 3 to 100 MeV over 200 km
-of an exponential profile (418 rad) at 1e-8, 0.1 s where the adiabatic engine took 11 s.  A
-baseline scan of 2 to 7 points takes the cumulative scan at such tolerances (issue #125).
-Passing ``strategy='magnus'`` keeps an energy scan on the energy-batched scan; it also turns off
-the cumulative scan, so it is not the choice for a baseline scan.
+.. _strategy-magnus:
+
+Passing ``strategy='magnus'`` reproduces the behavior from before the adiabatic engine was
+added, unconditionally: it keeps an energy scan on the energy-batched scan whatever its phase.
+It also turns off the cumulative scan, which postdates that behavior and builds a different
+slab grid, so it reproduces older numbers exactly on a baseline scan too, but is not the choice
+for a fast one.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
-Adding one baseline to a scan just below it changes the answer, because it changes the engine.
-Measured against ``solve_ivp`` when the seam was at 25 baselines, so that 24 went to the hybrid
-and 26 to the cumulative scan (it is now 8 at 1e-6 and looser, and the same step sits between 7 and 8; below 1e-6 it is 2):
-
-.. list-table::
-   :header-rows: 1
-   :widths: 34 22 22 22
-
-   * - Profile
-     - err(N = 24)
-     - err(N = 26)
-     - Ratio
-   * - solar exponential
-     - 3.30e-05
-     - 2.13e-08
-     - 1 546×
-   * - multi-resonance
-     - 1.58e-03
-     - 2.86e-09
-     - 552 945×
-   * - noisy
-     - 6.27e-04
-     - 1.04e-08
-     - 60 418×
-   * - castle wall + breakpoints
-     - 2.80e-11
-     - 2.80e-11
-     - 1.0× (cumulative from N = 2)
-
-In the cases measured, the step was toward the more accurate answer.  A user who adds one
-point to a scan and sees the answer move by more than the tolerance is seeing a change of
-engine, not a fault; ``strategy_info`` names it.
+Adding one baseline to a scan just below a seam (from 7 to 8 baselines at 1e-6 and looser,
+from 1 to 2 below) changes the answer, because it changes the engine.  In the cases measured
+the step was toward the more accurate answer, by up to six orders of magnitude; the
+docstring of :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the
+measurement.  A user who adds one point to a scan and sees the answer move by more than the
+tolerance is seeing a change of engine, not a fault; ``strategy_info`` names it.
 
 **Seeing which engine answered.** The fallbacks are silent by design: they happen on
 ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any scenario

@@ -6,9 +6,7 @@ Conventions
 Everything below is a *choice*. None of it is forced by the physics, all of it
 is forced by consistency, and a convention that is wrong **consistently** passes
 every internal test — which is why they are written down here rather than left
-in the code. Magνs has been bitten by exactly that: a reversed slab ordering, a
-doubled antineutrino potential sign and a flipped two-flavor mass ordering were
-all fixed on the same day, and each had been silently self-consistent.
+in the code.
 
 
 At a glance
@@ -26,8 +24,8 @@ At a glance
        first, ``(n_points, d, d)``
    * - Mixing matrix
      - The PDG parametrization,
-       :math:`U = R_{23}(\theta_{23})\,U_{13}(\theta_{13},\delta_{\rm CP})\,R_{12}(\theta_{12})`,
-       with :math:`U_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`
+       :math:`\mathbb{R} = \mathbb{R}_{23}(\theta_{23})\,\mathbb{R}_{13}(\theta_{13},\delta_{\rm CP})\,\mathbb{R}_{12}(\theta_{12})`,
+       with :math:`\mathbb{R}_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`
    * - Mixing angles
      - Given as sines by default; ``angles='sin2'``, ``'rad'`` or ``'deg'`` changes that
    * - CP phases
@@ -139,20 +137,21 @@ The charged-current potential enters the electron-flavor diagonal entry,
 
 .. math::
 
-   H \;=\; H_\text{vac} \;+\; \mathrm{diag}(V_{CC},\, 0,\, \ldots) ,
+   \mathbb{H} \;=\; \mathbb{H}^{\rm vac} \;+\; \mathrm{diag}(V_{CC},\, 0,\, \ldots) ,
    \qquad V_{CC} = +\sqrt{2}\, G_F n_e ,
 
 and **for antineutrinos it changes sign**. That flip is applied once, inside
 :func:`magnus.matter.vcc_func_from_rho_func`, so a caller passing
 ``nubar=True`` gets it automatically and code downstream must not apply it
-again. It was applied twice once, which gave antineutrinos a positive potential
-and answers that looked plausible.
+again: applied twice, it gives antineutrinos a positive potential and answers that
+look plausible.
 
 Mass ordering
 -------------
 
 The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
-flag: positive is normal, negative is inverted. ``OSC_PARAMS_DEFAULT`` is the
+flag: positive is normal, negative is inverted.
+``OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']``, the default parameter set, is the
 normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
 eV\ :sup:`2`. It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the same
 release :func:`~magnus.globaldefs.load_nufit_params` returns by default, and is
@@ -189,7 +188,7 @@ Units
 -----
 
 Natural units throughout: energies in eV, baselines and positions in
-eV\ :sup:`-1`, so that :math:`HL` is dimensionless.
+eV\ :sup:`-1`, so that :math:`\mathbb{H} L` is dimensionless.
 :mod:`magnus.globaldefs` supplies the conversions — multiply by ``UNIT_KM``,
 ``UNIT_MEV``, ``UNIT_GEV``, ``UNIT_G_PER_CM3`` — and :ref:`units-table` lists
 them.
@@ -263,8 +262,8 @@ Two differences matter at the level of the comparison itself:
 
 * **The matter potential for a given density.**  Every code converts g cm\ :sup:`-3` to an
   electron density as :math:`\rho N_A Y_e`, but with its own rounding of the constant
-  :math:`\sqrt{2} G_F N_A`: Prob3++'s is 0.04% below it and nuCraft's 0.06%; the comparison
-  drivers rescale for each.  Until 1.2.0 Magνs divided by the mean free-nucleon mass instead,
+  :math:`\sqrt{2} G_F N_A`: Prob3++'s is 0.04% below it, and the comparison
+  drivers rescale for it.  Until 1.2.0 Magνs divided by the mean free-nucleon mass instead,
   0.8% below all of them (issue #168); the stored benchmark data were measured then, and
   their rescaling factors, 0.992 for GLoBES, carry that 0.8%.
 * **Prob3++ takes Δm²32.**  Passing Δm²31 in its place changes probabilities by up to 0.26.
