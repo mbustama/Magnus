@@ -5101,8 +5101,41 @@ value it computed first, bit for bit, instead of the phase average (issue #64). 
 default tolerance: where every phase has decohered the two agree far below it, and a result
 that was right before stays exactly what it was.
 
+The test is relative as well as absolute (issue #163): a point is recomputed when some
+probability moves by the gate, or by the gate times its own size.  Absolute alone kept the
+zero-phase limit, about 1e-32, for a probability of 4e-7 at small phase.  Entries below
+:data:`_PHASE_AVERAGE_RELATIVE_FLOOR` on both sides are round-off, and have no relative change.
+
 .. versionadded:: 1.1.1
+
+.. versionchanged:: 1.2.0
+   Relative as well as absolute, and the tolerance-aware gate on every route (issue #163).
 """
+
+
+_PHASE_AVERAGE_RELATIVE_FLOOR = 1.0e-14
+r"""float: Module-level constant
+
+Size below which a probability takes no part in the relative test of
+:data:`_PHASE_AVERAGE_GATE`: double precision leaves such an entry no reliable relative digits.
+
+.. versionadded:: 1.2.0
+"""
+
+
+def _phase_average_moved(P_new, P_old, gate):
+    r"""Whether the phase average moves a point by the gate, absolutely or relatively.
+
+    ``P_new`` and ``P_old`` are ``(..., d, d)``; returns a boolean of shape ``...``.  True when
+    some entry changes by at least ``gate``, or by at least ``gate`` times the larger of its two
+    values where that exceeds :data:`_PHASE_AVERAGE_RELATIVE_FLOOR` (issue #163).
+
+    .. versionadded:: 1.2.0
+    """
+    diff = np.abs(np.asarray(P_new) - np.asarray(P_old))
+    size = np.maximum(np.abs(P_new), np.abs(P_old))
+    relative = (size > _PHASE_AVERAGE_RELATIVE_FLOOR) & (diff >= gate*size)
+    return np.any((diff >= gate) | relative, axis=(-2, -1))
 
 
 # osc_prob's own defaults for the points-per-slab settings, compared by identity on every call.
@@ -5199,8 +5232,9 @@ def _avg_prob_dispatch(
     limit first, and recomputed only where some interference can survive -- on a profile, only
     where the limit's own search found a non-adiabatic window, since adiabatic transport of a
     decohered start carries none; the limit is returned, bit for bit, wherever the two agree
-    within ``_PHASE_AVERAGE_GATE``, or, on a profile, within the tighter of ``rtol`` and ``atol``
-    in ``engine_kwargs`` when that is tighter still.  ``PhaseAveragingWarning`` then says that the result depends
+    within ``_PHASE_AVERAGE_GATE``, or within the tighter of ``rtol`` and ``atol`` in
+    ``engine_kwargs`` when that is tighter still, absolutely and relative to each probability
+    (issue #163).  ``PhaseAveragingWarning`` then says that the result depends
     on the spread.  A Hamiltonian without energy dependence keeps the limit, and the warning
     keeps its original meaning for it: some pair has neither decohered nor stayed coherent.
 
@@ -5363,9 +5397,9 @@ def _avg_prob_dispatch(
     unaveraged_points = 0
     largest_sensitivity = 0.0
     h = _PHASE_SLOPE_STEP
-    # The caller's tolerance, for the profile route: the phase average converges its patches and
-    # phases to the tighter of rtol and atol, and the limit stands only where it agrees within
-    # that, if it is tighter than the gate (issue #65).
+    # The caller's tolerance: the phase average converges its patches and phases to the tighter of
+    # rtol and atol, and the limit stands only where it agrees within that, if it is tighter than
+    # the gate (issue #65; on the closed-form route as well since issue #163).
     tols = [float(t) for t in ((engine_kwargs or {}).get('rtol'), (engine_kwargs or {}).get('atol'))
             if t is not None]
     tol = min(tols) if tols else None
@@ -5374,7 +5408,7 @@ def _avg_prob_dispatch(
     def keep_or_replace(i, P_new, sensitivity):
         # Today's value, bit for bit, unless the phase average moves it by more than the gate.
         nonlocal recomputed_points, spread_sensitive_points, largest_sensitivity
-        if np.max(np.abs(P_new - P_out[i])) >= gate:
+        if _phase_average_moved(P_new, P_out[i], gate):
             P_out[i] = P_new
             recomputed_points += 1
         largest_sensitivity = max(largest_sensitivity, float(sensitivity))
@@ -5416,7 +5450,7 @@ def _avg_prob_dispatch(
                           for enu in energy_arr])
             P_new, sens = avgprob.phase_averaged_probabilities_constant_hamiltonian(H, D,
                 np.asarray(L_arr, dtype=float) - float(L0), spread=spread, dH_dlnE_step=h)
-            moved = np.max(np.abs(P_new - P_out), axis=(1, 2)) >= _PHASE_AVERAGE_GATE
+            moved = _phase_average_moved(P_new, P_out, gate)
             P_out[moved] = P_new[moved]
             recomputed_points += int(np.count_nonzero(moved))
             spread_sensitive_points += int(np.count_nonzero(

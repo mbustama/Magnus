@@ -147,8 +147,11 @@ probability.  Away from the limit, the three properties above fail:
 terms that do.
 
 Every point is computed as the limit first, and returned as such, bit for bit, wherever the
-phase average agrees with it to 1e-4 (on a profile, to the tighter of ``rtol`` and ``atol`` if
-that is smaller), so a result that was right before stays exactly what it was.
+phase average agrees with it to 1e-4, or to the tighter of ``rtol`` and ``atol`` if that is
+smaller, both absolutely and relative to each probability, so a result that was right before
+stays exactly what it was.  (Until 1.2.0 the comparison was absolute only, and on a constant
+Hamiltonian ignored ``rtol`` and ``atol``: at small phase, where a probability is far below
+1e-4, it returned the zero-phase limit, about 1e-32 for a probability of 4.7e-7; issue #163.)
 
 .. _avg-coherence:
 
@@ -388,7 +391,8 @@ average of the same definition on five solar chords from 10 GeV to 10 TeV, the r
 
 The call's ``rtol`` and ``atol`` set the tolerance: the window patches and the stretch phases
 converge to the tighter of the two, 1e-3 by default, and the limit is returned only where it
-agrees with the phase average within that, or within 1e-4 if that is tighter.  On twenty chords
+agrees with the phase average within that, or within 1e-4 if that is tighter, absolutely and
+relatively.  On twenty chords
 through the solar core, from 30 GeV to 3 TeV, the default moves the probability by at most
 4.6e-6 from its value at 1e-5, at 2.4 times the speed.  Called directly,
 :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic` takes the two tolerances as
