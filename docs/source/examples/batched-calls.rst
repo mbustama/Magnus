@@ -3,16 +3,18 @@
 Batched calls
 -------------
 
-Every wrapper and every scenario function accepts an array for the energy, for the baseline, or for both. The other arguments, such as the mixing parameters and the density, take a single value per call. An array of energies at one baseline returns one probability matrix per energy, stacked along an axis:
+Every wrapper and every scenario function accepts an array for the energy, for the baseline, or for both. The other arguments, such as the mixing parameters and the density, take a single value per call. An array of energies at one baseline returns one probability matrix per energy, stacked along an axis. The snippets on this page continue Listing :ref:`A minimal probability calculation <ex-lst-minimal>`, with its imports, ``E``, and ``L``:
 
 .. code-block:: python
+
+   import numpy as np
 
    Es = np.logspace(-1, 1, 200)*gd.UNIT_GEV
    P = oscprob.osc_prob_3nu_vacuum(Es, L)
    P.shape                    # (200, 3, 3)
 
 
-An array of baselines at one energy works the same way. Here, ``E`` is still the 1 GeV of Listing :ref:`A minimal probability calculation <ex-lst-minimal>`:
+An array of baselines at one energy works the same way, here at the 1 GeV of ``E``:
 
 .. code-block:: python
 

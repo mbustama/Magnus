@@ -5,7 +5,7 @@ A minimal example in vacuum, step-by-step
 
 .. _ex-lst-minimal:
 
-**A minimal probability calculation.** The simplest complete calculation: the three-flavor vacuum probabilities for a 1-GeV neutrino over 1 300 km. The oscillation parameters—here and in the rest of :ref:`ex-sec-examples`— take their defaults, the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering  :cite:p:`Esteban:2024eli`. See :ref:`ex-sec-minimal` for details.
+**A minimal probability calculation.** The simplest complete calculation: the three-flavor vacuum probabilities for a 1-GeV neutrino over 1 300 km. The oscillation parameters—here and in the rest of :ref:`ex-sec-examples`— take their defaults, the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering  :cite:p:`Esteban:2024eli`.
 
 .. code-block:: python
 
@@ -72,4 +72,4 @@ The returned matrix is indexed initial flavor first, :math:`P[\alpha][\beta] = P
    abs(U[gd.NUMU][gd.NUE])**2   # 0.00854
 
 
-In vacuum, the Hamiltonian does not depend on position, so the Magnus series stops at its first term: the evolution operator is a single exponential, exact to round-off. Therefore, Listing :ref:`A minimal probability calculation <ex-lst-minimal>` exercises none of the method of :doc:`/methodology`. Everything else on this page is the same four steps with a different wrapper. Once the profile varies, the refinement of :doc:`/methodology` engages, at the default ``rtol`` :math:`=` ``atol`` :math:`= 10^{-3}` unless another tolerance is requested.
+In vacuum, the Hamiltonian does not depend on position, so the Magnus series stops at its first term: the evolution operator is a single exponential, exact to round-off. Therefore, Listing :ref:`A minimal probability calculation <ex-lst-minimal>` exercises none of the method of :doc:`/methodology`. Most of the examples that follow are the same four steps with a different wrapper. Once the profile varies, the refinement of :doc:`/methodology` engages, at the default ``rtol`` :math:`=` ``atol`` :math:`= 10^{-3}` unless another tolerance is requested.

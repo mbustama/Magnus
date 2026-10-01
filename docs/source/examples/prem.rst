@@ -13,7 +13,7 @@ The Earth
    :width: 95%
    :alt: The Earth’s density profile
 
-   **The Earth’s density profile.** The PREM density profile  :cite:p:`Dziewonski:1981xy` against radial distance, with a cut-away globe showing the same layers in the same colors. The electron fraction changes at three radii, marked by the dashed lines: from 0.4656 to 0.4957 at the core-mantle boundary, at 3 480 km; to 0.4952 at 6 346.6 km; and to 0.5551 in the ocean, at 6 368 km. The last two are too close together to separate here. Magνs places a slab edge wherever a chord crosses one of the nine boundaries between PREM’s ten shells, so that no slab straddles a density jump. See :ref:`ex-sec-prem` for details.
+   **The Earth’s density profile.** The PREM density profile  :cite:p:`Dziewonski:1981xy` against radial distance, with a cut-away globe showing the same layers in the same colors. The electron fraction changes at three radii, marked by the dashed lines: from 0.4656 to 0.4957 at the core-mantle boundary, at 3 480 km; to 0.4952 at 6 346.6 km; and to 0.5551 in the ocean, at 6 368 km. The last two are too close together to separate here. Magνs places a slab edge wherever a chord crosses one of the nine boundaries between PREM’s ten shells, so that no slab straddles a density jump.
 
 
 Figure :ref:`The Earth’s density profile <ex-fig-prem>` shows the density profile Magνs uses for the Earth, the Preliminary Reference Earth Model (PREM)  :cite:p:`Dziewonski:1981xy`, built from seismic data. It treats the Earth as a spherically symmetric body of radius :math:`R_\oplus = 6\,371` km, made of ten concentric shells. The density falls from 13.1 g cm\ :math:`^{-3}` at the center to 1.02 g cm\ :math:`^{-3}` in the ocean at the surface, smoothly inside each shell and in jumps between shells. The largest jump is at the core-mantle boundary, 3 480 km from the center, where the density drops from 9.90 to 5.57 g cm\ :math:`^{-3}`. The electron fraction, :math:`Y_e`, reflects the chemical composition, so it changes with radius too, but only at three of the nine boundaries: Magνs uses 0.4656 in the core, 0.4957 in the mantle, 0.4952 in the crust, and 0.5551 in the ocean. The ``earth`` module stores these as ``Y_E_CORE_PREM``, ``Y_E_MANTLE_PREM``, ``Y_E_CRUST_PREM``, and ``Y_E_OCEAN_PREM``. Every Earth wrapper takes ``electron_fraction_core``, ``electron_fraction_mantle``, ``electron_fraction_crust``, and ``electron_fraction_ocean`` to change them.
@@ -52,10 +52,10 @@ An Earth wrapper takes the trajectory as a zenith angle, ``costhz``, and a basel
    P = oscprob.osc_prob_3nu_earth(
        10.0*gd.UNIT_GEV, costhz=costhz,
        L=L*gd.UNIT_KM)
-   P[gd.NUMU][gd.NUE]             # 0.127041
+   P[gd.NUMU][gd.NUE]             # 0.124242
 
 
-By default, the electron fraction changes from layer to layer, as above. Passing ``electron_fraction`` replaces the four values with a single one for the whole Earth. At 5 GeV along this chord, the two choices differ by 0.08 in :math:`P_{\nu_\mu \to \nu_e}`:
+By default, the electron fraction changes from layer to layer, as above. Passing ``electron_fraction`` replaces the four values with a single one for the whole Earth. At 5 GeV along this chord, the two choices differ by 0.07 in :math:`P_{\nu_\mu \to \nu_e}`:
 
 .. code-block:: python
 
@@ -63,9 +63,9 @@ By default, the electron fraction changes from layer to layer, as above. Passing
              nu_i=gd.NUMU, nu_f=gd.NUE)
    E = 5.0*gd.UNIT_GEV
 
-   oscprob.osc_prob_3nu_earth(E, **kw) # 0.1009
+   oscprob.osc_prob_3nu_earth(E, **kw) # 0.0849
    oscprob.osc_prob_3nu_earth(E, **kw, 
-       electron_fraction=0.5)          # 0.0207
+       electron_fraction=0.5)          # 0.0129
 
 
 .. _ex-sec-nu-nubar:
@@ -79,14 +79,14 @@ Neutrinos & antineutrinos, 2–5 flavors
    :width: 95%
    :alt: Neutrinos and antineutrinos through the Earth
 
-   **Neutrinos and antineutrinos through the Earth.** Survival probability of :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` along a PREM chord at :math:`\cos\theta_z = -0.9`, computed with Magνs. *Top*: two flavors, the :math:`(\nu_e, \nu_\mu)` reduction of the 1–3 sector, and three flavors, both from 1 to 40 GeV. *Bottom*: :math:`3+1` and :math:`3+2` from 1 to 30 TeV, where an eV-scale splitting places its resonance, with :math:`\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10` and :math:`\Delta m^2_{41} = 1` eV\ :math:`^2`, joined in the :math:`3+2` panel by :math:`\sin^2\theta_{15} = \sin^2\theta_{25} = 0.06` and :math:`\Delta m^2_{51} = 1.7` eV\ :math:`^2`. Listing :ref:`Neutrinos and antineutrinos through the Earth <ex-lst-nu-nubar>` computes all four pairs. See notebooks `#15 <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-nu-nubar` for details.
+   **Neutrinos and antineutrinos through the Earth.** Survival probability of :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` along a PREM chord at :math:`\cos\theta_z = -0.9`, computed with Magνs. *Top*: two flavors, the :math:`(\nu_e, \nu_\mu)` reduction of the 1–3 sector, and three flavors, both from 1 to 40 GeV. *Bottom*: :math:`3+1` and :math:`3+2` from 1 to 30 TeV, where an eV-scale splitting places its resonance, with :math:`\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10` and :math:`\Delta m^2_{41} = 1` eV\ :math:`^2`, joined in the :math:`3+2` panel by :math:`\sin^2\theta_{15} = \sin^2\theta_{25} = 0.06` and :math:`\Delta m^2_{51} = 1.7` eV\ :math:`^2`. Listing :ref:`Neutrinos and antineutrinos through the Earth <ex-lst-nu-nubar>` computes all four pairs. See notebooks `#15 <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>` shows :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` survival probabilities along the same chord as before, at :math:`\cos \theta_z = -0.9`, at two to five flavors. Listing :ref:`Neutrinos and antineutrinos through the Earth <ex-lst-nu-nubar>` computes all eight curves. One dictionary carries the chord, the channel, and the tolerances through every call, so the four flavor counts differ only in the wrapper, the energy range, and the sterile mixing that 3+1 and 3+2 add.
 
 .. _ex-lst-nu-nubar:
 
-**Neutrinos and antineutrinos through the Earth.** The :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` curves of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`. ``both_signs`` calls a wrapper twice, with ``nubar=False`` for the neutrino and ``nubar=True`` for the antineutrino. See notebooks `#15 <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-nu-nubar` for details.
+**Neutrinos and antineutrinos through the Earth.** The :math:`\nu_\mu` and :math:`\bar{\nu}_\mu` curves of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`. ``both_signs`` calls a wrapper twice, with ``nubar=False`` for the neutrino and ``nubar=True`` for the antineutrino. See notebooks `#15 <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -146,7 +146,7 @@ Probabilities between two locations
    :width: 95%
    :alt: Four chords from Fermilab
 
-   **Four chords from Fermilab.** Appearance probability :math:`P_{\nu_\mu \to \nu_e}` against energy for a beam sent from Fermilab to four named sites, computed with Magνs along the PREM chord joining each pair of locations, at the layered composition of :ref:`ex-sec-prem`. The legend gives the chord length of each. The two shortest show the pattern of a beam experiment: a first oscillation maximum at 1 to 2 GeV, with faster oscillations below it. The two longest reach the matter resonance, which is why the probability along them is several times larger. Listing :ref:`Baselines between named sites <ex-lst-named>` computes the curves. See notebooks `#04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-named-baselines` for details.
+   **Four chords from Fermilab.** Appearance probability :math:`P_{\nu_\mu \to \nu_e}` against energy for a beam sent from Fermilab to four named sites, computed with Magνs along the PREM chord joining each pair of locations, at the layered composition of :ref:`ex-sec-prem`. The legend gives the chord length of each. The two shortest show the pattern of a beam experiment: a first oscillation maximum at 1 to 2 GeV, with faster oscillations below it. The two longest reach the matter resonance, which is why the probability along them is several times larger. Listing :ref:`Baselines between named sites <ex-lst-named>` computes the curves. See notebooks `#04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 .. _ex-tab-sites:
@@ -200,7 +200,7 @@ The fifteen locations ``magnus.earth`` carries by name, with the coordinates it 
    P = oscprob.osc_prob_3nu_earth(
        2.0*gd.UNIT_GEV, loc_ini=fnal,
        loc_fin=hs, nu_i=gd.NUMU, nu_f=gd.NUE)
-   P                              # 0.0794317
+   P                              # 0.0797091
 
 
 Naming two locations fixes the baseline at the chord between them; ``costhz`` or ``L`` passed alongside is ignored. Like any full chord, it reads the same from both ends, since it meets every radius twice, so Magνs evaluates the Hamiltonian over the first half and mirrors the rest. :doc:`/performance` quantifies the saving.
@@ -213,14 +213,14 @@ Naming two locations fixes the baseline at the chord between them; ``costhz`` or
        2.0*gd.UNIT_GEV,
        loc_ini='fermilab', loc_fin='homestake',
        nu_i=gd.NUMU, nu_f=gd.NUE)
-   P                              # 0.0794317
+   P                              # 0.0797091
 
 
-This call and the one with coordinates above return the same probability, 0.0794317; Listing :ref:`Baselines between named sites <ex-lst-named>` uses names. The four chords reach very different depths. The one to SNOLAB stays inside the crust, 11 km down at its deepest. The one to Homestake, the DUNE baseline, reaches 32 km. The one to CERN reaches 960 km, into the lower mantle, and the one to the South Pole reaches 3 770 km, into the outer core.
+This call and the one with coordinates above return the same probability, 0.0797091; Listing :ref:`Baselines between named sites <ex-lst-named>` uses names. The four chords reach very different depths. The one to SNOLAB stays inside the crust, 11 km down at its deepest. The one to Homestake, the DUNE baseline, reaches 32 km. The one to CERN reaches 960 km, into the lower mantle, and the one to the South Pole reaches 3 770 km, into the outer core.
 
 .. _ex-lst-named:
 
-**Baselines between named sites.** The four curves of Figure :ref:`Four chords from Fermilab <ex-fig-named-baselines>`. Two site names replace ``costhz`` and ``L``: the wrapper takes the chord between them as the baseline and its direction as the trajectory. ``chord_length_inside_earth`` returns the chord length. Site names are in Table :ref:`ex-tab-sites`. See notebooks `#04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-named-baselines` for details.
+**Baselines between named sites.** The four curves of Figure :ref:`Four chords from Fermilab <ex-fig-named-baselines>`. Two site names replace ``costhz`` and ``L``: the wrapper takes the chord between them as the baseline and its direction as the trajectory. ``chord_length_inside_earth`` returns the chord length. Site names are in Table :ref:`ex-tab-sites`. See notebooks `#04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -259,12 +259,12 @@ New physics
    :width: 95%
    :alt: New physics along an Earth chord
 
-   **New physics along an Earth chord.** Muon-neutrino survival probability :math:`P_{\nu_\mu \to \nu_\mu}` along a PREM chord at :math:`\cos\theta_z = -0.9`, computed with Magνs for four departures from the standard three-flavor case. *Top left*: non-standard interactions with :math:`\varepsilon_{ee} = 0.10`, :math:`\varepsilon_{e\mu} = 0.05` and :math:`\varepsilon_{\mu\tau} = 0.03`. *Top right*: an isotropic, energy-independent Lorentz-violating term, with eigenvalues :math:`b_1 = b_2 = 0` and :math:`b_3 = 5.4 \cdot 10^{-14}` eV, the value that advances the phase by :math:`\pi` over this chord. *Bottom*: the 3+1 and 3+2 systems of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`, where the eV-scale splittings, :math:`\Delta m_{41}^2` and :math:`\Delta m_{51}^2`, place the matter resonance at the TeV scale. Listing :ref:`New physics along an Earth chord <ex-lst-bsm>` computes the curves. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__, `#08 <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`__, `#09 <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-bsm` for details.
+   **New physics along an Earth chord.** Muon-neutrino survival probability :math:`P_{\nu_\mu \to \nu_\mu}` along a PREM chord at :math:`\cos\theta_z = -0.9`, computed with Magνs for four departures from the standard three-flavor case. *Top left*: non-standard interactions with :math:`\varepsilon_{ee} = 0.10`, :math:`\varepsilon_{e\mu} = 0.05` and :math:`\varepsilon_{\mu\tau} = 0.03`. *Top right*: an isotropic, energy-independent Lorentz-violating term, with eigenvalues :math:`b_1 = b_2 = 0` and :math:`b_3 = 5.4 \cdot 10^{-14}` eV, the value that advances the phase by :math:`\pi` over this chord. *Bottom*: the 3+1 and 3+2 systems of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`, where the eV-scale splittings, :math:`\Delta m_{41}^2` and :math:`\Delta m_{51}^2`, place the matter resonance at the TeV scale. Listing :ref:`New physics along an Earth chord <ex-lst-bsm>` computes the curves. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__, `#08 <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`__, `#09 <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 .. _ex-lst-bsm:
 
-**New physics along an Earth chord.** The five scenarios of Figure :ref:`New physics along an Earth chord <ex-fig-bsm>`, in six calls: the standard case is computed twice, once for each energy range. Every call shares the chord, the channel and the tolerances, differing only in the wrapper and in the parameters of the extra term. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__, `#08 <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`__, `#09 <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-bsm` for details.
+**New physics along an Earth chord.** The five scenarios of Figure :ref:`New physics along an Earth chord <ex-fig-bsm>`, in six calls: the standard case is computed twice, once for each energy range. Every call shares the chord, the channel and the tolerances, differing only in the wrapper and in the parameters of the extra term. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__, `#08 <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`__, `#09 <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -311,12 +311,12 @@ Figure :ref:`A scan of the sterile-state parameters <ex-fig-sterile-scan>` scans
    :width: 95%
    :alt: A scan of the sterile-state parameters
 
-   **A scan of the sterile-state parameters.** Change in the muon-neutrino survival probability when one sterile state is added, :math:`P_{3+1} - P_{3\nu}`, as a function of :math:`\Delta m_{41}^2` and :math:`\sin^2 \theta_{14}`, at a fixed energy of 5 TeV. *Top row*: :math:`\nu_\mu`. *Bottom row*: :math:`\bar{\nu}_\mu`. *Left column*: a core-crossing chord, :math:`\cos\theta_z = -1`. *Right column*: a shallower one, :math:`\cos\theta_z = -0.5`. The other sterile parameters are held at :math:`\sin^2\theta_{24} = 0.10` and :math:`\theta_{34} = 0`. Each panel holds :math:`80 \times 80` probabilities. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-bsm` for details.
+   **A scan of the sterile-state parameters.** Change in the muon-neutrino survival probability when one sterile state is added, :math:`P_{3+1} - P_{3\nu}`, as a function of :math:`\Delta m_{41}^2` and :math:`\sin^2 \theta_{14}`, at a fixed energy of 5 TeV. *Top row*: :math:`\nu_\mu`. *Bottom row*: :math:`\bar{\nu}_\mu`. *Left column*: a core-crossing chord, :math:`\cos\theta_z = -1`. *Right column*: a shallower one, :math:`\cos\theta_z = -0.5`. The other sterile parameters are held at :math:`\sin^2\theta_{24} = 0.10` and :math:`\theta_{34} = 0`. Each panel holds :math:`80 \times 80` probabilities. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 .. _ex-lst-sterile-scan:
 
-**A scan of the sterile-state parameters.** The four panels of Figure :ref:`A scan of the sterile-state parameters <ex-fig-sterile-scan>`, one call of ``panel`` each, for one chord (``costhz``) and one sign (``nubar``). In each, the three-flavor probability is computed once and subtracted from the 3+1 one at every point of the grid. ``S14`` holds :math:`\sin\theta_{14}`; the figure plots its square. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-bsm` for details.
+**A scan of the sterile-state parameters.** The four panels of Figure :ref:`A scan of the sterile-state parameters <ex-fig-sterile-scan>`, one call of ``panel`` each, for one chord (``costhz``) and one sign (``nubar``). In each, the three-flavor probability is computed once and subtracted from the 3+1 one at every point of the grid. ``S14`` holds :math:`\sin\theta_{14}`; the figure plots its square. See notebooks `#07 <https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -359,14 +359,14 @@ Earth oscillograms
    :width: 95%
    :alt: Oscillograms through the Earth
 
-   **Oscillograms through the Earth.** Oscillogram: the :math:`\nu_\mu` survival probability, :math:`P_{\nu_\mu \to \nu_\mu}`, over neutrino energy and arrival direction, computed with Magνs along the PREM profile  :cite:p:`Dziewonski:1981xy`. *Top to bottom*: standard three flavors; three flavors with the non-standard couplings of Figure :ref:`New physics along an Earth chord <ex-fig-bsm>`; 3+1 and 3+2 with the sterile parameters of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`. The dashed line in each panel marks :math:`\cos\theta_z = -0.838`, the direction whose chord just grazes the outer core; steeper trajectories enter the core, where the density nearly doubles. Listing :ref:`Oscillograms through the Earth <ex-lst-oscillogram>` computes the oscillograms. See notebooks `#06 <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-earth-oscillograms` for details.
+   **Oscillograms through the Earth.** Oscillogram: the :math:`\nu_\mu` survival probability, :math:`P_{\nu_\mu \to \nu_\mu}`, over neutrino energy and arrival direction, computed with Magνs along the PREM profile  :cite:p:`Dziewonski:1981xy`. *Top to bottom*: standard three flavors; three flavors with the non-standard couplings of Figure :ref:`New physics along an Earth chord <ex-fig-bsm>`; 3+1 and 3+2 with the sterile parameters of Figure :ref:`Neutrinos and antineutrinos through the Earth <ex-fig-nu-nubar>`. The dashed line in each panel marks :math:`\cos\theta_z = -0.838`, the direction whose chord just grazes the outer core; steeper trajectories enter the core, where the density nearly doubles. Listing :ref:`Oscillograms through the Earth <ex-lst-oscillogram>` computes the oscillograms. See notebooks `#06 <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 Figure :ref:`Oscillograms through the Earth <ex-fig-oscillogram>` shows oscillograms of :math:`\nu_\mu` survival through the Earth, i.e., :math:`P_{\nu_\mu \to \nu_\mu}` across energy and arrival direction, for the standard case, with non-standard interactions, and with one and two sterile states. Listing :ref:`Oscillograms through the Earth <ex-lst-oscillogram>` computes them.
 
 .. _ex-lst-oscillogram:
 
-**Oscillograms through the Earth.** The four panels of Figure :ref:`Oscillograms through the Earth <ex-fig-oscillogram>`. One wrapper call per arrival direction returns a whole energy sweep, with the chord length taken from the direction alone. Only the wrapper and its extra parameters change between panels. Each panel is then drawn twice: first by ``plotting.plot_oscillogram``, then by ``matplotlib`` directly. Both put :math:`\cos\theta_z` on the horizontal axis; Figure :ref:`Oscillograms through the Earth <ex-fig-oscillogram>` puts it on the vertical one. See :ref:`ex-sec-earth-oscillograms` for details.
+**Oscillograms through the Earth.** The four panels of Figure :ref:`Oscillograms through the Earth <ex-fig-oscillogram>`. One wrapper call per arrival direction returns a whole energy sweep, with the chord length taken from the direction alone. Only the wrapper and its extra parameters change between panels. Each panel is then drawn twice: first by ``plotting.plot_oscillogram``, then by ``matplotlib`` directly. Both put :math:`\cos\theta_z` on the horizontal axis; Figure :ref:`Oscillograms through the Earth <ex-fig-oscillogram>` puts it on the vertical one.
 
 .. code-block:: python
 
@@ -507,13 +507,13 @@ Using a custom Earth density profile
 
 The Earth wrappers take their density from PREM, and only the density of the outermost shell can be changed by keyword (:ref:`ex-sec-underground`). A profile of one’s own takes a call one layer down, to the scenario function ``osc_prob_matter_std_potential``, which the wrappers themselves call. The profile is passed as a function of position, and the positions where its density jumps as slab edges.
 
-Listing :ref:`A custom Earth profile <ex-lst-coarse-earth>` replaces PREM’s ten shells with four wider ones: the inner core, the outer core, the mantle, and the crust with the ocean. Each holds a constant density, the mass-weighted mean of the PREM region it replaces, and PREM’s electron fraction for that region (for the outermost shell, the crust’s). Along the chord at :math:`\cos \theta_z = -0.9`, at 10 GeV, the four-shell Earth gives :math:`P_{\nu_\mu \to \nu_\mu} = 0.780`, against 0.801 for PREM. The electron fraction matters as much: with :math:`Y_e = 0.5` in every shell, the four-shell Earth gives 0.811.
+Listing :ref:`A custom Earth profile <ex-lst-coarse-earth>` replaces PREM’s ten shells with four wider ones: the inner core, the outer core, the mantle, and the crust with the ocean. Each holds a constant density, the mass-weighted mean of the PREM region it replaces, and PREM’s electron fraction for that region (for the outermost shell, the crust’s). Along the chord at :math:`\cos \theta_z = -0.9`, at 10 GeV, the four-shell Earth gives :math:`P_{\nu_\mu \to \nu_\mu} = 0.784`, against 0.806 for PREM. The electron fraction matters as much: with :math:`Y_e = 0.5` in every shell, the four-shell Earth gives 0.818.
 
 The four-shell Earth has three boundaries, at radii of 1 221.5, 3 480, and 6 346.6 km. The chord at :math:`\cos \theta_z = -0.9` crosses only the outer two, each twice, which makes four slab edges, against sixteen for PREM. The listing passes those four positions as ``t_breakpoints``, as the Earth wrappers do for PREM.
 
 .. _ex-lst-coarse-earth:
 
-**A custom Earth profile.** A four-shell Earth in place of PREM. The profile is a function of position that returns an electron density; naming the radii where it jumps keeps every slab inside one shell. See :ref:`ex-sec-custom-earth` for details.
+**A custom Earth profile.** A four-shell Earth in place of PREM. The profile is a function of position that returns an electron density; naming the radii where it jumps keeps every slab inside one shell.
 
 .. code-block:: python
 
@@ -558,4 +558,4 @@ The four-shell Earth has three boundaries, at radii of 1 221.5, 3 480, and 6
        3, ne_coarse, E, L, osc_params=osc, L0=0.0,
        t_breakpoints=keep*gd.UNIT_KM,
        density_is_of_number_of_electrons=True, **kw)
-   P                               # 0.780446
+   P                               # 0.784445
