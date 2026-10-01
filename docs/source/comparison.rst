@@ -6,7 +6,9 @@ Against other codes
    :depth: 2
 
 Magνs is not the fastest way to compute every oscillation probability, and this page
-says where it is not.  It follows Sec. 8 of the Magνs paper: eight codes on three setups,
+says where it is not.  It follows the cross-code comparison of the Magνs paper (not yet
+published; its source is in ``resources/paper/`` of the `repository
+<https://github.com/mbustama/Magnus/tree/main/resources/paper>`_): eight codes on three setups,
 NuOscProbExact at two to five flavors, and the cost of an averaged solar probability, all
 computed in notebook 28, and then which code to reach for.  Every code is timed in one
 process on one machine.
@@ -39,7 +41,7 @@ chiefly the constant that fixes :math:`V_{\rm CC}`, so two codes can both reach
 :math:`10^{-14}` here and still disagree with each other at :math:`10^{-4}`.
 
 * **Constant density.**  Most codes land near round-off and differ only in cost,
-  from 0.04 µs per probability for NuFast-LBL to about 100 µs for nuSQuIDS.  Magνs
+  from about 0.07 µs per probability for NuFast-LBL to about 100 µs for nuSQuIDS.  Magνs
   sits at :math:`3 \times 10^{-15}` and 3.9 µs.
 * **Earth, three flavors.**  To reach about :math:`3 \times 10^{-10}`, Magνs needs
   0.43 ms (256 slabs), nuSQuIDS 1.3 ms, NuOscProbExact 26 ms, nuCraft 62 ms and
@@ -63,7 +65,8 @@ Against NuOscProbExact, two to five flavors
    Deviation from an extended-precision reference against time per probability, at
    two to five flavors, on a smooth exponential profile (left) and a core-crossing
    Earth chord (right).  Magνs at orders 4, 6 and 8; NuOscProbExact through its own
-   adaptive refinement.  Both use :math:`Y_e = 0.5`.  NuOscProbExact stops at four
+   adaptive refinement.  Both use :math:`Y_e = 0.5` electrons per atomic mass unit
+   (:ref:`quickstart-conventions`).  NuOscProbExact stops at four
    flavors.
 
 The closed form is the cheaper code at loose tolerances.  At tight tolerances it
@@ -94,6 +97,8 @@ the :math:`10^5` oscillations and averaging them away.  The call is
     P = oscprob.osc_prob_3nu_sun(
         5.0*gd.UNIT_MEV, solarmodels.table_edge('BS05-AGS-OP'), 0.0,
         density_profile='BS05-AGS-OP', average=True, nu_i=gd.NUE, nu_f=gd.NUE)
+
+.. _when-to-use-magnus:
 
 When to use Magνs, and when not
 ---------------------------------
@@ -150,14 +155,15 @@ Before comparing any two codes' numbers
 
 **Check that they agree in vacuum first.**  If they do not, the disagreement is
 in the solvers.  If they agree in vacuum and disagree in matter, it is in the
-conventions — a matter-potential factor, an electron fraction, a channel index
+conventions — a matter-potential factor, a :math:`Y_e`, a channel index
 — and no amount of tolerance will close it.  Notebook 25 spends a whole section
 on a conventions trap for this reason: a 1% difference in :math:`V_{\rm CC}`
 reads exactly like an accuracy difference until you look.
 
 .. seealso::
 
-   Notebook 28 computes every figure on this page.  :doc:`Notebook 25 <tutorials>`
+   Notebook 28 computes every figure on this page.  `Notebook 25
+   <https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb>`_
    compares Magνs with NuOscProbExact and nuSQuIDS in more detail, from the frozen
    datasets in ``notebooks/external_*.json``: batching, the compiled kernel, the solar
    average in nuSQuIDS, and a supernova shock at 3+1 and with NSI.

@@ -247,8 +247,8 @@ def build_parser() -> argparse.ArgumentParser:
              "named in any case: " + ', '.join(solarmodels.SOLAR_MODELS) + '.')
     g_env.add_argument('--nubar', action='store_true',
         help='Compute the probability for antineutrinos instead of neutrinos. No effect '
-             'with --flavors 2 --environment vacuum, where there is no CP phase and no '
-             'matter, so the two probabilities are equal.')
+             'with --flavors 2 --environment vacuum --scenario std, where there is no CP '
+             'phase and no matter, so the two probabilities are equal.')
 
     g_kin = p.add_argument_group('Energy and baseline')
     g_kin.add_argument('--energy', type=_finite_float, required=True, help='Neutrino energy.')
@@ -277,9 +277,12 @@ def build_parser() -> argparse.ArgumentParser:
         help='Unit of --rho/--rho-central: g/cm3 (converted internally) or natural units '
              '(eV^4). Default: g/cm3.')
     g_mat.add_argument('--ratio-n-to-p', type=_finite_float, default=1.0,
-        help='Ratio of the number of neutrons to protons in matter. Default: 1.0.')
+        help='Ratio of the number of neutrons to protons in matter. It sets the '
+             'neutral-current potential of the sterile states, so it has no effect at 2 or '
+             '3 flavors. Default: 1.0.')
     g_mat.add_argument('--electron-fraction', type=_finite_float, default=0.5,
-        help='Electron fraction of matter. Default: 0.5.')
+        help='Y_e, the number of electrons per atomic mass unit of the matter, so that '
+             'n_e = rho N_A Y_e. Default: 0.5.')
 
     g_earth = p.add_argument_group('Earth (--environment earth)')
     g_earth.add_argument('--costhz', type=_finite_float, default=None,
@@ -343,9 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
              'one per NuFIT release, in normal ordering (..._NO) or inverted (..._IO), and for '
              'releases from 4.0 on with (..._SK_) or without (..._NOSK_) Super-Kamiokande '
              'atmospheric data.  OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO.  Pass an unknown name to '
-             'see the full list.  Taken from globaldefs.OSC_PARAMS_PREDEFINED rather than listed '
-             'here, because a hand-written list went stale: it offered only the 6.0 sets, so '
-             'asking for inverted ordering silently dropped a release behind the default.')
+             'see the full list, which is globaldefs.OSC_PARAMS_PREDEFINED.')
 
     g_osc4 = p.add_argument_group('Additional sterile mixing (4+ flavors)')
     g_osc4.add_argument('--s14', type=_finite_float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')

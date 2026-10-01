@@ -112,8 +112,8 @@ dimension and any profile, given as a function of position.
 
 **Fast.**  An energy scan is one batched call rather than a loop, worth about an
 order of magnitude per probability; an oscillogram is one such call per zenith
-angle.  The median call over 164 Earth and solar configurations is
-**2 ms**, warm, on a laptop; [Performance](#performance) has the rest.
+angle.  The median call over 164 Earth, solar, vacuum and constant-density
+configurations is **2 ms**, warm, on a laptop; [Performance](#performance) has the rest.
 
 **Accurate.**  Internally, Magνs propagates the evolution operator with the
 **Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
@@ -187,16 +187,9 @@ baseline is one batched call on compiled kernels (an oscillogram, one such call 
 zenith angle).  And it is **flexible**: the
 Hamiltonian is a callable returning a Hermitian matrix of any size.
 
-Reach for it when the density varies fast against the oscillation length, as in
-the Sun; when the profile has structure at a known place, declared with
-`t_breakpoints`; for more than three flavors; for a Hamiltonian with no closed
-form; for an averaged observable; or for an accuracy below where a composition
-of constant-density slabs floors.  Elsewhere another code may be cheaper: at
-constant density NuFast-LBL is about sixty times faster, and on an Earth chord
-resolved to no better than about 10⁻⁶
-[NuOscProbExact](https://github.com/mbustama/NuOscProbExact) is cheaper.  The
-measurements are on the
-[Against other codes](https://mbustama.github.io/Magnus/comparison.html) page.
+When to reach for it, and when another code is cheaper, is measured on the
+[Against other codes](https://mbustama.github.io/Magnus/comparison.html#when-to-use-magnus)
+page.
 
 ## When is it not the right tool?
 
@@ -214,12 +207,12 @@ probabilities and stops there.
 ## Performance
 
 A single three-flavor Earth probability takes about 2 ms at the default
-tolerance of 10⁻³; across 164 Earth and solar configurations the median call
-takes 2 ms and the slowest under a second.  These are per call, on the laptop
+tolerance of 10⁻³; across 164 Earth, solar, vacuum and constant-density
+configurations the median call takes 2 ms and the slowest under a second.  These are per call, on the laptop
 behind every timing in the paper, with the first call of the session discarded:
 that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first
 time on a machine, when they compile.  The timing harness is
-[`docs/dev/adversarial_batteries/timing.py`](docs/dev/adversarial_batteries/timing.py).
+[`docs/dev/adversarial_batteries/timing.py`](https://github.com/mbustama/Magnus/blob/main/docs/dev/adversarial_batteries/timing.py).
 
 **Pass arrays instead of looping.**  Every wrapper takes an array of energies,
 of baselines or of both, and shares work across the points: worth about an order
@@ -259,23 +252,11 @@ workers; where one applies, a single process is faster.  More:
 ## What "accurate" means here
 
 Every truncation of the Magnus series is anti-Hermitian, so the evolution is
-unitary at any order and tolerance.  The rest is measured:
-
-| Checked against | Result |
-|---|---|
-| Every expansion term, Ω₁ to Ω₁₀, against an independent recursion | relative 10⁻¹¹ |
-| 2ν and 3ν vacuum, 2ν constant-density matter, ν and ν̄: the closed forms | 10⁻¹² |
-| Halving the slab width at orders 2 / 4 / 6, against DOP853 | error ÷ 4 / 16 / 64 |
-| Repeated calls, and a baseline scan in any order | identical, bit for bit |
-| A parallel run against a serial one | to the requested tolerance |
-| The energy-batched scan against the per-point path, grid pinned | 10⁻¹² asserted, 10⁻¹⁴ measured |
-| 40 random smooth profiles, default tolerance | median 10⁻⁸, one silent miss |
-| 120 random step profiles, edges undeclared | 19 outside tolerance, all warned |
-
-A *silent miss* is an answer outside the tolerance with no warning.  `rtol` and
-`atol` are a **stopping rule**, not a guarantee: at the default 10⁻³ an Earth
-probability is usually far more accurate (median 10⁻⁶ from the same call at
-10⁻⁷, largest about 10⁻³).  See
+unitary at any order and tolerance.  The rest is measured against closed forms, an
+independent ODE solver, an independently generated expansion and populations of
+random profiles; the [table of checks and
+results](https://mbustama.github.io/Magnus/index.html#what-accuracy-means) is in the
+documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
 [what they actually control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-actually-control).
 
 ## Salient features
@@ -293,7 +274,7 @@ probability is usually far more accurate (median 10⁻⁶ from the same call at
   any profile you supply.
 - **Beyond the Standard Model**: non-standard interactions, Lorentz-invariance
   violation, sterile states and pseudo-Dirac pairs.
-- **The Magnus expansion to order 10**, with the terms of orders 1 to 6
+- **The Magnus expansion to order 10**, with the terms of orders 1 to 10
   checked against an independently coded recursion.  The default Gauss–Legendre integrators reach orders
   2, 4, 6 and 8 from 1, 2, 3 and 4 evaluations of the Hamiltonian per slab;
   cumulative trapezoid and Simpson quadrature reach order 10.
@@ -323,9 +304,11 @@ Full documentation: **[mbustama.github.io/Magnus](https://mbustama.github.io/Mag
 
 ## Repository layout
 
-The top level only; the [complete listing with a comment on every
-file](https://mbustama.github.io/Magnus/installation.html) is in the
-documentation.  Both are generated from `git ls-files`, so neither can drift.
+The top level only; the [documentation](https://mbustama.github.io/Magnus/installation.html#file-tree)
+adds the package under `src/`, and the complete listing, with a comment on every
+file, is `TREE` in
+[`tests/test_file_tree.py`](https://github.com/mbustama/Magnus/blob/main/tests/test_file_tree.py),
+which checks it against `git ls-files`.
 
 ```text
 Magnus/
@@ -335,7 +318,7 @@ Magnus/
 ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
 ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
 ├── MANIFEST.in                     # Adds tests/conftest.py to the sdist, which skips the checkout-only tests there
-├── README.md                       # This file
+├── README.md                       # Project overview; also the PyPI project description
 ├── docs/                           # Sphinx documentation configuration and source
 ├── fig/                            # Plots produced by the example notebooks
 ├── img/                            # Figures used by the documentation
@@ -357,7 +340,7 @@ report those runs.
 
 ## Requirements
 
-`numpy (>= 1.22)`, `scipy (>= 1.9)`, `joblib`, `matplotlib` (so that
+`numpy (>= 1.22)`, `scipy (>= 1.9)`, `joblib (>= 1.2)`, `matplotlib (>= 3.5)` (so that
 `magnus.plotting` works in any installation) and `numba (>= 0.59)` (for the
 fast matrix exponential).  Tests:
 
