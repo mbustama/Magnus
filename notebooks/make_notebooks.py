@@ -10916,7 +10916,8 @@ $1.9\times10^{-4}$ below NuOscProbExact's at the same density, the two rounding 
 mass differently, so the two $50$-digit references differ by $4.8\times10^{-6}$ in
 $P(\nu_\mu \to \nu_\mu)$ -- five orders above anything either solver contributes. Sharing one
 would report that rounding as Mag$\nu$s' error. Ours is frozen in `magnus_own_reference.json`
-and Mag$\nu$s is measured live against it.
+and Mag$\nu$s is measured live against it, at the conversion that reference was built with,
+the one used until 1.2.0 (issue #168).
 
 Each referee is a Richardson extrapolation of a high-precision slab product on the *continuous*
 profile, cross-checked against an adaptive DOP853 integration sharing none of that machinery.
@@ -10983,7 +10984,10 @@ STERILE_EXT = dict(s14=np.sqrt(_OP['sinsq_th14']), s24=np.sqrt(_OP['sinsq_th24']
 # composition parameter was only ever good to that order; a per-code reference has no
 # such limit, and the cell after the figure measures both statements.  (Since 1.2.0 V_CC
 # is rho N_A Y_e, linear in Y_e, and the floor would not arise; issue #168.)
-YE_EXT = 0.5
+# magnus_own_reference.json was built with the conversion used until 1.2.0, so Y_e is
+# scaled by PINNED_NORMALIZATION, which gives exactly the potential that reference used.
+from prem_chord_common import PINNED_NORMALIZATION
+YE_EXT = 0.5*PINNED_NORMALIZATION
 
 # Magnus' own P(numu -> numu) on the two chords, from magnus_own_reference.json.
 MG_P_REF = {'three_flavor': np.array([row[1] for row in
@@ -11025,7 +11029,7 @@ def timed_batch(call, n_energies, repeat=7, min_block=0.05):
 
 print('frozen dataset: costhz = %.2f, chord %.1f km, P(numu -> numu), NuFIT 4.0 NO'
       % (COSTHZ_EXT, PREM_EXT['baseline_km']))
-print('our chord at that costhz: %.1f km   Magnus at its own Y_e = %.4f'
+print('our chord at that costhz: %.1f km   Magnus at its own Y_e = %.7f'
       % (mg_earth.distance_traveled_inside_earth(COSTHZ_EXT), YE_EXT))
 for _k in ('three_flavor', 'sterile_3plus1'):
     print('  %-14s double-precision cross-check follows the external referee to %.1e and '
