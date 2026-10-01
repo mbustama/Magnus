@@ -108,7 +108,7 @@ from this version):
 
    $ magnus --flavors 3 --environment vacuum \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.1.1 -- osc_prob_3nu_vacuum
+   Magνs 1.2.0 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
@@ -122,7 +122,7 @@ The same calculation, one channel only:
 
    $ magnus --flavors 3 --environment vacuum --energy 1 --energy-unit GeV \
        --baseline 1300 --baseline-unit km --nu-i e --nu-f mu
-   Magνs 1.1.1 -- osc_prob_3nu_vacuum
+   Magνs 1.2.0 -- osc_prob_3nu_vacuum
    E = 1 GeV, L = 1300 km
 
    P = 0.0085
@@ -134,7 +134,7 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
 
    $ magnus --flavors 3 --environment earth --energy 1 --energy-unit GeV \
        --costhz -0.8 --baseline 10193.6 --baseline-unit km
-   Magνs 1.1.1 -- osc_prob_3nu_earth
+   Magνs 1.2.0 -- osc_prob_3nu_earth
    E = 1 GeV, L = 10193.6 km
 
                nu_e   nu_mu  nu_tau
@@ -158,7 +158,7 @@ lists the twelve, and ``--density-profile`` takes their names in any case):
 
    $ magnus --flavors 3 --environment sun --density-profile B16-GS98 \
        --energy 10 --energy-unit MeV --baseline 695700 --baseline-unit km
-   Magνs 1.1.1 -- osc_prob_3nu_sun
+   Magνs 1.2.0 -- osc_prob_3nu_sun
    E = 10 MeV, L = 695700 km, B16-GS98 solar model
 
                nu_e   nu_mu  nu_tau
@@ -181,7 +181,7 @@ Constant-density matter with non-standard interactions:
    $ magnus --flavors 3 --environment matter --scenario nsi --rho 2.7 \
        --eps-ee 0.06 --eps-em -0.06 \
        --energy 1 --energy-unit GeV --baseline 1000 --baseline-unit km
-   Magνs 1.1.1 -- osc_prob_3nu_matter_nsi_constant_density
+   Magνs 1.2.0 -- osc_prob_3nu_matter_nsi_constant_density
    E = 1 GeV, L = 1000 km
 
                nu_e   nu_mu  nu_tau
@@ -197,7 +197,7 @@ term -- compare to the plain-vacuum result above at the same energy and baseline
    $ magnus --flavors 3 --environment vacuum --scenario liv \
        --sxi12 0.3 --b1 6e-13 --b2 1.2e-12 --liv-lambda 1e9 --n-liv 1 \
        --energy 1 --energy-unit GeV --baseline 1300 --baseline-unit km
-   Magνs 1.1.1 -- osc_prob_3nu_vacuum_liv
+   Magνs 1.2.0 -- osc_prob_3nu_vacuum_liv
    E = 1 GeV, L = 1300 km
 
                nu_e   nu_mu  nu_tau
