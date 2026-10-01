@@ -361,3 +361,31 @@ Checked not to move anything else, on `main` with the rule in a scratch copy:
   routed, and bit-identical to `main` where not.
 
 The measurement harness is in `tools/auto_tight/`.
+
+## Addendum, 2026-10-01: tight baseline scans go to the cumulative scan (issue #125)
+
+The #120 addendum left a single-energy baseline scan below 1e-6 on the hybrid, because the
+cumulative scan had not been measured there.  Measured now
+(`docs/dev/measurements/issue125_baseline_scans/`): 96 scans of 2, 4 and 7 baselines on #120's
+families at `rtol` = 1e-7, 1e-9, 1e-12, orders 4 and 8, and 14 on the physical population
+(tabulated, BS05, supernova shocks and turbulence, an Earth crust without declared breakpoints),
+all scored against DOP853.  The cumulative scan took 0.06 to 0.18 of the hybrid's time at the
+median and at most 1.08, and made no silent miss the hybrid did not also make.  On the physical
+profiles the hybrid declined in 24 of 28 cases and the request reached the cumulative scan
+anyway, after the wasted attempt.
+
+So below `AUTO_LADDER_MIN_TOLERANCE` the hybrid dispatcher stands aside for any scan of two or
+more baselines (`HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT = 2`).  Unchanged:
+
+- at 1e-6 and looser, `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8`, which still keeps coherent
+  solar scans of fewer baselines on the hybrid, where it was measured;
+- single points, energy scans, and `AUTO_LADDER_TIGHT_MAX_PHASE` (the energy-scan half of #125
+  was measured on 7 non-solar workloads only, too few to overturn a cap set on solar chords);
+- `strategy='hybrid'` and `cumulative=False`.
+
+The cost: 3 to 18 of the 96 scans per setting now carry a `ToleranceNotAchievedWarning` where
+the hybrid was silent, every one on an answer inside the requested tolerance.
+
+No code call in the paper or in notebook 28 changes engine: their calls tighter than 1e-6 use
+`osc_prob`, `strategy='magnus'`, declared breakpoints (the Earth wrappers among them), a single
+point, an energy scan, or 4 000 baselines.

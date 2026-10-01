@@ -224,15 +224,15 @@ def test_the_full_sun_is_not_rerouted_at_a_tight_tolerance():
     assert 'auto prefers the ladder' not in declined(info).values()
 
 
-def test_a_tight_baseline_scan_keeps_the_hybrid():
-    """A baseline scan at a small phase would go to the cumulative scan, which issue #120 did not
-    measure at tight tolerances; it keeps the hybrid there, as before, until issue #125 does."""
+def test_a_tight_baseline_scan_takes_the_cumulative_scan():
+    """Issue #120 left a tight baseline scan on the hybrid, unmeasured; issue #125 measured it and
+    sends it to the cumulative scan (see test_auto_baseline_scans.py), not to the ladder route."""
     info = {}
     op.osc_prob_3nu_matter_exp_density(
         np.full(3, 0.02)*gd.UNIT_GEV, L=np.array([5.0, 10.0, 25.0])*gd.UNIT_KM, L0=0.0,
         rho_central=3.e3, l_scale=10.0*gd.UNIT_KM, density_matter_is_in_g_per_cm3=True,
         nu_i=gd.NUE, nu_f=gd.NUE, **OSC, rtol=1e-8, atol=1e-8, strategy_info=info)
-    assert info['engine'] == 'hybrid'
+    assert info['engine'] == 'cumulative'
     assert 'auto prefers the ladder' not in declined(info).values()
 
 

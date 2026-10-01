@@ -153,7 +153,8 @@ engines in a fixed order, falling through on ``NotImplemented``:
        probability at one energy
    * - Smooth profile, a tolerance was requested, ``strategy != 'magnus'``,
        the scan is shorter than
-       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`,
+       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` (than
+       :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` below 1e-6),
        and ``'auto'`` did not hand it to the ladder (below) --
        *and it certifies*
      - adiabatic + Magnus patch
@@ -188,6 +189,11 @@ Two thresholds decide the seams, and both are constants with docstrings of their
   many points, because the cumulative scan answers all of them from one traversal.  This was
   25; the constant's own docstring records why it moved, and why a later attempt to lower it
   to 1 was reverted.
+* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2. The same threshold
+  below a tolerance of 1e-6 (issue #125), where the hybrid strategy is the slower route for a
+  baseline scan: measured on 110 scans of 2 to 7 baselines at 1e-7 to 1e-12 against DOP853, the
+  cumulative scan took 0.06 to 0.18 of the time at the median, with no silent miss the hybrid
+  did not also make.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
   reuse.
 
@@ -231,8 +237,8 @@ The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
 the ladder answers them in 0.015 to 0.13 of the hybrid's time.  Over the 139 workloads measured
 at 1e-7, 1e-9 and 1e-12 against DOP853, the ladder at order 8 missed no tolerance without a
 warning and never warned where the hybrid had certified; the cap keeps the partial solar chords
-from 2 217 rad on, where it did, on the hybrid.  A baseline scan keeps the hybrid at such
-tolerances: the cumulative scan that would answer it was not measured there (issue #125).
+from 2 217 rad on, where it did, on the hybrid.  A baseline scan goes to the cumulative scan at
+such tolerances (issue #125).
 
 **Which engine answers a request.**  Put together, the rules above give the engine that
 answers each kind of request under ``strategy='auto'``, by the shape of the request and the
@@ -266,7 +272,7 @@ on ``integration_method='gl'``; other quadratures keep the adiabatic engine firs
        many slabs, adiabatic, and if that cannot certify, the energy-batched scan
    * - Smooth ``H``, 2 to 7 baselines
      - cumulative scan; adiabatic if the phase exceeds 1e4 or with too many slabs
-     - adiabatic; if it cannot certify, the cumulative scan
+     - cumulative scan
    * - Smooth ``H``, 8 or more baselines
      - cumulative scan
      - cumulative scan
@@ -278,15 +284,14 @@ At a tolerance tighter than 1e-6, a smooth-profile energy scan whose phase excee
 limit still goes to the adiabatic engine, which is the slower route for a scan.  Within the limit
 it now takes the energy-batched scan (issue #120): on 300 energies from 3 to 100 MeV over 200 km
 of an exponential profile (418 rad) at 1e-8, 0.1 s where the adiabatic engine took 11 s.  A
-baseline scan of 2 to 7 points keeps the adiabatic engine at such tolerances whatever its phase.
+baseline scan of 2 to 7 points takes the cumulative scan at such tolerances (issue #125).
 Passing ``strategy='magnus'`` keeps an energy scan on the energy-batched scan; it also turns off
-the cumulative scan, so it is not the choice for a baseline scan.  Issue #125 tracks whether the
-tolerance condition should apply to scans at all.
+the cumulative scan, so it is not the choice for a baseline scan.
 
 **The accuracy steps at the seam rather than varying smoothly, and that is by design.**
 Adding one baseline to a scan just below it changes the answer, because it changes the engine.
 Measured against ``solve_ivp`` when the seam was at 25 baselines, so that 24 went to the hybrid
-and 26 to the cumulative scan (it is now 8, and the same step sits between 7 and 8):
+and 26 to the cumulative scan (it is now 8 at 1e-6 and looser, and the same step sits between 7 and 8; below 1e-6 it is 2):
 
 .. list-table::
    :header-rows: 1
