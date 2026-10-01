@@ -389,7 +389,9 @@ def _step_by_hand(relative_spread, n_samples):
 
 def test_average_spread_and_n_samples_set_the_energy_window():
     """Issue #134: across declared discontinuities, average_spread was accepted and ignored, and
-    the sample count could not be set.  Both now reach the window, bit for bit."""
+    the sample count could not be set.  Both now reach the window: the wrapper's average is
+    the by-hand one to round-off.  Bit for bit on some platforms, one ulp apart on others
+    (CI's Python 3.11 to 3.13 runners, since the #168 conversion changed the potential)."""
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         P = _step_window_average(average_spread=0.05, average_n_samples=11)
@@ -397,8 +399,8 @@ def test_average_spread_and_n_samples_set_the_energy_window():
         expected, _ = _step_by_hand(0.05, 11)
         expected_default, _ = _step_by_hand(ap.AVG_DEFAULT_ENERGY_SPREAD,
                                             ap.AVG_DEFAULT_N_SAMPLES)
-    assert float(P) == float(expected)
-    assert float(P_default) == float(expected_default)
+    assert abs(float(P) - float(expected)) < 1e-14
+    assert abs(float(P_default) - float(expected_default)) < 1e-14
     assert abs(float(P) - float(P_default)) > 1e-3     # the keywords are not ignored
 
 
