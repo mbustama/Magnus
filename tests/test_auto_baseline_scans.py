@@ -5,7 +5,7 @@ Below ``AUTO_LADDER_MIN_TOLERANCE`` a single-energy scan of two to seven baselin
 the hybrid strategy, since the threshold at which it yields to the cumulative scan,
 ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS = 8``, was set at loose tolerances.  There the cumulative
 scan took 0.06 to 0.18 of the time at the median, with no silent miss the hybrid did not also
-make (``docs/dev/measurements/issue125/``), so below 1e-6 the threshold is
+make (``docs/dev/measurements/issue125_baseline_scans/``), so below 1e-6 the threshold is
 ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT = 2``.  At 1e-6 and looser nothing changes.
 """
 

@@ -990,7 +990,7 @@ The threshold of 8 was set at 1e-3, where the hybrid strategy is cheap and the c
 paid for its probe (up to 5.75x at N = 2 on a solar profile at three flavors).  At tight
 tolerances that trade reverses.  Measured on scans of 2, 4 and 7 baselines at ``rtol`` = 1e-7,
 1e-9 and 1e-12 (``atol`` a hundredth of it), orders 4 and 8, scored against ``solve_ivp``/DOP853 at
-1e-13 (``docs/dev/measurements/issue125/``):
+1e-13 (``docs/dev/measurements/issue125_baseline_scans/``):
 
 * 96 scans on exponential profiles (25 to 25 000 km, two to five flavors, NSI, LIV), a
   multi-resonance profile and partial solar chords: the cumulative scan took 0.06 to 0.18 of the
@@ -5512,14 +5512,21 @@ def _avg_prob_dispatch(
         # MagnusConvergenceWarning and 41 ToleranceNotAchievedWarning to anything recording
         # warnings (issue #144 §2).  Collected here and raised once per class below, with how
         # many samples raised it; the caller's filters apply to that one, as they would have.
+        # One propagation can raise the same class more than once, so the count is of the
+        # propagations that raised it, not of the warnings.
+        _n_raising = {}
         with warnings.catch_warnings(record=True) as _caught:
             warnings.simplefilter('always')
             for i in range(n_pts):
                 L_i = float(L_arr[i])
 
                 def prob_of_energy(enu, L_i=L_i):
-                    return osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
+                    _start = len(_caught)
+                    P = osc_prob_energy_baseline(htot, enu, L_i, L0, None, None,
                         htot_is_function_only_of_energy, **eng, **extra)
+                    for _category in {_w.category for _w in _caught[_start:]}:
+                        _n_raising[_category] = _n_raising.get(_category, 0) + 1
+                    return P
 
                 P_out[i], sem = avgprob.averaged_probabilities_numerically(prob_of_energy,
                     float(energy_arr[i]), relative_spread=window, n_samples=n_samples)
@@ -5528,7 +5535,7 @@ def _avg_prob_dispatch(
         for _w in _caught:
             _by_class.setdefault(_w.category, []).append(_w)
         for _category, _ws in _by_class.items():
-            warnings.warn(str(_ws[0].message) + "  (Raised by " + str(len(_ws)) + " of the " +
+            warnings.warn(str(_ws[0].message) + "  (Raised by " + str(_n_raising.get(_category, len(_ws))) + " of the " +
                 str(n_pts*n_samples) + " propagations across the energy window of the average; "
                 "shown once here for all of them.)", _category, stacklevel=3)
 
@@ -8068,11 +8075,11 @@ def _osc_prob_hybrid_dispatch(
     # on a solar profile at N = 400: 7.5 s -> 0.29 s, with the error improving from ~1e-5 to
     # ~1e-6 as well.
     #
-    # The threshold is not 2.  This method is accurate and cheap per point, so below
-    # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS the cumulative scan's near-constant cost -- its
-    # strict probe -- is not yet amortized, and yielding would make a small scan several times
-    # slower (7.6x at N = 2) to buy accuracy that was already two orders inside what the caller
-    # asked for.  See that constant for the measurements.
+    # The threshold is HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS (8), or
+    # HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT (2) below AUTO_LADDER_MIN_TOLERANCE.  The
+    # cumulative scan is cheaper on median at every size measured; 8 is where its worst case
+    # (solar, d = 3) stopped costing more than the hybrid.  See those constants for the
+    # measurements.
     #
     # Only under strategy='auto', which promises the best available answer rather than this
     # method in particular; strategy='hybrid' is an explicit request and still gets hybrid.

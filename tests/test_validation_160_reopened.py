@@ -746,6 +746,23 @@ def test_window_route_raises_one_warning_per_class():
     assert tol and 'propagations across the energy window' in tol[0]
 
 
+def test_window_route_counts_propagations_not_warnings():
+    """One propagation can raise a class twice; it said 'Raised by 10 of the 5' (issue #193)."""
+    import re
+    edges = [1000.0*KM]
+
+    def ne(l):
+        return np.where(np.asarray(l) < edges[0], 100.0, 10.0)*gd.N_AV*gd.UNIT_PER_CM3
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        op.osc_prob_matter_std_potential(3, ne, 10.0*gd.UNIT_MEV, 2000.0*KM,
+            gd.load_nufit_params('NuFIT 6.1'), L0=0.0, t_breakpoints=edges, average=True,
+            average_spread=0.05, average_n_samples=5, density_is_of_number_of_electrons=True)
+    counts = [tuple(map(int, m.groups())) for w in caught
+              for m in [re.search(r'Raised by (\d+) of the (\d+)', str(w.message))] if m]
+    assert counts and all(k <= n for k, n in counts), counts
+
+
 def test_window_route_still_honours_an_error_filter():
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
