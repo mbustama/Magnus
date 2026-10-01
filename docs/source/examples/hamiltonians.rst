@@ -144,7 +144,7 @@ A builder marked ``_energy_independent`` returns the same matrix without its :ma
 
 .. code-block:: python
 
-   V = gd.VCC_EARTH_CRUST         # 1.14e-13 eV
+   V = gd.VCC_EARTH_CRUST         # 1.145e-13 eV
    H = ham.hamiltonian_3nu_matter(V)
    H.shape                        # (3, 3)
 
