@@ -1,0 +1,155 @@
+issue #194 paper timings; threads pinned: OMP_NUM_THREADS/MKL_NUM_THREADS/OPENBLAS_NUM_THREADS/NUMEXPR_NUM_THREADS/VECLIB_MAXIMUM_THREADS=1; load average 0.00
+  [control start          0.797 ms, drift 1.000]
+item 1
+    1 lst:validation, fresh process                      wall 0.965 [0.89-1.2] s, calls 0.552 [0.526-0.587] s
+    1 lst:validation default tol, fresh process          wall 0.537 [0.524-0.545] s, calls 0.175 [0.17-0.192] s
+    1 lst:validation, warm                               median 0.41 s  [0.409 s-0.414 s]  (5 x 1 calls)
+    1 lst:validation default tol, warm                   median 53.9 ms  [53.9 ms-54.2 ms]  (5 x 1 calls)
+    1 lst:validation strategy=hybrid, warm               median 8.75 s  [8.62 s-8.85 s]  (3 x 1 calls)
+    engines as printed ['separable', 'separable', 'separable', 'separable']; hybrid ['hybrid', 'hybrid', 'hybrid', 'hybrid']
+  [control after item 1   0.805 ms, drift 1.010]
+item 2
+    2 batched, 5000 E, n_jobs=1, rtol=1e-6 (printed kw)  median 0.496 s  [0.493 s-0.496 s]  (5 x 1 calls)
+    2 per-point, 5000 E, n_jobs=10, rtol=1e-6 (printed kw) median 0.956 s  [0.947 s-0.958 s]  (3 x 1 calls)
+    engines: n_jobs=1 separable, n_jobs=10 magnus
+    2 batched, 5000 E, n_jobs=1, rtol=atol=1e-3 (default) median 0.117 s  [0.117 s-0.118 s]  (5 x 1 calls)
+    2 per-point, 5000 E, n_jobs=10, rtol=atol=1e-3 (default) median 0.84 s  [0.816 s-0.846 s]  (3 x 1 calls)
+    engines: n_jobs=1 separable, n_jobs=10 magnus
+  [cool-down after item 2: 32 s]
+  [control after item 2   0.796 ms, drift 0.999]
+item 3
+    3 2nu vacuum, 200 E, batched                         median 0.0705 ms  [0.0694 ms-0.0717 ms]  (5 x 1024 calls)
+    3 2nu vacuum, 200 E, one call per point              median 10.7 ms  [10.4 ms-10.8 ms]  (3 x 8 calls)
+    3 2nu vacuum, 200 L, batched                         median 0.0678 ms  [0.067 ms-0.0681 ms]  (5 x 1024 calls)
+    3 2nu vacuum, 200 L, one call per point              median 10.3 ms  [10.3 ms-10.4 ms]  (3 x 8 calls)
+    3 2nu constant, 200 E, batched                       median 0.0912 ms  [0.0907 ms-0.0915 ms]  (5 x 1024 calls)
+    3 2nu constant, 200 E, one call per point            median 14.6 ms  [14.5 ms-14.6 ms]  (3 x 4 calls)
+    3 2nu constant, 200 L, batched                       median 0.0904 ms  [0.0903 ms-0.0908 ms]  (5 x 1024 calls)
+    3 2nu constant, 200 L, one call per point            median 14.6 ms  [14.6 ms-14.7 ms]  (3 x 4 calls)
+    3 2nu earth, 200 E, batched                          median 4.09 ms  [4.08 ms-4.34 ms]  (5 x 16 calls)
+    3 2nu earth, 200 E, one call per point               median 0.3 s  [0.3 s-0.301 s]  (3 x 1 calls)
+    3 2nu earth, 200 L, batched                          median 1.9 ms  [1.89 ms-1.9 ms]  (5 x 32 calls)
+    3 2nu earth, 200 L, one call per point               median 0.285 s  [0.285 s-0.286 s]  (3 x 1 calls)
+    3 3nu vacuum, 200 E, batched                         median 0.104 ms  [0.104 ms-0.106 ms]  (5 x 512 calls)
+    3 3nu vacuum, 200 E, one call per point              median 13.4 ms  [13.4 ms-13.5 ms]  (3 x 4 calls)
+    3 3nu vacuum, 200 L, batched                         median 0.107 ms  [0.107 ms-0.107 ms]  (5 x 512 calls)
+    3 3nu vacuum, 200 L, one call per point              median 13.5 ms  [13.4 ms-13.5 ms]  (3 x 4 calls)
+    3 3nu constant, 200 E, batched                       median 0.133 ms  [0.133 ms-0.134 ms]  (5 x 512 calls)
+    3 3nu constant, 200 E, one call per point            median 17.8 ms  [17.7 ms-17.8 ms]  (3 x 4 calls)
+    3 3nu constant, 200 L, batched                       median 0.133 ms  [0.132 ms-0.133 ms]  (5 x 512 calls)
+    3 3nu constant, 200 L, one call per point            median 17.8 ms  [17.8 ms-17.9 ms]  (3 x 4 calls)
+    3 3nu earth, 200 E, batched                          median 12.3 ms  [12.3 ms-12.4 ms]  (5 x 8 calls)
+    3 3nu earth, 200 E, one call per point               median 0.309 s  [0.309 s-0.311 s]  (3 x 1 calls)
+    3 3nu earth, 200 L, batched                          median 2.18 ms  [2.17 ms-2.18 ms]  (5 x 32 calls)
+    3 3nu earth, 200 L, one call per point               median 0.288 s  [0.288 s-0.289 s]  (3 x 1 calls)
+    3 4nu vacuum, 200 E, batched                         median 0.245 ms  [0.243 ms-0.279 ms]  (5 x 256 calls)
+    3 4nu vacuum, 200 E, one call per point              median 30.7 ms  [30.7 ms-30.7 ms]  (3 x 2 calls)
+    3 4nu vacuum, 200 L, batched                         median 0.242 ms  [0.24 ms-0.242 ms]  (5 x 256 calls)
+    3 4nu vacuum, 200 L, one call per point              median 30.8 ms  [30.7 ms-30.8 ms]  (3 x 2 calls)
+    3 4nu constant, 200 E, batched                       median 0.338 ms  [0.337 ms-0.339 ms]  (5 x 256 calls)
+    3 4nu constant, 200 E, one call per point            median 36 ms  [35.7 ms-36.1 ms]  (3 x 2 calls)
+    3 4nu constant, 200 L, batched                       median 0.278 ms  [0.26 ms-0.284 ms]  (5 x 256 calls)
+    3 4nu constant, 200 L, one call per point            median 34.8 ms  [34.6 ms-34.9 ms]  (3 x 2 calls)
+    3 4nu earth, 200 E, batched                          median 24.6 ms  [24.5 ms-24.8 ms]  (5 x 4 calls)
+    3 4nu earth, 200 E, one call per point               median 0.395 s  [0.394 s-0.396 s]  (3 x 1 calls)
+    3 4nu earth, 200 L, batched                          median 2.77 ms  [2.77 ms-2.78 ms]  (5 x 32 calls)
+    3 4nu earth, 200 L, one call per point               median 0.356 s  [0.355 s-0.356 s]  (3 x 1 calls)
+    3 5nu vacuum, 200 E, batched                         median 0.345 ms  [0.344 ms-0.346 ms]  (5 x 256 calls)
+    3 5nu vacuum, 200 E, one call per point              median 39.7 ms  [39.7 ms-39.7 ms]  (3 x 2 calls)
+    3 5nu vacuum, 200 L, batched                         median 0.344 ms  [0.343 ms-0.345 ms]  (5 x 256 calls)
+    3 5nu vacuum, 200 L, one call per point              median 39.7 ms  [39.6 ms-39.7 ms]  (3 x 2 calls)
+    3 5nu constant, 200 E, batched                       median 0.458 ms  [0.455 ms-0.459 ms]  (5 x 128 calls)
+    3 5nu constant, 200 E, one call per point            median 45.6 ms  [45.5 ms-45.7 ms]  (3 x 2 calls)
+    3 5nu constant, 200 L, batched                       median 0.385 ms  [0.383 ms-0.445 ms]  (5 x 256 calls)
+    3 5nu constant, 200 L, one call per point            median 45.8 ms  [45.7 ms-45.9 ms]  (3 x 2 calls)
+    3 5nu earth, 200 E, batched                          median 36.2 ms  [36.2 ms-36.4 ms]  (5 x 2 calls)
+    3 5nu earth, 200 E, one call per point               median 0.427 s  [0.426 s-0.428 s]  (3 x 1 calls)
+    3 5nu earth, 200 L, batched                          median 3.39 ms  [3.38 ms-3.4 ms]  (5 x 16 calls)
+    3 5nu earth, 200 L, one call per point               median 0.369 s  [0.368 s-0.37 s]  (3 x 1 calls)
+  [control after item 3   0.813 ms, drift 1.021]
+item 4
+    4 lst:constant wrappers, vacuum + matter, one energy median 0.155 ms  [0.154 ms-0.155 ms]  (7 x 512 calls)
+    4 lst:constant wrapper, 200 energies                 median 0.133 ms  [0.133 ms-0.133 ms]  (7 x 512 calls)
+    4 lst:constant scenario function, one energy         median 3.56 ms  [3.55 ms-3.59 ms]  (7 x 16 calls)
+    4 lst:constant osc_prob, vacuum + matter             median 0.0432 ms  [0.0423 ms-0.044 ms]  (7 x 2048 calls)
+    4 lst:constant osc_prob_energy_baseline, 200 energies median 5.82 ms  [5.81 ms-5.83 ms]  (7 x 16 calls)
+  [control after item 4   0.797 ms, drift 1.001]
+item 5
+    5 rebuild H at each of 200 energies                  median 3.73 ms  [3.71 ms-3.74 ms]  (7 x 16 calls)
+    5 build once, divide by each energy                  median 0.183 ms  [0.183 ms-0.184 ms]  (7 x 512 calls)
+    5 one probability, 5 flavors, 0.05 GeV               median 5.98 ms  [5.94 ms-6 ms]  (7 x 16 calls)
+    5 one probability, 6 flavors, 0.05 GeV               median 14.3 ms  [14.2 ms-14.4 ms]  (7 x 4 calls)
+    5 one probability, 8 flavors, 0.05 GeV               median 33.1 ms  [32.5 ms-33.5 ms]  (7 x 2 calls)
+    5 one probability, 5 flavors, 0.5 GeV                median 2.31 ms  [2.3 ms-2.33 ms]  (7 x 32 calls)
+    5 one probability, 6 flavors, 0.5 GeV                median 2.81 ms  [2.78 ms-2.82 ms]  (7 x 32 calls)
+    5 one probability, 8 flavors, 0.5 GeV                median 4.45 ms  [4.44 ms-4.47 ms]  (7 x 16 calls)
+  [control after item 5   0.842 ms, drift 1.056]
+item 6
+    6 lst:prob_vs left column (5000 L)                   median 22.1 ms  [22 ms-22.1 ms]  (5 x 4 calls)
+    6 lst:prob_vs right column (3000 E)                  median 0.526 s  [0.525 s-0.526 s]  (5 x 1 calls)
+    6 lst:arrangement, castle wall, nu + nubar           median 20.4 ms  [20.3 ms-20.5 ms]  (5 x 4 calls)
+    6 lst:arrangement, four profiles, eight curves       median 83.1 ms  [81.4 ms-84.3 ms]  (5 x 1 calls)
+  [control after item 6   0.861 ms, drift 1.080]
+item 7
+    7 lst:sun 3 flavors                                  median 0.537 s  [0.537 s-0.54 s]  (3 x 1 calls)
+    7 lst:sun 3 flavors + NSI                            median 0.545 s  [0.543 s-0.545 s]  (3 x 1 calls)
+    7 lst:sun 3+1                                        median 0.864 s  [0.862 s-0.865 s]  (3 x 1 calls)
+    7 lst:sun 3+2                                        median 1.18 s  [1.14 s-1.18 s]  (3 x 1 calls)
+    7 instantaneous solar snippet                        median 1.69 s  [1.69 s-1.69 s]  (3 x 1 calls)
+  [control after item 7   0.809 ms, drift 1.015]
+item 8
+    8   500 points: n_jobs=1 0.365 [0.365-0.366] s, n_jobs=4 0.363 [0.361-0.364] s, speed-up 1.01
+    8  2000 points: n_jobs=1 1.5 [1.47-1.54] s, n_jobs=4 0.64 [0.637-0.641] s, speed-up 2.35
+    8  5000 points: n_jobs=1 3.75 [3.72-3.89] s, n_jobs=4 1.53 [1.53-1.54] s, speed-up 2.44
+  [cool-down after item 8: 32 s]
+  [control after item 8   0.798 ms, drift 1.001]
+item 9
+  [control after item 9   0.797 ms, drift 1.001]
+
+| line | paper says | measured (median [min-max]) | suggested text |
+|---|---|---|---|
+| 274 | about half a second (warm) | 0.41 [0.409-0.414] s | about 0.4 s |
+| 274 | (same, fresh process, calls only) | 0.552 [0.526-0.587] s | about 0.6 s |
+| 274 | about a second incl. start of Python | 0.965 [0.89-1.2] s | about 1.0 s |
+| 274 | about 0.2 s at default tol (fresh, calls) | 0.175 [0.17-0.192] s | about 0.2 s |
+| 274 | (same, warm) | 0.0539 [0.0539-0.0542] s | about 0.05 s |
+| 274 | (same, fresh incl. start of Python) | 0.537 [0.524-0.545] s | about 0.5 s |
+| 274 | some twenty times faster than hybrid | hybrid 8.75 [8.62-8.85] s; ratio 21.3 | some 20 times |
+| 1184 | 0.11 s in one process [rtol=1e-6 (printed kw)] | 0.496 [0.493-0.496] s | 0.50~s |
+| 1184 | ten processes take 1.1 s [rtol=1e-6 (printed kw)] | 0.956 [0.947-0.958] s | 0.96~s |
+| 1184 | 0.11 s in one process [rtol=atol=1e-3 (default)] | 0.117 [0.117-0.118] s | 0.12~s |
+| 1184 | ten processes take 1.1 s [rtol=atol=1e-3 (default)] | 0.84 [0.816-0.846] s | 0.84~s |
+| 1669 | 60-190x, vacuum and constant density | 100-162x | 100--160 times |
+| 1669 | 11-120x, Earth chord | 12-150x | 12--150 times |
+| 1751 | # ... in 0.090 ms | 0.155 [0.154-0.155] ms | in 0.15 ms |
+| 1755 | # ... in 0.123 ms | 0.133 [0.133-0.133] ms | in 0.133 ms |
+| 1761 | # ... in 31.9 ms | 3.56 [3.55-3.59] ms | in 3.56 ms |
+| 1772 | # ... in 0.013 ms | 0.0432 [0.0423-0.044] ms | in 0.043 ms |
+| 1777 | # ... in 3.6 ms | 5.82 [5.81-5.83] ms | in 5.8 ms |
+| 1846 | 0.123 ms vs. 0.090 ms | 0.133 vs 0.155 ms | 0.133~ms vs.~0.15~ms |
+| 1897 | about 0.01 ms per probability | 0.0216 ms (block of two calls / 2) | about 0.02~ms |
+| 1924 | 3.6 ms | 5.82 [5.81-5.83] ms | 5.8~ms |
+| 1924 | about thirty times faster | 43.8x | about 40 times |
+| 2153 | about 4 ms vs 0.2 ms | 3.73 [3.71-3.74] ms vs 0.183 [0.183-0.184] ms | about 4~ms ... 0.2~ms |
+| 2162 | # 4.1 ms | 3.73 [3.71-3.74] ms | 3.7 ms |
+| 2165 | # 0.16 ms | 0.183 [0.183-0.184] ms | 0.18 ms |
+| 2419 | twice at 6, 3.5x at 8 vs 5 [built here, 0.05 GeV] | 2.39x, 5.54x  (5 flavors: 5.98 ms) | 2.4 ... 5.5 times as long |
+| 2419 | twice at 6, 3.5x at 8 vs 5 [built here, 0.5 GeV] | 1.21x, 1.92x  (5 flavors: 2.31 ms) | 1.2 ... 1.9 times as long |
+| 2559 | left column: under 0.5 s | 0.0221 [0.022-0.0221] s | in under 0.03 s |
+| 2559 | right column: under 1 s | 0.526 [0.525-0.526] s | in under 0.6 s |
+| 2588 | eight curves take 0.1 s in all | 0.0831 [0.0814-0.0843] s | 0.08~s in all |
+| 2588 | (the listing: two curves) | 0.0204 [0.0203-0.0205] s |  |
+| 3279 | 0.5, 0.5, 0.8, 1.2 s | 0.54, 0.54, 0.86, 1.18 s | 0.5~s, 0.5~s, 0.9~s, 1.2~s |
+| 3282 | about three seconds | 3.13 s (sum of medians) | about 3 seconds |
+| 3334 | in about 7 s | 1.69 [1.69-1.69] s | in about 2 s |
+| 4572 | 2.4 at 5000, 2.3 at 2000, 1.8 at 500 | 2.44, 2.35, 1.01 | $2.4$ times ... $2.3$ at $2\,000$ and $1.0$ at $500$ |
+| 4658 | i5-1334U, Ubuntu 24.04, kernel 7.0.0, Python 3.12.7, NumPy 1.26.4, magnus 1.1.1 | python 3.12.7; numpy 1.26.4; numba 0.60.0; scipy 1.15.3; joblib 1.5.3; magnus 1.2.0; kernel 7.0.0-34-generic; os Ubuntu 24.04.5 LTS; cpu 13th Gen Intel(R) Core(TM) i5-1334U; logical_cpus 12; memory 16049396 kB | running Ubuntu 24.04.5 LTS on Linux kernel 7.0.0, with Python 3.12.7, {\tt NumPy} 1.26.4, and \magnus\ 1.2.0 |
+
+stability control (300x300 matmul, best of 20): start 0.797 ms; drift ratio min 0.999, max 1.080
+threads: OMP_NUM_THREADS, MKL_NUM_THREADS, OPENBLAS_NUM_THREADS, NUMEXPR_NUM_THREADS, VECLIB_MAXIMUM_THREADS set to 1 for this process and its children; load average now 0.61; total 230 s
+raw timings written to /home/mbustamante/Research/magnus/docs/dev/measurements/issue194_paper_timings/results_laptop-6_2026-10-01.json
+
+Issue #194 part 2 (notebook 28 timings cache), only if wanted:
+  pip install -e ".[notebooks]"
+  env -u MAGNUS_PAPER_CACHE_ONLY MAGNUS_PAPER_RETIME=1 python notebooks/make_notebooks.py --only 28
+  (rewrites notebooks/28_magnus_paper_figures.ipynb and notebooks/paper_figure_cache.json; commit both)
