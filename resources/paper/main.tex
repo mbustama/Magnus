@@ -1181,7 +1181,7 @@ The gain is well below the number of parallel processes. Section~\ref{sec:cost} 
 
 Figure~\ref{fig:batching} shows why the two differ. Computed one point at a time, a scan of $N$ energies runs $N$ refinement ladders. Batching removes most of that work: the energy-batched scan runs one ladder for all $N$ energies, sampling the profile once per slab, and the cumulative scan covers every baseline in a single pass. Parallelization does not reduce the work: all $N$ ladders still run, but several at a time, on different cores. At best, this divides the run time by the number of processes; in practice, the cost of starting the processes and moving work between them keeps the gain well below that.
 
-Batching over energies and parallelization exclude each other. The energy-batched scan and the constant-Hamiltonian engine answer only at {\tt n\_jobs} $= 1$; any other value sends the scan to the per-point path, computed in parallel, which is slower than the batched path in one process. For a three-flavor scan of 5\,000 energies between 0.5 and 20~GeV along the PREM chord at $\cos\theta_z = -0.9$, with a baseline of 11\,468~km, the batched path takes 0.11~s in one process; ten processes take 1.1~s (Sec.~\ref{sec:cost}). The cumulative scan does not depend on {\tt n\_jobs}: a scan over baselines at one energy is answered in one process regardless.
+Batching over energies and parallelization exclude each other. The energy-batched scan and the constant-Hamiltonian engine answer only at {\tt n\_jobs} $= 1$; any other value sends the scan to the per-point path, computed in parallel, which is slower than the batched path in one process. For a three-flavor scan of 5\,000 energies between 0.5 and 20~GeV along the PREM chord at $\cos\theta_z = -0.9$, with a baseline of 11\,468~km, the batched path takes 0.12~s in one process; ten processes take 0.8~s (Sec.~\ref{sec:cost}). The cumulative scan does not depend on {\tt n\_jobs}: a scan over baselines at one energy is answered in one process regardless.
 
 In practice, for the majority of applications of \magnus, the user should pass arrays and leave {\tt n\_jobs} at its default of 1. Setting {\tt n\_jobs} above 1 pays only for a scan that no batched engine accepts, such as one where every energy has its own baseline; \figu{njobs_scaling} shows the gain in that case.
 
@@ -1666,7 +1666,7 @@ P[0, 1, 0], P[1, 1, 0]   # 0.048968 both
 \end{pysnip}
 To compute a grid of energies and baselines, such as an oscillogram, the user makes one call per baseline, each with the full array of energies.
 
-A batched call is much faster than the same points computed one at a time, because \magnus\ shares the work across them (Sec.~\ref{sec:engines}). Where the Hamiltonian does not vary along the path, as in vacuum or at constant density, the whole scan is one stack of matrix exponentials. Where it varies, the energy-batched engine samples the density profile once for all the energies of a scan, and the cumulative engine computes all the baselines of a scan in a single pass. For scans of 200 points, at two to five flavors, batching is 60--190 times faster than one call per point in vacuum and at constant density, and 11--120 times faster along an Earth chord. The gain is smallest where the energies need the most different refinements, as for an eV-scale sterile neutrino along an Earth chord: $1.7 \times$, for 40 energies at four flavors.
+A batched call is much faster than the same points computed one at a time, because \magnus\ shares the work across them (Sec.~\ref{sec:engines}). Where the Hamiltonian does not vary along the path, as in vacuum or at constant density, the whole scan is one stack of matrix exponentials. Where it varies, the energy-batched engine samples the density profile once for all the energies of a scan, and the cumulative engine computes all the baselines of a scan in a single pass. For scans of 200 points, at two to five flavors, batching is 100--160 times faster than one call per point in vacuum and at constant density, and 12--150 times faster along an Earth chord. The gain is smallest where the energies need the most different refinements, as for an eV-scale sterile neutrino along an Earth chord: $1.7 \times$, for 40 energies at four flavors.
 
 In vacuum and at constant density, batched and point-by-point results agree exactly at two and three flavors, and to within $10^{-11}$ at four and five. Along a varying profile, each route refines its answer to the requested tolerance on its own, so the two agree to within about that tolerance, but not exactly.
 
@@ -1748,17 +1748,17 @@ P_vac = oscprob.osc_prob_3nu_vacuum(E, L, **osc)
 P_mat = oscprob.osc_prob_3nu_matter_constant_density(
     E, L, rho=3.0, density_matter_is_in_g_per_cm3=True, **osc)
 # Pme = 0.00377306 in vacuum, 0.01358909 in
-# matter, in 0.090 ms
+# matter, in 0.15 ms
 
 P_scan = oscprob.osc_prob_3nu_matter_constant_density(
     Es, L, rho=3.0, density_matter_is_in_g_per_cm3=True, **osc)
-# P_scan.shape = (200, 3, 3), in 0.123 ms
+# P_scan.shape = (200, 3, 3), in 0.13 ms
 
 # --- 2. With a scenario function
 rho_func = lambda l: 3.0*gd.UNIT_G_PER_CM3
 P_mat = oscprob.osc_prob_matter_std_potential(
     3, rho_func, E, L, osc_params=osc)
-# The same number, to 1e-16, in 31.9 ms
+# The same number, to 1e-16, in 3.6 ms
 
 # --- 3. With a Hamiltonian built by hand
 H_vac = ham.hamiltonian_3nu_vacuum_energy_independent(
@@ -1769,12 +1769,12 @@ proj = matter.matter_potential_projector(3)
 P_vac = oscprob.osc_prob(H_vac/E, 0.0, L)
 P_mat = oscprob.osc_prob(
     H_vac/E + gd.VCC_EARTH_CRUST*proj, 0.0, L)
-# The same two numbers, in 0.013 ms
+# The same two numbers, in 0.043 ms
 
 P_scan = oscprob.osc_prob_energy_baseline(
     lambda e: H_vac/e + gd.VCC_EARTH_CRUST*proj, Es, L,
     H_func_is_function_only_of_energy=True)
-# The same 200 points, in 3.6 ms
+# The same 200 points, in 5.8 ms
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1843,7 +1843,7 @@ P = oscprob.\
 \end{pysnip}
 The fourth group (``new physics'') exists only in the wrappers whose name carries {\tt \_nsi} or {\tt \_liv}; \tabl{parameters} lists its parameters. Every one of them defaults to zero, so one of those wrappers called without them returns the standard result, bit for bit identical to what the standard wrapper of the same environment returns. That makes it the control for any new-physics scan. 
 
-Passing {\tt rho} as a scalar makes the Hamiltonian independent of position, so the request reaches the constant-Hamiltonian engine of Sec.~\ref{sec:engines} and the whole scan becomes one stack of matrix exponentials. Two hundred energies cost 0.123~ms vs.~0.090~ms for one, so the scan is nearly free.
+Passing {\tt rho} as a scalar makes the Hamiltonian independent of position, so the request reaches the constant-Hamiltonian engine of Sec.~\ref{sec:engines} and the whole scan becomes one stack of matrix exponentials. Two hundred energies cost 0.13~ms, no more than the 0.15~ms of a single energy, so the scan is nearly free.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1894,7 +1894,7 @@ In constant density, scenario functions are the wrong tool. A callable {\tt rho\
 
 \subsubsection{Through a direct call}
 
-Handing {\tt osc\_prob} a matrix is the only route on which the user has to assemble the Hamiltonian themselves; the wrappers and the scenario functions build it from the parameters they are given. At the same time, it is the cheapest route per probability, about 0.01~ms, because the parameter resolution, input validation, and assembly have already been paid for by the user.
+Handing {\tt osc\_prob} a matrix is the only route on which the user has to assemble the Hamiltonian themselves; the wrappers and the scenario functions build it from the parameters they are given. At the same time, it is the cheapest route per probability, about 0.02~ms, because the parameter resolution, input validation, and assembly have already been paid for by the user.
 
 The wrapper and scenario function above both reach the probability from named parameters, building the Hamiltonian internally on the way. At the base layer, the user must perform that construction themselves. For the same case of NSI at three flavors in constant-density matter, this means computing and summing three matrices, \ie,
 \begin{pysnip}
@@ -1921,7 +1921,7 @@ P = oscprob.osc_prob(H, 0.0, L)   # 4. path
 
 Assembling the Hamiltonian rarely means writing a matrix from scratch. \magnus\ ships forty-three Hamiltonian builders: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, in position-dependent and position-independent forms, and three for a pseudo-Dirac spectrum. Listing~\ref{lst:constant} uses one of them for the vacuum term and takes the projector from {\tt matter}. Section~\ref{sec:hamiltonians} lists them all, so a direct call is usually a shipped Hamiltonian with something added to it by the user, \eg, a new non-standard contribution.
 
-The direct route does not batch: {\tt osc\_prob} takes one Hamiltonian at one energy and one baseline, and returns one matrix of probabilities. To scan energies with a Hamiltonian built by hand, the user passes it to {\tt osc\_prob\_energy\_baseline}, the third layer of \figu{layers}, which calls {\tt osc\_prob} once per energy. For the 200 energies of Listing~\ref{lst:constant}, that takes 3.6~ms. The wrapper computes the same 200 energies in 0.123~ms, about thirty times faster, because it hands them to the constant-Hamiltonian engine as one batch.
+The direct route does not batch: {\tt osc\_prob} takes one Hamiltonian at one energy and one baseline, and returns one matrix of probabilities. To scan energies with a Hamiltonian built by hand, the user passes it to {\tt osc\_prob\_energy\_baseline}, the third layer of \figu{layers}, which calls {\tt osc\_prob} once per energy. For the 200 energies of Listing~\ref{lst:constant}, that takes 5.8~ms. The wrapper computes the same 200 energies in 0.13~ms, about forty times faster, because it hands them to the constant-Hamiltonian engine as one batch.
 
 Calling {\tt osc\_prob} is the most general route: replacing the scalar {\tt V} by a function of position gives a varying profile, as in Sec.~\ref{sec:hamiltonians}; replacing the whole Hamiltonian matrix is illustrated in Secs.~\ref{sec:building_new_hamiltonian} and~\ref{sec:lri_sun}.
 
@@ -2159,10 +2159,10 @@ H0 = ham.\
     **osc)
 H1 - H0/E                     # All zeros
 
-# Over 200 energies: 4.1 ms
+# Over 200 energies: 3.7 ms
 Hs = [ham.hamiltonian_3nu_vacuum(e, **osc)
       for e in Es]
-# ... and 0.16 ms
+# ... and 0.18 ms
 Hs = [H0/e for e in Es]
 \end{pysnip}
 
@@ -2416,7 +2416,7 @@ P = oscprob.osc_prob(H_own, 0.0, L,
 \end{pysnip}
 The Hermiticity of the matrix is the user's to guarantee, since it is what keeps the evolution unitary (Sec.~\ref{sec:applicability}). \magnus\ neither checks nor enforces it, and a matrix that is not Hermitian returns probabilities that do not add up to one. Every entry of the matrix is in eV, and every position in eV$^{-1}$ (Sec.~\ref{sec:recap}). Section~\ref{sec:lri_sun} shows a complete example.
 
-A custom Hamiltonian may have more than five flavors. The wrappers of \tabl{wrappers}, the builders of \tabl{hamiltonians}, and the compiled exponential kernels of Sec.~\ref{sec:exponential} stop at five. Above five, the user supplies the matrix, either to {\tt osc\_prob} or, as a vacuum term, to a scenario function through {\tt h\_vac\_energy\_indep} (Sec.~\ref{sec:wrapper_vs_direct}), and the exponential of each slab goes through a general Hermitian eigendecomposition, {\tt numpy.linalg.eigh}. Each slab then costs more: on one exponential density profile, at the default tolerance, a probability takes about twice as long at six flavors as at five, and three and a half times as long at eight. The probabilities remain unitary to within $10^{-13}$.
+A custom Hamiltonian may have more than five flavors. The wrappers of \tabl{wrappers}, the builders of \tabl{hamiltonians}, and the compiled exponential kernels of Sec.~\ref{sec:exponential} stop at five. Above five, the user supplies the matrix, either to {\tt osc\_prob} or, as a vacuum term, to a scenario function through {\tt h\_vac\_energy\_indep} (Sec.~\ref{sec:wrapper_vs_direct}), and the exponential of each slab goes through a general Hermitian eigendecomposition, {\tt numpy.linalg.eigh}. Each slab then costs more: on one exponential density profile, at the default tolerance, a probability takes up to two and a half times as long at six flavors as at five, and two to five and a half times as long at eight, depending on the energy. The probabilities remain unitary to within $10^{-13}$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -2556,7 +2556,7 @@ P_vac_E = oscprob.osc_prob_3nu_vacuum(
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-In Listing~\ref{lst:prob_vs}, \magnus\ computes the two columns of \figu{prob_vs} with different engines. The left column is a scan over distance at one energy. Through a varying profile, \magnus\ walks the profile once and reads off the probability at each distance along the way; this is the cumulative engine of Sec.~\ref{sec:engines}, and it computes the whole left column in under half a second. The right column is a scan over energy at one distance, which cannot reuse a single walk, since the Hamiltonian changes with the energy. Instead, the energy-batched engine of Sec.~\ref{sec:engines} samples the potential once and evolves all the energies together. It applies to any Hamiltonian made of an energy-dependent part plus the potential times a fixed matrix, such as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians, and it computes the whole right column in under a second. \magnus\ picks each engine by itself (Sec.~\ref{sec:engines}); {\tt strategy\_info} reports which one answered:
+In Listing~\ref{lst:prob_vs}, \magnus\ computes the two columns of \figu{prob_vs} with different engines. The left column is a scan over distance at one energy. Through a varying profile, \magnus\ walks the profile once and reads off the probability at each distance along the way; this is the cumulative engine of Sec.~\ref{sec:engines}, and it computes the whole left column in a few hundredths of a second. The right column is a scan over energy at one distance, which cannot reuse a single walk, since the Hamiltonian changes with the energy. Instead, the energy-batched engine of Sec.~\ref{sec:engines} samples the potential once and evolves all the energies together. It applies to any Hamiltonian made of an energy-dependent part plus the potential times a fixed matrix, such as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians, and it computes the whole right column in under a second. \magnus\ picks each engine by itself (Sec.~\ref{sec:engines}); {\tt strategy\_info} reports which one answered:
 \begin{pysnip}
 info = {}
 P = oscprob.osc_prob_matter_std_potential(
@@ -2585,7 +2585,7 @@ The largest feature of the neutrino panel is a broad peak near 5.4~GeV, enhanced
 
 The castle wall adds a narrow peak at 0.45~GeV, where its $P_{\nu_\mu \to \nu_e} = 0.18$, more than twice that of the uniform profile. Its densities alternate every 250~km, so the profile repeats every 500~km, close to the oscillation lengths in matter at 0.45~GeV, which are 460 to 515~km in slabs of either density. With the period of the profile matched to the oscillation length, the effect of each pair of slabs adds to that of the previous pair instead of averaging away. This is the parametric resonance of Sec.~\ref{sec:order_is_the_slab_product}\ \cite{Akhmedov:1988kd, Krastev:1989ix}, on the castle-wall profile that \Ref\ \cite{Akhmedov:1998ui} solved in closed form. Antineutrinos show the same peak at 0.52~GeV, a third as tall: the sign of the matter potential changes the oscillation length in matter, and with it the energy at which that length matches the period of the profile.
 
-Listing~\ref{lst:arrangement} computes the castle-wall curves. The two calls differ only in {\tt nubar}, used here for the first time in a listing: it conjugates the mixing matrix and reverses the sign of the matter potential in one step (Sec.~\ref{sec:recap}). The slab edges are passed through {\tt t\_breakpoints}, so no slab straddles a density jump. The Hamiltonian is constant inside every slab, the Magnus expansion terminates at its first term, and the result is exact: it equals the product of the twenty-four slab exponentials, to round-off. The eight curves of the figure (four profiles, for neutrinos and antineutrinos) take 0.1~s in all, since each call goes to the energy-batched engine of Sec.~\ref{sec:engines}, which samples the profile once for all energies.
+Listing~\ref{lst:arrangement} computes the castle-wall curves. The two calls differ only in {\tt nubar}, used here for the first time in a listing: it conjugates the mixing matrix and reverses the sign of the matter potential in one step (Sec.~\ref{sec:recap}). The slab edges are passed through {\tt t\_breakpoints}, so no slab straddles a density jump. The Hamiltonian is constant inside every slab, the Magnus expansion terminates at its first term, and the result is exact: it equals the product of the twenty-four slab exponentials, to round-off. The eight curves of the figure (four profiles, for neutrinos and antineutrinos) take 0.08~s in all, since each call goes to the energy-batched engine of Sec.~\ref{sec:engines}, which samples the profile once for all energies.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{lstlisting}[language=Python, caption={\textbf{Neutrinos and antineutrinos through a castle wall.} The castle-wall curves of \figu{arrangement}. The slab edges are passed through {\tt t\_breakpoints}, so that no slab of the expansion straddles a jump; within each slab the Hamiltonian is constant, and the result is the exact product of the slab exponentials. The two calls differ only in {\tt nubar}. The other three profiles of the figure differ from this one only in the array {\tt rho}. See Sec.~\ref{sec:arrangement} for details.}, label={lst:arrangement}, float=tbp]
@@ -3276,7 +3276,7 @@ Listing~\ref{lst:sun} computes the four curves of \figu{solar}. The BS2005-AGS,O
 
 The only difference from an ordinary probability call is {\tt average=True} (Sec.~\ref{sec:average_keyword}). With it, \magnus\ does not propagate the phase along the ray. It searches the ray for crossings that are not adiabatic, which it would bridge with the Magnus patch of Sec.~\ref{sec:hybrid}, and combines the eigenbases at the two ends. On the Sun, it finds no such crossing for any of the four Hamiltonians, so the result depends only on those two eigenbases.The neutrino starts in a flavor state, the default of {\tt average\_initial\_state}, so the result is \equ{phase_average_nocross}. Its interference terms carry the phases above, which damp them to nothing, so the result equals \equ{averaged_varying} to within $5 \cdot 10^{-15}$.
 
-In Listing~\ref{lst:sun}, only the wrapper changes between the four probability calls, and with it the Hamiltonian. The cost of a call follows the number of pairs of levels that the engine tests for adiabaticity along the ray, not the content of the Hamiltonian: three pairs at three flavors, six at $3+1$, and ten at $3+2$. The non-standard interactions change the matter term but add no levels, so they cost the same as the standard case. Sterile states add levels, and so do pseudo-Dirac partners, one per split pair (Sec.~\ref{sec:shipped_hamiltonians}). The four curves take about 0.5~s, 0.5~s, 0.8~s, and 1.2~s, respectively, over ninety energies.
+In Listing~\ref{lst:sun}, only the wrapper changes between the four probability calls, and with it the Hamiltonian. The cost of a call follows the number of pairs of levels that the engine tests for adiabaticity along the ray, not the content of the Hamiltonian: three pairs at three flavors, six at $3+1$, and ten at $3+2$. The non-standard interactions change the matter term but add no levels, so they cost the same as the standard case. Sterile states add levels, and so do pseudo-Dirac partners, one per split pair (Sec.~\ref{sec:shipped_hamiltonians}). The four curves take about 0.5~s, 0.5~s, 0.9~s, and 1.2~s, respectively, over ninety energies.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{lstlisting}[language=Python, caption={\textbf{Averaged solar probabilities.} The four averaged solar probabilities of \figu{solar}, complete and runnable as it stands: the BS2005-AGS,OP table\ \cite{Bahcall:2004pz} ships with \magnus, and every Sun wrapper takes it by name through {\tt density\_profile}. The same keywords serve the four wrappers. The keyword {\tt average=True} is the only difference from an instantaneous call: it returns \equ{averaged_varying} from the eigenbases at the two ends of the ray, without propagating the phase. The four curves take about three seconds. Naming {\tt 'B16-GS98'} instead gives the B16-GS98 curve of \figu{solar_models}. See notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:sun} for details.}, label={lst:sun}, float=tbp]
@@ -3331,7 +3331,7 @@ P = oscprob.osc_prob_3nu_sun(
  5.0*gd.UNIT_MEV, R - dL, 0.0, **osc,
  nu_i=gd.NUE, nu_f=gd.NUE,
  density_profile=model)
-# P = 0.666, 0.092, 0.259 in about 7 s
+# P = 0.666, 0.092, 0.259 in about 2 s
 \end{pysnip}
 These values are not numerical noise. The hybrid engine of Sec.~\ref{sec:hybrid} computes and certifies them: two successive passes, on finer grids, agree to the requested tolerance, $10^{-3}$ by default.
 
@@ -4569,7 +4569,7 @@ P = oscprob.osc_prob_3nu_earth(
 \end{pysnip}
 Parallelism is for scans that no batched engine accepts, such as the one above, where every energy carries a different baseline.
 
-The second condition is length. Starting the workers costs time, paid once per call, so the scan has to be long enough to absorb this overhead. Measured on the scan above, four workers return $2.4$ times the speed of one process at $5\,000$ points, $2.3$ at $2\,000$ and $1.8$ at $500$. A scan of a few hundred points called once can finish slower than it would have in a single process. Section~\ref{sec:cost} and \figu{njobs_scaling} measure how that gain grows with the size of the scan and where it stops paying.
+The second condition is length. Starting the workers costs time, paid once per call, so the scan has to be long enough to absorb this overhead. Measured on the scan above, four workers return $2.4$ times the speed of one process at $5\,000$ points, $2.3$ at $2\,000$ and $1.0$ at $500$. A scan of a few hundred points called once can finish slower than it would have in a single process. Section~\ref{sec:cost} and \figu{njobs_scaling} measure how that gain grows with the size of the scan and where it stops paying.
 
 Parallelism changes more than the speed. A serial scan warm-starts each point from its neighbor. A parallel scan warm-starts every point from the first one. A ladder that starts on a different rung can stop on a different rung, so two runs that differ only in {\tt n\_jobs} agree to the tolerance asked for, but no better. The gap between grows with the length of the scan. Measured on the chord above at {\tt rtol} $= 10^{-6}$, scans of up to forty points agree exactly, and 500 points differ by $6 \cdot 10^{-8}$. The user should hold {\tt n\_jobs} fixed when two runs have to match to the last digit.
 
@@ -4655,7 +4655,7 @@ The script computes one probability at a time, at one energy and one baseline. I
 \subsection{Timing measurement protocol}
 \label{sec:timing_protocol}
 
-Every timing in this paper---this section, Sec.~\ref{sec:comparison}, and every other cost quoted---comes from one machine and one software stack: a 13th-generation Intel Core i5-1334U with 16~GB of memory, running Ubuntu 24.04 LTS on Linux kernel 7.0.0, with Python 3.12.7, {\tt NumPy} 1.26.4, and \magnus\ 1.1.1. The timings of the other codes in Figs.~\ref{fig:prem_plane} and \ref{fig:shock_cost} come from the benchmark suite of {\tt NuOscProbExact}~\cite{Bustamante:2019ggq, NuOscProbExact}, run on the same machine under that suite's own protocol.
+Every timing in this paper---this section, Sec.~\ref{sec:comparison}, and every other cost quoted---comes from one machine and one software stack: a 13th-generation Intel Core i5-1334U with 16~GB of memory, running Ubuntu 24.04.5 LTS on Linux kernel 7.0.0, with Python 3.12.7, {\tt NumPy} 1.26.4, and \magnus\ 1.2.0. The timings of the other codes in Figs.~\ref{fig:prem_plane} and \ref{fig:shock_cost} come from the benchmark suite of {\tt NuOscProbExact}~\cite{Bustamante:2019ggq, NuOscProbExact}, run on the same machine under that suite's own protocol.
 
 Absolute times mean little on their own; we quote ratios whenever possible. A comparison of two code paths in \magnus---or two codes---runs on a harness that interleaves them round-robin and carries a control workload the change cannot touch. A factor of two or more in run times between two codes is a property of the codes and survives a change of machine; a factor of a few percent belongs to the machine.
 
