@@ -11,32 +11,16 @@ Two plots appear in almost every study of neutrino oscillations: the probability
    :width: 95%
    :alt: Probability against distance and against energy
 
-   **Probability against distance and against energy.** Oscillation probabilities of a neutrino that travels through matter, against the distance traveled (*left*) and against the neutrino energy (*right*). Three matter profiles are drawn, plus the vacuum as a reference. *Top left*: the profiles, as the electron number density at each point along the path. The constant profile holds 10 :math:`N_A` electrons per cm\ :math:`^3`, with :math:`N_A` Avogadro’s number. The exponential profile starts at that value and halves every 69 km. The Gaussian profile peaks at 8 :math:`N_A` electrons per cm\ :math:`^3`, 300 km from the start; its width is 100 km. *Rows*: the survival of a :math:`\nu_e`, its conversion into a :math:`\nu_\mu`, the survival of a :math:`\nu_\mu`, and its conversion into a :math:`\nu_\tau`. In the left column the energy is 10 MeV; in the right column the distance is 200 km. In the lower three rows, an inset enlarges a window where the four curves separate. Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>` computes the curves. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__ and :ref:`ex-sec-prob-vs` for details.
+   **Probability against distance and against energy.** Oscillation probabilities of a neutrino that travels through matter, against the distance traveled (*left*) and against the neutrino energy (*right*). Three matter profiles are drawn, plus the vacuum as a reference. *Top left*: the profiles, as the electron number density at each point along the path. The constant profile holds 10 :math:`N_A` electrons per cm\ :math:`^3`, with :math:`N_A` Avogadro’s number. The exponential profile starts at that value and halves every 69 km. The Gaussian profile peaks at 8 :math:`N_A` electrons per cm\ :math:`^3`, 300 km from the start; its width is 100 km. *Rows*: the survival of a :math:`\nu_e`, its conversion into a :math:`\nu_\mu`, the survival of a :math:`\nu_\mu`, and its conversion into a :math:`\nu_\tau`. In the left column the energy is 10 MeV; in the right column the distance is 200 km. In the lower three rows, an inset enlarges a window where the four curves separate. Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>` computes the curves. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 Figure :ref:`Probability against distance and against energy <ex-fig-prob-vs>` shows both plots at three flavors, in vacuum and for three illustrative electron-density profiles: constant, exponentially falling, and a Gaussian bump near the middle of the path. Of the three, the constant profile moves the probabilities furthest from the vacuum ones. Along the path (left column), the exponential profile stays close to the constant one near the start, where its density is still high, then moves back toward the vacuum curves as its density falls. The Gaussian profile does the reverse: it stays close to the vacuum curves until the bump, then moves away from them.
 
-Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>` computes the probabilities. A constant profile is passed as a single number, and a varying one as a function of the distance traveled. Each column takes four calls, one per profile and one in vacuum, and each call receives the whole list of distances, or of energies. For constant and exponential profiles, Magνs also has dedicated wrappers—not used in Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>`—which take the density and, for the exponential, its scale length, instead of a profile function. They return the same probabilities as the listing; e.g., for :math:`\nu_e \to \nu_e` at 500 km, the last distance of the left column:
-
-.. code-block:: python
-
-   P = oscprob.osc_prob_3nu_matter_exp_density(
-    10.0*MEV, 500.0*KM, L0=0.0,
-    rho_central=10.0*NA_CM3,
-    l_scale=100.0*KM, **osc,
-    nu_i=gd.NUE, nu_f=gd.NUE, **KW)
-   # 0.082635, as in the listing
-
-   P = oscprob.\
-    osc_prob_3nu_matter_constant_density(
-    10.0*MEV, 500.0*KM, 10.0*NA_CM3, **osc,
-    nu_i=gd.NUE, nu_f=gd.NUE, **KW)
-   # 0.071325, as in the listing
-
+Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>` computes the probabilities. A constant profile is passed as a single number, and a varying one as a function of the distance traveled. Each column takes four calls, one per profile and one in vacuum, and each call receives the whole list of distances, or of energies.
 
 .. _ex-lst-prob-vs:
 
-**Probability against distance and against energy.** The curves of Figure :ref:`Probability against distance and against energy <ex-fig-prob-vs>`: the probability at 5 000 distances for one energy, then at 3 000 energies for one distance, for three matter profiles and for vacuum. Each scan is a single call. The constant profile is a number; the two varying ones are functions of the distance traveled. See :ref:`ex-sec-prob-vs` for details.
+**Probability against distance and against energy.** The curves of Figure :ref:`Probability against distance and against energy <ex-fig-prob-vs>`: the probability at 5 000 distances for one energy, then at 3 000 energies for one distance, for three matter profiles and for vacuum. Each scan is a single call. The constant profile is a number; the two varying ones are functions of the distance traveled.
 
 .. code-block:: python
 
@@ -90,6 +74,24 @@ Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>` 
     10.0*MEV, L, **osc)
    P_vac_E = oscprob.osc_prob_3nu_vacuum(
     E, 200.0*KM, **osc)
+
+
+For constant and exponential profiles, Magνs also has dedicated wrappers—not used in Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>`—which take the density and, for the exponential, its scale length, instead of a profile function. They return the same probabilities as the listing; e.g., for :math:`\nu_e \to \nu_e` at 500 km, the last distance of the left column:
+
+.. code-block:: python
+
+   P = oscprob.osc_prob_3nu_matter_exp_density(
+    10.0*MEV, 500.0*KM, L0=0.0,
+    rho_central=10.0*NA_CM3,
+    l_scale=100.0*KM, **osc,
+    nu_i=gd.NUE, nu_f=gd.NUE, **KW)
+   # 0.082635, as in the listing
+
+   P = oscprob.\
+    osc_prob_3nu_matter_constant_density(
+    10.0*MEV, 500.0*KM, 10.0*NA_CM3, **osc,
+    nu_i=gd.NUE, nu_f=gd.NUE, **KW)
+   # 0.071325, as in the listing
 
 
 In Listing :ref:`Probability against distance and against energy <ex-lst-prob-vs>`, Magνs computes the two columns of Figure :ref:`Probability against distance and against energy <ex-fig-prob-vs>` with different engines. The left column is a scan over distance at one energy. Through a varying profile, Magνs walks the profile once and reads off the probability at each distance along the way; this is the cumulative engine of :doc:`/engines`, and it computes the whole left column in under half a second. The right column is a scan over energy at one distance, which cannot reuse a single walk, since the Hamiltonian changes with the energy. Instead, the energy-batched engine of :doc:`/engines` samples the potential once and evolves all the energies together. It applies to any Hamiltonian made of an energy-dependent part plus the potential times a fixed matrix, such as the standard, non-standard-interaction, and Lorentz-violating Hamiltonians, and it computes the whole right column in under a second. Magνs picks each engine by itself (:doc:`/engines`); ``strategy_info`` reports which one answered:

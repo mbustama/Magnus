@@ -13,9 +13,12 @@ the convention is what it is, what happens at the edges, and what the numbers
 were checked against. Both call the same functions, so there is no third
 version to drift out of step.
 
-To run them rather than read them::
+To run them rather than read them, clone the repository (the PyPI package does not
+include the notebooks) and install from it, with a Jupyter front end::
 
-   pip install "magnuspy[notebooks]"
+   git clone https://github.com/mbustama/Magnus.git
+   cd Magnus
+   pip install -e ".[notebooks]" jupyterlab
    jupyter lab notebooks/
 
 .. note::
@@ -170,11 +173,11 @@ Physics questions
 `16. Exact versus the approximations <https://github.com/mbustama/Magnus/blob/main/notebooks/16_magnus_exact_vs_approximations.ipynb>`_
    The textbook closed forms are exact, and Magνs reproduces them to
    :math:`10^{-14}`. What breaks is substituting a mean density for a varying
-   one: worth 0.51 in probability on a core-crossing chord.
+   one: worth 0.58 in probability on a core-crossing chord.
 
 `17. Mass ordering and the octant <https://github.com/mbustama/Magnus/blob/main/notebooks/17_magnus_ordering_and_octant.ipynb>`_
    The ordering is carried entirely by the sign of ``D31``. Through the core it
-   separates the two by 0.48; the octant, by about 0.015.
+   separates the two by 0.44; the octant, by about 0.015.
 
 
 Using and diagnosing the machinery
@@ -186,8 +189,8 @@ Using and diagnosing the machinery
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
-   rather than ``NaN``. Plus what each of the fifteen warning classes means, and
-   which to act on.
+   rather than ``NaN``. Plus what each warning class means, and which to act
+   on.
 
 `21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
    A stopping criterion, not an error bound. Measured against an independent
@@ -195,7 +198,7 @@ Using and diagnosing the machinery
    :math:`4.8\times10^{-2}` and reported success.
 
 `22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
-   Eight registered engines in five families, and ``cross_check_strategies`` — an error bar
+   Seven engines (eight registered) in five families, and ``cross_check_strategies`` — an error bar
    that needs no oracle, because two different methods disagreeing is itself the
    signal.
 

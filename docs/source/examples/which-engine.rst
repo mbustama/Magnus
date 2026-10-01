@@ -9,6 +9,11 @@ The report has seven entries: ``'engine'``, the engine that answered, named as i
 
 .. code-block:: python
 
+   import numpy as np
+   import magnus.oscprob as oscprob
+   import magnus.earth as earth
+   import magnus.globaldefs as gd
+
    L = earth.distance_traveled_inside_earth(
        -0.9)*gd.UNIT_KM
    info = {}
@@ -32,7 +37,7 @@ The ``'sampling'`` entry shows how many points a scan along the trajectory needs
 
    s = info['sampling']
    s['oscillation_length']/gd.UNIT_KM
-                                  # 3253.4
+                                  # 3227.2
    s['cycles_over_trajectory']    # 3.5
    s['nyquist_points']            # 9
 

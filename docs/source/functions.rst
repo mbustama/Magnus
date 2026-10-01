@@ -6,7 +6,7 @@ Available probability functions
    :depth: 2
 
 
-This page lists every user-facing ``osc_prob_*`` function Magνs ships,
+This page lists the user-facing ``osc_prob_*`` functions Magνs ships,
 grouped by environment and scenario, with the exact function name for each
 flavor count. It complements the API reference (generated from the
 docstrings directly, see the *API Reference* section in the sidebar) by
@@ -18,7 +18,10 @@ The layers below the wrappers -- the scenario functions ``osc_prob_vacuum``,
 ``osc_prob_energy_baseline`` and ``osc_prob`` -- are not listed here; see
 :doc:`architecture` for what each does, when you would call it directly, and how the
 four layers fit together.  :doc:`cli` is the
-command-line calculator that wraps the same functions.
+command-line calculator that wraps the same functions.  The closed-form
+reference functions ``osc_prob_2nu_vacuum_std``, ``osc_prob_2nu_matter_std`` and
+``osc_prob_3nu_vacuum_std``, used to validate the numerical ones, are left out too;
+see :mod:`magnus.oscprob`.
 
 Every function below returns a full :math:`d \times d` probability matrix
 (:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
@@ -71,8 +74,9 @@ Matter, constant density
 
 A user-supplied matter density, uniform along the trajectory.  ``rho`` is in
 natural units, eV\ :sup:`4`: pass ``2.8*gd.UNIT_G_PER_CM3``, or pass ``2.8``
-together with ``density_matter_is_in_g_per_cm3=True``, but not both.  The
-electron fraction is :math:`Y_e = 0.5` unless ``electron_fraction`` is given.
+together with ``density_matter_is_in_g_per_cm3=True``, but not both.
+``electron_fraction``, the electrons per atomic mass unit :math:`Y_e`
+(:ref:`quickstart-conventions`), is 0.5 unless given.
 The command line's ``--rho`` is in g cm\ :sup:`-3`.
 
 .. list-table::
@@ -141,9 +145,9 @@ baseline) or by two named locations (``loc_ini``/``loc_fin``; see
 :data:`magnus.earth.loc_coords_dms` for the predefined sites).
 :math:`\cos\theta_z = -1` is straight up through the Earth's center and 0 is
 horizontal; :func:`magnus.earth.distance_traveled_inside_earth` gives the chord
-length for a zenith angle.  The electron fraction is set per layer (0.4656 in the
-core, 0.4957 in the mantle), and ``electron_fraction_core`` and its siblings
-override it.
+length for a zenith angle.  :math:`Y_e`, the electrons per atomic mass unit
+(:ref:`quickstart-conventions`), is set per layer (0.4656 in the core, 0.4957 in the
+mantle), and ``electron_fraction_core`` and its siblings override it.
 
 Both named locations lie on the surface.  Either end of the trajectory can
 instead be put underground with ``source_depth`` and ``detector_depth``,
@@ -281,9 +285,10 @@ above, is then two lines:
 
     R = hamiltonians.pmns_mixing_matrix(osc['s12'], osc['s23'], osc['s13'], osc['dCP'])
     content = abs(R.conj().T @ U)**2      # mass-state content, per initial flavor
-    P_far = abs(R)**2 @ content           # phases averaged on the way
+    P_far = (abs(R)**2 @ content).T       # phases averaged on the way
 
-with ``R`` the mixing matrix in vacuum.
+with ``R`` the mixing matrix in vacuum.  The transpose puts ``P_far`` in the same
+order as ``P``: ``P_far[i][f]`` is the probability from flavor ``i`` to flavor ``f``.
 
 The phase average is likewise available on the direct route:
 ``average=True`` on ``osc_prob_energy_baseline``, ``osc_prob_earth`` and

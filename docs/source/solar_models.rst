@@ -60,7 +60,7 @@ Names are matched without regard to case, and ``'exp'`` is the default.
                                         nu_i=gd.NUE, nu_f=gd.NUE, average=True,
                                         density_profile=profile)
         print('%-10s <P_ee> = %.4f' % (profile, P_ee))
-    # exp 0.2971, BP04 0.3185, B16-GS98 0.3189, B23-AAG21 0.3192
+    # exp 0.2971, BP04 0.3183, B16-GS98 0.3187, B23-AAG21 0.3191
 
 ``L0`` is the radius where the neutrino is produced, 0 or more, and a scalar: ``L``
 may be an array of end points, but ``L0`` may not, so for several production points call

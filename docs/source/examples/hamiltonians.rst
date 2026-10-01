@@ -46,22 +46,26 @@ A direct call to ``osc_prob`` takes the Hamiltonian as a matrix, or as a functio
       * - Its matter term
         - ``pseudo_dirac_matter``
 
-The :math:`42` Hamiltonian builders of ``magnus.hamiltonians``, each named with the prefix ``hamiltonian_``. The ten variants above the table break exist at two, three, four, and five flavors. The three below the break build a pseudo-Dirac spectrum from the active one, and take the pairs of states to split, so their names carry no number of flavors.
+The :math:`43` Hamiltonian builders of ``magnus.hamiltonians``, each named with the prefix ``hamiltonian_``. The ten variants above the table break exist at two, three, four, and five flavors. The three below the break build a pseudo-Dirac spectrum from the active one, and take the pairs of states to split, so their names carry no number of flavors.
 
 .. _ex-sec-shipped-hamiltonians:
 
 Shipped Hamiltonians
 ~~~~~~~~~~~~~~~~~~~~
 
-Table :ref:`ex-tab-hamiltonians` lists the 42 Hamiltonian builders shipped in ``magnus.hamiltonians``: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, plus three for a pseudo-Dirac spectrum.
+Table :ref:`ex-tab-hamiltonians` lists the 43 Hamiltonian builders shipped in ``magnus.hamiltonians``: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, plus three for a pseudo-Dirac spectrum.
 
 A Hamiltonian is a sum of terms, as in the :ref:`matter Hamiltonian <conv-hamiltonian>`. Only the vacuum builders return a complete Hamiltonian; every other builder in Table :ref:`ex-tab-hamiltonians` returns its own term alone. For instance, at three flavors, the matter builder returns :math:`V_{\rm CC}` times the projector, which is zero except in the electron entry, ``[0][0]``. Added to a vacuum term, it gives the :ref:`matter Hamiltonian <conv-hamiltonian>`. Passed to ``osc_prob`` on its own, it returns the probabilities as the identity matrix, since a diagonal Hamiltonian does not mix flavors.
 
-Every builder returns an :math:`d \times d` ``NumPy`` array, with :math:`d` the number of flavors, so terms add with ``+`` and scale with ``*``. The builders take their parameters under the same names as the wrappers, so a three-flavor set loaded with ``load_nufit_params`` can be passed to them with ``**``. Every physical parameter must be given, since a builder has no default set to fall back on. The one exception is the neutron-to-proton ratio of the four- and five-flavor matter builders, which is 1 by default.
+Every builder returns a :math:`d \times d` ``NumPy`` array, with :math:`d` the number of flavors, so terms add with ``+`` and scale with ``*``. The builders take their parameters under the same names as the wrappers, so a three-flavor set loaded with ``load_nufit_params`` can be passed to them with ``**``. Every physical parameter must be given, since a builder has no default set to fall back on. The one exception is the neutron-to-proton ratio of the four- and five-flavor matter builders, which is 1 by default.
+
+The snippets on this page reuse ``E``, ``L``, ``Es``, and ``osc`` from Listing :ref:`Vacuum and constant density, three ways <ex-lst-constant>`, and import the builders as ``ham``.
 
 *Vacuum.—*\ At three flavors, the vacuum Hamiltonian is
 
 .. code-block:: python
+
+   import magnus.hamiltonians as ham
 
    H = ham.hamiltonian_3nu_vacuum(E, **osc)
    H.shape                        # (3, 3)
@@ -196,7 +200,7 @@ The builder takes the potential and the ratio independently. The two calls retur
 
 Four of the ten variants in Table :ref:`ex-tab-hamiltonians` end in ``_td`` (for *time-dependent*): the two vacuum forms, ``matter``, and ``nsi``. Each takes the position along the path, :math:`l`, as its first argument, just as the function of position passed to ``osc_prob`` does. The vacuum ones ignore it and return the same matrix at every position. ``matter_td`` and ``nsi_td`` take the potential as a function of position, ``f``, rather than as a number, and evaluate it at :math:`l`; e.g., ``matter_td(l, f)`` returns the same matrix as ``matter(f(l))``.
 
-*Non-standard interactions.—*\ At three flavors, the NSI term is
+*Non-standard interactions.—*\ At three flavors, the NSI term is built as below. This block and the other NSI and LIV blocks show the signatures only: each argument stands for a number.
 
 .. code-block:: python
 
@@ -293,13 +297,13 @@ At four and five flavors, the operator has one eigenvalue per flavor, and :math:
 .. code-block:: python
 
    H = ham.hamiltonian_4nu_liv(
-       E, sxi12, sxi23, sxi13, dxi13,
+       E, sxi12, sxi23, sxi13, dxiCP,
        sxi14, dxi14, sxi24, dxi24, sxi34,
        b1, b2, b3, b4, Lambda, n_liv)
    H.shape                        # (4, 4)
 
    H = ham.hamiltonian_5nu_liv(
-       E, sxi12, sxi23, sxi13, dxi13,
+       E, sxi12, sxi23, sxi13, dxiCP,
        sxi14, dxi14, sxi15, dxi15, sxi24,
        dxi24, sxi25, sxi34, sxi35, dxi35,
        b1, b2, b3, b4, b5, Lambda, n_liv)
@@ -400,10 +404,11 @@ with rows :math:`e`, :math:`\mu`, :math:`\tau`, and :math:`s_2`. Since each part
 Building a new Hamiltonian from scratch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are two ways to build a Hamiltonian that Magνs does not ship. The first is to add shipped terms, as :ref:`ex-sec-wrapper-vs-direct` did with a vacuum, a matter, and a non-standard term. With a ``_td`` builder, a term can also vary along the path. For instance, with ``H_vac`` the vacuum term of that section, a matter potential that grows linearly along the baseline is
+There are two ways to build a Hamiltonian that Magνs does not ship. The first is to add shipped terms, as :ref:`ex-sec-wrapper-vs-direct` did with a vacuum, a matter, and a non-standard term. With a ``_td`` builder, a term can also vary along the path. For instance, a matter potential that grows linearly along the baseline is
 
 .. code-block:: python
 
+   H_vac = ham.hamiltonian_3nu_vacuum(E, **osc)
    VCC_func = lambda l: V*(1.0 + l/L)
 
    def H_func(l):

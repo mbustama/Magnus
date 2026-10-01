@@ -6,7 +6,7 @@ What **Magνs** can compute, with the code that computes it.
 Each recipe below is a few lines. Where one is short enough to be worth running
 on the spot, it is executed when this page is built, so the output shown is what
 the code actually produced rather than what it produced once. The longer form of
-every recipe is a notebook, linked beside it; both call the same functions, so
+most recipes is a notebook, linked beside it; both call the same functions, so
 there is no third version to drift out of step.
 
 If you are looking for *which function* rather than *how to call it*, see
@@ -257,7 +257,8 @@ angle.  The result has one row per zenith angle.
     print('shape:', P_mumu.shape, '  smallest P_mumu = %.3f' % P_mumu.min())
 
 :func:`magnus.plotting.plot_oscillogram` computes and draws the same map in one
-call (see :doc:`plotting`).
+call (see :doc:`plotting`).  To draw this array with it instead, pass ``P_mumu.T``:
+it takes one row per energy.
 
 
 A profile of your own
@@ -388,12 +389,14 @@ error estimate in it; the same section explains why.
 Choosing a strategy, and seeing which engine answered
 -----------------------------------------------------
 
-``strategy='auto'`` (the default) tries an adiabatic-transport-plus-Magnus-patch
-propagator first and falls back without a warning (except that an undeclared density jump
-raises ``UnmarkedDiscontinuityWarning``). ``'magnus'`` reproduces the behavior
-of releases before that propagator existed. The difference is not only speed: on
-the NSI configurations notebook 12 measures, the fallback is the faster route
-and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
+``strategy='auto'`` (the default) picks the engine from the phase of the request, its
+shape and the tolerance: at the default tolerance a single point goes to the general
+Magnus ladder unless its phase exceeds 1e4 or it needs too many slabs, when it goes to an
+adiabatic-transport-plus-Magnus-patch propagator, and an energy scan goes to the
+energy-batched scan.  :ref:`dispatch-order` has the full table.  ``'hybrid'`` forces the
+adiabatic propagator, and ``'magnus'`` keeps to the Magnus engines.  The difference is not
+only speed: on the NSI configurations notebook 12 measures, ``'magnus'`` is the faster
+route and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
 answering quietly.
 
 .. jupyter-execute::
@@ -407,7 +410,7 @@ answering quietly.
 Pass ``strategy_info`` whenever you want to know which of the engines produced a
 number. See :doc:`adiabatic_strategy`, and
 `notebook 12 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_,
-which times all three against ``solve_ivp``.
+which times ``'auto'``, ``'hybrid'`` and ``'magnus'`` against ``solve_ivp``.
 
 Checking an answer two ways
 ---------------------------
@@ -461,7 +464,7 @@ no number of slabs fixes one that straddles it.
     osc = gd.load_nufit_params('NuFIT 6.1')
 
     def rho_func(l):                              # [g/cm^3]: a jump at 1000 km
-        return 3.0 if l < 1000.0*gd.UNIT_KM else 8.0
+        return np.where(np.asarray(l) < 1000.0*gd.UNIT_KM, 3.0, 8.0)
 
     P = oscprob.osc_prob_matter_std_potential(
         3, rho_func, 10.0*gd.UNIT_GEV, 3000.0*gd.UNIT_KM, osc, L0=0.0,
@@ -469,8 +472,11 @@ no number of slabs fixes one that straddles it.
 
 The Earth entry points do this for you. It is worth doing by hand for a shock
 front, a castle-wall profile, or a tabulated model with a discontinuous
-derivative — and on a *scan* it is an established cure, while on a single point
-it is not: measured across 18 shock configurations it improved 7 and worsened 11.
+derivative.  On a *scan* it is an established cure.  On a single point the per-point
+path already finds and declares the jumps itself (:ref:`warning-catalogue`), so
+passing them only skips that search.  The exception is a single phase-averaged point
+(``average=True``): there declaring a shock front changes the engine, and across 18
+shock configurations it improved 7 and worsened 11, so check such a point a second way.
 `Notebook 14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
 is that measurement.
 
@@ -549,8 +555,8 @@ work through each.
 
 .. _write-h-func-vectorized:
 
-Writing an ``H_func`` that does not cost you a factor of five
--------------------------------------------------------------
+Writing an ``H_func`` that takes many positions at once
+-------------------------------------------------------
 
 If you supply your own Hamiltonian, the single largest factor under your control
 is whether it can be evaluated for many positions at once. The engine samples it
@@ -574,18 +580,23 @@ probability, repeated at each refinement level.
     def H_fast(l):
         return h_vac/energy + vcc(l)[..., None, None]*e00
 
-    P = oscprob.osc_prob(H_fast, t_ini=0.0, t_fin=1000.0*gd.UNIT_KM)
+    P = oscprob.osc_prob(H_fast, t_ini=0.0, t_fin=10000.0*gd.UNIT_KM,
+                         rtol=1e-8, atol=1e-8)
 
 The trailing ``[..., None, None]`` is the whole trick: it turns one potential per
 position into a stack of matrices, so NumPy broadcasts instead of Python looping.
-Measured at **4.6x** on a 3ν exponential-density profile, with bit-identical
-output. A scalar-only ``H_func`` raises
+The output is bit-identical, and the gain grows with the number of positions the
+ladder evaluates.  For the call above, which ends at 378 slabs, ``H_fast`` is about
+5× faster than ``H_slow``; at the default tolerance (22 slabs) about 2×; over 1000 km
+at the default tolerance (2 slabs) the gain is small and not reliable (best of 15 runs,
+on one machine).  A scalar-only ``H_func`` raises
 :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
 
 The builders in :mod:`magnus.hamiltonians` do this for you: each takes its energy, ``VCC``
 or position as a number or an array, and an array returns a stack of matrices, one per
-entry.  So ``h_vac/energy + hams.hamiltonian_3nu_nsi(vcc(l), 0.1, 0.05, 0.0, 0.0, 0.0,
-0.0)`` is already vectorized.
+entry.  ``hams.hamiltonian_3nu_nsi`` builds only the NSI term, so a full NSI matter
+Hamiltonian is ``h_vac/energy + vcc(l)[..., None, None]*e00 + hams.hamiltonian_3nu_nsi(vcc(l),
+0.1, 0.05, 0.0, 0.0, 0.0, 0.0)``, already vectorized.
 
 
 Where to go next

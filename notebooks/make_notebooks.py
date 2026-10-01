@@ -7868,11 +7868,11 @@ print('max |exact - vacuum|       = %.3f' % np.max(np.abs(exact - vacuum)))'''),
 | $2\nu$ vacuum, closed form | $4\times10^{-16}$ |
 | $3\nu$ vacuum, closed form | $5\times10^{-14}$ |
 | $2\nu$ constant density, closed form | $3\times10^{-16}$ |
-| $2\nu$ Earth chord vs **mean-density** formula | **wrong by up to 0.59** |
+| $2\nu$ Earth chord vs **mean-density** formula | **wrong by up to 0.58** |
 
 The closed forms are exact and Mag$\nu$s agrees with all of them. The failure in the last row
 is not the formula's -- it is the substitution of a constant density for a varying one, and it
-is worth 0.59 in probability at the peak, with an rms of 0.22 across two decades in energy.
+is worth 0.58 in probability at the peak, with an rms of 0.22 across two decades in energy.
 
 The mean density is not a bad *estimate* of the profile; it is simply not what the neutrino
 sees. Oscillation depends on the arrangement of the matter along the path, not only on its
@@ -8076,7 +8076,7 @@ increasingly not.
 |---|---|---|---|
 | ordering | **sign of `D31`** | vacuum, 1300 km | 0.10 |
 | | | crust, $\nu$ / $\bar\nu$ | 0.13 / 0.06 |
-| | | **core chord, $\nu$ / $\bar\nu$** | **0.43 / 0.42** |
+| | | **core chord, $\nu$ / $\bar\nu$** | **0.44 / 0.42** |
 | octant | $\sin^2\theta_{23}$ vs $1-\sin^2\theta_{23}$ | 1300 km, either channel | ~0.015 |
 
 Two practical notes. The shipped NuFIT NO and IO sets differ in ordering, octant *and*
@@ -10500,7 +10500,7 @@ than arithmetic. The matrix exponential is under a tenth of the call.'''),
     md(r'''Both are exact to round-off; the closed form is several times faster. That is the
 right result and it is worth stating plainly: **if constant density is your whole problem, a
 closed-form code is the better tool.** Mag$\nu$s earns its cost on profiles that vary, where no
-closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.59 on
+closed form exists -- notebook 16 measures a mean-density substitution being wrong by 0.58 on
 an Earth chord.
 
 ## 4. PREM, three flavors: the comparison that is actually about method

@@ -29,9 +29,9 @@ The ``plotting`` module of Magνs draws several of the standard figures of the f
    | ``probability_with_profile`` | Density profile, above the probabilities along it |
    +------------------------------+---------------------------------------------------+
 
-The plotting functions of ``magnus.plotting``, each named with the prefix ``plot_``. Each returns the ``matplotlib`` figure it built and its axes. See :ref:`ex-sec-plotting` for details.
+The plotting functions of ``magnus.plotting``, each named with the prefix ``plot_``. Each returns the ``matplotlib`` figure it built and its axes.
 
-Most of these functions take the abscissa first, then a list of curves, each a dictionary with its data, ``y``, and its ``label``. For instance, the probability of :math:`\nu_\mu \to \nu_e` against energy, in vacuum and at constant density, with ``P_scan`` the 200-energy scan of Listing :ref:`Vacuum and constant density, three ways <ex-lst-constant>`, is drawn by
+Most of these functions take the abscissa first, then a list of curves, each a dictionary with its data, ``y``, and its ``label``. For instance, the probability of :math:`\nu_\mu \to \nu_e` against energy, in vacuum and at constant density, with ``Es``, ``L``, and ``P_scan`` the 200 energies, the baseline, and the scan of Listing :ref:`Vacuum and constant density, three ways <ex-lst-constant>`, is drawn by
 
 .. code-block:: python
 

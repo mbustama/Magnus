@@ -9,6 +9,14 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The windowed average counts the propagations that warned, not the warnings** (issue
+  #193).  One propagation can raise the same class twice, so the summary read "Raised by 10
+  of the 5 propagations".  It now counts each propagation once.
+
+- **Documentation audit** (issue #193).  Printed values brought up to date with #168,
+  broken and incomplete listings fixed, contradictions between pages and with the code
+  removed, and development history moved out of the user pages.
+
 - **`average=True` no longer returns zero at small phase on a constant Hamiltonian** (issue
   #163).  In vacuum or at constant density, the phase average was computed and then discarded
   for the zero-phase limit wherever the two differed by less than 1e-4 in absolute terms,

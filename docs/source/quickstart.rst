@@ -62,7 +62,7 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
      - none
    * - Mass density
      - eV\ :sup:`4`
-     - ``UNIT_G_PER_CM3`` = 4.309e18
+     - ``UNIT_G_PER_CM3`` = 4.310e18
    * - Number density
      - eV\ :sup:`3`
      - ``UNIT_PER_CM3`` = 7.684e-15
@@ -75,6 +75,8 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
    * - CP phases
      - radian
      - none
+
+.. _quickstart-conventions:
 
 Conventions
 ------------
@@ -90,9 +92,11 @@ They are the standard ones, stated here so that you can check them against other
 * **Antineutrinos**: ``nubar=True`` conjugates the mixing matrix and flips the sign
   of the matter potential, and of a Lorentz-violating term of even ``n_liv``
   (:doc:`conventions`).
-* **Matter**: an electron fraction :math:`Y_e = 0.5` unless ``electron_fraction``
-  is given.  The Earth functions use one value per layer (0.4656 in the core,
-  0.4957 in the mantle); :doc:`functions` lists them.
+* **Matter**: ``electron_fraction`` is :math:`Y_e`, the number of electrons per
+  atomic mass unit of the material, so a mass density :math:`\rho` gives the electron
+  number density :math:`n_e = \rho N_A Y_e`.  It is 0.5 unless given.  The Earth
+  functions use one value per layer (0.4656 in the core, 0.4957 in the mantle);
+  :doc:`functions` lists them.
 
 :ref:`conventions` gives the details, and :ref:`coming-from-other-codes` sets them
 beside those of GLoBES, Prob3++ and nuSQuIDS.
@@ -282,7 +286,7 @@ which oscillates rapidly:
                                    nu_i=gd.NUE, nu_f=gd.NUE, average=True,
                                    density_profile='B16-GS98')             # 0.332
 
-The unaveraged value at the same energy is 0.175.  :doc:`solar_models` lists the
+Without ``average=True``, the exponential fit gives 0.175 at the same energy.  :doc:`solar_models` lists the
 twelve standard solar models, and :doc:`averaged_probability` explains the average.
 
 New physics: NSI and LIV
@@ -303,9 +307,9 @@ potential.  Unset couplings are zero; the diagonal ones (``eps_ee``, ``eps_mm``,
        2.5*gd.UNIT_GEV, L, b1=1e-9, b2=1e-9, b3=2e-9, Lambda=1e12, n_liv=1,
        nu_i=gd.NUMU, nu_f=gd.NUE)                              # 0.0600
 
-Every environment above has NSI and LIV versions (``osc_prob_3nu_earth_nsi``,
-``osc_prob_3nu_sun_liv``, and so on), at two to five flavors; :doc:`functions`
-lists them all.
+Every matter environment above has NSI and LIV versions, and vacuum has LIV ones
+(``osc_prob_3nu_earth_nsi``, ``osc_prob_3nu_sun_liv``, and so on), at two to five
+flavors; :doc:`functions` lists them all.
 
 Your own Hamiltonian
 ----------------------

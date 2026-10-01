@@ -21,9 +21,9 @@ software stack; absolute times mean little on their own, so ratios are quoted wh
 A comparison of two code paths runs on a harness that interleaves them round-robin and carries
 a control workload the change cannot touch (``docs/dev/adversarial_batteries/timing.py``).  A
 factor of two or more survives a change of machine; a few percent belongs to the machine.  The
-first call on a machine compiles the Numba kernels, which takes about 2 s; they are cached on
-disk, but each later session still spends about 0.1 s loading them.  So the first call is
-discarded, and each setting is timed in blocks of at least 50 ms, the fastest of three.
+first call of a session compiles or loads the Numba kernels (see
+:ref:`the backend section <expm-backend>`), so it is discarded, and each setting is timed in
+blocks of at least 50 ms, the fastest of three.
 
 Batching and parallelization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,9 +50,11 @@ constant-Hamiltonian engine computes the whole scan as one batch of exponentials
 same points one at a time this is worth about an order of magnitude at two and three flavors,
 and several-fold at four and five, where the exponential goes through an eigensolver.  Batched
 answers are bit-identical to point-by-point ones where ``H`` does not vary; where it varies,
-both meet the tolerance, and with the grid fixed they agree to 1e-12.  Equal-length arrays of
-energies and baselines are paired point by point and computed one at a time; for every energy
-at each of several baselines, make one call per baseline.
+both meet the tolerance, and with the grid fixed they agree to 1e-14.  Equal-length arrays of
+energies and baselines are paired point by point.  Where ``H`` does not vary, the
+constant-Hamiltonian engine still batches them; where it varies and the baselines differ, the
+points are computed one at a time.  For every energy at each of several baselines, make one call
+per baseline.
 
 **Parallelization** means computing points in several processes, with ``n_jobs``.  The first
 point runs in the calling process and the rest are shared among the workers, each on the
@@ -77,14 +79,14 @@ no batched engine accepts, such as one where every energy has its own baseline.
 
 The two paths agree to within the tolerance, not bit for bit: the batched scan runs one
 refinement ladder for all the energies, the per-point path one ladder per point.  Along an Earth
-chord at :math:`\cos\theta_z = -0.7`, 40 energies from 0.5 to 20 GeV differ by up to 3.7e-5 at
+chord at :math:`\cos\theta_z = -0.7`, 40 energies from 0.5 to 20 GeV differ by up to 3.8e-5 at
 the default tolerance of 1e-3.  A scan whose serial work would take under a second runs in the
 calling process even when ``n_jobs > 1``, since starting the workers costs more.
 
 **Threads.**  ``n_jobs`` uses processes.  Calls made from several threads of one process are
 safe as well: each call keeps its own per-call state, so concurrent calls return the serial
 answer bit for bit, and a ``strategy`` or ``strategy_info`` in one thread does not reach
-another (issue #153).  They do not run faster for it, since most of a call holds Python's global
+another.  They do not run faster for it, since most of a call holds Python's global
 interpreter lock.
 
 **The refinement ladder works against these savings.**  It computes every slab count below the
@@ -149,6 +151,7 @@ nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other
 floating-point expressions for the same real number.  On Earth single points that is worth
 up to 8.6e-15 relative.
 
+.. _expm-backend:
 
 The matrix exponential, and which backend computes it
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -200,7 +203,7 @@ touch:
      - 54.5 µs
      - **13.2×**
 
-.. list-table:: End to end, through ``osc_prob``
+.. list-table:: End to end, through ``osc_prob`` (interleaved; control 1.00×)
    :header-rows: 1
    :widths: 46 27 27
 
@@ -219,23 +222,21 @@ touch:
    * - 3ν constant density, single point
      - 1.09×
      -
-   * - CONTROL: 4ν vacuum
-     - 1.00×
-     - dimension 4 used ``eigh`` on both settings *at the time of this measurement*,
-       which is what made it a control; it now uses the Jacobi kernel
 
 **A 6.8× exponential is a 2.1× call, and the gap is Amdahl's law rather than a
-disappointment.** The exponential is roughly a third of a slab pass, so removing six
-sevenths of a third is about what the table shows.  Anyone quoting the 6.8× as a package
+disappointment.** If the exponential takes a fraction :math:`f` of the time, making it 6.8×
+faster gives :math:`1/((1-f) + f/6.8)`.  The scan's 2.11× corresponds to :math:`f \approx`
+0.6, and the single point's 1.22× to :math:`f \approx` 0.2, close to the quarter of a
+single 108-slab pass that ``eigh`` takes when profiled.  Anyone quoting the 6.8× as a package
 speed-up is quoting the wrong number.
 
 A caution about measuring the PREM row.
 :func:`magnus.earth.distance_traveled_inside_earth` returns **kilometers**, while every
 ``osc_prob`` baseline is in natural units, and passing the raw value does not raise: it
-returns a converged, unitary answer for a chord a few meters long, on which the refinement
-ladder trivially agrees with itself at every tolerance.  Measured that way the PREM speed-up
-reads 1.45× rather than 2.11×, because a meter-long chord needs almost no slabs and so hardly
-exercises the exponential at all.
+returns a converged, unitary answer for a chord a few millimeters long (one eV⁻¹ is about
+2e-7 m), on which the refinement ladder trivially agrees with itself at every tolerance.
+Measured that way the PREM speed-up reads 1.45× rather than 2.11×, because so short a chord
+needs almost no slabs and so hardly exercises the exponential at all.
 
 **At N = 1 the exponential is no longer the thing to optimize.** ``eigh`` on one 3×3 costs
 3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs -- the
@@ -279,23 +280,19 @@ NSI resonances, constant density and vacuum -- except on a solar profile at
 numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
 ordinary install.  It costs about 90 ms of ``import magnus``; the first call on a machine
 compiles the kernels, about 2 s, and later sessions load them from the disk cache in about
-0.1 s.
+0.1 s.  Because it is required, a Python release that numba has no wheel for yet cannot
+install the package.
 
 The ``'eigh'`` fallback is still there and still correct -- ``'auto'`` degrades to it if
 the import fails for any reason, and nothing but speed changes, every result agreeing to
-~1e-15.  numba was optional on exactly that argument, which held for the library and not
-for its suite: a clean-room install of the published wheel produced twelve *failures*
-rather than twelve skips, because ``tests/test_engines.py`` asks for
-``expm_backend='numba'`` by name.  The trade is that numba lags new interpreters, so a
-Python release it has no wheel for now makes the package uninstallable rather than merely
-slower.
+~1e-15.
 
-Two paths are now compiled beyond the exponential itself.  The separable energy scan folds
+Two paths are compiled beyond the exponential itself.  The separable energy scan folds
 its slab operators in a numba kernel that keeps the Python loop's association but
 accumulates each matrix element as a compiled scalar sum, where BLAS orders the same
-arithmetic its own way.  A numba-less install was bit-identical there and may now differ
-at the 1e-14 level -- worst observed 1.28e-14 across 16 scan configurations, with every
-refinement decision unchanged.  The commutators of the Magnus schemes run in a second
+arithmetic its own way.  Against the NumPy route that runs when numba cannot be imported, it
+may differ at the 1e-14 level -- worst observed 1.28e-14 across 16 scan configurations, with
+every refinement decision unchanged.  The commutators of the Magnus schemes run in a second
 such kernel, which fuses the two batched matmuls of ``X @ Y - Y @ X`` -- nearly all
 gufunc dispatch at these matrix sizes -- into one pass over the stack.  Measured on the
 two benchmark profiles, that cuts the marginal cost per slab of the order-4 scheme by
@@ -304,8 +301,8 @@ commutators per slab, gain 2.5-3.0x and 1.9-2.8x.  At four and five flavors the 
 carry enough arithmetic to amortize their dispatch, so the gain settles at 1.1x; on the
 cumulative-quadrature methods, whose time goes to the integrals rather than the
 commutators, it disappears into the noise.  Probabilities move by at most 6.7e-14 across
-36 configurations, every refinement decision and warning unchanged; without numba the
-kernel falls back to the expression it replaced, bit-identical.
+36 configurations, every refinement decision and warning unchanged; when numba cannot be
+imported, the expression the kernel replaced runs instead.
 
 
 A constant Hamiltonian needs no ladder at all
@@ -342,9 +339,8 @@ entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
      - 6.2×
      - 1.4×
 
-4ν and 5ν gained less here because they exponentiated through ``eigh``; they now go to the
-Jacobi eigensolver, worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  The table
-predates that.  In absolute terms a 3ν constant-density probability costs 3.9 µs under the
+The 4ν and 5ν rows were measured with ``eigh`` as their exponential; the Jacobi eigensolver
+they now use is worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  In absolute terms a 3ν constant-density probability costs 3.9 µs under the
 paper's protocol (:doc:`comparison`), and what remains is wrapper parameter resolution rather
 than arithmetic: a code built for the constant case alone, such as NuFast-LBL, is cheaper.
 
@@ -411,9 +407,9 @@ Measured
        three to six orders more accurate on the ones it serves.
    * - :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT`
      - 2
-     - The same threshold below a tolerance of 1e-6 (issue #125): there the cumulative scan
-       took 0.06 to 0.18 of the hybrid's time at the median over 110 scans, with no silent
-       miss the hybrid did not also make.
+     - The same threshold below a tolerance of 1e-6: there the cumulative scan took 0.06 to
+       0.18 of the hybrid's time at the median over 110 scans, with no silent miss the hybrid
+       did not also make (``docs/dev/measurements/issue125_baseline_scans/``).
    * - :data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS`
      - 4
      - 212 energy-batched scans, 2 to 40 energies, smooth and breakpoint profiles,
@@ -425,7 +421,7 @@ Measured
        250 us per level; resolution law 22 S^0.71 (1e-8/tol)^0.18; margin 1.2; floor
        ``atol + 0.01 rtol`` >= 1e-4; four flavors or more
      - The cost model by which an energy-batched scan is split into groups of energies of
-       similar phase, each on its own grid (issue #111).  Per-slab costs from the slope of
+       similar phase, each on its own grid.  Per-slab costs from the slope of
        the level time at 1 to 4096 slabs and 1 to 4 energies on an Earth chord, flat in the
        number of energies at three flavors and above; the fixed level cost from the
        intercept (100-240 us, set at the upper end); the slab count an energy is accepted
@@ -459,8 +455,8 @@ Measured
      - 0.1
      - See :data:`magnus.adiabatic.THRESHOLD0_PROVENANCE`. Accuracy identical at every value in
        16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper -- but a
-       tolerance-derived rule built on that evidence made an **energy scan 20× worse**
-       (2.5e-05 → 4.95e-04) and was reverted.
+       tolerance-derived start made an **energy scan 20× worse** (2.5e-05 → 4.95e-04), a
+       workload that population did not contain, so the default stays at 0.1.
    * - :data:`magnus.adiabatic.HIDDEN_FEATURE_CONCENTRATION`
      - 0.3
      - 67 smooth and resolvable profiles (ceiling **0.060**) against features in the
@@ -468,8 +464,9 @@ Measured
        0.3 maximizes detection (68–90 %) at five times the measured ceiling.
    * - :data:`magnus.adiabatic.N_HIDDEN_FEATURE_SUBDIVISION`
      - 8
-     - Chosen on cost, not on the statistic (which is flat in it): 0.37 ms against 2.85 ms at
-       32, where the arrays stop fitting in cache.
+     - Calls of one to three points; scans of 4 to 15 points use 16 and longer ones 32.  Chosen
+       on cost, not on the statistic (which is flat in it): 0.37 ms against 2.85 ms at 32,
+       where the arrays stop fitting in cache.
    * - ``n_probe0``, ``n_points0``, ``patch_atol``, ``n_slabs0``, ``growth_factor_n_slabs``,
        ``min_n_tpts_per_slab``
      - 200, 201, 1e-7, 400, 1.5, 2
@@ -487,14 +484,6 @@ Measured
        behavior (a window opens below :math:`\gamma_\max`) but not usefully --
        ``certified=False`` at every value, error three orders inside tolerance either way, and
        the window costs 2.4× the time.
-
-**Why ``threshold0`` was measured, changed, and changed back.** The fixed-baseline sweep said a
-tolerance-derived rule was safe and cheaper. It was built, and the package's bit-identity
-workloads — which include an energy scan the sweep did not — said otherwise: one row 13711×
-better, another 20× worse. **A population that does not contain the workload you are about to
-change is not evidence about it**, which is the same mistake that made ``GAMMA_TO_ERROR`` wrong
-twice, committed again while explicitly trying to avoid it. The measurement is kept; the default
-is not changed.
 
 Not measured
 ~~~~~~~~~~~~~~
@@ -519,9 +508,9 @@ documentation.
 Reproducing any of this
 -------------------------
 
-Every measurement on this page comes from a script under
-``docs/dev/adversarial_batteries/``, and their outputs are deliberately **not** committed, so
-re-running is the only way to get them:
+The measurements on this page come from scripts under ``docs/dev/adversarial_batteries/`` and
+``docs/dev/measurements/``.  The latter has one directory per measurement, with a README and,
+for most, the outputs.  The main scripts of the former:
 
 .. list-table::
    :header-rows: 1

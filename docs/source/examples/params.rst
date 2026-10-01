@@ -42,7 +42,7 @@ Table :ref:`ex-tab-parameters` lists every parameter that the shipped wrappers t
    +---------------------------------------------+------------------------+-------------------------------------+--------------------------------------------------------------+---------------------------------------------------------------------+
    |                                             |                        |                                     |                                                              | ``sxi25``, ``sxi34``, ``sxi35``                                     |
    +---------------------------------------------+------------------------+-------------------------------------+--------------------------------------------------------------+---------------------------------------------------------------------+
-   | CP phases                                   | —                      | ``dxiCP``                           | ``dxi13``, ``dxi14``, ``dxi24``                              | ``dxi13``, ``dxi14``, ``dxi15``,                                    |
+   | CP phases                                   | —                      | ``dxiCP``                           | ``dxiCP``, ``dxi14``, ``dxi24``                              | ``dxiCP``, ``dxi14``, ``dxi15``,                                    |
    +---------------------------------------------+------------------------+-------------------------------------+--------------------------------------------------------------+---------------------------------------------------------------------+
    |                                             |                        |                                     |                                                              | ``dxi24``, ``dxi35``                                                |
    +---------------------------------------------+------------------------+-------------------------------------+--------------------------------------------------------------+---------------------------------------------------------------------+
@@ -51,7 +51,7 @@ Table :ref:`ex-tab-parameters` lists every parameter that the shipped wrappers t
    | Scale, power                                | ``Lambda``, ``n_liv``  | ``Lambda``, ``n_liv``               | ``Lambda``, ``n_liv``                                        | ``Lambda``, ``n_liv``                                               |
    +---------------------------------------------+------------------------+-------------------------------------+--------------------------------------------------------------+---------------------------------------------------------------------+
 
-Every parameter the wrappers of Table :ref:`ex-tab-wrappers` take, by flavor count, beyond the energy, the baseline, and the description of the medium. The angles are read in the convention set by ``angles`` (:ref:`ex-sec-angle-conventions`); the phases in radians, or in degrees under ``angles='deg'``. The standard three-flavor parameters left unset are read from the named set ``OSC_PARAMS_DEFAULT``, or from another set named through ``default_osc_params_set_name``; the active-sterile ones default to zero, so that a four- or five-flavor call without them returns the three-flavor probabilities. At two flavors, ``sth`` and ``Dm2`` are required. The non-standard parameters default to zero, so a ``_nsi`` or ``_liv`` wrapper called without them returns the standard result; with :math:`n_{\rm LIV} = 0`, a term switched on through the eigenvalues is energy-independent. See :ref:`ex-sec-params` for details.
+Every parameter the wrappers of Table :ref:`ex-tab-wrappers` take, by flavor count, beyond the energy, the baseline, and the description of the medium. The angles are read in the convention set by ``angles`` (:ref:`ex-sec-angle-conventions`); the phases in radians, or in degrees under ``angles='deg'``. The standard three-flavor parameters left unset are read from the named set ``OSC_PARAMS_DEFAULT``, or from another set named through ``default_osc_params_set_name``; the active-sterile ones default to zero, so that a four- or five-flavor call without them returns the three-flavor probabilities. At two flavors, ``sth`` and ``Dm2`` are required. The non-standard parameters default to zero, so a ``_nsi`` or ``_liv`` wrapper called without them returns the standard result; with :math:`n_{\rm LIV} = 0`, a term switched on through the eigenvalues is energy-independent.
 
 Three flavors
 ~~~~~~~~~~~~~
@@ -66,7 +66,7 @@ Every ``osc_prob_3nu_*`` wrapper leaves its six standard parameters unset by def
    # Pme = 0.05166, against 0.03127 by default
 
 
-Fifty-two NuFIT global-fit sets of best-fit three-flavor mixing parameters are predefined in ``globaldefs``, together with ``OSC_PARAMS_DEFAULT``. Their names in ``globaldefs`` follow the releases. From NuFIT 4.0 onward, a release splits its fits by whether Super-Kamiokande atmospheric data is included; both are included in ``globaldefs``, e.g., ``OSC_PARAMS_NU_FIT_5_2_SK_IO`` and ``OSC_PARAMS_NU_FIT_5_2_NOSK_IO``. Earlier releases carry no such split, so their names drop that infix, as in ``OSC_PARAMS_NU_FIT_3_0_NO``. Every set can also be loaded by release, ordering, and category through ``load_nufit_params``, e.g.,
+Fifty-two NuFIT global-fit sets of best-fit three-flavor mixing parameters are predefined, together with ``OSC_PARAMS_DEFAULT``, as the keys of ``gd.OSC_PARAMS_PREDEFINED``; a set is passed by its name, as a string. The names follow the releases. From NuFIT 4.0 onward, a release splits its fits by whether Super-Kamiokande atmospheric data is included; both are included, e.g., ``OSC_PARAMS_NU_FIT_5_2_SK_IO`` and ``OSC_PARAMS_NU_FIT_5_2_NOSK_IO``. Earlier releases carry no such split, so their names drop that infix, as in ``OSC_PARAMS_NU_FIT_3_0_NO``. Every set can also be loaded by release, ordering, and category through ``load_nufit_params``, e.g.,
 
 .. code-block:: python
 
@@ -94,7 +94,7 @@ Earlier releases divide their fits in other ways, by reactor-flux treatment befo
    # gives 0.04552
 
 
-:doc:`/conventions` shows the list of parameter sets in Magνs v1.1.1. They can be printed via :doc:`/conventions` shows the list of parameter sets in Magνs v1.1.1. Both lists can also be printed from Python, which keeps them current with the installed version:
+:doc:`/conventions` describes the predefined sets. The full list of sets, and that of the releases and categories the loader reads, can be printed from Python, which keeps them current with the installed version:
 
 .. code-block:: python
 
@@ -217,8 +217,3 @@ A fifth flavor adds three further mixing angles, two further CP phases, and a se
 
 
 As at four flavors, every active-sterile parameter defaults to zero. The mixing matrix has nine angles and five CP phases, ``dCP``, ``d14``, ``d15``, ``d24``, and ``d35``, where a general :math:`5 \times 5` unitary matrix has ten angles and six phases. The missing angle and phase belong to a rotation between the two sterile flavors. Since the two sterile states are indistinguishable, that rotation changes no probability among the active flavors, so it is left out.
-
-Default non-standard parameters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Non-standard parameters are zero by default (Table :ref:`ex-tab-parameters`). The couplings of the ``_nsi`` wrappers and the Lorentz-violation parameters of the ``_liv`` wrappers all default to 0, so a non-standard wrapper called without them returns the standard result, which makes it the control for any new-physics scan. The LIV energy scale ``Lambda`` defaults to 1 and the power ``n_liv`` to 0, so a term switched on through the eigenvalues ``b1``, ``b2``, … is energy-independent unless that power is changed.

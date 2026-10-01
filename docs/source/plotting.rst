@@ -6,30 +6,6 @@ produce the figures the example notebooks use, so that a plot costs one call
 rather than thirty lines of Matplotlib.  See :doc:`tutorials` for the
 notebooks it was extracted from.
 
-Why it exists
----------------
-
-Every figure across the notebooks used to be built by hand.  A typical
-one ran to twenty-five or forty lines: a ``gridspec_kw`` dictionary, a
-``subplots_adjust`` call, the plotting itself, a nine-keyword ``legend``
-invocation, four ``MultipleLocator`` assignments, axis limits and scales, and
-a ``savefig``.  That block was copied from figure to figure and varied
-slightly each time, which is exactly the arrangement in which a figure
-quietly stops matching its neighbors.
-
-Cataloguing them first mattered more than writing the code, because most are
-the *same figure* with different data: **a set of curves against a swept
-variable, optionally over a short relative-error subpanel.**  That shape is
-:func:`magnus.plotting.plot_curves`, and the probability-against-baseline and
-probability-against-energy functions are thin presets over it that fix labels,
-scales and tick spacings.
-
-Only five layouts beyond it are genuinely distinct: small multiples (where the
-comparison runs *between* panels, so every panel needs identical limits while
-the labels, title and legend must each appear exactly once), a density profile
-stacked over probability panels, an oscillating probability under its
-phase average, the bi-probability plane, and the oscillogram.
-
 What it draws
 ---------------
 
@@ -41,7 +17,8 @@ What it draws
      - Layout
    * - :func:`~magnus.plotting.plot_curves`
      - Curves against any swept variable, with an optional relative-error
-       subpanel.  Also serves the convergence and error studies.
+       subpanel: the shape of most of the notebooks' figures.  Also serves the
+       convergence and error studies.
    * - :func:`~magnus.plotting.plot_probability_vs_baseline`
      - The same, preset to a logarithmic baseline axis and a unit ordinate.
    * - :func:`~magnus.plotting.plot_probability_vs_energy`
@@ -186,7 +163,7 @@ that unit.
 
     from magnus.plotting import plot_probability_with_profile
 
-    L_km = np.linspace(100.0, 11000.0, 200)      # the chord at cos = -0.9 is 11 467 km
+    L_km = np.linspace(100.0, 11000.0, 200)      # the chord at cos = -0.9 is 11 468 km
     fig, ax = plot_probability_with_profile(
         L_km, trajectories=[dict(costhz=-0.9, label=r'$\cos\theta_z = -0.9$')],
         energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
@@ -243,15 +220,13 @@ Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 ``subplots_kw``, and, per curve, any
 :class:`~matplotlib.lines.Line2D` keyword.
 
-There is deliberately no bare ``**kwargs`` on any of them (``plot_probability_with_average``
-passes its extras on to ``plot_probability_vs_baseline``, which is strict).  A catch-all
-signature accepts a misspelled keyword in silence, and this project has
-already paid for that: ``oscprob``'s keyword chain used to forward unknown
-names down several layers before failing somewhere unrecognizable.  Here
-every keyword either appears in the signature, so a typo is a
-:class:`TypeError` at the call site, or lands in a dictionary destined for one
-specific Matplotlib call, so a typo is an error from that call naming the
-offending key.  Nothing is swallowed:
+None of them has a catch-all that accepts unknown names, since a catch-all accepts a
+misspelled keyword in silence.  The three that take extra keywords
+(``plot_probability_vs_baseline``, ``plot_probability_vs_energy`` and
+``plot_probability_with_average``) pass them on to a strict function, so a typo still
+raises.  Every keyword either appears in a signature, so a typo is a :class:`TypeError` at
+the call site, or lands in a dictionary destined for one specific Matplotlib call, so a
+typo is an error from that call naming the offending key.  Nothing is swallowed:
 
 .. jupyter-execute::
 
@@ -274,8 +249,9 @@ Returning ``(fig, ax)``
 
 Every function returns both, so that a pre-packaged figure is a starting
 point rather than a dead end.  Each call creates its own figure: there is no
-``ax=`` argument for drawing into existing axes, and ``subplots_kw`` cannot set
-``nrows``, ``ncols`` or ``figsize``, which the layout fixes.  ``ax`` is a single
+``ax=`` argument for drawing into existing axes.  ``subplots_kw`` cannot set
+``nrows`` or ``ncols``, which the layout fixes, nor ``figsize``, which has its own
+``figsize=`` argument.  ``ax`` is a single
 :class:`~matplotlib.axes.Axes` for the single-panel layouts and an array for
 the multi-panel ones -- with a residual subpanel, ``ax[0]`` is the main panel
 and ``ax[1]`` the residual:
@@ -304,9 +280,7 @@ Labels
 --------
 
 :func:`~magnus.plotting.prob_label` builds the LaTeX for a probability from a
-flavor pair.  A helper of this name was defined separately in several
-notebooks, each covering only the three active flavors; this one also covers
-the sterile states, so the sterile-neutrino notebook can use it:
+flavor pair, the sterile states included:
 
 .. jupyter-execute::
 

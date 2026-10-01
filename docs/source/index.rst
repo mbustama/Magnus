@@ -77,7 +77,7 @@ Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
 **Fast.**  An energy scan is one batched call rather than a loop, worth about an order
-of magnitude per probability; an oscillogram (probability over energy and zenith angle) is one such call per zenith angle.  The median call over 164 Earth and solar configurations is **2 ms**, warm, on the laptop
+of magnitude per probability; an oscillogram (probability over energy and zenith angle) is one such call per zenith angle.  The median call over 164 Earth, solar, vacuum and constant-density configurations is **2 ms**, warm, on the laptop
 behind every timing in the paper; the first call of a session adds 0.1 to 0.3 s of set-up.
 :doc:`performance` has the rest.
 
@@ -144,7 +144,7 @@ Magνs is a numerical integrator, so its error depends on how finely it discreti
 property is exact regardless: every truncation of the Magnus series is anti-Hermitian, so the
 evolution operator is unitary at any order, any tolerance and any slab count, and the
 probabilities add up to one to round-off.  The rest is measured, in layers that are
-independent on purpose (Sec. 5.11 of the paper):
+independent on purpose:
 
 .. list-table::
    :header-rows: 1
@@ -198,30 +198,18 @@ kernels (an oscillogram, one such call per zenith angle).  And it is **flexible*
 of any size, so five flavors, non-standard interactions, a Lorentz-violating background and a
 new interaction are the same call.
 
-It is the code to reach for when the profile, the accuracy, the flavor count or the
-Hamiltonian takes a problem outside what a composition of constant-density slabs does well:
-a density that varies fast against the oscillation length, as in the Sun; structure at a known
-place, declared with ``t_breakpoints``; more than three flavors; a Hamiltonian with no closed
-form; an averaged observable; or an accuracy below where a slab composition floors.  Where the
-accumulated phase is extreme and the profile varies slowly, as in the Sun, Magνs transports
-the state along the instantaneous eigenstates and keeps the expansion for the narrow windows
-where that fails (:doc:`adiabatic_strategy`); it decides the hand-over itself.
-
-.. _use-nuoscprobexact-instead:
-
-Elsewhere, another code may be cheaper.  At constant density every code reaches round-off,
-and NuFast-LBL does it about sixty times faster than Magνs.  On an Earth chord resolved to no
-better than about 1e-6, NuOscProbExact is cheaper; a three-flavor fit that moves only
-:math:`\delta_{\rm CP}` is cheaper still with NuFast-Earth.  :doc:`comparison` has the
-measurements.
+Where the accumulated phase is extreme and the profile varies slowly, as in the Sun, Magνs
+transports the state along the instantaneous eigenstates and keeps the expansion for the narrow
+windows where that fails (:doc:`adiabatic_strategy`); it decides the hand-over itself.  When to
+reach for Magνs, and when another code is cheaper, is set out with the measurements in
+:ref:`when-to-use-magnus`.
 
 .. _when-is-magnus-not-the-right-tool:
 
 When is Magνs not the right tool?
 -------------------------------------
 
-Some limits belong to the method, and no implementation would remove them (Sec. 5.12 of the
-paper):
+Some limits belong to the method, and no implementation would remove them:
 
 * **Open systems.**  Decoherence, coupling to a bath and decay to invisible states remove
   probability or damp the coherence between mass eigenstates.  They need a density matrix
@@ -254,12 +242,12 @@ Performance
 ------------
 
 A single three-flavor probability through the Earth takes about 2 ms at the default
-tolerance, and across 164 Earth and solar configurations the median call takes 2 ms and the
-slowest under a second.  These are per call, on one laptop, with the first call of the session
+tolerance, and across 164 Earth, solar, vacuum and constant-density configurations the
+median call takes 2 ms and the slowest under a second.  These are per call, on one laptop, with the first call of the session
 discarded: that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first time
 on a machine, when they compile.  The configurations are
 ``docs/dev/adversarial_batteries/battery10_coverage.py`` and the timing harness is
-``timing.py`` beside it (in a source checkout).  Four things set the cost (Sec. 7.3 of the paper):
+``timing.py`` beside it (in a source checkout).  Four things set the cost:
 
 * **Pass arrays.**  Every wrapper accepts arrays of energies, of baselines, or both, and then
   shares work across the points: worth about an order of magnitude at two and three flavors,
@@ -293,8 +281,8 @@ Salient features
   named detector sites), the Sun on an exponential fit or any of twelve standard
   solar models (:doc:`solar_models`), or any density profile you supply.
 * **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
-  and Lorentz-invariance violation (LIV), for every flavor count and
-  environment above.
+  for every flavor count and matter environment above, and Lorentz-invariance
+  violation (LIV) for every flavor count and environment, vacuum included.
 * **Magnus expansion to order 10**, with the term recursion verified
   term-by-term against the literature, and three integration methods.  The
   default, **Gauss-Legendre collocation integrators**, reaches orders
@@ -306,9 +294,10 @@ Salient features
   physics-informed starting slab counts and warm starts across scans, slab
   edges aligned with density discontinuities, and an energy-batched scan
   engine for standard/NSI/LIV Hamiltonians.
-* **Silent vectorization**: Hamiltonian and density-profile functions that
-  accept position arrays are detected and used automatically, with a safe
-  scalar fallback.
+* **Automatic vectorization**: Hamiltonian and density-profile functions that
+  accept position arrays are detected and used automatically; one that takes a
+  single position still works, more slowly, and raises
+  ``ScalarHamiltonianWarning``.
 
 .. toctree::
    :maxdepth: 2
@@ -369,7 +358,7 @@ version you used -- results can depend on it.  :doc:`citing` has the BibTeX
 entry and the two or three things worth stating in the text.
 
 License
-=========
+-------
 
 Magνs is released under the `GNU General Public License v3.0 only
 <https://www.gnu.org/licenses/gpl-3.0>`_ (``GPL-3.0-only``).  The full text
@@ -382,7 +371,7 @@ same license and with source available.  If you are unsure whether your
 intended use is compatible, read the license itself rather than this summary.
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

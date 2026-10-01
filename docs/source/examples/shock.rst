@@ -9,7 +9,7 @@ A supernova shock front
    :width: 95%
    :alt: A supernova shock front
 
-   **A supernova shock front.** Electron number density along a supernova ray, and the survival probability of a 15-MeV :math:`\nu_e` along it. *Top*: the density from :math:`10^{4}` to :math:`8 \cdot 10^{4}` km. Two fronts sit on the ray: the forward shock at 30 323 km, where the density jumps by a factor of ten, and the contact discontinuity at 12 348 km, where it jumps by a factor of 2.5. The two columns differ in one thing only, the width of both fronts: 0.07 km on the left, 70 km on the right. Neither width is visible on the scale of the ray, so the insets show the forward shock, with its extent shaded. *Center*: the probability along the whole ray, computed with Magνs at :math:`{\tt rtol} = 10^{-8}` for four Hamiltonians. The ray holds thousands of oscillation lengths of the pair of eigenstates split by :math:`\Delta m^2_{31}`, so the panel resolves the envelope of the oscillation and not the oscillation itself. The two columns agree bitwise up to the contact discontinuity and part there. *Bottom*: the same probability in a window of :math:`\pm`\ 75 km around the forward shock, where the oscillation is resolved. Two flavors are not drawn: with :math:`\Delta m^2_{21}` alone, the probability stays above 0.95 along the whole ray at this energy. The profile follows  :cite:p:`Schirato:2002tg,Fogli:2003dw`, with the radii of a simulation snapshot  :cite:p:`Kneller:2014oea`. Listing :ref:`Through a supernova shock front <ex-lst-shock>` generates the curves of the left column. See notebooks `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-shock` for details.
+   **A supernova shock front.** Electron number density along a supernova ray, and the survival probability of a 15-MeV :math:`\nu_e` along it. *Top*: the density from :math:`10^{4}` to :math:`8 \cdot 10^{4}` km. Two fronts sit on the ray: the forward shock at 30 323 km, where the density jumps by a factor of ten, and the contact discontinuity at 12 348 km, where it jumps by a factor of 2.5. The two columns differ in one thing only, the width of both fronts: 0.07 km on the left, 70 km on the right. Neither width is visible on the scale of the ray, so the insets show the forward shock, with its extent shaded. *Center*: the probability along the whole ray, computed with Magνs at :math:`{\tt rtol} = 10^{-8}` for four Hamiltonians. The ray holds thousands of oscillation lengths of the pair of eigenstates split by :math:`\Delta m^2_{31}`, so the panel resolves the envelope of the oscillation and not the oscillation itself. The two columns agree bitwise up to the contact discontinuity and part there. *Bottom*: the same probability in a window of :math:`\pm`\ 75 km around the forward shock, where the oscillation is resolved. Two flavors are not drawn: with :math:`\Delta m^2_{21}` alone, the probability stays above 0.95 along the whole ray at this energy. The profile follows  :cite:p:`Schirato:2002tg,Fogli:2003dw`, with the radii of a simulation snapshot  :cite:p:`Kneller:2014oea`. Listing :ref:`Through a supernova shock front <ex-lst-shock>` generates the curves of the left column. See notebooks `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 Figure :ref:`A supernova shock front <ex-fig-shock>` shows the survival probability of a 15-MeV :math:`\nu_e` along a supernova ray crossed by a shock, for two widths of the shock fronts, 0.07 and 70 km. The forward shock is the blast wave of the explosion. It propagates outward through an envelope whose density falls as :math:`r^{-2.4}`, and compresses the matter behind it tenfold. Behind it lies the contact discontinuity, which separates the shocked envelope from the ejecta; across it, the density drops by a factor of 2.5, while the pressure is continuous. An outgoing neutrino therefore crosses two density jumps: first the contact discontinuity, then, after the shocked shell, thinned by a rarefaction, the forward shock. Because a shock alters the adiabaticity of the level crossings, it leaves a signature in the neutrino signal  :cite:p:`Schirato:2002tg,Fogli:2003dw`.
@@ -41,7 +41,7 @@ With or without breakpoints, the scan also raises two tolerance warnings, becaus
 
 .. _ex-lst-shock:
 
-**Through a supernova shock front.** The four curves of the left column of Figure :ref:`A supernova shock front <ex-fig-shock>`: for each Hamiltonian, a scan of 4 000 baselines along the ray at one energy, with both fronts declared. ``t_breakpoints`` names the positions where each front begins and ends, and the refinement puts slab edges there at every level. ``ne_shock`` is the electron density of Figure :ref:`A supernova shock front <ex-fig-shock>` as a function of position and ``osc`` the oscillation parameters. See notebook `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__ and :ref:`ex-sec-shock` for details.
+**Through a supernova shock front.** The four curves of the left column of Figure :ref:`A supernova shock front <ex-fig-shock>`: for each Hamiltonian, a scan of 4 000 baselines along the ray at one energy, with both fronts declared. ``t_breakpoints`` names the positions where each front begins and ends, and the refinement puts slab edges there at every level. ``ne_shock`` is the electron density of Figure :ref:`A supernova shock front <ex-fig-shock>`, the profile of notebook #14, with :math:`Y_e = 1/2` and the normalization the model was defined with: the mean free-nucleon mass and the gram as converted before 1.2.0. See notebook `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__.
 
 .. code-block:: python
 
@@ -49,12 +49,40 @@ With or without breakpoints, the scan also raises two tolerance warnings, becaus
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-   # Both fronts, 0.07 km wide, centered on the contact
-   # discontinuity and on the forward shock: declare
-   # where each begins and ends
-   w = 0.07*gd.UNIT_KM
-   edges = [r + s*w/2 for r in (12348.0*gd.UNIT_KM,
-    30323.0*gd.UNIT_KM) for s in (-1.0, 1.0)]
+   osc = gd.load_nufit_params('NuFIT 6.1')
+
+   # The model's normalization: the mean free-nucleon
+   # mass, and the gram as converted before 1.2.0
+   MEAN_NUCLEON = (0.5*(gd.MASS_PROTON + gd.MASS_NEUTRON)
+                   *1.783e-33/gd.CONV_EV_TO_G)
+
+   # The ray: an r^-2.4 envelope, compressed tenfold
+   # behind the forward shock (thinned by a
+   # rarefaction) and 2.5 times more inside the contact
+   # discontinuity.  Each front is a smooth step of
+   # width w_km
+   R_CD, R_FS, w_km = 12348.0, 30323.0, 0.07   # km
+
+   def step(r, r0):
+       u = np.clip((r0 + w_km/2 - r)/w_km, 0.0, 1.0)
+       return u*u*(3.0 - 2.0*u)
+
+   def ne_shock(l):
+       r = np.asarray(l)/gd.UNIT_KM
+       u = np.clip(1.0 - r/R_FS, 0.0, 1.0)
+       rare = np.exp((0.28 - 0.69*np.log(R_FS))
+                     *np.arcsin(u)**1.1)
+       rho = (1.0e14*r**-2.4                  # g/cm^3
+              *(1.0 + step(r, R_FS)*(10.0*rare - 1.0))
+              *(1.0 + 1.5*step(r, R_CD)))
+       # Y_e = 1/2, with the model's own normalization
+       return (rho*gd.UNIT_G_PER_CM3
+               /MEAN_NUCLEON*0.5)
+
+   # Declare where each front begins and ends
+   w = w_km*gd.UNIT_KM
+   edges = [r*gd.UNIT_KM + s*w/2 for r in (R_CD, R_FS)
+            for s in (-1.0, 1.0)]
 
    # 4000 baselines from 10,200 to 80,000 km, at one
    # energy: the cumulative engine answers
@@ -82,7 +110,7 @@ With or without breakpoints, the scan also raises two tolerance warnings, becaus
    P4 = oscprob.osc_prob_matter_std_potential(
     4, ne_shock, E, Ls, osc4, **run)
    osc5 = dict(osc4, s15=0.06**0.5, s25=0.06**0.5,
-    s35=0.0, D51=1.7, d15=0.0, d25=0.0, d35=0.0)
+    s35=0.0, D51=1.7, d15=0.0, d35=0.0)
    P5 = oscprob.osc_prob_matter_std_potential(
     5, ne_shock, E, Ls, osc5, **run)
 
@@ -140,7 +168,7 @@ Unlike the limit returned on a smooth profile, this average depends on the width
    :width: 95%
    :alt: The shock signature against energy
 
-   **The shock signature against energy.** Averaged survival probability of a :math:`\nu_e` at the end of the supernova ray of Figure :ref:`A supernova shock front <ex-fig-shock>`, at 80 000 km, against energy, with no shock and with the two front widths of that figure. Each point with a shock is the mean over an energy window of :math:`\pm`\ 10%, the average that ``average=True`` returns on a profile with declared fronts; the bands are the standard errors of those means. Without a shock, the passage is adiabatic and the survival probability stays at a few percent. With the fronts, it rises between 5 and about 25 MeV, where the neutrino crosses the resonance of the pair of eigenstates split by :math:`\Delta m^2_{31}` at the forward shock or close to it, and it falls back toward the no-shock value above 30 MeV, where the resonance lies farther out, in undisturbed matter. See notebooks `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__, and :ref:`ex-sec-shock` for details.
+   **The shock signature against energy.** Averaged survival probability of a :math:`\nu_e` at the end of the supernova ray of Figure :ref:`A supernova shock front <ex-fig-shock>`, at 80 000 km, against energy, with no shock and with the two front widths of that figure. Each point with a shock is the mean over an energy window of :math:`\pm`\ 10%, the average that ``average=True`` returns on a profile with declared fronts; the bands are the standard errors of those means. Without a shock, the passage is adiabatic and the survival probability stays at a few percent. With the fronts, it is tens of percent from 5 MeV, the lowest energy shown, to about 25 MeV, where the neutrino crosses the resonance of the pair of eigenstates split by :math:`\Delta m^2_{31}` at the forward shock or close to it, and it falls back toward the no-shock value above 30 MeV, where the resonance lies farther out, in undisturbed matter. See notebooks `#14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
-Figure :ref:`The shock signature against energy <ex-fig-shock-energy>` shows the effect of the shock on the energy spectrum. Without a shock, the profile is smooth, the passage is adiabatic, a :math:`\nu_e` leaves as :math:`\nu_3`, and the survival probability is a few percent at all energies. With a shock, it rises to tens of percent between 5 and about 25 MeV and falls back toward the no-shock value above 30 MeV. This window follows from the position of the resonance density, which scales as :math:`1/E`, on the profile. Between 1.8 and 18 MeV, the resonance density lies between the densities on either side of the forward shock, and the resonance is crossed at the front. Above 18 MeV, it lies in the undisturbed matter beyond the front and is crossed adiabatically; the jump still changes the mixing angle abruptly, but less so at higher energies, and the effect fades. Within the window, the sharp fronts yield the larger survival probability, because the oscillation length at the resonance, 20 to 60 km between 6 and 18 MeV, is comparable to the 70-km ramp, which the state partly follows. Between 5.3 and 13 MeV, the resonance density also lies between the densities on either side of the contact discontinuity; the resonance is then crossed at both fronts, and the result depends on the phase accumulated between them. Near 5 MeV, the wide fronts yield the larger survival probability.
+Figure :ref:`The shock signature against energy <ex-fig-shock-energy>` shows the effect of the shock on the energy spectrum. Without a shock, the profile is smooth, the passage is adiabatic, a :math:`\nu_e` leaves as :math:`\nu_3`, and the survival probability is a few percent at all energies. With a shock, it is tens of percent from 5 MeV, the lowest energy shown, to about 25 MeV, and falls back toward the no-shock value above 30 MeV. This window follows from the position of the resonance density, which scales as :math:`1/E`, on the profile. Between 1.8 and 18 MeV, the resonance density lies between the densities on either side of the forward shock, and the resonance is crossed at the front. Above 18 MeV, it lies in the undisturbed matter beyond the front and is crossed adiabatically; the jump still changes the mixing angle abruptly, but less so at higher energies, and the effect fades. Within the window, the sharp fronts yield the larger survival probability, because the oscillation length at the resonance, 20 to 60 km between 6 and 18 MeV, is comparable to the 70-km ramp, which the state partly follows. Between 5.3 and 13 MeV, the resonance density also lies between the densities on either side of the contact discontinuity; the resonance is then crossed at both fronts, and the result depends on the phase accumulated between them. Near 5 MeV, the wide fronts yield the larger survival probability.

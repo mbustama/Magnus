@@ -49,8 +49,9 @@ that is three things:
    ``strategy='magnus'`` can differ by far more than the tolerance on solar
    configurations, so it is worth stating which one produced the numbers.
 
-If accuracy is central to your result, ``convergence_info`` reports what the
-refinement ladder actually did, including whether it converged or hit a cap.
+If accuracy is central to your result, pass ``convergence_info={}`` to the call
+and read the dict afterwards: it reports what the refinement ladder actually did,
+including whether it converged or hit a cap.
 
 Citing the method
 ------------------

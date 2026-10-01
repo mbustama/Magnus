@@ -19,34 +19,24 @@ Neutrino flavor evolution is governed by the Schrödinger-like equation
 
 .. math::
 
-   i \frac{d}{dl}\, |\psi(l)\rangle = H(l)\, |\psi(l)\rangle ,
+   i \frac{d}{dl}\, |\psi(l)\rangle = \mathbb{H}(l)\, |\psi(l)\rangle ,
 
-with :math:`H(l)` the (possibly position-dependent) flavor Hamiltonian.
-The evolution operator :math:`U(l_1, l_0)` satisfies the same equation with
-:math:`U(l_0, l_0) = \mathbb{1}`.  When :math:`H` does not commute with
-itself at different positions, :math:`U` is *not* simply
-:math:`\exp\!\left[-i\int_{l_0}^{l_1} H(l)\, dl\right]`.
+with :math:`\mathbb{H}(l)` the (possibly position-dependent) flavor Hamiltonian.
+The evolution operator :math:`\mathbb{U}(l_1, l_0)` satisfies the same equation with
+:math:`\mathbb{U}(l_0, l_0) = \mathbb{1}`.  When :math:`\mathbb{H}` does not commute with
+itself at different positions, :math:`\mathbb{U}` is *not* simply
+:math:`\exp\!\left[-i\int_{l_0}^{l_1} \mathbb{H}(l)\, dl\right]`.
 
-The Magnus expansion instead writes :math:`U(l_1, l_0) = \exp[\Omega(l_1)]`
+The Magnus expansion instead writes :math:`\mathbb{U}(l_1, l_0) = \exp[\Omega(l_1)]`
 exactly, where :math:`\Omega = \sum_k \Omega_k` is built order by order from
-nested commutators of :math:`A(l) \equiv -i H(l)` :cite:p:`Blanes2009`:
-
-.. math::
-
-   \Omega_1(l) &= \int_{l_0}^{l} A(s)\, ds \\
-   \Omega_n(l) &= \sum_{j=1}^{n-1} \frac{B_j}{j!} \int_{l_0}^{l} S_n^{(j)}(s)\, ds ,
-
-with :math:`B_j` the Bernoulli numbers (:math:`B_1 = -1/2` convention) and
-:math:`S_n^{(j)}` sums of :math:`j`-fold nested commutators of the
-lower-order terms with :math:`A`.  Magνs implements this recursion through
-:math:`n = 10` (odd Bernoulli numbers :math:`B_3 = B_5 = 0` vanish
-identically, so only even-index commutator groups appear beyond
-:math:`\Omega_3`); the coefficients and every term were verified
-independently, term by term, against this recursion (see
-:ref:`validation`).  Orders 1 to 6 are written out inline; beyond that the
-terms are generated from the recursion, since their number roughly doubles
-per order.  :doc:`expansion_terms` derives them symbolically at any order,
-which is what the verification checks against.
+nested commutators of :math:`A(l) \equiv -i \mathbb{H}(l)`, by a Bernoulli-number recursion
+:cite:p:`Blanes2009` written out in :ref:`magnus-recursion`.  Magνs implements it
+through :math:`n = 10`; since :math:`B_j = 0` for odd :math:`j \geq 3`, only the
+:math:`j = 1` and even-:math:`j` commutator groups appear.  Orders 1 to 6 are written
+out inline; beyond that the terms are generated from the recursion, since their number
+roughly doubles per order.  :doc:`expansion_terms` derives them symbolically at any
+order, and the test suite checks every term against that derivation (see
+:ref:`validation`).
 
 **Truncating the series is exact for the group, not just approximate for
 the answer.**  Whatever order the sum stops at, :math:`\Omega` remains
@@ -54,7 +44,7 @@ anti-Hermitian (since each :math:`\Omega_k` is a real combination of nested
 commutators of anti-Hermitian matrices), so :math:`\exp(\Omega)` is
 *exactly* unitary, regardless of the truncation order or the quadrature
 accuracy.  In floating point it comes close: one exponential deviates by
-:math:`\lVert U^\dagger U - \mathbb{1}\rVert = 4\times10^{-16}` in the median (the worst
+:math:`\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert = 4\times10^{-16}` in the median (the worst
 of a stack of 4096 reaches :math:`4\times10^{-15}`), and a whole probability, built from
 many such factors, by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst across
 four decades in the number of points, at two to five flavors.  This is the central practical advantage over direct
@@ -76,7 +66,7 @@ yet about the error.
 Two integration methods
 --------------------------
 
-Evaluating the nested integrals above requires sampling :math:`A(l)` inside
+Evaluating the nested integrals of the expansion requires sampling :math:`A(l)` inside
 each slab.  Magνs offers two families, selected via
 ``integration_method``, which defaults to ``'gl'``:
 
@@ -140,8 +130,9 @@ slabs}^{-p}`.  On ``'simpson'`` and ``'trapezoid'`` it is the index of the last
 :math:`\Omega_6` and is an eighth-order method.  Every order is even, because about the
 slab midpoint each :math:`\Omega_k` carries only odd powers of :math:`h`, which pairs the
 terms (:math:`\Omega_3` and :math:`\Omega_4` both at :math:`h^5`, and so on).  An odd
-request runs the next even scheme on ``'gl'``, and delivers the even order just below on
-the cumulative rules, at the cost of one more term:
+request raises :class:`ValueError` on ``'gl'``, which has even schemes only; on the
+cumulative rules it delivers the same order as the even request below it, at the cost of
+one more term:
 
 .. list-table::
    :header-rows: 1
@@ -152,7 +143,7 @@ the cumulative rules, at the cost of one more term:
      - ``'simpson'``
      - ``'trapezoid'``
    * - 1
-     - 2
+     - ValueError
      - 2
      - (2)
    * - 2
@@ -160,7 +151,7 @@ the cumulative rules, at the cost of one more term:
      - 4
      - (4)
    * - 3
-     - 4
+     - ValueError
      - 4
      - (4)
    * - 4 (default)
@@ -168,7 +159,7 @@ the cumulative rules, at the cost of one more term:
      - 6
      - (6)
    * - 5
-     - 6
+     - ValueError
      - 6
      - (6)
    * - 6
@@ -176,7 +167,7 @@ the cumulative rules, at the cost of one more term:
      - 8
      - (8)
    * - 7
-     - (8)
+     - ValueError
      - (8)
      - (8)
    * - 8
@@ -194,7 +185,7 @@ the cumulative rules, at the cost of one more term:
 
 Entries without parentheses are measured, by fitting the error against the slab count on a
 smooth, non-commuting problem against DOP853; entries in parentheses follow from the two
-rules above.
+rules above.  ``ValueError`` marks a request ``'gl'`` refuses.
 
 Unitarity from the spectral decomposition
 ------------------------------------------------
@@ -205,11 +196,11 @@ Since :math:`\Omega` is anti-Hermitian, Magνs computes
 
 .. math::
 
-   \exp(\Omega) = V\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, V^\dagger ,
-   \qquad K = V\, \mathrm{diag}(\lambda)\, V^\dagger .
+   \exp(\Omega) = \mathbb{V}\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, \mathbb{V}^\dagger ,
+   \qquad K = \mathbb{V}\, \mathrm{diag}(\lambda)\, \mathbb{V}^\dagger .
 
 This is faster than a general (Padé-based) matrix exponential for stacks of
-small matrices, and unitary to round-off (:math:`U^\dagger U - I` of order
+small matrices, and unitary to round-off (:math:`\mathbb{U}^\dagger \mathbb{U} - \mathbb{1}` of order
 1e-15; see :doc:`performance`).  By default (``EXPM_BACKEND = 'auto'``) the
 spectrum comes from compiled kernels -- Cayley-Hamilton for 2×2 and 3×3,
 batched Jacobi for 4×4 and 5×5 -- and from ``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
@@ -224,7 +215,7 @@ as a time-ordered product, with the *last* slab as the leftmost factor:
 
 .. math::
 
-   U_\mathrm{tot} = U_N \cdots U_2\, U_1 .
+   \mathbb{U}_\mathrm{tot} = \mathbb{U}_N \cdots \mathbb{U}_2\, \mathbb{U}_1 .
 
 This matters physically whenever the Hamiltonians of different slabs do
 not commute — e.g., an asymmetric density profile together with a nonzero
@@ -369,7 +360,7 @@ there for accuracy studies rather than production runs.
 
 .. note::
    How these numbers were obtained, since they are the basis for leaving the
-   defaults alone.  Three measurements, all against a tight-tolerance
+   defaults alone.  Two measurements, both against a tight-tolerance
    reference computed at order 6 with the slab cap raised:
 
    #. **Cheapest configuration sweep.**  For each of seven cases -- Earth
@@ -386,13 +377,9 @@ there for accuracy studies rather than production runs.
       so fewer slabs matters more than fewer evaluations.  Re-timing the same
       optima is what produced the ranges above, and it moved the crossover --
       order 2 wins on evaluations at :math:`10^{-4}` but loses on wall time.
-   #. **Seed prototype, rejected.**  Because the starting slab count comes
-      from a phase target that is order-independent (:math:`2\pi` radians per
-      slab), an order-aware target was prototyped and A/B tested over 45
-      configurations (five cases × three orders × three tolerances).  It gave
-      no speed-up, and cost up to 20% on the energy scan: the final slab
-      count is set by the refinement loop, not the seed, so starting coarser
-      only adds an iteration.  The seed was left as it is.
+
+   The starting slab count does not depend on the order: the final count is set by the
+   refinement loop, so a coarser start for a higher order only adds an iteration.
 
 Silent vectorization and the energy-batched scan engine
 -------------------------------------------------------------
@@ -421,8 +408,8 @@ of them rewards one:
   1.7 ms, a factor of 4.6, with bit-identical output.  See
   :ref:`array-capable-hamiltonians` for how to write one.
 * **Energy-batched scans.**  The standard, NSI, and LIV Hamiltonians all
-  have the separable form :math:`H(E, l) = H_E(E) + V_\mathrm{CC}(l)\, M`,
-  with :math:`H_E` collecting the energy-dependent (vacuum and LIV) terms
+  have the separable form :math:`\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_\mathrm{CC}(l)\, M`,
+  with :math:`\mathbb{H}_E` collecting the energy-dependent (vacuum and LIV) terms
   and :math:`M` a fixed matrix.  When many energies share a single
   baseline, Magνs detects this and runs the *entire* scan as one batched
   pipeline: the potential is sampled once per refinement level and shared
@@ -442,6 +429,18 @@ under your control.  The change is usually small: write the position
 dependence with NumPy and let the matrix part broadcast.
 
 .. code-block:: python
+
+    import numpy as np
+    import magnus.globaldefs as gd
+    import magnus.hamiltonians as hamiltonians
+    import magnus.matter as matter
+
+    osc = gd.load_nufit_params('NuFIT 6.1')
+    h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**osc)
+    energy, l_scale = 1.0*gd.UNIT_GEV, 1000.0       # l_scale in km
+    def num_density_e_func(l):                      # an exponential profile [eV^3]
+        return 2.0*gd.N_AV*gd.UNIT_PER_CM3*np.exp(-(l/gd.UNIT_KM)/l_scale)
+    VCC_central = matter.VCC_func(0.0, num_density_e_func)
 
     # Slow: one position at a time
     def H_func(l):
@@ -484,8 +483,8 @@ which runs in CI on every push (see the badge on :doc:`index`), validates
 the methodology above directly:
 
 * **The expansion terms** :math:`\Omega_1, \ldots, \Omega_{10}` are compared,
-  term by term, to terms generated independently from the Bernoulli-number recursion
-  (:doc:`expansion_terms`), agreeing to a relative :math:`10^{-11}` at every order, using a Hamiltonian with three independent,
+  term by term, to the terms :doc:`expansion_terms` derives independently from the
+  recursion, using a Hamiltonian with three independent,
   non-commuting generators — chosen specifically because a
   two-generator Hamiltonian causes one nested-commutator term of
   :math:`\Omega_4` to vanish identically, which would otherwise mask a

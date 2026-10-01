@@ -5,6 +5,9 @@ The layout is shown twice -- in ``README.md`` and in
 ``docs/source/installation.rst`` -- because the two are read in different
 places.  Both are **generated** from `TREE` below rather than maintained by
 hand, so there is one place to edit and no way for the two copies to disagree.
+The README shows the top level only; installation.rst adds the package under
+``src/``, which is what a user installs.  `TREE` itself is the complete,
+annotated listing.
 
 They had disagreed, which is why this exists: twenty-one tracked files were
 missing from the README's tree, and not only recent ones -- ``plotting.rst``,
@@ -66,7 +69,7 @@ TREE = [
     ('CITATION.cff', 'Machine-readable citation metadata; drives GitHub\'s "Cite this repository"'),
     ('LICENSE', 'GNU GPL v3 (GPL-3.0-only), the full license text'),
     ('MANIFEST.in', 'Adds tests/conftest.py to the sdist, which skips the checkout-only tests there'),
-    ('README.md', 'This file'),
+    ('README.md', 'Project overview; also the PyPI project description'),
     ('docs/', 'Sphinx documentation configuration and source'),
     ('docs/Makefile', 'Build commands for Unix'),
     ('docs/check_doc_snippets.py',
@@ -179,7 +182,7 @@ TREE = [
     ('notebooks/19_magnus_custom_hamiltonian.ipynb',
      'The H_func contract, and the vectorization trick'),
     ('notebooks/20_magnus_numerical_edge_cases.ipynb',
-     'Degeneracies that return numbers, and the fifteen warnings'),
+     'Degeneracies that return numbers, and what the warnings mean'),
     ('notebooks/21_magnus_what_tolerance_means.ipynb',
      'rtol is a stopping criterion, not an error bound'),
     ('notebooks/22_magnus_which_engine_answered.ipynb',
@@ -193,12 +196,12 @@ TREE = [
     ('notebooks/26_magnus_nufit_evolution.ipynb',
      'How the NuFIT likelihood, not just the best fit, moves the probability'),
     ('notebooks/27_magnus_animations.ipynb',
-     'Ten sweeps as filmstrips; RENDER = True writes them as GIFs'),
+     'Nine sweeps as filmstrips; RENDER = True writes them as GIFs'),
     ('notebooks/28_magnus_paper_figures.ipynb',
      "Every figure in the CPC article, in one run"),
     ('notebooks/29_magnus_pseudo_dirac.ipynb',
      'Tiny splittings, coherent blocks, and where the effect is invisible'),
-    ('notebooks/README.md', 'This file'),
+    ('notebooks/README.md', 'What each notebook is for, and how to run them'),
     ('notebooks/make_notebooks.py', 'BUILDS the notebooks above -- edit this, not the .ipynb'),
     ('notebooks/external_speed_accuracy.json',
      "Five external codes' speed and accuracy (NuOscProbExact project)"),
@@ -339,7 +342,7 @@ TREE = [
     ('tools/trailer/', 'The trailer (issue #99): its script, and the scripts that compute and draw its scenes'),
     ('src/', 'The package itself -- the only thing a `pip install` delivers'),
     ('src/magnus/', 'Main Python package'),
-    ('src/magnus/__init__.py', 'Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules'),
+    ('src/magnus/__init__.py', 'Imports the thirteen public modules and exposes __version__'),
     ('src/magnus/__main__.py', 'Entry point for `python -m magnus`'),
     ('src/magnus/_validate.py', 'The argument checks every public entry point applies once per call'),
     ('src/magnus/adiabatic.py', "Adiabatic transport + Magnus-patch hybrid strategy (strategy='hybrid'/'auto')"),
@@ -426,7 +429,7 @@ TREE = [
      'The two matrix-exponential backends, their switch, and degeneracies'),
     ('tests/test_fuzz_statistics.py', 'Randomized profiles, scored in bulk'),
     ('tests/test_file_tree.py',
-     'This file: generates the tree above and checks it against git'),
+     'This file: generates the documented file trees and checks them against git'),
     ('tests/test_globaldefs.py', 'NuFIT historical parameter dict/loader'),
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_input_fuzz.py', 'Issue #160: each bad argument refused by name, each valid edge accepted'),
@@ -511,14 +514,24 @@ def render_summary_tree():
     The README is also the PyPI long description (``readme = "README.md"`` in
     ``pyproject.toml``), and the full tree is 158 entries of which **27** are
     under ``src/`` -- so 83% of it describes files a ``pip install`` never
-    delivers, rendered on a page whose readers have only the wheel.  The
-    complete listing stays in ``docs/source/installation.rst``, where the reader
-    has the repository in front of them.
+    delivers, rendered on a page whose readers have only the wheel.
+    ``docs/source/installation.rst`` adds ``src/`` (`render_install_tree`), and
+    the complete listing is `TREE` itself.
 
     Generated from the same `TREE`, so the two cannot disagree and a new
     top-level directory cannot be forgotten here.
     """
     return render_tree([(p, c) for p, c in TREE if p.rstrip('/').count('/') == 0])
+
+
+def render_install_tree():
+    r"""The top level plus the package under ``src/``, for installation.rst.
+
+    The rest of the repository -- notebooks and their data, the paper, the tests
+    -- is for contributors, who have `TREE` itself to read.
+    """
+    return render_tree([(p, c) for p, c in TREE
+                        if p.rstrip('/').count('/') == 0 or p.startswith('src/')])
 
 
 def _readme_block(text):
@@ -562,7 +575,7 @@ def current_install_tree():
 
 def write():
     r"""Rewrites the block in both documents; returns those that changed."""
-    generated = render_tree()
+    generated = render_install_tree()
     changed = []
 
     summary = render_summary_tree()
@@ -675,8 +688,8 @@ def test_every_top_level_directory_is_described():
 
 @pytest.mark.checkout_only
 def test_installation_rst_tree_is_generated():
-    r"""installation.rst carries the same tree, indented for rst."""
-    assert current_install_tree() == render_tree(), (
+    r"""installation.rst carries the top level plus src/, indented for rst."""
+    assert current_install_tree() == render_install_tree(), (
         'the file tree in docs/source/installation.rst is out of date; '
         'regenerate it with `python tests/test_file_tree.py --write`')
 
@@ -688,12 +701,12 @@ if __name__ == '__main__':
         else:
             pass
     else:
-        # The README carries the *summary* tree and installation.rst the full
-        # one, which is what write() puts in each and what the two tests above
+        # The README carries the *summary* tree and installation.rst the
+        # top level plus src/, which is what write() puts in each and what the two tests above
         # assert.  Comparing the README against render_tree() here reported
         # OUT OF DATE unconditionally, sending the reader to --write for a
         # drift that was not there.
         ok = (current_readme_tree() == render_summary_tree()
-              and current_install_tree() == render_tree())
+              and current_install_tree() == render_install_tree())
         print('file tree is %s' % ('up to date' if ok else 'OUT OF DATE'))
         sys.exit(0 if ok else 1)

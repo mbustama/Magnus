@@ -144,27 +144,31 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
 
 The baseline, 10193.6 km, is the length of the chord at
 :math:`\cos\theta_z = -0.8`, which ``magnus.earth.distance_traveled_inside_earth``
-gives in Python.  That command also writes ``MagnusConvergenceWarning`` twice to
+gives in Python.  That command also writes ``MagnusConvergenceWarning`` once to
 standard error:
 some slabs of this chord are wider than the sufficient condition for the series
 to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
 gives its measured false-alarm rate and says what to do about it.
 
-The Sun, through a tabulated standard solar model rather than the exponential
-fit (:doc:`solar_models` lists the twelve, and ``--density-profile`` takes
-their names in any case):
+The Sun, from the center to the surface (:math:`R_\odot` = 695 700 km), through a
+tabulated standard solar model rather than the exponential fit (:doc:`solar_models`
+lists the twelve, and ``--density-profile`` takes their names in any case):
 
 .. code-block:: text
 
    $ magnus --flavors 3 --environment sun --density-profile B16-GS98 \
-       --energy 10 --energy-unit MeV --baseline 300000 --baseline-unit km
+       --energy 10 --energy-unit MeV --baseline 695700 --baseline-unit km
    Magνs 1.1.1 -- osc_prob_3nu_sun
-   E = 10 MeV, L = 300000 km, B16-GS98 solar model
+   E = 10 MeV, L = 695700 km, B16-GS98 solar model
 
                nu_e   nu_mu  nu_tau
-   nu_e      0.3580  0.4787  0.1632
-   nu_mu     0.4704  0.4154  0.1141
-   nu_tau    0.1715  0.1058  0.7226
+   nu_e      0.2954  0.4392  0.2653
+   nu_mu     0.4349  0.5058  0.0592
+   nu_tau    0.2696  0.0549  0.6755
+
+This is the instantaneous probability at one energy and distance, which oscillates
+rapidly.  A solar experiment measures the phase-averaged one, which needs the Python
+API (``average=True``; :doc:`averaged_probability`).
 
 ``--stop-at-table-edge`` returns ``nan``, with a warning, for a baseline that
 ends past the model's last tabulated radius, instead of continuing the profile
@@ -236,9 +240,9 @@ ignored for vacuum and constant-density environments, whose Hamiltonians do not
 depend on position at all.
 
 Since ``auto`` is the default, you need this flag only to *opt out* of the
-hybrid strategy (``--strategy magnus``, which reproduces the behavior of
-releases before the adiabatic strategy existed) or to force it and be warned
-when it cannot certify its own result (``--strategy hybrid``).
+hybrid strategy (``--strategy magnus``, which uses only the Magnus ladder) or
+to force it and be warned when it cannot certify its own result
+(``--strategy hybrid``).
 
 Opting out is rarely what you want.  ``--strategy magnus`` resolves the
 oscillation phase slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
@@ -334,8 +338,9 @@ configures):
                            BS05-OP, BS05-AGS-OP, B16-GS98, B16-AGSS09met, B23-GS98,
                            B23-AGSS09, B23-C11, B23-AAG21, B23-MB22m, B23-MB22p.
      --nubar               Compute the probability for antineutrinos instead of neutrinos.
-                           No effect with --flavors 2 --environment vacuum, where there is
-                           no CP phase and no matter, so the two probabilities are equal.
+                           No effect with --flavors 2 --environment vacuum --scenario std,
+                           where there is no CP phase and no matter, so the two
+                           probabilities are equal.
 
    Energy and baseline:
      --energy ENERGY       Neutrino energy.
@@ -363,10 +368,12 @@ configures):
                            Unit of --rho/--rho-central: g/cm3 (converted internally) or
                            natural units (eV^4). Default: g/cm3.
      --ratio-n-to-p RATIO_N_TO_P
-                           Ratio of the number of neutrons to protons in matter. Default:
-                           1.0.
+                           Ratio of the number of neutrons to protons in matter. It sets
+                           the neutral-current potential of the sterile states, so it has
+                           no effect at 2 or 3 flavors. Default: 1.0.
      --electron-fraction ELECTRON_FRACTION
-                           Electron fraction of matter. Default: 0.5.
+                           Y_e, the number of electrons per atomic mass unit of the matter,
+                           so that n_e = rho N_A Y_e. Default: 0.5.
 
    Earth (--environment earth):
      --costhz COSTHZ       Cosine of the neutrino zenith angle.
@@ -415,11 +422,8 @@ configures):
                            (..._NO) or inverted (..._IO), and for releases from 4.0 on with
                            (..._SK_) or without (..._NOSK_) Super-Kamiokande atmospheric
                            data. OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO. Pass an unknown
-                           name to see the full list. Taken from
-                           globaldefs.OSC_PARAMS_PREDEFINED rather than listed here,
-                           because a hand-written list went stale: it offered only the 6.0
-                           sets, so asking for inverted ordering silently dropped a release
-                           behind the default.
+                           name to see the full list, which is
+                           globaldefs.OSC_PARAMS_PREDEFINED.
 
    Additional sterile mixing (4+ flavors):
      --s14 S14             Mixing angle theta_14, per --angles. Default: 0.0.
@@ -534,12 +538,5 @@ configures):
 Implementation notes
 -----------------------
 
-``magnus`` does not reimplement any physics: it builds a keyword-argument
-dictionary from the flags you passed and calls straight into the matching
-``osc_prob_{N}nu_*`` function (see :func:`magnus.cli.main` and
-``_wrapper_name``). Physics keyword arguments that a given
-function does not explicitly accept (for example, ``default_osc_params_set_name``
-is not defined on every LIV wrapper) are filtered out via
-:func:`inspect.signature` before the call, rather than being silently
-forwarded through ``**kwargs`` to a layer that does not expect them -- see
-``_call``.
+``magnus`` does not reimplement any physics: it calls the matching
+``osc_prob_{N}nu_*`` wrapper with the flags you passed (see :func:`magnus.cli.main`).
