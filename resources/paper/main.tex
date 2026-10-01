@@ -174,7 +174,7 @@ neutrino \sep oscillation \sep flavor \sep particle physics \sep Magnus expansio
 \begin{small}
 
 \noindent
-{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.1.1 \\ \\
+{\em Program title:} Mag$\nu$s ({\tt magnuspy}) v1.2.0 \\ \\
 \smallskip
 %%%%
 {\em Licensing provisions:} GPL-3.0-only \\ \\
@@ -999,7 +999,7 @@ Extending \magnus\ usually requires only a new Hamiltonian. {\tt osc\_prob} acce
  {\tt plotting} & Pre-packaged figure scripts \\
  {\tt cli} & The {\tt magnus} console script \\
  \end{tabular}}
- \caption{\label{tab:modules}\textbf{Package modules.} The modules of \magnus\ v1.1.1. {\tt magnus} and {\tt hamiltonians} can be used independently of the probability functions.}
+ \caption{\label{tab:modules}\textbf{Package modules.} The modules of \magnus\ v1.2.0. {\tt magnus} and {\tt hamiltonians} can be used independently of the probability functions.}
 \end{table}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1306,7 +1306,7 @@ Installing \magnus\ in a dedicated virtual environment ({\tt conda} or {\tt venv
 
 \subsection{Code availability}
 
-We develop \magnus\ in the public GitHub repository\ \cite{Magnus}, which holds the source, the test suite, the notebooks, the documentation source, this paper, release notes, and the change log. This paper describes version 1.1.1. We release \magnus\ under the GNU General Public License v3.0. 
+We develop \magnus\ in the public GitHub repository\ \cite{Magnus}, which holds the source, the test suite, the notebooks, the documentation source, this paper, release notes, and the change log. This paper describes version 1.2.0. We release \magnus\ under the GNU General Public License v3.0. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1525,7 +1525,7 @@ P = oscprob.osc_prob_3nu_vacuum(E, L,
 # Pme = 0.04998; 'free_fluxes_rsbl'
 # gives 0.04552
 \end{pysnip}
-\ref{app:params} shows the list of parameter sets in \magnus\ v1.1.1. Both lists can also be printed from Python, which keeps them current with the installed version:
+\ref{app:params} shows the list of parameter sets in \magnus\ v1.2.0. Both lists can also be printed from Python, which keeps them current with the installed version:
 \begin{pysnip}
 # Every predefined set, with its description
 sets = gd.OSC_PARAMS_PREDEFINED
@@ -4599,7 +4599,7 @@ P = oscprob.osc_prob_3nu_earth(
 $ magnus --flavors 3 --environment matter \
     --density-profile constant --rho 3.0 \
     --energy 1 --baseline 1000
-Magνs 1.1.1 -- osc_prob_3nu_matter_constant_density
+Magνs 1.2.0 -- osc_prob_3nu_matter_constant_density
 E = 1 GeV, L = 1000 km
 
             nu_e   nu_mu  nu_tau
@@ -4610,7 +4610,7 @@ nu_tau    0.0011  0.0002  0.9987
 $ magnus --flavors 3 --environment earth \
     --loc-ini fermilab --loc-fin homestake \
     --energy 2.5 --nu-i mu --nu-f e
-Magνs 1.1.1 -- osc_prob_3nu_earth
+Magνs 1.2.0 -- osc_prob_3nu_earth
 E = 2.5 GeV
 
 P = 0.0724
