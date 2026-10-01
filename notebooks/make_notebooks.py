@@ -18396,7 +18396,9 @@ def shock_breakpoints(width_frac):
 WIDTHS = (1.0e-6, 1.0e-3)
 OSC4 = dict(OSC); OSC4.update(STERILE4); OSC4.update(d14=0.0, d24=0.0)
 OSC5_SHOCK = dict(OSC); OSC5_SHOCK.update(STERILE5)
-OSC5_SHOCK.update(d14=0.0, d24=0.0, d15=0.0, d25=0.0, d35=0.0)
+# No d25: the 5nu parametrization has no independent phase there, and osc_params refuses the
+# key since issue #160; it was 0.0, so dropping it changes nothing.
+OSC5_SHOCK.update(d14=0.0, d24=0.0, d15=0.0, d35=0.0)
 OSC2 = dict(sth=OSC['s12'], Dm2=OSC['D21'])
 HALF_KM = 75.0
 WIN = (R_FORWARD_KM - HALF_KM, R_FORWARD_KM + HALF_KM)
