@@ -53,11 +53,21 @@ model.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
 warnings, so Python's default filter shows each distinct message once per place it is raised:
 a warning with fixed text once per session, and one that reports a count or a width once for
-each value it reports.  ``warnings.simplefilter('always')`` shows every occurrence, and filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning`
-catches every warning that an answer may be outside the tolerance.  They err on the side of
-caution, firing often on answers that prove accurate, because most flag a property of the
-input rather than predict the error.  Less often an answer is inaccurate and none fires: on
-random smooth profiles, the hardest family measured, about one answer in twenty-five.
+each value it reports.  ``warnings.simplefilter('always')`` shows every occurrence.  Filtering
+on :class:`~magnus.oscprob.ToleranceNotAchievedWarning` catches it and its subclasses,
+:class:`~magnus.oscprob.HybridCertificationWarning`,
+:class:`~magnus.oscprob.UnmarkedDiscontinuityWarning` and
+:class:`~magnus.oscprob.HiddenFeatureWarning`, but not the other warnings that can mean a wrong
+answer: :class:`~magnus.magnus.MagnusConvergenceWarning`, the unit warnings
+(:class:`~magnus.globaldefs.BaselineUnitWarning`, :class:`~magnus.globaldefs.EnergyUnitWarning`,
+:class:`~magnus.matter.DensityUnitWarning`),
+:class:`~magnus.globaldefs.MixingAngleConventionWarning`,
+:class:`~magnus.globaldefs.SterileMatterCompositionWarning` and
+:class:`~magnus.oscprob.PhaseAveragingWarning`, which derive from :class:`UserWarning` directly
+(:ref:`warning-catalogue`).  The warnings err on the side of caution, firing often on answers
+that prove accurate, because most flag a property of the input rather than predict the error.
+Less often an answer is inaccurate and none fires; the measured rates are in
+:ref:`the table below <measured-distributions>`.
 
 .. _what-rtol-atol-control:
 
@@ -86,14 +96,15 @@ described below, none of the 48 answers was outside the tolerance.  The worst wa
 **But agreement is evidence, not proof.**  On a sequence that is still jumping around, two
 levels can agree by coincidence while both are far from the truth: measured on a sawtooth
 density, the 3- and 4-slab levels agreed and the returned answer was wrong by **0.855** in
-probability.  ``strict_convergence`` requires two *consecutive* agreements for that reason.
+probability.  ``strict_convergence`` (off by default) requires two *consecutive* agreements for
+that reason.
 
-**The energy-batched scan** (``strategy='magnus'`` scans, and ``'auto'`` where the hybrid
-declines) meets the same coincidence on smooth profiles, where two coarse levels agree while
-each slab still spans several radians of phase.  On ``'gl'``, the default, it refuses such an
-agreement for any energy whose own slabs still span :math:`2\pi` or more
-(:data:`magnus.oscprob.BATCHED_GL_MAX_SLAB_NORM`, issue #71), and over the 477 scans of the
-issue's measurement pool it returns no silent miss.  ``'trapezoid'`` and ``'simpson'`` carry
+**The energy-batched scan** (``strategy='magnus'`` scans, and ``'auto'`` energy scans) meets the
+same coincidence on smooth profiles, where two coarse levels agree while each slab still spans
+several radians of phase.  On ``'gl'``, the default, it refuses such an agreement for any energy
+whose own slabs still span :math:`2\pi` or more
+(:data:`magnus.oscprob.BATCHED_GL_MAX_SLAB_NORM`), and over a measurement pool of 477 scans it
+returns no silent miss.  ``'trapezoid'`` and ``'simpson'`` carry
 no such refusal, because the same test flags far more correct answers than wrong ones there.
 On the same pool they return 43 of 2580 energies outside the tolerance without a warning:
 33 on grids with breakpoints, the worst **163 times** outside it (``'simpson'``, a PREM chord
@@ -103,14 +114,14 @@ Where that matters, keep ``'gl'``.
 **The adiabatic hybrid certifies the same way**, by two successive levels agreeing, together
 with a bound on the non-adiabaticity of the stretch it transports without a window, so
 ``certified=True`` carries the same meaning and the same limit.  Measured on the
-``B16-GS98`` solar model at 0.7 MeV (issue #187): at ``rtol = atol`` = 1e-5 and 1e-6 the
+``B16-GS98`` solar model at 0.7 MeV: at ``rtol = atol`` = 1e-5 and 1e-6 the
 hybrid certified an answer 1.8e-5 from a 2e6-slab reference, with no warning; at 1e-7 it did
 not certify, and the answer was 1.1e-6 off.  Its non-adiabaticity bound there was 1.9e-6.
 
 **A ladder that starts at its cap checks nothing.**  When the slab count a scan needs is
 already at ``max_n_slabs``, one level is computed, there is no second level to compare it
 with, and :class:`~magnus.oscprob.ToleranceNotAchievedWarning` says so.  Across the Sun this
-is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter (issue #184): over
+is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter: over
 0.5-20 MeV the returned level was up to 2.0e-3 off on the default exponential profile, where
 ``strategy='hybrid'`` was within 6.3e-5, and 1e-6 to 8e-6 off on ``B16-GS98``.  About 1e-4
 is the tightest tolerance a solar energy scan can verify; below it, compare with
@@ -139,7 +150,12 @@ profile makes ``scipy.linalg.expm`` exact -- a constant or declared-piecewise-co
 ever scored against another**: that is the mistake this whole page's robustness work exists
 to avoid, and a cross-check between two paths is reported as agreement, never as accuracy.
 
-Measured distributions, against those oracles:
+.. _measured-distributions:
+
+Measured distributions, against those oracles.  They were measured when the *seam* -- the
+number of baselines from which an ``'auto'`` baseline scan leaves the adiabatic hybrid for the
+cumulative scan, :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` -- was 25; it is
+now 8, and 2 below a tolerance of 1e-6.
 
 .. list-table::
    :header-rows: 1
@@ -172,8 +188,8 @@ Measured distributions, against those oracles:
 
 A *silent miss* is an answer outside the requested tolerance with no warning of any kind.
 It is the only failure mode that matters; an inaccurate answer that says so is the warnings'
-job. Every remaining silent miss sits below the seam -- single points and short scans
-on random smooth profiles, overshooting a requested 1e-3 by a factor of one to three.
+job. Every remaining silent miss in these populations sat below the seam -- single points and
+short scans on random smooth profiles, overshooting a requested 1e-3 by a factor of one to three.
 
 **Unitarity** is exact by construction (every engine composes unitary factors), and measured
 on the package's own probability output it degrades only from ~3e-12 to 1.6e-11 across four
@@ -208,16 +224,17 @@ for the requested tolerance. *What it cannot do:* the constant converts γ into 
 estimate good to about a factor of two, so certification near the bound is a closer call than
 it looks.
 
-**The patch budget** (``max_n_slabs = 32768`` in ``_local_evolution_operator``). A patch is
-meant to be a short, local repair; one needing more slabs than a plain Magnus integration of
-the whole trajectory means the non-adiabatic region is not narrow and the hybrid strategy has
-no reason to exist for that request. Declining is the honest answer, and the general path is
-70× faster there.
+**The patch budget** (``max_n_slabs`` in ``_local_evolution_operator``; its value and the
+population behind it are in :ref:`how-constants-were-set`). A patch is meant to be a short,
+local repair; one needing more slabs than a plain Magnus integration of the whole trajectory
+means the non-adiabatic region is not narrow and the hybrid strategy has no reason to exist for
+that request. Declining is the honest answer, and the general path is 70× faster there.
 
 **Cross-method agreement** (:func:`magnus.oscprob.cross_check_strategies`). Runs whichever
 engines apply and reports the pairwise spread.  On eight constructions where a method had
 been silently wrong, it reported the disagreement on **seven**, each at least four times the
-requested tolerance. *What it cannot do:* see the one below.
+requested tolerance. *What it cannot do:* see engines that are
+:ref:`wrong together <wrong-together>`.
 
 **The sampling report** (:func:`magnus.adiabatic.oscillation_sampling`). Answers a question no
 engine asks itself: how coarsely does this request sample the oscillation it is computing?  A
@@ -262,6 +279,8 @@ statistic that *would* see this is described in ``docs/dev/FINDINGS_ROBUSTNESS_P
 §13.14; it is not shipped because it would need its own false-positive measurement first, and
 the errors it would flag are already reported.
 
+.. _wrong-together:
+
 **The one irreducible limit: a feature narrower than the probe spacing.** A Gaussian
 resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
 (spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
@@ -279,20 +298,16 @@ of any fixed grid, not of any particular test.  The condition is usually **detec
 reported** rather than silent -- see the feature scan above.
 
 **The scan is sized to the request.** It runs once per call whatever the point count, so its
-share of the work falls as the request grows: 8 sub-steps (0.37 ms) for a single point, 32
-(2.85 ms) for a scan of sixteen or more, holding it under about 7 % of the call at every size.
+share of the work falls as the request grows: 8 sub-steps (0.37 ms) for up to three points, 16
+for four to fifteen, and 32 (2.85 ms) for sixteen or more, holding it under about 7 % of the call at every size.
 A single point keeps the cheapest scan by design -- the extra reach that finer sampling buys is
 at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
 physically plausible in a density profile.
 
-**A cross-check cannot close the rest, and this was measured rather than assumed.** Having
-``strategy='auto'`` verify its own window-free results against the general Magnus ladder below
-the seam (then at N = 25) was built, measured and removed: on 200 random smooth profiles the ladder agreed
-with all 25 window-free results, and when :data:`magnus.adiabatic.GAMMA_TO_ERROR` was
-deliberately mis-calibrated by 2x the check still fired zero times while three answers went
-genuinely wrong. **What is left in that band is not engines disagreeing -- it is engines being
-wrong together**, which a cross-check cannot see by construction. See
-``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
+**A cross-check cannot close the rest.** Checking ``strategy='auto'``'s window-free results
+against the general Magnus ladder was measured and catches nothing: **what is left in that band
+is not engines disagreeing -- it is engines being wrong together**, which a cross-check cannot
+see by construction. See ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
 
 
 .. _input-checks:
@@ -350,7 +365,8 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
    * - :class:`magnus.magnus.ScalarHamiltonianWarning`
      - ``H_func`` accepts only one position at a time.
      - No -- output is bit-identical.
-     - Make ``H_func`` array-capable (``VCC[..., None, None]*e00``). Measured 4.6× faster.
+     - Make ``H_func`` array-capable (``VCC[..., None, None]*e00``): about 5× faster on a
+       call with hundreds of slabs, less on a short one (:ref:`write-h-func-vectorized`).
    * - :class:`magnus.matter.DensityUnitWarning` (over-declared)
      - A density declared in g cm⁻³ is denser than a neutron star.
      - Yes -- catastrophically. The potential is inflated by ~18 orders; the tell is
@@ -368,8 +384,9 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
        ``gd.UNIT_G_PER_CM3``).
    * - :class:`magnus.globaldefs.BaselineUnitWarning`
      - A baseline is small enough to have been read in kilometers and left unconverted.
-     - Yes, entirely. One eV⁻¹ is about 2e-7 m, so the call propagates a chord a few
-       meters long and returns a converged, unitary probability for it.
+     - Yes, entirely. One eV⁻¹ is about 2e-7 m, so an Earth chord left in kilometers is a
+       few millimeters long (the warning's threshold is about 2 m), and the call returns a
+       converged, unitary probability for it.
      - Multiply by ``gd.UNIT_KM`` (or ``gd.CONV_KM_TO_INV_EV``).
        The same warning covers ``t_breakpoints`` given in kilometers.
    * - :class:`magnus.globaldefs.EnergyUnitWarning`
@@ -385,11 +402,14 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - Drop ``angles='deg'``; its default ``'sin'`` is what
        :func:`~magnus.globaldefs.load_nufit_params` returns.
    * - :class:`magnus.globaldefs.SterileMatterCompositionWarning`
-     - ``electron_fraction`` and ``ratio_number_neutrons_to_protons`` describe different
-       media (four and five flavors only).
+     - On an Earth wrapper at four or five flavors, a scalar
+       ``ratio_number_neutrons_to_protons`` was passed over the layered :math:`Y_e` of a
+       chord, or one that contradicts a uniform ``electron_fraction`` override.
      - Yes, for the sterile states' entry in the matter projector. Three flavors are
        unaffected.
-     - Omit the ratio and let it be derived from :math:`Y_e` (its default, ``None``).
+     - Omit the ratio and let it be derived from :math:`Y_e`.  That is the default (``None``)
+       on the Earth and Sun wrappers; the constant- and exponential-density wrappers default
+       to 1.0 and never raise this warning.
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
        given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
@@ -471,8 +491,7 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
 **Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its
 168 configurations that are valid input -- the other 8 are refused -- across the profile
 families this package serves, d = 2-3, scored against ``solve_ivp`` or -- for
-piecewise-constant profiles, where it is exact -- ``expm``; measured with issue #155 §1 in
-place):
+piecewise-constant profiles, where it is exact -- ``expm``):
 
 .. list-table::
    :header-rows: 1
@@ -506,17 +525,13 @@ tolerance carry at least one warning.
 the error: when it fires there is an undeclared discontinuity, and a false positive means only
 that the answer survived it.  Declaring the edges is still the advice worth taking.
 
-``MagnusConvergenceWarning`` measures the traceless part of :math:`\Omega` (issue #155 §1).  With
-the trace counted it fired 39 times on the same 160 configurations, 8 true and 31 false; the
-trace, a global phase, accounted for 19 of the false positives and one true positive.  Its
-remaining noise has a known cause and a **measured non-fix**.  Of 69 single-point calls, some
-refinement level exceeded :math:`\pi` in 19, but **the level whose answer was returned did so in
-only 4**, so most of its firings describe an intermediate grid nobody receives.  Keying it to
-the returned level therefore looks obviously right, and was implemented in an earlier version.
-Measured then over 168 configurations, it made the warning *worse*: firings fell 70 to 53, but
-**true positives fell 17 to 4** while false positives fell only 53 to 49.  "The ladder started
-far from convergence" predicts a bad answer better than "the final grid is coarse" does.  It was
-reverted; the mechanism and the numbers are kept in ``magnus._deferred_slab_norm``.
+``MagnusConvergenceWarning`` measures the traceless part of :math:`\Omega`, since the trace is
+a global phase.  Of 69 single-point calls, some refinement level exceeded :math:`\pi` in 19,
+but **the level whose answer was returned did so in only 4**, so most of its firings describe
+an intermediate grid nobody receives.  It is not keyed to the returned level all the same: that
+was measured to lose far more true positives than false ones, because "the ladder started far
+from convergence" predicts a bad answer better than "the final grid is coarse" does.  The
+numbers are in ``magnus.magnus._deferred_slab_norm``.
 
 Two of these deserve their honesty spelled out rather than buried:
 

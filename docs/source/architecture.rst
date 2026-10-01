@@ -37,8 +37,9 @@ window with a Magnus patch.  Magνs picks the route from the form of the request
 not.
 
 The numerical core is kept apart from the physics.  ``magnus.magnus`` imports nothing that
-concerns neutrinos: its only dependency inside the package is ``expmkernels``, the compiled
-matrix exponential.  It is numerical linear algebra on an arbitrary matrix-valued function
+concerns neutrinos: at module level it imports only ``expmkernels``, the compiled matrix
+exponential, and ``_validate``, the argument checks, and it reaches ``oscprob`` only for a
+warning class, imported inside the one function that raises it.  It is numerical linear algebra on an arbitrary matrix-valued function
 :math:`A(l)`, so it is tested against the recursion of :doc:`expansion_terms` without any of
 the probability code.  The physics, the environments and the core meet in one module,
 ``oscprob``.
@@ -47,7 +48,9 @@ Modules
 -------
 
 Thirteen modules sit directly under ``src/magnus/``, with the ``hamiltonians`` subpackage
-beside them (``authors.py`` and ``version.py`` are internal helpers).  ``magnus`` and
+beside them.  Four more files are internal: ``_validate.py``, the argument checks most
+modules share (:ref:`input-checks`); ``__main__.py``, which runs the command line for
+``python -m magnus``; and the helpers ``authors.py`` and ``version.py``.  ``magnus`` and
 ``hamiltonians`` can be used independently of the probability functions.
 
 .. list-table::
@@ -112,8 +115,9 @@ Three edges in that graph are worth knowing before changing an import:
 * ``globaldefs`` imports ``magnus.hamiltonians`` inside a function, not at module scope.
   Moving it to the top closes the loop ``globaldefs -> hamiltonians -> matter ->
   globaldefs``, and the package no longer imports.
-* ``plotting`` imports only ``globaldefs`` at import time; the functions that compute
-  through the Earth wrappers import ``earth`` and ``oscprob`` when called, and Matplotlib is
+* ``plotting`` imports only ``_validate`` at import time; ``globaldefs`` is imported when
+  needed, the functions that compute through the Earth wrappers import ``earth`` and
+  ``oscprob`` when called, and Matplotlib is
   imported inside the drawing calls, so ``import magnus`` does not pay for it.
 
 The four layers of ``oscprob``
@@ -129,8 +133,10 @@ calling the one below it:
 
    The four layers of ``oscprob``, and the engines each one tries.  A request enters at a
    wrapper, which turns its named arguments into a parameter dictionary for the scenario
-   function of the second layer.  That function builds the Hamiltonian and tries the first
-   five engines of :doc:`engines`, in order; if none applies, it passes the Hamiltonian to
+   function of the second layer.  That function builds the Hamiltonian and, for the matter
+   scenarios, tries the first five engines of :doc:`engines`, in order (``osc_prob_vacuum``
+   needs only the averaged probability and the constant engine); if none applies, it passes
+   the Hamiltonian to
    ``osc_prob_energy_baseline``, which tries the cumulative scan over baselines and otherwise
    calls ``osc_prob`` once per point.  ``osc_prob`` is the seventh engine, the general
    Magnus ladder.  The fourteen environment-and-scenario names exist at each of the four
@@ -143,9 +149,11 @@ calling the one below it:
 #. **Scenario functions.**  ``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
    ``osc_prob_matter_nsi`` and ``osc_prob_liv``, one per scenario and each for any number of
    flavors.  Each builds the Hamiltonian for its scenario and tries, in order, the engines
-   that exploit its structure: the phase average, the adiabatic transport with Magnus
-   patches, the interaction-picture expansion, the constant-Hamiltonian engine, and the
-   energy-batched scan.  If none applies, it passes the Hamiltonian to the third layer.
+   that exploit its structure.  The matter scenario functions try the phase average, the
+   adiabatic transport with Magnus patches, the interaction-picture expansion (two flavors
+   on an exponential profile), the constant-Hamiltonian engine, and the energy-batched scan;
+   ``osc_prob_vacuum`` needs only the phase average and the constant-Hamiltonian engine.
+   If none applies, it passes the Hamiltonian to the third layer.
 #. **``osc_prob_energy_baseline``.**  It receives the Hamiltonian with the arrays of energies
    and baselines, and tries the cumulative scan over baselines.  If that does not apply, it
    calls ``osc_prob`` once per point, in parallel if ``n_jobs`` asks for it, seeding the
@@ -180,10 +188,8 @@ refinement and logging keywords that the layers below it own:
    min_n_slabs, max_n_slabs, min_n_tpts_per_slab, max_n_tpts_per_slab,
    new_recursion_limit, return_evolution_operator, average
 
-This is a correctness requirement.  When every wrapper declared its own copy of these
-keywords, the copies drifted: one wrapper had a different default tolerance, one lacked
-``nubar``, one had a different validation bound.  With one declaration, a default is
-changed in one place.
+This is a correctness requirement: copies of these keywords in each wrapper would drift
+apart, while with one declaration a default is changed in one place.
 
 Two permanent tests in ``tests/test_oscprob.py`` enforce this contract in
 CI, and will fail if it is ever violated again:
@@ -202,16 +208,19 @@ are working at the wrong layer: forward it through ``**kwargs`` instead.
 
 ``return_evolution_operator`` and ``average`` follow the same rule, and show
 why the rule pays: declared by ``osc_prob_energy_baseline`` and the generic
-entry points (the operator keyword by the core as well), every one of the 56
-``osc_prob_{N}nu_*`` wrappers got them for free through ``**kwargs``. One
-consequence to know about: the passthrough guard reads its accepted keywords
-off those signatures, so a keyword that only the batching layer declares would
-pass the guard on ``osc_prob`` and fail deep inside the engine; ``osc_prob``
-therefore refuses ``average`` and ``cumulative`` by name. The keyword is honored by the core and
-the batching layer; the specialized engines answer with probabilities only,
-so the entry points disable them for the call (through the same
-``_engine_probe`` mechanism the cross-check uses) and the general ladder
-answers.
+entry points, every one of the 56 ``osc_prob_{N}nu_*`` wrappers got them for
+free through ``**kwargs``.
+
+``return_evolution_operator`` is declared by the core, ``osc_prob``, as well.
+The specialized engines answer with probabilities only, so when it is set the
+entry points disable them for the call (through the same ``_engine_probe``
+mechanism the cross-check uses) and the general ladder answers.
+
+``average`` is not declared by ``osc_prob``, which computes one point.  The
+passthrough guard reads its accepted keywords off the signatures, so a keyword
+that only the batching layer declares would pass the guard on ``osc_prob`` and
+fail deep inside the engine; ``osc_prob`` therefore refuses ``average`` and
+``cumulative`` by name.
 
 Data flow: how the Hamiltonian and potential are built
 -----------------------------------------------------------
@@ -311,10 +320,9 @@ closest sibling to copy from. The recipe:
    ``angles`` is worth a word: it is a pure pass-through, and every wrapper in the
    package forwards it unexamined to the layer below, which is where the four
    conventions are interpreted.  A wrapper that accepts it and forgets to forward it
-   compiles, documents itself correctly and silently ignores the caller -- four
-   functions in this package did exactly that before a check was written for it, so
-   the family-consistency tests below now assert that anything taking ``angles``
-   also reads it.
+   compiles, documents itself correctly and silently ignores the caller, so
+   ``tests/test_angles.py`` asserts that every public function taking ``angles`` also
+   reads it.
 
 #. **Add it to the family-consistency tests.** ``test_oscprob.py``
    parametrizes several checks over "every osc_prob wrapper family" by

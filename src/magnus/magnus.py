@@ -846,8 +846,8 @@ def _warn_scalar_hamiltonian() -> None:
     warnings.warn(
         "magnus: the Hamiltonian could not be evaluated for several positions "
         "at once, so it is being called one position at a time. This is "
-        "correct but slower -- measured 4.6x on a 3nu exponential-density "
-        "profile -- because the engine samples the Hamiltonian at every "
+        "correct but slower -- about 5x on a long 3nu chord at a tight "
+        "tolerance, less on a short call -- because the engine samples the Hamiltonian at every "
         "quadrature node of every slab, and the adaptive refinement repeats "
         "that at each level. To take the fast path, write H_func so that it "
         "accepts an array of positions and returns a stack of matrices: turn "
@@ -2374,7 +2374,9 @@ sweep cap, and ``eigh`` answers instead.  See :data:`magnus.expmkernels.SEV_TOL`
 
 ``eigh`` costs about 1.25 us per 3x3 whatever the stack size, because it loops
 over LAPACK internally instead of vectorizing, which makes it roughly a quarter
-of a 108-slab Magnus pass.  The kernel removes that.
+of a single 108-slab Magnus pass; on a batched energy scan its share is larger, about
+0.6 by Amdahl's law from the measured 6.8x on the exponential and 2.11x end to end.
+The kernel removes most of that.
 
 Setting this is the way to reach the whole package, including every
 :mod:`magnus.oscprob` wrapper; the ``expm_backend`` parameter on
