@@ -409,6 +409,11 @@ Measured
      - Cost/accuracy crossover measured over scan sizes and re-measured over 42 workloads,
        which moved it from 25; the cumulative scan is cheaper on median at every size and
        three to six orders more accurate on the ones it serves.
+   * - :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT`
+     - 2
+     - The same threshold below a tolerance of 1e-6 (issue #125): there the cumulative scan
+       took 0.06 to 0.18 of the hybrid's time at the median over 110 scans, with no silent
+       miss the hybrid did not also make.
    * - :data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS`
      - 4
      - 212 energy-batched scans, 2 to 40 energies, smooth and breakpoint profiles,

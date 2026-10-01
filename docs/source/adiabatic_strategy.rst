@@ -297,7 +297,8 @@ point:
    ``UnmarkedDiscontinuityWarning``.
 
    It also stands aside for a **baseline scan at a single energy** with at
-   least ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points. The hybrid
+   least ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points (at least
+   ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT`` below a tolerance of 1e-6). The hybrid
    strategy handles such a scan one point at a time, whereas the cumulative
    scan (see the ``cumulative`` parameter of
    :func:`magnus.oscprob.osc_prob_energy_baseline`) answers every baseline

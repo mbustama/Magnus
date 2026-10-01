@@ -17,6 +17,7 @@ measurement (runner, case list, DOP853 references).
 | `issue091_093_adoption/` | The re-measured #91 series and #93 tolerance series in `notebooks/external_*.json` (PR #109) |
 | `issue092_paper_cache_recompute/` | The recompute of `notebooks/paper_figure_cache.json` (PR #119) |
 | `issue120_auto_tight/` | `AUTO_LADDER_TIGHT_MAX_PHASE` and the #120 text in `CHANGELOG.md`, `engines.rst` and `DECISION_DISPATCH_ORDER.md` (PR #128) |
+| `issue125_baseline_scans/` | `HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` and the #125 text in `CHANGELOG.md`, `engines.rst`, `performance.rst` and `DECISION_DISPATCH_ORDER.md` |
 | `issue122_clamp_refusal/` | The clamp table in `MIN_EFFECTIVE_REFINEMENT`'s docstring and the #122 entry of `CHANGELOG.md` (PR #123) |
 | `issue160_audit/` | The #160 checklist run case by case; the reproducer table and "Closes" line of the bundled #155/#160 pull request |
 | `issue161_rtol_gap/` | The measured true-error-to-tolerance ratios on smooth PREM chords in `diagnostics.rst` ("What `rtol` and `atol` actually control") |

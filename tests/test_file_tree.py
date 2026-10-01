@@ -416,6 +416,7 @@ TREE = [
     ('tests/test_cross_check_unverified.py',
      'The cross-check names the engines that did not reach the tolerance (issue #166)'),
     ('tests/test_engines.py', 'Which engine answers, and the cross-checks between them'),
+    ('tests/test_auto_baseline_scans.py', "Baseline scans under strategy='auto' at tight tolerances (issue #125)"),
     ('tests/test_auto_ladder.py', "When strategy='auto' takes the ladder (issue #70)"),
     ('tests/test_electron_density_convention.py',
      'A mass density becomes an electron density as rho N_A Y_e (issue #168)'),
