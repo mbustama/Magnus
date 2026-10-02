@@ -97,9 +97,11 @@ class MagnusAdapter(object):
             s13=math.sqrt(problem.s13sq), D21=problem.dm21, D31=problem.dm31,
             # The reference was built with the conversion used until 1.2.0 (issue #168).
             electron_fraction=problem.ye*PINNED_NORMALIZATION,
-            ratio_number_neutrons_to_protons=1.0,
             nu_i=None, nu_f=None, strategy=self._strategy)
         if self._n == 4:
+            # Only the sterile neutrino feels the neutrons; since 1.2.0, the three-flavor
+            # wrapper refuses the ratio.
+            self._fixed.update(ratio_number_neutrons_to_protons=1.0)
             self._fixed.update(s14=math.sqrt(par['sinsq_th14']), s24=math.sqrt(par['sinsq_th24']),
                                s34=math.sin(par['th34']), D41=par['dmsq41_ev2'])
         knob = int(problem.knob)
