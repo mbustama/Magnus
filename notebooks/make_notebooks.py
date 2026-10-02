@@ -18846,13 +18846,13 @@ print('  pseudo-Dirac, 100 TeV: leaves %.4f at %.0f Mpc, settles to %.4f beyond 
       % (FE_SCAN[100.0][-1], x_pc[k]/1e6, FE_SCAN_PD[-1], x_pc[m+1]/1e6))
 
 fig, ax = plt.subplots(figsize=(WIDE, 2.7))
-for e_tev, color, lab in ((1.0, BLUE, r'$E_\nu = 1$~TeV'), (100.0, ORANGE, r'$E_\nu = 100$~TeV'),
-                          (1.0e4, GREEN, r'$E_\nu = 10$~PeV')):
+for e_tev, color, lab in ((1.0, BLUE, r'$E_\nu = 1$~TeV'), (100.0, ORANGE, r'100~TeV'),
+                          (1.0e4, GREEN, r'10~PeV')):
     # The 100 TeV curve is drawn thick: the pseudo-Dirac one lies on it out to ~10 Mpc
     ax.plot(x_pc, FE_SCAN[e_tev], color=color, lw=2.4 if e_tev == 100.0 else 0.9,
             label=r'Standard $3\nu$, ' + lab)
 ax.plot(x_pc, FE_SCAN_PD, color='k', lw=0.9, ls='--',
-        label=r'Pseudo-Dirac, $\delta m^2 = 10^{-16}$~eV$^2$, $E_\nu = 100$~TeV')
+        label=r'Pseudo-Dirac, $\delta m^2 = 10^{-16}$~eV$^2$, 100~TeV')
 ax.set_xscale('log')
 ax.set_xlim(x_pc[0], x_pc[-1])
 ax.set_ylim(0.30, 0.352)
@@ -18863,6 +18863,7 @@ ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks
 ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
 ax.xaxis.set_major_formatter(FuncFormatter(
     lambda v, _: '1' if round(np.log10(v)) == 0 else r'$10^{%d}$' % round(np.log10(v))))
+ax.tick_params(axis='x', which='major', pad=3.5)      # a little clear of the axis
 ax.set_xlabel(r'Distance to the source, $L$ [pc]')
 ax.set_ylabel(r'$\nu_e$ fraction at Earth, $f_{e,\oplus}$', labelpad=3)
 # The named units of distance, on the top axis
@@ -18873,6 +18874,7 @@ top.tick_params(axis='x', direction='in')
 # Reference distances [pc]; +1 puts the label right of its line, -1 left
 for x_mark, text, side in ((4.848e-6, '1 AU', 1),
                            (120*4.848e-6, 'Solar System', 1),        # heliopause, 120 AU
+                           (1.302, 'Proxima Centauri', 1),
                            (8.18e3, 'Galactic Center', 1),
                            (7.7e5, 'Andromeda', -1),
                            (1.5e6, 'Local Group', 1),
@@ -18882,7 +18884,7 @@ for x_mark, text, side in ((4.848e-6, '1 AU', 1),
     ax.axvline(x_mark, color='0.5', ls=':', lw=0.8, zorder=0)
     ax.text(x_mark*(1.3 if side > 0 else 1/1.3), 0.3015, text, rotation=90, color='0.5',
             ha='left' if side > 0 else 'right', va='bottom', fontsize=8)
-ax.legend(loc='upper center', bbox_to_anchor=(0.67, 0.99), handlelength=2.0)
+ax.legend(loc='upper center', bbox_to_anchor=(0.645, 0.99), handlelength=2.0)
 fig.tight_layout(pad=0.3)
 save(fig, 'astro_baseline.pdf')"""),
     md(r"""### Figure 8b --- the composition on the flavor triangle
