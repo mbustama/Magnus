@@ -11,5 +11,5 @@ start 16:28:01  load 0.92 1.19 1.47
 3+1  Magnus (tolerance)   1e-07  err 2.293e-09     1132.7 us/prob (cv 0.013, 73 blocks)  separable
 3+1  Magnus (tolerance)   1e-08  err 4.170e-10     1723.4 us/prob (cv 0.008, 48 blocks)  separable
 3+1  Magnus (tolerance)   1e-09  err 2.212e-11     2934.3 us/prob (cv 0.007, 30 blocks)  separable
-wrote /tmp/added_timed.json
+wrote /tmp/claude-1000/-home-mbustamante-Research-magnus/93bacad5-e69e-4b42-9e80-36335d33ac78/scratchpad/added_rtol/added_timed.json
 exit 0, end 16:33:07
