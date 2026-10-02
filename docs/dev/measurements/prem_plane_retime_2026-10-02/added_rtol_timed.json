@@ -1,0 +1,226 @@
+{
+ "generated_by": "notebooks/gen_prem_plane_magnus.py",
+ "mode": "timed",
+ "magnus": "/home/mbustamante/Research/magnus/src/magnus/oscprob.py",
+ "repository_head": "0dc1e7c",
+ "strategy": "magnus",
+ "date": "2026-10-02",
+ "machine": "Linux-7.0.0-34-generic-x86_64-with-glibc2.39",
+ "load_average_at_start": [
+  0.91943359375,
+  1.19091796875,
+  1.46875
+ ],
+ "manifest_sha256": "d758e1935f45312b4ce1e66dd1a89cff9dab7678629b66fe70a6a48e9cbee6fa",
+ "thread_environment": {
+  "cpu_count": 12,
+  "omp_num_threads": null,
+  "openblas_num_threads": null,
+  "mkl_num_threads": null,
+  "numexpr_num_threads": null,
+  "numba_num_threads": null,
+  "blas_threads": [
+   {
+    "library": "blas",
+    "threads": 10
+   },
+   {
+    "library": "openmp",
+    "threads": 12
+   }
+  ]
+ },
+ "protocol": {
+  "samples": 30,
+  "steps": 25,
+  "min_block": 0.25,
+  "max_samples": 100,
+  "name": "AMORTIZED"
+ },
+ "knobs": [
+  -9,
+  -8,
+  -7,
+  -6,
+  -5,
+  -4
+ ],
+ "panels": {
+  "3nu": {
+   "Magnus (tolerance)": [
+    {
+     "label": "1e-04",
+     "knob": -4,
+     "rtol": 0.0001,
+     "n_slabs": null,
+     "max_abs_error": 1.6676614144062185e-06,
+     "engine": "separable",
+     "us_per_probability": 121.88763934821344,
+     "us_sd": 5.813311593146474,
+     "us_min": 116.40659236237912,
+     "block_cv": 0.047694020691784626,
+     "blocks": 75,
+     "block_reps": 203
+    },
+    {
+     "label": "1e-05",
+     "knob": -5,
+     "rtol": 1e-05,
+     "n_slabs": null,
+     "max_abs_error": 3.185417621898168e-07,
+     "engine": "separable",
+     "us_per_probability": 148.51103797153348,
+     "us_sd": 2.2832032038222976,
+     "us_min": 144.80098912906175,
+     "block_cv": 0.015373963006439567,
+     "blocks": 76,
+     "block_reps": 184
+    },
+    {
+     "label": "1e-06",
+     "knob": -6,
+     "rtol": 1e-06,
+     "n_slabs": null,
+     "max_abs_error": 6.56914946883802e-08,
+     "engine": "separable",
+     "us_per_probability": 180.0484242487673,
+     "us_sd": 3.62539338272789,
+     "us_min": 174.55442970718389,
+     "block_cv": 0.020135657381365343,
+     "blocks": 77,
+     "block_reps": 147
+    },
+    {
+     "label": "1e-07",
+     "knob": -7,
+     "rtol": 1e-07,
+     "n_slabs": null,
+     "max_abs_error": 2.850084612759929e-09,
+     "engine": "separable",
+     "us_per_probability": 246.7206655487036,
+     "us_sd": 1.4042510197128666,
+     "us_min": 244.68377725322037,
+     "block_cv": 0.005691663552340986,
+     "blocks": 78,
+     "block_reps": 107
+    },
+    {
+     "label": "1e-08",
+     "knob": -8,
+     "rtol": 1e-08,
+     "n_slabs": null,
+     "max_abs_error": 5.452275297912479e-10,
+     "engine": "separable",
+     "us_per_probability": 335.2920129319024,
+     "us_sd": 4.904794055631712,
+     "us_min": 324.9936416674851,
+     "block_cv": 0.014628424974226489,
+     "blocks": 77,
+     "block_reps": 80
+    },
+    {
+     "label": "1e-09",
+     "knob": -9,
+     "rtol": 1e-09,
+     "n_slabs": null,
+     "max_abs_error": 4.674050035902155e-11,
+     "engine": "separable",
+     "us_per_probability": 543.4500829601853,
+     "us_sd": 7.160948041317542,
+     "us_min": 523.2985989399216,
+     "block_cv": 0.013176827579658632,
+     "blocks": 80,
+     "block_reps": 48
+    }
+   ]
+  },
+  "3+1": {
+   "Magnus (tolerance)": [
+    {
+     "label": "1e-04",
+     "knob": -4,
+     "rtol": 0.0001,
+     "n_slabs": null,
+     "max_abs_error": 1.8792137966849864e-06,
+     "engine": "separable",
+     "us_per_probability": 319.07049296616486,
+     "us_sd": 2.1472258602633527,
+     "us_min": 317.2376331408524,
+     "block_cv": 0.006729628428821999,
+     "blocks": 78,
+     "block_reps": 82
+    },
+    {
+     "label": "1e-05",
+     "knob": -5,
+     "rtol": 1e-05,
+     "n_slabs": null,
+     "max_abs_error": 2.9161837589164463e-07,
+     "engine": "separable",
+     "us_per_probability": 411.42676526370843,
+     "us_sd": 6.916246122443609,
+     "us_min": 406.53255818474537,
+     "block_cv": 0.01681039423385731,
+     "blocks": 80,
+     "block_reps": 63
+    },
+    {
+     "label": "1e-06",
+     "knob": -6,
+     "rtol": 1e-06,
+     "n_slabs": null,
+     "max_abs_error": 6.53889474788727e-08,
+     "engine": "separable",
+     "us_per_probability": 657.6578865515561,
+     "us_sd": 4.513792750572644,
+     "us_min": 653.6018624804759,
+     "block_cv": 0.006863435903187928,
+     "blocks": 79,
+     "block_reps": 40
+    },
+    {
+     "label": "1e-07",
+     "knob": -7,
+     "rtol": 1e-07,
+     "n_slabs": null,
+     "max_abs_error": 2.2926148757207443e-09,
+     "engine": "separable",
+     "us_per_probability": 1132.7413910522537,
+     "us_sd": 14.661293701845013,
+     "us_min": 1123.5575266376447,
+     "block_cv": 0.012943195876532318,
+     "blocks": 73,
+     "block_reps": 25
+    },
+    {
+     "label": "1e-08",
+     "knob": -8,
+     "rtol": 1e-08,
+     "n_slabs": null,
+     "max_abs_error": 4.1702208353200376e-10,
+     "engine": "separable",
+     "us_per_probability": 1723.3559457660401,
+     "us_sd": 13.694676602749052,
+     "us_min": 1714.02834666272,
+     "block_cv": 0.007946516583758731,
+     "blocks": 48,
+     "block_reps": 25
+    },
+    {
+     "label": "1e-09",
+     "knob": -9,
+     "rtol": 1e-09,
+     "n_slabs": null,
+     "max_abs_error": 2.2123303189403032e-11,
+     "engine": "separable",
+     "us_per_probability": 2934.3271934550203,
+     "us_sd": 21.155931860362116,
+     "us_min": 2917.8140366760394,
+     "block_cv": 0.007209806700340083,
+     "blocks": 30,
+     "block_reps": 25
+    }
+   ]
+  }
+ }
+}
