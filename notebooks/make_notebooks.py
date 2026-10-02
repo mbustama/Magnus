@@ -18827,14 +18827,18 @@ def fe_at_earth(P):
 
 
 FE_SCAN = {}
-for e_tev in (1.0, 100.0, 1.0e4):
-    FE_SCAN[e_tev] = fe_at_earth(oscprob.osc_prob_3nu_vacuum(
-        np.full(L_SCAN_KM.size, e_tev*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
-        average=True, **OSC))
 DM2_PD_SCAN = 1.0e-16                              # eV^2: decoheres at Mpc distances
-FE_SCAN_PD = fe_at_earth(oscprob.osc_prob_pseudo_dirac_vacuum(
-    np.full(L_SCAN_KM.size, 100.0*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
-    {1: DM2_PD_SCAN}, average=True, **OSC))
+with warnings.catch_warnings():
+    # Near the source the phase average depends on the spread, and warns so: expected
+    # here, where that dependence is what the figure shows
+    warnings.simplefilter('ignore', oscprob.PhaseAveragingWarning)
+    for e_tev in (1.0, 100.0, 1.0e4):
+        FE_SCAN[e_tev] = fe_at_earth(oscprob.osc_prob_3nu_vacuum(
+            np.full(L_SCAN_KM.size, e_tev*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
+            average=True, **OSC))
+    FE_SCAN_PD = fe_at_earth(oscprob.osc_prob_pseudo_dirac_vacuum(
+        np.full(L_SCAN_KM.size, 100.0*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
+        {1: DM2_PD_SCAN}, average=True, **OSC))
 
 x_pc = L_SCAN_KM/PC_KM
 for e_tev, fe in FE_SCAN.items():
@@ -18887,6 +18891,75 @@ for x_mark, text, side in ((4.848e-6, '1 AU', 1),
 ax.legend(loc='upper center', bbox_to_anchor=(0.645, 0.99), handlelength=2.0)
 fig.tight_layout(pad=0.3)
 save(fig, 'astro_baseline.pdf')"""),
+    md(r"""### Figure 8, continued --- the same, against the energy spread
+
+The standard case at 100 TeV, for four energy spreads $\sigma$ of the phase average. The
+spread sets where the composition settles, at a distance that scales as $1/\sigma$, and not
+the value it settles to. The unaveraged probability never settles: the band is the range it
+sweeps, bin by bin in $\log L$."""),
+    code(r"""# ------------------------------------ Figure 8, continued: the role of the energy spread
+L_SPREAD_KM = np.logspace(6.0, 13.6, 4000)         # 1e6 km to about 1 pc
+x_sp = L_SPREAD_KM/PC_KM
+E_SP = np.full(L_SPREAD_KM.size, 100.0*gd.UNIT_TEV)
+
+
+def fe_three(P):
+    # The pion-decay fractions through a three-flavor matrix; the nu_e fraction
+    f = np.einsum('a,lab->lb', PION_SOURCE, np.asarray(P))
+    return f[:, 0]/f.sum(axis=1)
+
+
+fig, ax = plt.subplots(figsize=(COL, 2.9))
+# Unaveraged: it never settles, so the range it sweeps is drawn as a band, the lowest and
+# highest value in each of 200 bins in log L
+fe_raw = fe_three(oscprob.osc_prob_3nu_vacuum(E_SP, L_SPREAD_KM*gd.UNIT_KM, **OSC))
+edges = np.linspace(0, L_SPREAD_KM.size, 201).astype(int)
+lo = np.array([fe_raw[a:b].min() for a, b in zip(edges[:-1], edges[1:])])
+hi = np.array([fe_raw[a:b].max() for a, b in zip(edges[:-1], edges[1:])])
+ax.fill_between(np.sqrt(x_sp[edges[:-1]]*x_sp[edges[1:]-1]), lo, hi, color='0.88', lw=0,
+                zorder=0, label='No averaging\n(range)')
+for sigma, color, lw in ((0.01, BLUE, 0.6), (0.03, ORANGE, 0.6), (0.1, 'k', 1.4),
+                         (0.3, RED, 0.6)):
+    with warnings.catch_warnings():
+        # Spread-dependent near the source, and warns so: what this figure shows
+        warnings.simplefilter('ignore', oscprob.PhaseAveragingWarning)
+        fe = fe_three(oscprob.osc_prob_3nu_vacuum(E_SP, L_SPREAD_KM*gd.UNIT_KM, average=True,
+                                                   average_spread=sigma, **OSC))
+    k = np.nonzero(np.abs(fe - fe[-1]) > 1.0e-3)[0].max()
+    print('  sigma = %4.2f: f_e settles to %.4f beyond %.1e pc' % (sigma, fe[-1], x_sp[k+1]))
+    ax.plot(x_sp, fe, color=color, lw=lw,
+            label=r'$%g$' % sigma + (' (default)' if sigma == 0.1 else ''))
+ax.set_xscale('log')
+ax.set_xlim(x_sp[0], x_sp[-1])
+ax.set_ylim(0.30, 0.352)
+ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.01))
+ax.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.002))
+ax.xaxis.set_major_locator(LogLocator(base=10.0, numticks=40))
+ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=400))
+ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+ax.xaxis.set_major_formatter(FuncFormatter(
+    lambda v, _: '1' if round(np.log10(v)) == 0 else r'$10^{%d}$' % round(np.log10(v))))
+ax.tick_params(axis='x', which='major', pad=3.5)
+ax.set_xlabel(r'Distance to the source, $L$ [pc]')
+ax.set_ylabel(r'$\nu_e$ fraction at Earth, $f_{e,\oplus}$', labelpad=3)
+ax.text(0.03, 0.96, r'Standard $3\nu$' + '\n' + r'$E_\nu = 100$~TeV', transform=ax.transAxes,
+        ha='left', va='top', fontsize=8, zorder=6,
+        bbox=dict(boxstyle='round,pad=0.35', facecolor='white', edgecolor='k', lw=0.6))
+# 1 AU, on white; the edge of the Solar System falls on the band, so its line is gray dots
+# on a white stripe drawn through the curves, and its label has a white border
+ax.axvline(4.848e-6, color='0.5', ls=':', lw=0.8, zorder=1)
+ax.text(4.848e-6*1.3, 0.3015, '1 AU', rotation=90, color='0.5', ha='left', va='bottom',
+        fontsize=8, zorder=5)
+X_SS = 120*4.848e-6                                # heliopause, 120 AU
+ax.axvline(X_SS, color='white', ls='-', lw=2.4, zorder=3.5)
+ax.axvline(X_SS, color='0.35', ls=':', lw=1.0, zorder=4)
+t = ax.text(X_SS*1.3, 0.3015, 'Solar System', rotation=90, color='0.5', ha='left',
+            va='bottom', fontsize=8, zorder=5)
+t.set_path_effects([pe.Stroke(linewidth=2, foreground='white'), pe.Normal()])
+ax.legend(loc='lower right', title=r'Energy spread, $\sigma$', fontsize=8, title_fontsize=8,
+          handlelength=1.6, labelspacing=0.25, borderpad=0.35)
+fig.tight_layout(pad=0.3)
+save(fig, 'astro_spread.pdf')"""),
     md(r"""### Figure 8b --- the composition on the flavor triangle
 
 Two of the departures of Figure 8, each as a curve in its own parameter: the eigenvalue of
