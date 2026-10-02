@@ -413,6 +413,7 @@ TREE = [
      'average=True with sterile flavors nothing couples to returns, as the 3-flavor answer (issue #148)'),
     ('tests/test_pseudodirac.py',
      'Pseudo-Dirac Hamiltonians: the Dirac limit, blocks, and the factor of two'),
+    ('tests/test_docs_landing_page.py', 'Landing page hides its toctrees, links no changelog'),
     ('tests/test_documented_examples.py',
      'Runs the code blocks in README.md and quickstart.rst'),
     ('tests/test_earth_matter.py', 'PREM profile, chord geometry, electron density'),
