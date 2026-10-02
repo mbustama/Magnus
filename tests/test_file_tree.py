@@ -430,6 +430,7 @@ TREE = [
     ('tests/test_fuzz_statistics.py', 'Randomized profiles, scored in bulk'),
     ('tests/test_file_tree.py',
      'This file: generates the documented file trees and checks them against git'),
+    ('tests/test_gen_prem_plane_magnus.py', 'Earth-plane benchmark script still runs'),
     ('tests/test_globaldefs.py', 'NuFIT historical parameter dict/loader'),
     ('tests/test_hamiltonians.py', 'Hamiltonian/mixing-matrix builders'),
     ('tests/test_input_fuzz.py', 'Issue #160: each bad argument refused by name, each valid edge accepted'),
