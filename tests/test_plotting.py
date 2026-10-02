@@ -1373,3 +1373,41 @@ def test_computed_profile_plot_labels_its_probability_panel(nubar):
     labels = [a.get_ylabel() for a in fig.axes]
     assert any(mp.prob_label(gd.NUMU, gd.NUE, nubar=nubar) in lab for lab in labels)
     plt.close('all')
+
+
+def test_house_text_sizes_apply_without_the_notebooks_matplotlibrc():
+    """Outside notebooks/ (the docs, a user's script) the 18-by-9-inch figures got Matplotlib's
+    10-point axis and tick labels; the sizes now come with the module."""
+    x = np.linspace(1.0, 2.0, 5)
+    with plt.style.context('default'):
+        fig, ax = mp.plot_curves(x, [x], xlabel='X', ylabel='Y')
+        fig.canvas.draw()
+    assert ax.xaxis.label.get_fontsize() == 25            # 10 before
+    assert {t.label1.get_fontsize() for t in ax.xaxis.get_major_ticks()} == {23}
+
+
+def test_a_callers_own_text_size_is_kept():
+    x = np.linspace(1.0, 2.0, 5)
+    with plt.style.context('default'), plt.rc_context({'axes.labelsize': 12}):
+        _, ax = mp.plot_curves(x, [x], xlabel='X')
+    assert ax.xaxis.label.get_fontsize() == 12
+
+
+def test_labels_fit_at_the_house_text_size():
+    """The larger text cut off the bi-probability ordinate label and ran the probability label
+    into the density label of the profile plot."""
+    t = np.linspace(-np.pi, np.pi, 30)
+    with plt.style.context('default'):
+        fig, ax = mp.plot_biprobability(prob_nu=[5e-4*(1 + 0.4*np.cos(t))],
+                                        prob_nubar=[5e-4*(1 + 0.4*np.sin(t))])
+        fig.canvas.draw()
+        assert ax.yaxis.label.get_window_extent().x0 >= 0
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            fig, ax = mp.plot_probability_with_profile(
+                np.linspace(100.0, 11000.0, 30), trajectories=[dict(costhz=-0.9)],
+                energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
+                xscale='linear')
+        fig.canvas.draw()
+    assert not ax[0].yaxis.label.get_window_extent().overlaps(
+        ax[1].yaxis.label.get_window_extent())

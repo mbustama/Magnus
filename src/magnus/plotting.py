@@ -40,9 +40,9 @@ site -- or lands in a dictionary destined for one specific Matplotlib call --
 so a typo is an error from that call, naming the offending key. Nothing is
 swallowed.
 
-Styling that is global (fonts, tick sizes and directions, LaTeX rendering)
-belongs to ``notebooks/matplotlibrc`` and is deliberately **not** set here; the
-defaults below cover only what the notebooks were overriding per figure.
+The module brings its own text and tick sizes (:data:`HOUSE_RC`), so a figure looks the
+same wherever it is drawn; it reads no ``matplotlibrc``.  Font family and LaTeX rendering
+are left to the caller's Matplotlib settings.
 
 All functions return ``(fig, ax)`` so that the caller can keep customizing:
 ``fig`` for figure-level work and saving, ``ax`` for anything Matplotlib
@@ -57,6 +57,7 @@ and needs nothing extra.
 .. versionadded:: 1.0.0
 """
 
+import functools
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -66,6 +67,7 @@ from magnus import _validate as _v
 __all__ = [
     'MatplotlibNotFoundError',
     'HOUSE_FIGSIZE',
+    'HOUSE_RC',
     'HOUSE_LEGEND_KW',
     'HOUSE_GRID_KW',
     'HOUSE_SAVEFIG_KW',
@@ -167,8 +169,48 @@ r"""Default :func:`~matplotlib.pyplot.savefig` keywords; figures go to ``../fig/
 .. versionadded:: 1.0.0
 """
 
+HOUSE_RC: Dict[str, Any] = {
+    'font.size': 14,
+    'axes.labelsize': 25,
+    'xtick.labelsize': 23,
+    'ytick.labelsize': 23,
+    'xtick.direction': 'in',
+    'ytick.direction': 'in',
+    'xtick.top': True,
+    'ytick.right': True,
+    'xtick.major.size': 10,
+    'ytick.major.size': 10,
+    'xtick.minor.size': 5,
+    'ytick.minor.size': 5,
+    'xtick.major.pad': 8.0,
+}
+r"""Text and tick sizes every plotting function draws with.
+
+The module's own defaults, the same values the notebooks use.  Before, the module left
+these to the ``matplotlibrc`` of wherever it ran, so outside the notebooks directory (the
+documentation included) the 18-by-9-inch figures got Matplotlib's 10-point axis and tick
+labels.  A value the caller has changed from Matplotlib's default (in ``rcParams`` or a
+style) is left alone.
+
+.. versionadded:: 1.2.0
+"""
+
 _HSPACE = 0.05
 _WSPACE = 0.05
+
+
+def _house_style(fn):
+    r"""Run a plotting function under :data:`HOUSE_RC`, keeping the caller's own settings.
+
+    .. versionadded:: 1.2.0
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        mpl, plt = _mpl()
+        rc = {k: v for k, v in HOUSE_RC.items() if mpl.rcParams[k] == mpl.rcParamsDefault[k]}
+        with plt.rc_context(rc):
+            return fn(*args, **kwargs)
+    return wrapper
 
 # Flavor index -> LaTeX, covering the sterile states used by the 4nu/5nu notebooks.
 _FLAVOR_TEX = {
@@ -484,6 +526,7 @@ def _finish(fig, savefig, savefig_kw, tight):
 
 
 @_v.validated(_rules(x=_r_abscissa, curves=_r_curves('x'), residual=_v.r_real_array(allow_scalar=False)))
+@_house_style
 def plot_curves(
     x: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -717,6 +760,7 @@ def plot_curves(
 
 
 @_v.validated(_rules(x=_r_abscissa, panels=_r_panels('x')))
+@_house_style
 def plot_curves_stacked(
     x: Sequence[float],
     panels: Sequence[Sequence[Union[Sequence[float], Dict[str, Any]]]],
@@ -973,7 +1017,7 @@ def plot_curves_stacked(
         # Match the abscissa label rather than Matplotlib's figure-label default:
         # supylabel takes its size from rcParams['figure.labelsize'] ('large'),
         # while every axis label in these figures takes rcParams['axes.labelsize']
-        # (the notebooks' matplotlibrc sets it to 25). Left alone, the shared
+        # (:data:`HOUSE_RC` sets it to 25). Left alone, the shared
         # ordinate label comes out visibly smaller than the abscissa label beneath
         # it, which is not what the hand-built version did.
         ykw = {'fontsize': plt.rcParams['axes.labelsize']}
@@ -985,6 +1029,7 @@ def plot_curves_stacked(
 
 
 @_v.validated(_rules(distances=_r_abscissa, curves=_r_curves('distances', probability=True)))
+@_house_style
 def plot_probability_vs_baseline(
     distances: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -1077,6 +1122,7 @@ def plot_probability_vs_baseline(
 
 
 @_v.validated(_rules(energies=_r_abscissa, curves=_r_curves('energies', probability=True)))
+@_house_style
 def plot_probability_vs_energy(
     energies: Sequence[float],
     curves: Sequence[Union[Sequence[float], Dict[str, Any]]],
@@ -1225,6 +1271,7 @@ def _probability_ylabel(nu_i, nu_f, num_flavors, nubar=False):
 
 
 @_v.validated(_rules(x=_r_abscissa))
+@_house_style
 def plot_probability_with_profile(
     x: Sequence[float],
     profiles: Optional[Sequence[Union[Sequence[float], Dict[str, Any]]]] = None,
@@ -1396,6 +1443,10 @@ def plot_probability_with_profile(
         Ordinate labels for the probability panels. Entries may be ``None``.  In compute
         mode, when neither this nor ``shared_ylabel`` is given, every probability panel is
         labelled with the channel of ``nu_i`` and ``nu_f`` (and ``nubar``).
+
+        .. versionchanged:: 1.2.0
+           That label is the probability symbol alone: the longer "Three-neutrino
+           probability, ..." ran into the density label at the house text size.
     panel_annotations : sequence, optional
         Text placed inside each probability panel, one entry per panel, at
         ``panel_annotation_xy`` in axes coordinates. An entry is a string, or a
@@ -1555,12 +1606,13 @@ def plot_probability_with_profile(
             x, trajectories, **computing)
         if xlabel is None:
             xlabel = computed_xlabel
-        # The channel is known here, so the probability panels get the label the curve
-        # routines give (issue #146 §2); it used to be left empty.
+        # The channel is known here, so the probability panels get a label (issue #146
+        # §2); it used to be left empty.  Only the symbol: at the house text size the
+        # curve routines' "Three-neutrino probability, ..." is taller than a panel here,
+        # and ran into the density label above it.
         if (panel_ylabels is None and shared_ylabel is None and nu_i is not None
                 and nu_f is not None):
-            panel_ylabels = [_probability_ylabel(nu_i, nu_f, num_flavors,
-                                                 nubar=nubar_label)]*len(panels)
+            panel_ylabels = [prob_label(nu_i, nu_f, nubar=bool(nubar_label))]*len(panels)
     else:
         given = [name for name, value in computing.items() if value is not None]
         if return_probability:
@@ -1792,6 +1844,7 @@ def _profile_through_earth_wrappers(x, trajectories, x_axis, x_unit, energy, nu_
 
 
 @_v.validated(_rules(x=_r_abscissa, probabilities=_r_probability_array, averages=_r_probability_array))
+@_house_style
 def plot_probability_with_average(
     x: Sequence[float],
     probabilities: Union[Sequence[float], Sequence[Sequence[float]]],
@@ -1930,6 +1983,7 @@ def plot_probability_with_average(
 
 
 @_v.validated(_rules(prob_nu=_r_probability_array, prob_nubar=_r_probability_array))
+@_house_style
 def plot_biprobability(
     prob_nu: Optional[Sequence[Sequence[float]]] = None,
     prob_nubar: Optional[Sequence[Sequence[float]]] = None,
@@ -1971,7 +2025,7 @@ def plot_biprobability(
     subplots_kw: Optional[Dict[str, Any]] = None,
     savefig: Optional[str] = None,
     savefig_kw: Optional[Dict[str, Any]] = None,
-    tight_layout: bool = False,
+    tight_layout: bool = True,
 ):
     r"""Plot neutrino against antineutrino appearance probability.
 
@@ -2078,7 +2132,10 @@ def plot_biprobability(
     savefig_kw : dict, optional
         Extra keywords merged over :data:`HOUSE_SAVEFIG_KW`.
     tight_layout : bool, optional
-        Whether to call ``tight_layout``. Default is ``False``.
+        Whether to call ``tight_layout``. Default is ``True``.
+
+        .. versionchanged:: 1.2.0
+           Default ``True``: at the house text size the ordinate label was cut off.
 
     Returns
     -------
@@ -2323,6 +2380,7 @@ def _biprobability_through_earth_wrappers(configurations, markers, channel, dcp,
 
 
 @_v.validated(_rules(costhz=_r_grid, log10_energy=_r_grid, probability=_r_oscillogram_probability))
+@_house_style
 def plot_oscillogram(
     costhz: Sequence[float],
     log10_energy: Sequence[float],

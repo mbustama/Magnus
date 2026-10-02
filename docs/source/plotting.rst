@@ -262,14 +262,15 @@ and ``ax[1]`` the residual:
     ax.axvline(1.0e3, color='0.6', ls=':', lw=1)
     ax.set_title('annotated after the fact', fontsize=20)
 
-What is *not* set here
-""""""""""""""""""""""""
+House style
+"""""""""""""
 
-Global styling -- fonts, tick sizes and directions, LaTeX rendering -- lives
-in ``notebooks/matplotlibrc`` and is picked up because the notebooks run from
-that directory.  This module sets only what the notebooks were overriding per
-figure: figure size, the legend keyword block, gridspec ratios, tick
-spacings.  The house values are exposed as
+The module sets the text and tick sizes it draws with
+(:data:`~magnus.plotting.HOUSE_RC`: 25-point axis labels, 23-point tick labels, ticks
+pointing in on all four sides), so a figure looks the same in a script, a notebook or
+these pages; it reads no ``matplotlibrc``.  A size you have changed yourself, in
+``rcParams`` or a style, is kept.  Font family and LaTeX rendering are left to your
+Matplotlib settings.  The other house values are exposed as
 :data:`~magnus.plotting.HOUSE_FIGSIZE`,
 :data:`~magnus.plotting.HOUSE_LEGEND_KW`,
 :data:`~magnus.plotting.HOUSE_GRID_KW` and
