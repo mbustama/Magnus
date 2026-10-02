@@ -68,7 +68,6 @@ probability is non-negative and every row sums to one, at any accuracy setting.
    * `GitHub Repository <https://github.com/mbustama/Magnus>`_
    * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
    * :doc:`How to cite <citing>`
-   * :doc:`changelog`
 
 **Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
 oscillations, non-standard interactions, Lorentz-invariance violation, sterile
@@ -301,6 +300,7 @@ Salient features
 
 .. toctree::
    :maxdepth: 2
+   :hidden:
    :caption: Getting started:
 
    installation
@@ -308,6 +308,7 @@ Salient features
 
 .. toctree::
    :maxdepth: 2
+   :hidden:
    :caption: Using Magnus:
 
    recipes
@@ -321,6 +322,7 @@ Salient features
 
 .. toctree::
    :maxdepth: 2
+   :hidden:
    :caption: How it works:
 
    methodology
@@ -335,6 +337,7 @@ Salient features
 
 .. toctree::
    :maxdepth: 2
+   :hidden:
    :caption: Reference:
 
    api_reference
