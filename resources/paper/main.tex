@@ -3619,48 +3619,101 @@ Figure~\ref{fig:shock_energy} shows the effect of the shock on the energy spectr
 \begin{figure*}[t!]
  \centering
  \includegraphics[width=\textwidth]{astro_composition.pdf}
-  \caption{\label{fig:astro}\textbf{Flavor composition of an astrophysical flux.} Flavor composition of an astrophysical neutrino flux at Earth and the survival probabilities behind it, for five Hamiltonians. Such a flux arrives decohered, so these panels carry the phase-averaged limit of \equ{averaged}, not a propagated probability. \emph{Top}: $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$ against energy. \emph{Bottom}: the flavor fractions reaching Earth from a pion-decay source, $1:2:0$, with the standard case repeated beneath each panel so that a departure from it is legible. The parameters of the four departures are as follows. Lorentz-invariance violation: the operator of \equ{h_liv_3nu} with $n_{\rm LIV} = 1$, $\Lambda = 1$~eV, eigenvalues $b_1 = b_2 = 0$ and $b_3 = 1.26 \cdot 10^{-31}$~eV, and $\mathbb{V}_\xi$ the PMNS matrix with $\delta_\xi = 0$; the eigenvalue is fixed by asking the new term to equal the vacuum one at 100~TeV; the vertical line marks that energy. Non-standard interactions: $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$ and $\varepsilon_{\mu\tau} = 0.03$, on a chord through the core, $\cos\theta_z = -1$. Sterile state: $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.1$, $\theta_{34} = 0$ and $\Delta m^2_{41} = 1$~eV$^2$. Pseudo-Dirac: the mass eigenstate state $\nu_2$ alone carries a partner, split from it by $\delta m^2 = 10^{-13}$~eV$^2$, at a distance of 100~Mpc. We renormalize the $3+1$ and pseudo-Dirac fractions to the three active flavors, past the 13.3\% and 19.3\% of the flux their sterile states remove, since that share is not observed. Pairing all three mass states would halve every active-active probability by the same factor and leave the fractions untouched, so it is the uneven suppression that moves them. Listing~\ref{lst:astro} computes the five cases. See notebooks \#10, \#13, and \#28 for details, and Sec.~\ref{sec:astro} for details.}
+ \caption{\label{fig:astro}\textbf{Flavor composition of an astrophysical flux.} Averaged probabilities, \equ{averaged}, for five Hamiltonians, from a source at 100~Mpc. \emph{Top}: survival probabilities, $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$. \emph{Bottom}: flavor fractions at Earth from a pion-decay source, $1:2:0$; the standard case is repeated in each panel for comparison. Lorentz-invariance violation: the operator of \equ{h_liv_3nu} with $n_{\rm LIV} = 1$, $\Lambda = 1$~eV, $b_1 = b_2 = 0$, $b_3 = 1.26 \cdot 10^{-31}$~eV, and $\mathbb{V}_\xi$ the PMNS matrix with $\delta_\xi = 0$, so that the new term equals $\Delta m^2_{31}/2E$ at 100~TeV (vertical line). Non-standard interactions: $\varepsilon_{ee} = 0.10$, $\varepsilon_{e\mu} = 0.05$, and $\varepsilon_{\mu\tau} = 0.03$, across the core of the Earth, $\cos\theta_z = -1$. Sterile state: $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.1$, $\theta_{34} = 0$, and $\Delta m^2_{41} = 1$~eV$^2$. Pseudo-Dirac: $\nu_2$ split by $\delta m^2 = 10^{-13}$~eV$^2$. For the last two, the fractions are renormalized to the three active flavors. See Listing~\ref{lst:astro}, notebooks \#10, \#13, and \#28, and Sec.~\ref{sec:astro} for details.}
 \end{figure*}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:astro} shows the flavor composition of a TeV--PeV astrophysical flux at Earth and the average flavor-transition probabilities behind it, for five Hamiltonians: standard three-flavor, Lorentz-invariance violation (LIV), non-standard interactions (NSI) through the Earth, $3+1$ flavors, and pseudo-Dirac neutrinos with the $\nu_2$ mass eigenstate split. The top row carries the survival probabilities $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$; the bottom row, the flavor fractions reaching Earth from a source that produces neutrinos through the full pion decay chain, described next.
+Figure~\ref{fig:astro} shows the flavor composition of a TeV--PeV astrophysical flux at Earth and the average flavor-transition probabilities behind it, for five Hamiltonians: standard three-flavor, Lorentz-invariance violation (LIV), non-standard interactions (NSI) through the Earth, $3+1$ flavors, and pseudo-Dirac neutrinos with the $\nu_2$ mass eigenstate split. The top row shows the survival probabilities $\langle P_{\nu_\alpha \to \nu_\alpha}\rangle$; the bottom row, the flavor fractions reaching Earth from a source that produces neutrinos through the full pion decay chain, described next.
 
 \smallskip
 
-\textit{Producing them.}---In cosmic accelerators---active galaxies, gamma-ray bursts, superluminous supernovae---protons may interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay via $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. For illustration, we adopt that full pion-decay composition---the nominal expectation---though there are other possibilities~(see, \eg, \Ref~\cite{Bustamante:2015waa}). 
+\textit{How the neutrinos are produced.}---In cosmic accelerators---active galaxies, gamma-ray bursts, superluminous supernovae---protons may interact with ambient matter and radiation to produce pions\ \cite{Margolis:1977wt, Stecker:1978ah, Kelner:2006tc}. The pions decay via $\pi^+ \to \mu^+ + \nu_\mu$, followed by $\mu^+ \to \bar{\nu}_\mu + \nu_e + e^+$, and their charge conjugates, so that the flux leaving the source carries flavor ratios $(f_e, f_\mu, f_\tau)_{\rm S} = \left(\frac{1}{3}, \frac{2}{3}, 0\right)$, with $f_{\alpha, {\rm S}}$ the fraction of $\nu_\alpha + \bar{\nu}_\alpha$ in the total. Neutrino telescopes cannot ordinarily tell $\nu$ from $\bar\nu$, so $\nu_\alpha$ below means $\nu_\alpha + \bar{\nu}_\alpha$. For illustration, we adopt that full pion-decay composition---the nominal expectation---though there are other possibilities~(see, \eg, \Ref~\cite{Bustamante:2015waa}).
 
 \smallskip
 
-\textit{What is observable.}---Over Mpc--Gpc baselines, the oscillation length is minute against the distance; neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand for the oscillations to be resolved. Therefore, a neutrino telescope is sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}. 
+\textit{What is observable.}---Over Mpc--Gpc baselines, the oscillation length is minute against the distance; neither the distance, the size of the production region, nor the energy resolution of a detector is known to anything approaching the precision the phase would demand for the oscillations to be resolved. Therefore, a neutrino telescope is sensitive only to the average flavor-transition probabilities $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged}.
 
-\magnus\ returns the probability in closed form from the eigenvectors of $\mathbb{H}$, with no phase propagated. In vacuum and under standard oscillations, $\mathbb{V}$ in \equ{averaged} is the PMNS matrix, $\mathbb{U}$, and the probability becomes the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$. In either case, the flavor ratio at Earth is $f_{\alpha, \oplus} = \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle f_{\beta, {\rm S}}$. The flavor composition is a rich probe of astrophysics and fundamental physics; see, \eg, \Refs~\cite{Esmaili:2009dz, Barenboim:2003jm, Beacom:2003nh, Kachelriess:2006ksy, Lipari:2007su, Hummer:2010ai, Bustamante:2015waa, Arguelles:2015dca, Rasmussen:2017ert, Bustamante:2019sdb, Ackermann:2019cxh, Ackermann:2019ows, Arguelles:2019rbn, Bustamante:2020bxp, Song:2020nfh, Liu:2023flr}.
+With {\tt average=True}, \magnus\ computes this probability in closed form from the eigenvectors of $\mathbb{H}$, without propagating a phase. (It returns the phase average of \equ{phase_average}, which over these distances equals \equ{averaged}, since every phase runs through many cycles.) Under standard oscillations in vacuum, $\mathbb{V}$ in \equ{averaged} is the PMNS matrix, $\mathbb{U}$, and the probability is the familiar $\sum_i \lvert U_{\alpha i}\rvert^2 \lvert U_{\beta i}\rvert^2$. The flavor ratios at Earth are then
+\begin{equation}
+ \label{equ:flavor_ratio_earth}
+ f_{\alpha, \oplus}
+ =
+ \sum_\beta \langle P_{\nu_\beta \to \nu_\alpha}\rangle\, f_{\beta, {\rm S}} \;.
+\end{equation}
+The flavor composition is a rich probe of astrophysics and fundamental physics; see, \eg, \Refs~\cite{Esmaili:2009dz, Barenboim:2003jm, Beacom:2003nh, Kachelriess:2006ksy, Lipari:2007su, Hummer:2010ai, Bustamante:2015waa, Arguelles:2015dca, Rasmussen:2017ert, Bustamante:2019sdb, Ackermann:2019cxh, Ackermann:2019ows, Arguelles:2019rbn, Bustamante:2020bxp, Song:2020nfh, Liu:2023flr}. With NuFIT~6.1 best-fit values of the mixing parameters, the flavor fractions at Earth are nearly equal, $(0.33, 0.34, 0.33)_\oplus$: oscillations over astrophysical distances create a $\nu_\tau$ component even when the source produces none. Run backward, the measured flavor composition can constrain the sources\ \cite{Bustamante:2019sdb, Song:2020nfh, Liu:2023flr, IceCube:2025ole}.
 
-Evaluating $\mathbb{U}$ at the NuFIT~6.1 best-fit values of the mixing parameters yields about equal proportion of each flavor at Earth, \ie, $(0.33, 0.34, 0.33)_\oplus$. Oscillation over astrophysical distances populates a $\nu_\tau$ component that the sources do not make. Run backward, the measured flavor composition can be turned into a constraint on the sources\ \cite{Bustamante:2019sdb, Song:2020nfh, Liu:2023flr, IceCube:2025ole}. 
+If the vacuum Hamiltonian is extended, \eg, by mixing with sterile states or by a new-physics term such as Lorentz-invariance violation, the averaged probability keeps the same form, $\sum_i \lvert \mathbb{V}_{\alpha i}\rvert^2 \lvert \mathbb{V}_{\beta i}\rvert^2$, with $\mathbb{V}$ the eigenvectors of the full Hamiltonian. Matter, which the neutrinos meet only when they cross the Earth, is treated differently; we return to it below.
 
-In the presence of mixing with sterile states of or new, non-matter terms added to the \emph{vacuum} Hamiltonian (like Lorentz-invariance violation, which holds in vacuum and in matter), the probability is the same expression as above, but evaluated in the eigenbasis of the total Hamiltonian, \ie, $\sum_i \lvert V_{\alpha i}\rvert^2 \lvert V_{\beta i}\rvert^2$. 
+Listing~\ref{lst:astro} computes the five cases of \figu{astro}. The standard, Lorentz-violating, and $3+1$ cases take one wrapper call each, with {\tt average=True}, over all sixty energies at once. Each call takes the distance to the source, which may be surprising: the averaged probability is usually written without a baseline, because it is the limit of \equ{averaged}, $L/E \to \infty$, in which every interference term has averaged away. However, \magnus\ does not assume that limit. With {\tt average=True}, it returns the phase average of \equ{phase_average}, which damps each interference term according to the size of its phase, $\Delta m^2_{ij} L/2E$, and so needs $L$. Where every phase is large, the two coincide: at the default energy spread of 10\%, a phase of 40~rad keeps $3 \cdot 10^{-4}$ of its interference (Sec.~\ref{sec:averaged}), and \magnus\ then returns \equ{averaged} itself. For the mass splittings of standard oscillations, this holds at the distance of any real source: the smallest phase, from $\Delta m^2_{21}$ at 10~PeV, the highest energy of \figu{astro}, exceeds 40~rad beyond about 0.07~pc. Hence, every astrophysical baseline gives the same result, to the last digit; for instance, continuing Listing~\ref{lst:astro},
+\begin{pysnip}
+# One megaparsec, in natural units
+Mpc = 3.0857e19*gd.UNIT_KM
+# The standard case at 1 Mpc and at 1 Gpc
+P1 = oscprob.osc_prob_3nu_vacuum(E,
+ 1.0*Mpc, average=True, **osc)
+P2 = oscprob.osc_prob_3nu_vacuum(E,
+ 1.0e3*Mpc, average=True, **osc)
+# Largest difference over all energies
+# and channels: none
+np.abs(P1 - P2).max()        # 0.0
+\end{pysnip}
+The same holds for the Lorentz-violating and $3+1$ cases of \figu{astro}. The baseline matters only when some phase is not large: over a short baseline, or for a splitting far smaller than $\Delta m^2_{21}$, as in the pseudo-Dirac case below. Over $10^8$~km, less than an astronomical unit, the $\Delta m^2_{21}$ phase is too small to average away at most energies of the figure. The wrapper warns, and returns the phase average over the 10\% energy spread, which depends on that spread:
+\begin{pysnip}
+P = oscprob.osc_prob_3nu_vacuum(E,
+ 1.0e8*gd.UNIT_KM, average=True, **osc)
+# PhaseAveragingWarning: depends on
+# the energy spread at 46 of 60 points
+at_earth(P[-1]).round(3)
+# [0.333 0.666 0.001]
+\end{pysnip}
+At 10~PeV, the composition is still that of the source: over this distance, the oscillation has barely begun.
 
-Matter is different: the flux decoheres in the vacuum mass basis long before it arrives, then crosses the Earth \emph{coherently}. Thus, the two legs compose as probability matrices rather than as amplitudes, yielding a flavor ratio at Earth of $f_{\beta,\oplus} = \sum_{\alpha,\gamma} f_{\alpha, {\rm S}} \langle P_{\nu_\alpha \to \nu_\gamma}\rangle P^{\oplus}_{\nu_\gamma \to \nu_\beta}$, with the second factor an ordinary propagation through the Earth's density profile.  
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure*}[t!]
+ \centering
+ \includegraphics[width=\textwidth]{astro_baseline.pdf}
+ \caption{\label{fig:astro_baseline}\textbf{The averaged flavor composition settles once the source is far enough.} Fraction of $\nu_e$ at Earth, $f_{e,\oplus}$, of a flux produced by pion decay, $\left(\frac{1}{3}:\frac{2}{3}:0\right)_{\rm S}$, against the distance to the source, computed with {\tt average=True}, \ie, the phase average of \equ{phase_average} at the default 10\% energy spread. Curves are for standard three-flavor oscillations in vacuum at 1~TeV, 100~TeV, and 10~PeV, and for a pseudo-Dirac spectrum, with $\nu_2$ split by $\delta m^2 = 10^{-16}$~eV$^2$, at 100~TeV; the latter lies on the 100-TeV standard curve out to about 8~Mpc. Close to the source, the oscillations are only partly averaged, and the curves depend on the energy spread. Farther out, every phase has averaged away and the composition settles, at $f_{e,\oplus} = 0.326$ under standard oscillations, at a distance that grows with the energy. The pseudo-Dirac pair, with its much smaller splitting, settles a second time, at $f_{e,\oplus} = 0.332$, beyond about 250~Mpc. See Sec.~\ref{sec:astro} and notebook \#28 for details.}
+\end{figure*}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Listing~\ref{lst:astro} computes the five cases of \figu{astro}. Three of them are one wrapper call each with {\tt average=True}, over all energies at once: the standard case, the Lorentz-violating case, and the $3+1$ case. The wrappers decide from the baseline and the eigenvalue gaps which pairs have decohered, so the baseline passed must be astrophysical in fact. At 100~Mpc every pair has decohered at every energy of the figure; over $10^8$~km, less than an astronomical unit, the pair split by $\Delta m^2_{21}$ has not completed a cycle above a few TeV, so the wrapper warns and returns the average over an energy spread of $\pm 10\%$ instead, which depends on that spread (Sec.~\ref{sec:averaged}). The pseudo-Dirac case has its own function, {\tt osc\_prob\_pseudo\_dirac\_vacuum}. It takes the mass states to split and their splittings, and with {\tt average=True} forms each pair's phase from $\delta m^2$ directly, rather than from the difference of two eigenvalues, which a diagonalization resolves only to about $\epsilon \max m^2$.
+Figure~\ref{fig:astro_baseline} follows the composition from $10^6$~km out to Gpc distances. Under standard oscillations, $f_{e,\oplus}$ settles, to within $10^{-3}$, beyond about 1~AU at 1~TeV, $4 \cdot 10^{-4}$~pc at 100~TeV, and 0.04~pc at 10~PeV: the phases grow as $L/E$, so the higher the energy, the farther out the composition settles. Every known or suspected source of high-energy astrophysical neutrinos lies far beyond that. A pseudo-Dirac pair adds a phase of its own, $\delta m^2 L/2E$, set by a much smaller splitting. With $\delta m^2 = 10^{-16}$~eV$^2$, at 100~TeV, the composition leaves the standard value at about 8~Mpc and settles on a new one, $f_{e,\oplus} = 0.332$, beyond about 250~Mpc, which are the distances of real sources. For such a spectrum, the baseline passed must be the actual one; we return to it at the end of this section.
 
-Only the Earth leg with non-standard interactions propagates a probability; the other four cases are closed-form averages. That call passes {\tt n\_slabs=32}: on the default first grid a slab spans thousands of km, across which the matter term alone accumulates a phase above $\pi$, the bound below which the expansion is guaranteed to converge. \magnus\ warns about that and refines anyway; starting at 32 slabs removes the warning, with a change in the answer below the tolerance. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[t!]
+ \centering
+ \includegraphics[width=\columnwidth]{astro_spread.pdf}
+ \caption{\label{fig:astro_spread}\textbf{The energy spread sets where the averaged composition settles, not its value.} Fraction of $\nu_e$ at Earth, $f_{e,\oplus}$, from a pion-decay source, against the distance to the source, for standard three-flavor oscillations in vacuum at 100~TeV. The curves are the phase average of \equ{phase_average} for relative energy spreads $\sigma = 0.01$, 0.03, 0.1 (the default of {\tt average\_spread}), and 0.3. The distance beyond which each curve settles scales as $1/\sigma$; all of them settle at the same value, $f_{e,\oplus} = 0.326$. The gray band is the range swept by the unaveraged $f_{e,\oplus}$, which never settles. Dotted lines mark 1~AU and the heliopause, at 120~AU. See Sec.~\ref{sec:astro} and notebook \#28 for details.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The distance at which the composition stops changing depends on the energy spread, since the spread sets how strongly each interference term is damped (\equ{phase_average}); the value it settles to does not. Figure~\ref{fig:astro_spread} shows this for the standard case at 100~TeV. As the spread grows from 1\% to 30\%, the distance beyond which $f_{e,\oplus}$ settles, to within $10^{-3}$, shrinks as $1/\sigma$, from $4 \cdot 10^{-3}$~pc to $1.4 \cdot 10^{-4}$~pc, while the value it settles to, 0.326, stays the same. Without averaging, the composition never settles: it keeps oscillating at every distance. Hence, the spread passed with {\tt average\_spread} matters only for a source close enough that the phases have not yet averaged away; for any astrophysical source, the result does not depend on it.
+
+In \figu{astro}, only the matter case propagates a probability, and only across the Earth; the other four cases, and the vacuum leg of the matter case, are closed-form averages. The flux decoheres in the vacuum mass basis long before it reaches the Earth, and then crosses the Earth \emph{coherently}. Therefore, the two legs combine as probability matrices, not as amplitudes, and the flavor ratios at Earth are
+\begin{equation}
+ \label{equ:astro_earth_leg}
+ f_{\beta,\oplus}
+ =
+ \sum_{\alpha,\gamma} f_{\alpha, {\rm S}}\,
+ \langle P_{\nu_\alpha \to \nu_\gamma}\rangle\,
+ P^{\oplus}_{\nu_\gamma \to \nu_\beta} \;,
+\end{equation}
+where the first factor is the averaged probability in vacuum and the second is an ordinary propagation through the density profile of the Earth. In Listing~\ref{lst:astro}, this is the product {\tt P\_std @ P\_in}. (The Earth call starts refinement at 32 slabs only to avoid a harmless convergence warning on the coarser default grid.)
 
 \smallskip
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{lstlisting}[language=Python, caption={\textbf{Flavor composition of astrophysical neutrinos.} The five cases of \figu{astro}: the phase-averaged matrix $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged} for each Hamiltonian, over the sixty energies of the figure, contracted with the pion-decay source fractions. The standard, Lorentz-violating and $3+1$ cases are one wrapper call each with {\tt average=True}; the Earth case composes the decohered matrix with one propagation through the core; the pseudo-Dirac case is one call to {\tt osc\_prob\_pseudo\_dirac\_vacuum}, which forms each pair's phase from its splitting. {\tt f\_earth} holds the five compositions. See Sec.~\ref{sec:astro} for details.}, label={lst:astro}, float=tbp]
+\begin{lstlisting}[language=Python, caption={\textbf{Flavor composition of astrophysical neutrinos.} The five cases of \figu{astro}: the phase-averaged matrix $\langle P_{\nu_\alpha \to \nu_\beta}\rangle$ of \equ{averaged} for each Hamiltonian, over the sixty energies of the figure, contracted with the pion-decay source fractions. The standard, Lorentz-violating, and $3+1$ cases are one wrapper call each with {\tt average=True}; the NSI case composes the averaged vacuum matrix with one propagation through the core; the pseudo-Dirac case is one call to {\tt osc\_prob\_pseudo\_dirac\_vacuum}, which forms each pair's phase from its splitting. {\tt f\_earth} holds the five compositions. See Sec.~\ref{sec:astro} for details.}, label={lst:astro}, float=t]
 import numpy as np
 import magnus.oscprob as oscprob
-import magnus.hamiltonians as ham
 import magnus.earth as earth
 import magnus.globaldefs as gd
 
 osc = gd.load_nufit_params('NuFIT 6.1')
 E = np.logspace(3, 7, 60)*gd.UNIT_GEV   # 1 TeV-10 PeV
 f_src = np.array([1/3, 2/3, 0.0])       # pion decay
-# A source 100 Mpc away: far enough for every pair
-# of eigenvalues to have decohered at every energy,
-# which the wrappers decide from the baseline
+# A source 100 Mpc away: far enough for every phase
+# to average away at every energy.  The average
+# depends on the baseline through the phases
 L_src = 100.0*3.0857e19*gd.UNIT_KM
 
 def at_earth(P):
@@ -3703,9 +3756,6 @@ P_4 = oscprob.osc_prob_4nu_vacuum(E, L_src,
 
 # Pseudo-Dirac: the second mass state is paired
 # with a partner split by 1e-13 eV^2
-U = ham.pmns_mixing_matrix(osc['s12'], osc['s23'],
- osc['s13'], osc['dCP'])
-m2 = np.array([0.0, osc['D21'], osc['D31']])
 P_pd = oscprob.osc_prob_pseudo_dirac_vacuum(E,
  L_src, {1: 1.0e-13}, average=True, **osc)
 
@@ -3716,48 +3766,88 @@ f_earth = {k: np.array([at_earth(P) for P in v])
 \end{lstlisting}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\textit{What varies with energy, and what does not.}---For standard oscillations the composition does not depend on the energy at all. Equation~(\ref{equ:averaged}) is built from $\lvert \mathbb{V}_{\alpha i}\rvert^2$ alone; in vacuum no energy enters them. Three of the four departures from standard oscillations are flat in energy:
+\textit{What varies with energy, and what does not.}---Under standard oscillations, the composition does not depend on the energy at all: \equ{averaged} depends only on the eigenvectors, and in vacuum they do not depend on the energy (Sec.~\ref{sec:averaged}). Three of the four departures from standard oscillations are also flat in energy, or nearly so:
 \begin{itemize}
- \item 
-  In the $3+1$ case, a sterile state moves the composition at Earth from $(0.326, 0.343, 0.330)_\oplus$ to $(0.330, 0.325, 0.346)_\oplus$. (Sterile states take away 13.3\% of the originally purely active flux; these triplets are the three active fractions rescaled to add to one.)
- \item 
-  In NSI through the Earth, the fractions move by less than 0.005 and also do not vary, because above a TeV the matter term dominates the Hamiltonian inside the Earth and carries no energy dependence. (Towards the low energy end, the energy dependence starts becoming visible.)
  \item
-  In the pseudo-Dirac case, expanded below, the composition is flat in energy for the same reason as for sterile neutrinos: it is a vacuum Hamiltonian, just with more states.
+  In the $3+1$ case, the composition at Earth moves from $(0.326, 0.343, 0.330)_\oplus$ to $(0.330, 0.325, 0.346)_\oplus$. The sterile state takes away 13.3\% of the flux, which was purely active at the source; these triplets are the three active fractions, rescaled to add to one. The Hamiltonian is a vacuum one, so the composition does not depend on the energy.
+ \item
+  In the pseudo-Dirac case, the composition moves to $(0.332, 0.323, 0.345)_\oplus$, and does not depend on the energy either, for the same reason. At $\delta m^2 = 10^{-13}$~eV$^2$, the pair has decohered at every energy shown (see below).
+ \item
+  With NSI through the Earth, the fractions move by less than 0.005, and vary by less than 0.001 across the energies shown: above a TeV, the matter term dominates the Hamiltonian inside the Earth, and it does not depend on the energy. Above about 100~TeV, a neutrino crossing the core is likely to interact on the way and never reach the detector, an effect \magnus\ does not account for.
 \end{itemize}
-The three cases induce different shifts in $f_{\alpha, \oplus}$, independent of energy within the range shown. Above about 100~TeV, a neutrino crossing the core is likely to interact on the way and never reach the detector, an effect \magnus\ does not account for.
 
-What separates the Lorentz-violating case from the others is that its term keeps growing with energy ($\propto E$) relative to the vacuum one ($\propto 1/E$), so the eigenvectors never settle; the other three cases reach a regime in which one term dominates and the composition stops moving. The Lorentz-violating case moves $f_{e, \oplus}$ from about 0.33 up to 0.35 and down again to 0.32 across the crossover, with $f_{\mu, \oplus}$ dipping to 0.33 and recovering; the survival probability driving it reaches 0.89. That is what a flavor measurement could distinguish; \magnus\ evaluates \equ{averaged} for it in the same call as for the standard case.
+The Lorentz-violating case is different: its term grows with the energy, as $E$, while the vacuum term falls, as $1/E$, so the eigenvectors change with the energy. The vacuum term sets them well below 100~TeV, and the new term well above. Across the crossover between the two, $f_{e, \oplus}$ rises from 0.33 to 0.35 and falls to 0.32, and $f_{\mu, \oplus}$ dips to 0.33 and recovers; the $\nu_e$ survival probability reaches 0.89. Above the crossover, the composition settles close to the standard one, because $\mathbb{V}_\xi$ is the PMNS matrix with $\delta_\xi = 0$. A measurement of the flavor composition at several energies could detect such an energy dependence.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[t!]
  \centering
  \includegraphics[width=\columnwidth]{astro_ternary.pdf}
- \caption{\label{fig:astro_ternary}\textbf{The flavor triangle of high-energy astrophysical neutrinos.} Flavor composition at Earth of a pion-decay flux of TeV--PeV astrophysical neutrinos. The flavor composition at the source is $\left(\frac{1}{3}:\frac{2}{3}:0\right)_{\rm S}$. Results are for standard, three-flavor oscillations in vacuum, for Lorentz-invariance violation (LIV), and for active-sterile mixing under 3+1 flavors. The standard expectation is $(0.326, 0.343, 0.330)_\oplus$. Along the LIV curve, the eigenvalue $b_3$ of the $n = 1$ LIV operator of \figu{astro} grows from zero at $E = 100$~TeV; the marks are where the new term is 0.1, 1, and 10 times the vacuum one, the energies 32, 100, and 316~TeV. Along the 3+1 curve, the two active-sterile mixing angles grow together from zero; the marks are $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.1$, 0.2 and 0.3, with flavor fractions renormalized to the active flavors. See notebooks \#10, \#13, and \#28 for details, and Sec.~\ref{sec:astro} for details.}
+ \caption{\label{fig:astro_ternary}\textbf{The flavor triangle of high-energy astrophysical neutrinos.} Flavor composition at Earth of a pion-decay flux of astrophysical neutrinos at 100~TeV. The flavor composition at the source is $\left(\frac{1}{3}:\frac{2}{3}:0\right)_{\rm S}$. Results are for standard, three-flavor oscillations in vacuum, for Lorentz-invariance violation (LIV), and for active-sterile mixing under 3+1 flavors. The standard expectation is $(0.326, 0.343, 0.330)_\oplus$. Along the LIV curve, the eigenvalue $b_3$ of the $n = 1$ LIV operator of \figu{astro} grows from zero; the marks are where the new term is 0.1, 1, and 10 times the vacuum one. At the value of $b_3$ used in \figu{astro}, these ratios occur at 32, 100, and 316~TeV. Along the 3+1 curve, the two active-sterile mixing angles grow together from zero; the marks are $\sin^2\theta_{14} = \sin^2\theta_{24} = 0.1$, 0.2, and 0.3, with flavor fractions renormalized to the active flavors. See Sec.~\ref{sec:astro} and notebooks \#10, \#13, and \#28 for details.}
 \end{figure}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Figure~\ref{fig:astro_ternary} shows two of these flavor compositions on the flavor triangle, as their new-physics parameter is varied. Along the LIV curve, the eigenvalue of the Lorentz-violating operator grows from zero at 100~TeV: the composition leaves the standard point, swings out through the crossover and settles where the new term alone puts it, close to where it started. Along the 3+1 curve, the two active-sterile mixing angles grow together from zero; the composition moves the other way. Given the ranges over the model parameters are varied in \figu{astro}, every point lies within a few hundredths of the standard one, so the triangle is drawn over 0.30 to 0.40 on each axis.
+Figure~\ref{fig:astro_ternary} shows two of these flavor compositions on the flavor triangle, at 100~TeV, as their new-physics parameter grows from zero. Along the LIV curve, $b_3$ grows: the composition leaves the standard point, swings out through the crossover, and settles where the new term alone puts it, close to the standard point. Along the 3+1 curve, the two active-sterile mixing angles grow together. Over these ranges, every fraction stays within 0.03 of its standard value, so the triangle is drawn over 0.30 to 0.40 on each axis.
 
 \smallskip
 
-\textit{Pseudo-Dirac neutrinos.}---The fifth panel in \figu{astro} splits the mass eigenstate $\nu_2$ into a pair separated by $\delta m^2 = 10^{-13}$~eV$^2$, its partner sterile\ \cite{Wolfenstein:1981kw, Petcov:1982ya} (see Sec.~\ref{sec:shipped_hamiltonians}). Only one of the mass eigenstates is split: splitting all three sends half the flux to the sterile partners and divides every probability between active flavors by 2, so the three flavor fractions a detector sees come out standard. Splitting $\nu_2$ only sends 19.3\% of the flux to its partner and moves the fractions.
+\textit{Pseudo-Dirac neutrinos.}---The fifth panel of \figu{astro} splits the mass eigenstate $\nu_2$ into a pair separated by $\delta m^2 = 10^{-13}$~eV$^2$, one member active and its partner sterile\ \cite{Wolfenstein:1981kw, Petcov:1982ya} (see Sec.~\ref{sec:shipped_hamiltonians}). Only $\nu_2$ is split. Splitting all three mass eigenstates, with every pair decohered, would send half of the flux to the sterile partners and halve every probability between active flavors, so the flavor fractions a detector sees would come out standard. Splitting $\nu_2$ alone sends 19.3\% of the flux to its partner, and moves the fractions.
 
-Which averaged expression applies to the probability depends on the phase the pair itself accumulates, $\delta m^2 L / 2E$. At 100~Mpc and 100~TeV, below about $10^{-19}$~eV$^2$, that phase is a small fraction of a radian: the pair stays coherent and \equ{averaged_blocks} returns exactly what an unsplit spectrum gives. Above about $10^{-16}$~eV$^2$ the phase turns through more than a cycle: the pair has averaged away and \equ{averaged} counts the two members separately, halving the channels they carry. The figure sits above that band, at $10^{-13}$~eV$^2$. \magnus\ decides which regime a spectrum is in from the eigenvalues and the baseline:
+\magnus\ offers two routes to the averaged probability of a pseudo-Dirac spectrum. The first is the general one: build the Hamiltonian with {\tt hamiltonian\_pseudo\_dirac\_vacuum} (Sec.~\ref{sec:shipped_hamiltonians}) and pass it to {\tt osc\_prob\_energy\_baseline}. Below, $\nu_2$ is split by $\delta m^2 = 10^{-18}$~eV$^2$ and seen at 100~TeV from 3~Gpc, where the pair phase, $\delta m^2 L/2E$, is 2.35~rad. Continuing Listing~\ref{lst:astro},
 \begin{pysnip}
-import magnus.avgprob as avgprob
+import magnus.hamiltonians as ham
 
+# Inputs of the pseudo-Dirac builder: the
+# PMNS matrix and the three m^2 [eV^2]
+U = ham.pmns_mixing_matrix(osc['s12'],
+ osc['s23'], osc['s13'], osc['dCP'])
+m2 = np.array([0.0, osc['D21'],
+ osc['D31']])
+# nu_2 split by 1e-18 eV^2, seen at 100 TeV
+# from 3 Gpc: a pair phase of 2.35 rad
 E1 = 100.0*gd.UNIT_TEV
-for dm2 in (1.0e-13, 1.0e-19):
-    H = ham.hamiltonian_pseudo_dirac_vacuum(
-     E1, U, m2, {1: dm2})
-    lam = np.linalg.eigvalsh(H)
-    b = avgprob.coherence_blocks(lam, L_src)
-    print(b)
-# [[0], [1], [2], [3]]   The pair decohered
-# [[0], [1, 2], [3]]     The pair coherent
+L_far = 3.0e3*Mpc
+pairs = {1: 1.0e-18}
+# The Hamiltonian depends on the energy
+# only, not on the position along the path
+hpd = ham.hamiltonian_pseudo_dirac_vacuum
+H = lambda E: hpd(E, U, m2, pairs)
+P_gen = oscprob.osc_prob_energy_baseline(
+ H, E1, L_far, average=True,
+ H_func_is_function_only_of_energy=True)
+P_gen.shape        # (4, 4): e, mu, tau, s_2
+P_gen[0, 0]                  # 0.4722
 \end{pysnip}
-Between the two regimes neither expression applies; {\tt average=True} then returns the average over an energy spread (Sec.~\ref{sec:averaged}), which depends on that spread, and warns so. The signature such a spectrum leaves at a neutrino telescope is the one identified in \Ref\ \cite{Beacom:2003eu}. 
+This route finds the phase of the pair from the difference of two eigenvalues of $\mathbb{H}$. A diagonalization resolves eigenvalues only to about $10^{-16}$ of the largest one, so the smaller the splitting, the larger the error in that phase.
+
+The second route is a dedicated function, {\tt osc\_prob\_pseudo\_dirac\_vacuum}. It takes the same mapping of split states, from the index of each split mass state to its splitting, together with the standard oscillation parameters, and forms each pair's phase from $\delta m^2$ directly, with no diagonalization:
+\begin{pysnip}
+# The same split, with the standard
+# parameters in place of U and m2
+pdv = oscprob.osc_prob_pseudo_dirac_vacuum
+P = pdv(E1, L_far, pairs, average=True,
+ **osc)
+P.shape            # (4, 4): e, mu, tau, s_2
+P[0, 0]                      # 0.4716
+np.abs(P - P_gen).max()      # 0.0067
+\end{pysnip}
+At this phase, part of the interference of the pair survives, so both calls warn that the result depends on the energy spread (see below).
+
+Which route to use depends on the splitting. The error of the general route grows as the splitting shrinks: measured against the dedicated function at the same pair phase, it is at most $3 \cdot 10^{-8}$ down to $\delta m^2 = 10^{-10}\,\Delta m^2_{31}$, about $2.5 \cdot 10^{-13}$~eV$^2$, but $10^{-4}$ at $10^{-14}\,\Delta m^2_{31}$, and $10^{-2}$ at $4 \cdot 10^{-16}\,\Delta m^2_{31}$, the case above. The dedicated function forms the pair phase exactly, so its accuracy does not depend on the splitting. Therefore, for a pseudo-Dirac spectrum in vacuum, use {\tt osc\_prob\_pseudo\_dirac\_vacuum}. The general route remains for what the dedicated function does not cover, such as a pseudo-Dirac spectrum in matter, built with {\tt hamiltonian\_pseudo\_dirac\_matter}, and is reliable there only for splittings well above the resolution of the diagonalization.
+
+The result depends on the pair phase. At 100~Mpc and 100~TeV, below about $10^{-18}$~eV$^2$, that phase is under 0.1~rad: the pair stays coherent, acts as a single state, as in \equ{averaged_blocks}, and the fractions are those of an unsplit spectrum. Above about $5 \cdot 10^{-16}$~eV$^2$, the phase exceeds 40~rad: the interference between the two members has averaged away, and \equ{averaged} counts them as separate states. The figure sits well above that, at $10^{-13}$~eV$^2$. \magnus\ needs no switch between the two regimes: the phase average of \equ{phase_average} damps the interference of the pair by the spread of its phase, so it moves smoothly from one to the other. Between the two, the result depends on the energy spread, and \magnus\ warns so:
+\begin{pysnip}
+# The composition at Earth for three
+# splittings of nu_2, at 100 TeV and
+# 100 Mpc, from coherent to decohered
+for dm2 in (1.0e-19, 1.0e-17, 1.0e-13):
+    P = pdv(E1, L_src, {1: dm2},
+     average=True, **osc)
+    print(at_earth(P).round(3))
+# [0.326 0.343 0.33 ]   Coherent: standard
+# [0.328 0.338 0.334]   Between: warns
+# [0.332 0.323 0.345]   Decohered
+\end{pysnip}
+Reference~\cite{Beacom:2003eu} proposed using the flavor composition at neutrino telescopes to detect such splittings.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
