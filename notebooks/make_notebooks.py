@@ -18801,6 +18801,90 @@ for _ax in axes[1, 1:]:
         if _lb.get_text() in ('$1$', '1'):
             _lb.set_visible(False)
 save(fig, 'astro_composition.pdf')'''),
+    md(r"""### Figure 8, continued --- the composition against the distance to the source
+
+The averaged probability of `average=True` is the phase average, so it takes the baseline:
+each interference term is damped by the spread of its phase, $\Delta m^2 L/2E$. This
+figure follows the $\nu_e$ fraction at Earth from a pion-decay source out from $10^6$ km
+to Gpc. Close to the source the oscillation is partly resolved, and the result depends on
+the energy spread; past a distance that grows with the energy, every phase has averaged
+away and the composition stops changing. A pseudo-Dirac pair, with its much smaller
+splitting, takes a second step at Mpc distances. The dotted lines mark reference
+distances; the one to TXS 0506+056 is its comoving distance at $z = 0.3365$ (Planck 2018).
+Closed-form averages only, so nothing here is cached."""),
+    code(r"""# ------------------------------------ Figure 8, continued: composition against distance
+PC_KM = 3.0857e13                                  # one parsec [km]
+L_SCAN_KM = np.logspace(6.0, 23.0, 600)            # 1e6 km to about 3 Gpc
+
+
+def fe_at_earth(P):
+    # The pion-decay fractions, zero for a sterile state, through the averaged matrix;
+    # the active fractions renormalized to one, and the nu_e one returned
+    P = np.asarray(P)
+    src = np.zeros(P.shape[-1]); src[:3] = PION_SOURCE
+    f = np.einsum('a,lab->lb', src, P)[:, :3]
+    return f[:, 0]/f.sum(axis=1)
+
+
+FE_SCAN = {}
+for e_tev in (1.0, 100.0, 1.0e4):
+    FE_SCAN[e_tev] = fe_at_earth(oscprob.osc_prob_3nu_vacuum(
+        np.full(L_SCAN_KM.size, e_tev*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
+        average=True, **OSC))
+DM2_PD_SCAN = 1.0e-16                              # eV^2: decoheres at Mpc distances
+FE_SCAN_PD = fe_at_earth(oscprob.osc_prob_pseudo_dirac_vacuum(
+    np.full(L_SCAN_KM.size, 100.0*gd.UNIT_TEV), L_SCAN_KM*gd.UNIT_KM,
+    {1: DM2_PD_SCAN}, average=True, **OSC))
+
+x_pc = L_SCAN_KM/PC_KM
+for e_tev, fe in FE_SCAN.items():
+    k = np.nonzero(np.abs(fe - fe[-1]) > 1.0e-3)[0].max()
+    print('  standard, %7g TeV: f_e settles to %.4f beyond %.1e pc' % (e_tev, fe[-1], x_pc[k+1]))
+k = np.nonzero((np.abs(FE_SCAN_PD - FE_SCAN[100.0][-1]) > 1.0e-3) & (x_pc > 1.0))[0].min()
+m = np.nonzero(np.abs(FE_SCAN_PD - FE_SCAN_PD[-1]) > 1.0e-3)[0].max()
+print('  pseudo-Dirac, 100 TeV: leaves %.4f at %.0f Mpc, settles to %.4f beyond %.0f Mpc'
+      % (FE_SCAN[100.0][-1], x_pc[k]/1e6, FE_SCAN_PD[-1], x_pc[m+1]/1e6))
+
+fig, ax = plt.subplots(figsize=(WIDE, 2.7))
+for e_tev, color, lab in ((1.0, BLUE, r'$E_\nu = 1$~TeV'), (100.0, ORANGE, r'$E_\nu = 100$~TeV'),
+                          (1.0e4, GREEN, r'$E_\nu = 10$~PeV')):
+    # The 100 TeV curve is drawn thick: the pseudo-Dirac one lies on it out to ~10 Mpc
+    ax.plot(x_pc, FE_SCAN[e_tev], color=color, lw=2.4 if e_tev == 100.0 else 0.9,
+            label=r'Standard $3\nu$, ' + lab)
+ax.plot(x_pc, FE_SCAN_PD, color='k', lw=0.9, ls='--',
+        label=r'Pseudo-Dirac, $\delta m^2 = 10^{-16}$~eV$^2$, $E_\nu = 100$~TeV')
+ax.set_xscale('log')
+ax.set_xlim(x_pc[0], x_pc[-1])
+ax.set_ylim(0.30, 0.352)
+ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.01))
+ax.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.002))
+ax.xaxis.set_major_locator(LogLocator(base=10.0, numticks=40))
+ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10), numticks=400))
+ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+ax.xaxis.set_major_formatter(FuncFormatter(
+    lambda v, _: '1' if round(np.log10(v)) == 0 else r'$10^{%d}$' % round(np.log10(v))))
+ax.set_xlabel(r'Distance to the source, $L$ [pc]')
+ax.set_ylabel(r'$\nu_e$ fraction at Earth, $f_{e,\oplus}$', labelpad=3)
+# The named units of distance, on the top axis
+top = ax.secondary_xaxis('top')
+top.set_xticks([1.0, 1.0e3, 1.0e6, 1.0e9], ['pc', 'kpc', 'Mpc', 'Gpc'])
+top.xaxis.set_minor_locator(NullLocator())
+top.tick_params(axis='x', direction='in')
+# Reference distances [pc]; +1 puts the label right of its line, -1 left
+for x_mark, text, side in ((4.848e-6, '1 AU', 1),
+                           (120*4.848e-6, 'Solar System', 1),        # heliopause, 120 AU
+                           (8.18e3, 'Galactic Center', 1),
+                           (7.7e5, 'Andromeda', -1),
+                           (1.5e6, 'Local Group', 1),
+                           (1.44e7, 'NGC 1068', 1),
+                           (1.0e8, 'Local Universe', 1),
+                           (1.37e9, 'TXS 0506+056', -1)):          # comoving, z = 0.3365
+    ax.axvline(x_mark, color='0.5', ls=':', lw=0.8, zorder=0)
+    ax.text(x_mark*(1.3 if side > 0 else 1/1.3), 0.3015, text, rotation=90, color='0.5',
+            ha='left' if side > 0 else 'right', va='bottom', fontsize=8)
+ax.legend(loc='upper center', bbox_to_anchor=(0.67, 0.99), handlelength=2.0)
+fig.tight_layout(pad=0.3)
+save(fig, 'astro_baseline.pdf')"""),
     md(r"""### Figure 8b --- the composition on the flavor triangle
 
 Two of the departures of Figure 8, each as a curve in its own parameter: the eigenvalue of
