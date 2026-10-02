@@ -202,14 +202,22 @@ _WSPACE = 0.05
 def _house_style(fn):
     r"""Run a plotting function under :data:`HOUSE_RC`, keeping the caller's own settings.
 
+    Only these keys are set and restored.  ``plt.rc_context`` restored every setting,
+    and so undid the ``backend`` and ``interactive`` that Jupyter sets while the first
+    figure is made: every later figure in the session was never shown.
+
     .. versionadded:: 1.2.0
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        mpl, plt = _mpl()
+        mpl, _ = _mpl()
         rc = {k: v for k, v in HOUSE_RC.items() if mpl.rcParams[k] == mpl.rcParamsDefault[k]}
-        with plt.rc_context(rc):
+        saved = {k: mpl.rcParams[k] for k in rc}
+        mpl.rcParams.update(rc)
+        try:
             return fn(*args, **kwargs)
+        finally:
+            mpl.rcParams.update(saved)
     return wrapper
 
 # Flavor index -> LaTeX, covering the sterile states used by the 4nu/5nu notebooks.

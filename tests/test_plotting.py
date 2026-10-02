@@ -1411,3 +1411,22 @@ def test_labels_fit_at_the_house_text_size():
         fig.canvas.draw()
     assert not ax[0].yaxis.label.get_window_extent().overlaps(
         ax[1].yaxis.label.get_window_extent())
+
+
+def test_house_style_restores_only_its_own_settings():
+    """plt.rc_context restored every setting on exit, which undid the interactive mode and
+    backend Jupyter sets while the first figure is made; every later figure in a notebook or
+    on a docs page was never shown."""
+    def makes_a_figure_like_jupyter():
+        matplotlib.rcParams['interactive'] = True       # set during the first figure
+        return matplotlib.rcParams['axes.labelsize']
+
+    was = matplotlib.rcParams['interactive']
+    try:
+        with plt.style.context('default'):
+            inside = mp._house_style(makes_a_figure_like_jupyter)()
+            assert inside == 25
+            assert matplotlib.rcParams['interactive'] is True        # False before
+            assert matplotlib.rcParams['axes.labelsize'] == 'medium'  # restored
+    finally:
+        matplotlib.rcParams['interactive'] = was
