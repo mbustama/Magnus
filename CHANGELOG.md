@@ -9,6 +9,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The plotting functions' axis and tick labels were 10 points outside the notebooks.**
+  `magnus.plotting` left text sizes to the `matplotlibrc` of wherever it ran, so in the
+  documentation and in users' scripts the 18-by-9-inch figures had tiny labels.  The module
+  now brings its own sizes, `magnus.plotting.HOUSE_RC` (25-point axis labels, 23-point tick
+  labels, ticks pointing in on all four sides), and reads no `matplotlibrc`; a size the
+  caller has changed is kept.  Two layouts were adjusted to fit the larger text:
+  `plot_biprobability` now calls `tight_layout` by default (its ordinate label was cut
+  off), and a probability panel that `plot_probability_with_profile` labels itself shows
+  the probability symbol only (the long label ran into the density label).
+
 - **Warnings that say "Shown once per session" are shown once per session** (issue #205).
   Python's default filter remembers a message per call site and forgets it whenever any code
   changes the filters, which the package itself does during a calculation; one run of the
