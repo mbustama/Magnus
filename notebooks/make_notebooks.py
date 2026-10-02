@@ -19977,7 +19977,7 @@ annotate(axes[1], a1, [
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$',
      -5.8, -29.0, 'right', True),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', -5, -4, 'right'),
-    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', -27.4, 2.1, 'left'),
+    (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 3.1, 3.8, 'left'),
     ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '1'),
      r'$N_{\rm layers} = 1$', 12.2, -10.7, 'left'),
     (('Prob3++', '1'), r'$N_{\rm shells} = 1$', -59.3, -29.6, 'left', True),
@@ -19986,7 +19986,7 @@ annotate(axes[1], a1, [
     (('GLoBES', '65536'), '65536', -14.6, 17.8, 'left', True),
     (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', -7.0, -1.8, 'right'),
     (('nuCraft', '1e-10'), r'$10^{-10}$', 0.2, 3.7, 'left'),
-    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', -15.9, 6.8, 'left'),
+    (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 18.0, 0.1, 'left', True),
     (('NuFast-Earth', '65536'), '65536', 1.7, 32.1, 'left', True),
     ((r'NuFast-Earth ($\delta_{\rm CP}$ only)', '65536'), '65536',
      7.4, -9.8, 'right'),
@@ -19995,8 +19995,8 @@ annotate(axes[1], a1, [
     (('NuOscProbExact, rtol', '1e-08'), r'$10^{-8}$', 3.1, -0.9, 'left'),
     # Both ends of both Magnus curves, on the same principle as the rest.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 28.3, 5.9, 'right'),
-    ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', -18.8, -3.7, 'left'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -6.0, -4.0, 'right'),
+    ((r'Mag$\nu$s, $N_{\rm slabs}$', '256'), '256', 4.5, -1.5, 'left'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 93.3, 4.9, 'right', True),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 4.1, -0.7, 'left')])
 axes[1].set_yticks([10.0**k for k in range(-10, 0)])
 axes[1].set_ylim(1.0e-10, 2.0e-1)
@@ -20009,14 +20009,14 @@ a2 = draw_plane(axes[2], PREM['sterile_3plus1']['series'], prem=True,
                 only={'NuOscProbExact (double-double)', 'NuOscProbExact (tolerance)',
                       'nuSQuIDS', 'nuCraft', 'Magnus', 'Magnus (tolerance)'})
 annotate(axes[2], a2, [
-    (('NuOscProbExact, rtol', '3e+00'), r'rtol $=3$', 7.5, -2.5, 'left'),
+    (('NuOscProbExact, rtol', '3e+00'), r'rtol $=3$', -38.0, -30.2, 'left', True),
     (('NuOscProbExact, rtol', '1e-05'), r'$10^{-5}$', -0.8, 3.1, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs}=1$',
      -37.8, -1.2, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '256'), '256', 8.4, -9.8, 'right'),
     (('nuSQuIDS', '1e-03'), r'tol $= 10^{-3}$', 46.3, 1.9, 'left', True),
     (('nuSQuIDS', '1e-12'), r'$10^{-12}$', 5.1, -2.9, 'left'),
-    (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', 3.6, 4.0, 'right'),
+    (('nuCraft', '1e-02'), r'numPrec $= 10^{-2}$', 5.3, -11.5, 'right'),
     (('nuCraft', '1e-10'), r'$10^{-10}$', 2.1, 4.2, 'left'),
     ((r'NuOscProbExact, $N_{\rm slabs}$', '8192'), '8192', -16.6, -7.3, 'left'),
     (('NuOscProbExact, rtol', '1e+00'), '1', -7.4, -5.8, 'left'),
@@ -20025,7 +20025,7 @@ annotate(axes[2], a2, [
     # 2048-slab point reaches 1.0e-11, below this panel's lower edge.
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '1'), r'$N_{\rm slabs} = 1$', 62.7, 0.6, 'right', True),
     ((r'Mag$\nu$s, $N_{\rm slabs}$', '512'), '512', -8.2, -3.7, 'right'),
-    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', -9.0, -3.0, 'right'),
+    ((r'Mag$\nu$s, rtol', '1e-01'), r'rtol $= 10^{-1}$', 36.0, 3.7, 'right'),
     ((r'Mag$\nu$s, rtol', '1e-08'), r'$10^{-8}$', 5.5, 1.5, 'left')])
 axes[2].set_yticks([10.0**k for k in range(-11, 0)])
 axes[2].set_ylim(2.0e-11, 1.0e-1)
