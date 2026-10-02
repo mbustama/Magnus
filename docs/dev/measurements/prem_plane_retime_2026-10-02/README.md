@@ -19,3 +19,23 @@ The new series were written into `notebooks/external_earth_plane.json` (three fl
 `notebooks/external_prem_speed_accuracy_new.json` (`sterile_3plus1`), Magnus series only, with
 the record `_magnus_provenance.retimed_series`. Notebook 28 then re-rendered the figure,
 cache-only.
+
+## Added the same day: rtol 1e-5, 1e-7 and 1e-9
+
+The tolerance series had gaps at 1e-5, 1e-7 and 1e-9. They were timed from 16:28 to 16:33 on the
+same laptop and package code (`src/` unchanged from 35dcdd5; the repository was at 0dc1e7c),
+with the stored points rtol 1e-4, 1e-6 and 1e-8 interleaved as controls. The controls came
+back within 1.1% of their stored times (0.989 to 1.002) with identical errors, so the new
+points were written and every stored point was left as it was.
+
+- `added_rtol_run.log`: the run's printed output (one line per point). It started at load 0.92,
+  with nothing else running, on mains power, under governor powersave.
+- `added_rtol_timed.json`: the run's output, written by
+  `python notebooks/gen_prem_plane_magnus.py timed /tmp/added_timed.json --series tolerance --knobs=-4,-5,-6,-7,-8,-9`.
+- `add_rtol_points.py`: wrote the three new points of each panel and the record
+  `_magnus_provenance.added_tolerance_points`. It refuses if a control's error differs from the
+  stored one or its time moved by more than 10%.
+
+rtol 1e-9 is stored but not drawn: it reaches 4.7e-11 at three flavors, beneath that panel's
+lower edge, and 2.2e-11 at 3+1, on that panel's lower edge (2e-11). The figure stops at
+`MAGNUS_RTOL_FLOOR` = 1e-8 in `notebooks/make_notebooks.py`, as before.

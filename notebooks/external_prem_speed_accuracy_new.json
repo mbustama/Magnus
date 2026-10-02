@@ -60,6 +60,32 @@
     1.76
    ],
    "series": "both Magnus series, slab count and tolerance, every point"
+  },
+  "added_tolerance_points": {
+   "date": "2026-10-02",
+   "why": "rtol 1e-5, 1e-7 and 1e-9 fill the gaps of the decade sweep; the stored points were not re-timed",
+   "magnus_commit": "35dcdd5 (src/ unchanged at 0dc1e7c, where the run was made)",
+   "machine": "Intel Core i5-1334U, 12 logical CPUs, governor powersave (intel_pstate), on mains power",
+   "driver": "notebooks/gen_prem_plane_magnus.py timed --series tolerance --knobs=-4,-5,-6,-7,-8,-9",
+   "protocol": "manifest.json AMORTIZED (25-step delta_CP scan), 0.25 s blocks, 30 to 100 blocks",
+   "worst_block_cv": 0.0168,
+   "load_average_at_start": [
+    0.92,
+    1.19,
+    1.47
+   ],
+   "controls": {
+    "note": "rtol 1e-4, 1e-6 and 1e-8, timed in the same run, interleaved, and not written: time this run over time stored",
+    "ratios": {
+     "3nu 1e-04": 1.002,
+     "3nu 1e-06": 0.992,
+     "3nu 1e-08": 0.989,
+     "3+1 1e-04": 1.002,
+     "3+1 1e-06": 0.993,
+     "3+1 1e-08": 0.998
+    }
+   },
+   "points": "rtol 1e-5, 1e-7 and 1e-9, both panels"
   }
  },
  "_note": "Speed-accuracy comparison through the Earth on the PREM profile at cos(theta_z) = -0.9, channel P(nu_mu -> nu_mu). Accuracy is max |P - P_ref| over twelve energies against a second-order Richardson extrapolation, (4*P(256)-P(128))/3, of a 30-digit mpmath slab product; that referee is itself checked against an adaptive DOP853 integration of the continuous profile. The y-axis is therefore error against a CONVERGED PREM solution, not an exact one, and each code sits where its treatment of the profile puts it rather than where the accuracy of its probability formula would. Every code is judged in its own conventions; for nuCraft at 3+1 that means a referee built with its own sterile-to-CC potential ratio, 0.5016059 (reference_nucraft), so its curve measures its solver and the 0.32% inconsistency of that ratio is reported in the caption instead. See the module docstring of tests/prem_scan.py for every convention matched.",
@@ -677,6 +703,18 @@
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
+      "block_cv": 0.0168,
+      "knob": -5,
+      "label": "1e-05",
+      "max_abs_error": 2.9162e-07,
+      "n_slabs": null,
+      "rtol": 1e-05,
+      "us_per_probability": 411.4268,
+      "us_sd": 6.9162
+     },
+     {
+      "at_reference_floor": false,
+      "best_at_this_accuracy": true,
       "block_cv": 0.0099,
       "knob": -6,
       "label": "1e-06",
@@ -689,6 +727,18 @@
      {
       "at_reference_floor": false,
       "best_at_this_accuracy": true,
+      "block_cv": 0.0129,
+      "knob": -7,
+      "label": "1e-07",
+      "max_abs_error": 2.2926e-09,
+      "n_slabs": null,
+      "rtol": 1e-07,
+      "us_per_probability": 1132.7414,
+      "us_sd": 14.6613
+     },
+     {
+      "at_reference_floor": false,
+      "best_at_this_accuracy": true,
       "block_cv": 0.0156,
       "knob": -8,
       "label": "1e-08",
@@ -697,6 +747,18 @@
       "rtol": 1e-08,
       "us_per_probability": 1726.3532,
       "us_sd": 26.8858
+     },
+     {
+      "at_reference_floor": false,
+      "best_at_this_accuracy": true,
+      "block_cv": 0.0072,
+      "knob": -9,
+      "label": "1e-09",
+      "max_abs_error": 2.2123e-11,
+      "n_slabs": null,
+      "rtol": 1e-09,
+      "us_per_probability": 2934.3272,
+      "us_sd": 21.1559
      },
      {
       "at_reference_floor": false,

@@ -26,13 +26,15 @@ over the blocks, per energy, as the stored series record it.
 From the repository root:
 
     python notebooks/gen_prem_plane_magnus.py accuracy OUT.json [--series ...] [--strategy ...]
-    python notebooks/gen_prem_plane_magnus.py timed OUT.json [--series ...] [--strategy ...]
+    python notebooks/gen_prem_plane_magnus.py timed OUT.json [--series ...] [--knobs=-5,-7]
     python notebooks/gen_prem_plane_magnus.py compare OUT.json
 
 ``accuracy`` is untimed; ``timed`` adds the harness's timing to every point; ``compare`` prints
-OUT.json against the stored series.  Only OUT.json is written: the stored files change on the
-author's decision alone.  No clock is named in this file, since the harness refuses an adapter
-whose source names one.
+OUT.json against the stored series.  ``--knobs`` keeps only the listed knobs of the series run,
+so that points can be added to a stored series without re-timing the rest; the ``=`` is needed,
+since the list starts with a minus sign.  Only OUT.json is written: the stored files change on
+the author's decision alone.  No clock is named in this file, since the harness refuses an
+adapter whose source names one.
 """
 import argparse
 import datetime
@@ -64,7 +66,7 @@ PANELS = {'3nu': dict(reference='three_flavor', n_flavors=3,
           '3+1': dict(reference='sterile_3plus1', n_flavors=4,
                       stored=('external_prem_speed_accuracy_new.json', 'sterile_3plus1'),
                       slabs=(1, 8, 32, 128, 512, 2048))}
-TOLERANCE_KNOBS = (-1, -2, -3, -4, -6, -8, -10, -12)
+TOLERANCE_KNOBS = (-1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -12)
 AMORTIZED = dict(samples=30, steps=25, min_block=0.25, max_samples=100)
 CHANNELS = {3: ('numu->nue', 'numu->numu', 'numu->nutau'), 4: ('numu->numu',)}
 STRATEGY = 'magnus'
@@ -191,7 +193,7 @@ def stored_series(panel):
     return {s['name']: s['points'] for s in series if s.get('name', '').startswith('Magnus')}
 
 
-def run(mode, out_path, which, strategy):
+def run(mode, out_path, which, strategy, only=None):
     global STRATEGY
     STRATEGY = strategy
     commit = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=HERE,
@@ -202,13 +204,16 @@ def run(mode, out_path, which, strategy):
                   load_average_at_start=os.getloadavg(), manifest_sha256=runner.manifest_sha(),
                   thread_environment=runner.thread_environment(),
                   protocol=dict(AMORTIZED, name='AMORTIZED') if mode == 'timed' else 'ACCURACY',
-                  panels={})
+                  knobs=sorted(only) if only else 'all', panels={})
     for panel in PANELS:
         series = {}
         if which in ('tolerance', 'both'):
             series['Magnus (tolerance)'] = TOLERANCE_KNOBS
         if which in ('slabs', 'both'):
             series['Magnus'] = PANELS[panel]['slabs']
+        if only:
+            series = {name: [k for k in knobs if k in only] for name, knobs in series.items()}
+            series = {name: knobs for name, knobs in series.items() if knobs}
         record['panels'][panel] = {}
         for name, knobs in series.items():
             pts = []
@@ -251,11 +256,14 @@ def main():
     ap.add_argument('out')
     ap.add_argument('--series', default='both', choices=('tolerance', 'slabs', 'both'))
     ap.add_argument('--strategy', default=STRATEGY)
+    ap.add_argument('--knobs', default=None,
+                    help='comma-separated knobs to keep, e.g. --knobs=-5,-7 (default: all)')
     args = ap.parse_args()
     if args.mode == 'compare':
         compare(args.out)
     else:
-        run(args.mode, args.out, args.series, args.strategy)
+        only = {int(k) for k in args.knobs.split(',')} if args.knobs else None
+        run(args.mode, args.out, args.series, args.strategy, only)
 
 
 if __name__ == '__main__':

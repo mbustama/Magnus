@@ -60,6 +60,32 @@
     1.76
    ],
    "series": "both Magnus series, slab count and tolerance, every point"
+  },
+  "added_tolerance_points": {
+   "date": "2026-10-02",
+   "why": "rtol 1e-5, 1e-7 and 1e-9 fill the gaps of the decade sweep; the stored points were not re-timed",
+   "magnus_commit": "35dcdd5 (src/ unchanged at 0dc1e7c, where the run was made)",
+   "machine": "Intel Core i5-1334U, 12 logical CPUs, governor powersave (intel_pstate), on mains power",
+   "driver": "notebooks/gen_prem_plane_magnus.py timed --series tolerance --knobs=-4,-5,-6,-7,-8,-9",
+   "protocol": "manifest.json AMORTIZED (25-step delta_CP scan), 0.25 s blocks, 30 to 100 blocks",
+   "worst_block_cv": 0.0168,
+   "load_average_at_start": [
+    0.92,
+    1.19,
+    1.47
+   ],
+   "controls": {
+    "note": "rtol 1e-4, 1e-6 and 1e-8, timed in the same run, interleaved, and not written: time this run over time stored",
+    "ratios": {
+     "3nu 1e-04": 1.002,
+     "3nu 1e-06": 0.992,
+     "3nu 1e-08": 0.989,
+     "3+1 1e-04": 1.002,
+     "3+1 1e-06": 0.993,
+     "3+1 1e-08": 0.998
+    }
+   },
+   "points": "rtol 1e-5, 1e-7 and 1e-9, both panels"
   }
  },
  "_note": "PREM, cos(theta_z) = -0.9, E = 3-40 GeV, three flavors, nu_mu row. Regenerated from measured artifacts by tests/bench/emit_figures.py. Every point pairs a timed measurement with the accuracy the SAME setting reached against that code's own 50-digit reference, in that code's own conventions, on the continuous PREM.",
@@ -1200,6 +1226,18 @@
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
+     "block_cv": 0.0154,
+     "knob": -5,
+     "label": "1e-05",
+     "max_abs_error": 3.1854e-07,
+     "n_slabs": null,
+     "rtol": 1e-05,
+     "us_per_probability": 148.511,
+     "us_sd": 2.2832
+    },
+    {
+     "at_reference_floor": false,
+     "best_at_this_accuracy": true,
      "block_cv": 0.0196,
      "knob": -6,
      "label": "1e-06",
@@ -1212,6 +1250,18 @@
     {
      "at_reference_floor": false,
      "best_at_this_accuracy": true,
+     "block_cv": 0.0057,
+     "knob": -7,
+     "label": "1e-07",
+     "max_abs_error": 2.8501e-09,
+     "n_slabs": null,
+     "rtol": 1e-07,
+     "us_per_probability": 246.7207,
+     "us_sd": 1.4043
+    },
+    {
+     "at_reference_floor": false,
+     "best_at_this_accuracy": true,
      "block_cv": 0.015,
      "knob": -8,
      "label": "1e-08",
@@ -1220,6 +1270,18 @@
      "rtol": 1e-08,
      "us_per_probability": 339.0341,
      "us_sd": 5.0838
+    },
+    {
+     "at_reference_floor": false,
+     "best_at_this_accuracy": true,
+     "block_cv": 0.0132,
+     "knob": -9,
+     "label": "1e-09",
+     "max_abs_error": 4.6741e-11,
+     "n_slabs": null,
+     "rtol": 1e-09,
+     "us_per_probability": 543.4501,
+     "us_sd": 7.1609
     },
     {
      "at_reference_floor": false,

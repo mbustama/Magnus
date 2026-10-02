@@ -25,7 +25,7 @@ measurement (runner, case list, DOP853 references).
 | `issue165_pseudo_dirac_resolution/` | The accuracy of `average=True` on a pseudo-Dirac pair, generic route against `osc_prob_pseudo_dirac_vacuum`, in their docstrings, `CHANGELOG.md` and `averaged_probability.rst` |
 | `issue192_sec6_numbers/` | Every number of paper Sec. 6 re-run against the code; the results comment on #108 |
 | `issue194_paper_timings/` | Every timing quoted in the paper's Synopsis and Sec. 6, re-run as printed on the author's laptop |
-| `prem_plane_retime_2026-10-02/` | Magnus's series on the Earth planes of Fig. `prem_plane`, re-timed in `external_earth_plane.json` and `external_prem_speed_accuracy_new.json` |
+| `prem_plane_retime_2026-10-02/` | Magnus's series on the Earth planes of Fig. `prem_plane`, re-timed in `external_earth_plane.json` and `external_prem_speed_accuracy_new.json`, and the tolerance points 1e-5, 1e-7 and 1e-9 added to them |
 | `listing1_timing/` | The paper's timing sentence for Listing 1 |
 
 The plan these came from is `docs/dev/HANDOVER_AUTO_TIGHT.md`.  Not kept, and archived outside
