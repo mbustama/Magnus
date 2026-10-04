@@ -23,8 +23,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   which reaches the surface.  A new figure, `solar_8b_flux.pdf`, gives the nu_e flux at Earth
   from 8B decay for the standard case and both mediator ranges: the probability averaged over
   where 8B is made, times the spectrum of Winter et al. (2006) and the B16-GS98 total flux.
-  A dotted curve triples g'^2 at 1/m = R_sun, and a band gives the nu_e flux SNO measured
-  (Phys. Rev. C 88, 025501 (2013)), propagated with the correlations it reports.
+  A dotted curve triples g'^2 at 1/m = R_sun.
   The production profile is rebuilt from the model's structure, since the published one is no
   longer online; `docs/dev/measurements/solar_8b_flux/` holds the inputs, the script, and its
   check against Bahcall's published BS05 distribution.

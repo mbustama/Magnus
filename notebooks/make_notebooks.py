@@ -17466,30 +17466,6 @@ for key in ['%g' % frac for frac, _, _ in LR_RANGES] + ['strong']:
           % (key, np.sum(FLUX[key]*_dE)/1e6, ratio.min(), ratio.max(),
              E_B8[np.argmin(ratio)]/gd.UNIT_MEV))
 
-# The measured nu_e flux: SNO's combined analysis of its three phases (Aharmim et al.,
-# Phys. Rev. C 88, 025501 (2013), arXiv:1109.0763), which fits the total 8B flux and
-# P_ee(E) = c0 + c1 (E - 10 MeV) + c2 (E - 10 MeV)^2.  Table VII: best fits, and statistical
-# and total systematic uncertainties, added in quadrature and symmetrized; Table VIII: their
-# correlations.  The band is the 8B spectrum times Phi_B P_ee(E), at 1 sigma, over the
-# energies where SNO detected the electrons, 5-15 MeV.
-SNO_BEST = np.array([5.25e6, 0.317, 0.0039, -0.0010])          # Phi_B, c0, c1, c2
-SNO_SIG = np.array([np.hypot(0.16, 0.12)*1e6, np.hypot(0.016, 0.009),
-                    np.hypot(0.0066, 0.0045), np.hypot(0.0029, 0.0015)])
-SNO_CORR = np.array([[1.000, -0.723, 0.302, -0.168],
-                     [-0.723, 1.000, -0.299, -0.366],
-                     [0.302, -0.299, 1.000, -0.206],
-                     [-0.168, -0.366, -0.206, 1.000]])
-SNO_COV = SNO_CORR*np.outer(SNO_SIG, SNO_SIG)
-E_SNO = np.linspace(5.0, 15.0, 81)
-_x = E_SNO - 10.0
-_lam = np.interp(E_SNO, _spec[:, 0], _spec[:, 1])/1000.0
-_pee = SNO_BEST[1] + SNO_BEST[2]*_x + SNO_BEST[3]*_x**2
-SNO_FLUX = SNO_BEST[0]*_lam*_pee
-_jac = np.stack([_lam*_pee, SNO_BEST[0]*_lam, SNO_BEST[0]*_lam*_x, SNO_BEST[0]*_lam*_x**2], axis=1)
-SNO_ERR = np.sqrt(np.einsum('ei,ij,ej->e', _jac, SNO_COV, _jac))
-print('  SNO band at 10 MeV: %.3f +- %.3f (1e5), %.1f%%'
-      % (np.interp(10.0, E_SNO, SNO_FLUX)/1e5, np.interp(10.0, E_SNO, SNO_ERR)/1e5,
-         100*np.interp(10.0, E_SNO, SNO_ERR/SNO_FLUX)))
 
 fig = plt.figure(figsize=(COL, 3.9))
 _gs = fig.add_gridspec(2, 1, height_ratios=[2.0, 1.0], hspace=0.08,
@@ -17497,14 +17473,6 @@ _gs = fig.add_gridspec(2, 1, height_ratios=[2.0, 1.0], hspace=0.08,
 a = fig.add_subplot(_gs[0])
 b = fig.add_subplot(_gs[1], sharex=a)
 EM = E_B8/gd.UNIT_MEV
-SNO_GREY = '#b9b9b9'
-# The band over the standard flux, as a ratio of PHI*P_ee: the spectrum cancels, so nothing
-# steep is interpolated.
-_std_at = PHI_B8*np.interp(E_SNO, EM, P_B8['std'])
-a.fill_between(E_SNO, (SNO_FLUX - SNO_ERR)/1e5, (SNO_FLUX + SNO_ERR)/1e5, color=SNO_GREY,
-               alpha=0.6, lw=0, label=r'SNO, $\pm 1\sigma$')
-b.fill_between(E_SNO, (SNO_FLUX - SNO_ERR)/(_lam*_std_at), (SNO_FLUX + SNO_ERR)/(_lam*_std_at),
-               color=SNO_GREY, alpha=0.6, lw=0)
 a.plot(EM, FLUX['std']/1e5, color=INK, lw=1.3, ls='--', label=r'Standard $3\nu$')
 for frac, lab, col in LR_RANGES:
     a.plot(EM, FLUX['%g' % frac]/1e5, color=col, lw=1.3,
@@ -17524,7 +17492,7 @@ b.axhline(1.0, color=INK, lw=0.6, ls=':')
 b.set_xlim(EM[0], EM[-1])
 b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
 b.set_ylabel(r'Ratio to standard', fontsize=8.0)
-b.set_ylim(0.8, 1.1)
+b.set_ylim(0.87, 1.01)
 minor_y(b, 5)
 save(fig, 'solar_8b_flux.pdf')'''),
     md(r'''## Figure 5e --- adiabaticity along a solar chord
