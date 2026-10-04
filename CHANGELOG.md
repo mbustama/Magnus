@@ -9,6 +9,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Notebook 28's long-range solar figure read the probability out inside the Sun.**  The
+  `L_e - L_mu` sweep ended at the edge of the solar table, 0.98 R_sun, where the potential
+  of a mediator of range R_sun is still about 1e3 `V_CC`.  Read out in the eigenbasis there,
+  the curve turned up above about 9 MeV and crossed the standard one, an effect no detector
+  on Earth sees: the potential fades within a few solar radii and the exit is adiabatic.
+  The sweep now ends at 20 R_sun, where the readout is the vacuum one.  It also starts at
+  0.05 R_sun, where 8B neutrinos are made, instead of the center, and uses one coupling for
+  both mediator ranges, so that the two curves differ only through the range.  The figure's
+  cache entry is recomputed.
+- **Notebook 28 draws the 8B flux at Earth under the long-range force, on B16-GS98.**  The
+  long-range figure moves from BS2005-AGS,OP, whose table stops at 0.98 R_sun, to B16-GS98,
+  which reaches the surface.  A new figure, `solar_8b_flux.pdf`, gives the nu_e flux at Earth
+  from 8B decay for the standard case and both mediator ranges: the probability averaged over
+  where 8B is made, times the spectrum of Winter et al. (2006) and the B16-GS98 total flux.
+  A dotted curve triples g'^2 at 1/m = R_sun.
+  The production profile is rebuilt from the model's structure, since the published one is no
+  longer online; `docs/dev/measurements/solar_8b_flux/` holds the inputs, the script, and its
+  check against Bahcall's published BS05 distribution.
 - **The plotting functions' axis and tick labels were 10 points outside the notebooks.**
   `magnus.plotting` left text sizes to the `matplotlibrc` of wherever it ran, so in the
   documentation and in users' scripts the 18-by-9-inch figures had tiny labels.  The module

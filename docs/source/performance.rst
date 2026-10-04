@@ -47,10 +47,9 @@ mostly do not combine.
 for all of them, sampling the profile once per slab, and the cumulative scan covers every
 baseline at one energy in a single pass.  Where the potential does not vary, the
 constant-Hamiltonian engine computes the whole scan as one batch of exponentials.  Against the
-same points one at a time this is worth about an order of magnitude at two and three flavors,
-and several-fold at four and five, where the exponential goes through an eigensolver.  Batched
-answers are bit-identical to point-by-point ones where ``H`` does not vary; where it varies,
-both meet the tolerance, and with the grid fixed they agree to 1e-14.  Equal-length arrays of
+same points computed one at a time, this is worth one to two orders of magnitude, at every
+number of flavors from two to five.  Batched answers agree with point-by-point ones to about
+the requested tolerance.  Equal-length arrays of
 energies and baselines are paired point by point.  Where ``H`` does not vary, the
 constant-Hamiltonian engine still batches them; where it varies and the baselines differ, the
 points are computed one at a time.  For every energy at each of several baselines, make one call
