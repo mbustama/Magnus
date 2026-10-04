@@ -263,7 +263,7 @@ on a machine, when they compile.  The configurations are
   process is the right default.
 
 The refinement ladder works against these savings: it computes every slab count below the one
-that converges.  On an Earth chord that makes a call about four times slower than one given the
+that converges.  On an Earth chord that makes a call about three to four times slower than one given the
 right slab count in advance.  :doc:`performance` has the rest.
 
 Salient features

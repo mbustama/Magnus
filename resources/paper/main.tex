@@ -503,7 +503,7 @@ Evaluating the Magnus recursion, \equ{recursion}, means sampling $\mathbb{A}$ in
 \end{equation}
 where $m_p = 1,\, 2,\, 4,\, 6$ for $p = 2,\, 4,\, 6,\, 8$, with $p$ always even. The error in \equ{gl_definition} comes from the next pair of Magnus terms of \equ{magnus}, which is what fixes the order at $p$.  \ref{app:terms} derives the sets of Magnus commutators retained in the collocation integrators and the required evenness of $p$.  (While the construction of collocation integrators is not unique to Gauss-Legendre quadrature, collocation terms written under different quadrature schemes cannot be interchanged or mixed.)
 
-Collocation is economical: for a given truncation of the Magnus series in \equ{magnus}, it evaluates fewer commutators and fewer instances of the Hamiltonian than the series itself, as we show below. It is the cheapest route to a given accuracy whenever $\mathbb{H}$ is smooth inside a slab. This is the case, \eg, inside the Earth, where the density is smooth between layer boundaries and \magnus\ puts the slab edges on the boundaries themselves (Sec.~\ref{sec:refinement}).
+Collocation is economical: for a given truncation of the Magnus series in \equ{magnus}, it evaluates fewer commutators and fewer instances of the Hamiltonian than the series, as we show below. It is the cheapest route to a given accuracy whenever $\mathbb{H}$ is smooth inside a slab. This is the case, \eg, inside the Earth, where the density is smooth between layer boundaries and \magnus\ puts the slab edges on the boundaries (Sec.~\ref{sec:refinement}).
 
 We use $\Omega_{\rm GL}^{(p)}$ as \equ{magnus} uses $\Omega$. On the $j$-th slab, spanning $l_{j-1}$ to $l_j$ with width $h = l_j - l_{j-1}$, the evolution operator is
 \begin{equation}
