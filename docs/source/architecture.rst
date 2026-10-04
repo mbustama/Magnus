@@ -217,7 +217,7 @@ mechanism the cross-check uses) and the general ladder answers.
 ``average`` is not declared by ``osc_prob``, which computes one point.  The
 check on unknown keywords reads the accepted names from the signatures, so a
 keyword declared only by a higher layer would pass it and fail later, inside the
-engine.  ``osc_prob`` therefore refuses ``average`` and ``cumulative`` by name.
+engine.  To prevent that, ``osc_prob`` refuses ``average`` and ``cumulative`` by name.
 
 Data flow: how the Hamiltonian and potential are built
 -----------------------------------------------------------

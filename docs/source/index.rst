@@ -96,7 +96,7 @@ What it can compute
 * Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth Model (PREM), any of
   twelve tabulated standard solar models, a supernova shock front, or any density
   you supply.
-* The **phase-averaged** probability a solar or astrophysical experiment actually
+* The **phase-averaged** probability a solar or astrophysical experiment
   measures, over its energy resolution, without resolving the oscillation.
 * The **evolution operator** itself, alongside the probabilities, for observables
   built from amplitudes.

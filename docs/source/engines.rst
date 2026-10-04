@@ -58,8 +58,9 @@ which is why `Independence, and why it matters`_ follows the table.
        the rules below send elsewhere.
    * - 3
      - **Interaction picture** (``'ip_exp'``)
-     - Factors out the vacuum phase (and the LIV term, if present) analytically and
-       integrates the exponential matter envelope exactly over each slab, to first order.
+     - Factors out the vacuum phase (and the LIV term, if present) analytically.  Over
+       each slab, it integrates the exponential matter envelope in closed form and keeps
+       the first-order Magnus term.
      - Two flavors, a profile built by :func:`magnus.matter.exp_density_profile`, one
        baseline (a single point or an energy scan).
      - More than two flavors, any other profile (a tabulated solar model included),
@@ -162,7 +163,7 @@ engines in a fixed order, falling through on ``NotImplemented``:
    * - Exponential profile, two flavors, not handed to the ladder —
        *and it converges*
      - interaction picture
-     - An exact reference solution exists for this one case
+     - The vacuum phase is factored out, so the oscillation is never resolved slab by slab
    * - ``V_CC`` does not vary along the trajectory
      - constant Hamiltonian
      - The series terminates at its first term, so the answer is one exponential
@@ -182,8 +183,8 @@ Each row falls through to the next on ``NotImplemented``, so the last row is
 reached whenever nothing above it applies.
 
 
-Three thresholds decide where one engine hands a request to another.  Each is a constant whose docstring records the
-measurements behind its value:
+Three thresholds decide where one engine hands a request to another.  Each is a constant
+whose docstring records the measurements behind its value:
 
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
   ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this

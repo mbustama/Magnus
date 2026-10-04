@@ -60,7 +60,7 @@ contribute.  The surviving coefficients are the ones the numerical core hard-cod
    \qquad m_1 + m_2 + \cdots + m_j = n - 1 ,
 
 carrying the coefficient :math:`B_j/j!`.  The terms of the :math:`j`-th group are
-therefore indexed by the *compositions* of :math:`n-1` into :math:`j` positive
+indexed by the *compositions* of :math:`n-1` into :math:`j` positive
 parts, of which there are :math:`\binom{n-2}{j-1}`.  So
 
 .. math::

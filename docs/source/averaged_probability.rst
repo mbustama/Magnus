@@ -37,7 +37,7 @@ the energy of the neutrino.  Whatever
 the true phase is, the measurement integrates over many complete cycles
 of it.
 
-Computing such a probability by propagation is therefore doubly
+Computing such a probability by propagation is doubly
 unattractive.  It is expensive — resolving :math:`10^{16}` radians is
 exactly the regime that defeats slab refinement — and it is pointless,
 because every oscillatory term is about to be averaged away by the
@@ -95,7 +95,7 @@ phase over the range the phase covers across that resolution, and a phase that b
 with energy is not averaged at all: over 1000 km at 1 GeV the atmospheric phase is about
 6 rad, and the limit misses the oscillation entirely.
 
-``average=True`` therefore returns the **phase average**.  Every interference term keeps its
+Instead, ``average=True`` returns the **phase average**.  Every interference term keeps its
 phase at the central energy and is weighted by the spread of that phase across a relative
 energy spread :math:`\sigma`:
 
@@ -124,8 +124,8 @@ it should be the resolution of the measurement.
 Only the phases are averaged.  Mixing, the crossing amplitudes of the next sections, and the
 eigenbases at the two ends of the path stay at the central energy, so a probability without
 interference is returned unchanged.  Averaging the whole probability over energy would smooth
-those too: on the BS05 solar curve from 0.1 to 20 MeV it moves 26 of 40 energies by more than
-1e-4, and 5.2e-4 at most, where the phase average moves none.
+those too: on the ``'BS05-AGS-OP'`` solar curve from 0.1 to 20 MeV it moves 26 of 40 energies
+by more than 1e-4, and 5.2e-4 at most, where the phase average moves none.
 
 The slopes come from Hellmann-Feynman, :math:`d\lambda_i/d\ln E = \langle v_i|\, d\mathbb{H}/d\ln
 E\, |v_i\rangle`, with :math:`d\mathbb{H}/d\ln E` a central difference of the Hamiltonian in
@@ -136,12 +136,11 @@ minus the phase of its pair, its value in vacuum.  Without that, a pseudo-Dirac 
 result depends on the spread although the pair is coherent.
 
 A Hamiltonian that does not depend on energy — a matrix, or a function of position alone,
-passed on the direct route below — has no slope for a spread to act on.  ``average=True``
-then averages the pairs of levels whose phase has grown large and keeps the others
-coherent: at a short baseline, where no phase has grown, it returns the coherent
-probability.  Away from the limit, the three properties above fail:
-:math:`P_{\alpha\beta} \neq P_{\beta\alpha}` in general, and CP violation survives in the
-terms that do.
+passed to ``osc_prob_energy_baseline`` (see `Usage`_) — has no slope for a spread to act
+on.  ``average=True`` then averages the pairs of levels whose phase has grown large and keeps
+the others coherent: at a short baseline, where no phase has grown, it returns the coherent
+probability.  Away from the limit, the three properties above fail: :math:`P_{\alpha\beta} \neq
+P_{\beta\alpha}` in general, and CP violation survives in the terms that do.
 
 Every point is first computed in the limit.  The limit is returned, bit for bit, wherever
 the phase average agrees with it to within 1e-4, or to within the tighter of ``rtol`` and
@@ -320,19 +319,19 @@ implementation assuming that formula:
      - 0.3%
 
 The search for windows runs on a grid of 200 probes.  A feature narrower than
-their spacing falls between two probes, and no window opens there.  The profile
-is therefore checked first for features that are this sharp *and* could move
-probability between levels, by more than
-:data:`magnus.avgprob.SUDDEN_TRANSFER_THRESHOLD`, the default tolerance, if crossed
-instantly.  Where there is one, the windows are taken from
+their spacing falls between two probes, and no window opens there.  To close that
+gap, Magνs first checks the profile for features that are this sharp *and* could
+move probability between levels, by more than
+:data:`magnus.avgprob.SUDDEN_TRANSFER_THRESHOLD`, the default tolerance, if
+crossed instantly.  Where there is one, the windows are taken from
 :func:`magnus.adiabatic.hybrid_propagator`, which refines its search until it
 certifies.  Of 24 fronts on a supernova shock ray, 0.07 to 2000 km wide, 16 then
 come back within 0.01 of a decohered reference, and the other 8 warn.  Where the
 feature is a discontinuity that no refinement resolves, the call raises
 :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`; declare it with
 ``t_breakpoints``, which selects the energy-window average described below.  On
-every solar profile measured, tabulated models included, the check finds nothing,
-and the result is unchanged.
+every solar profile measured, tabulated models included, the check finds
+nothing, and the result is unchanged.
 
 The phase average on a profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -389,8 +388,8 @@ When there is no closed form
 A profile with discontinuities — the PREM layer boundaries an
 Earth-crossing trajectory steps through — has no instantaneous
 eigenbasis to decohere in, so neither construction above applies.  There,
-``average=True`` propagates the probability for real across an energy
-window and averages over it
+``average=True`` propagates the probability at energies across a window
+and averages the results
 (:func:`magnus.avgprob.averaged_probabilities_numerically`).
 
 **This returns a different quantity from the other two paths.**  They
@@ -463,7 +462,7 @@ Cost
      - Sampled over an energy window
      - ~0.1 s
 
-Measured on an idle machine with NuFIT 6.1, the solar rows on BS05 and the chords on
+Measured on an idle machine with NuFIT 6.1, the solar rows on ``'BS05-AGS-OP'`` and the chords on
 B16-GS98 at :math:`b = 0.6\,R_\odot`.  For comparison, averaging the engine numerically over
 2001 energies for the vacuum number takes about 0.25 s, and is itself an approximation.
 
@@ -574,8 +573,8 @@ interpolated as a curve — the individual values are right, the curve
 through them is an artifact.  ``nyquist_points`` says how many baselines
 would be needed to sample it properly.
 
-Those numbers are usually stark.  Measured over the physically-motivated
-profile families in ``docs/dev/adversarial_batteries/``:
+On the physically motivated profile families in ``docs/dev/adversarial_batteries/``,
+the counts are large:
 
 =========================== ============================ =========================
 trajectory                  oscillations across it        baselines for Nyquist

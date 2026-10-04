@@ -245,6 +245,6 @@ The paper
    numbers are read from the stored ``external_*.json`` datasets, so none of those
    codes has to be installed.  The notebook also shows that, on an Earth chord,
    the probability inherits the relative error of the matter potential almost one
-   for one.  A comparison between codes there is therefore limited by their Earth
-   models before it is limited by their solvers.  :doc:`examples` presents the
+   for one.  As a result, a comparison between codes there is limited first by
+   their Earth models, and only then by their solvers.  :doc:`examples` presents the
    paper's usage section, with its snippets and figures.

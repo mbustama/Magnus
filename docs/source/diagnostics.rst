@@ -31,13 +31,13 @@ the user's setting for that rule.
 
 *Precision* is how closely Magνs agrees with itself.  Two calls with the same inputs return the
 same number bit for bit, and the tests require exact equality there, so a change that let one
-call affect the next, through a cache for instance, would fail them.  A parallel run agrees
-with a serial one only to the requested tolerance, since each starts its refinement from a
-different point.  With the slab grid fixed, a batched scan and the same points one at a time
-agree to 1e-14; left to refine, they stop at different slab counts and differ at the level of
-the tolerance.  The two matrix-exponential backends agree to about 1e-15 for one exponential,
-and by 3e-12 on a solar chain of about 34 000, within the :math:`N\varepsilon = 7.4 \times
-10^{-12}` that rounding allows over that many products.
+call affect the next, through a cache for instance, would fail them.  A parallel run agrees with
+a serial one only to the requested tolerance, since each starts its refinement from a different
+point.  With the slab grid fixed, a batched scan and the same points one at a time agree to
+1e-14; left to refine, they stop at different slab counts and differ at the level of the
+tolerance.  The two matrix-exponential backends agree to about 1e-15 for one exponential, and by
+3e-12 on a solar chain of about 34 000 exponentials, within the :math:`N\varepsilon = 7.4
+\times 10^{-12}` that rounding allows over that many products.
 
 *Accuracy* is how close Magνs comes to the true probability, measured below against external
 references.  It is already far better than a typical oscillation analysis needs: an analysis
@@ -78,8 +78,8 @@ inaccurate and none fires; the measured rates are in
 
 .. _what-rtol-atol-control:
 
-What ``rtol`` and ``atol`` actually control
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+What ``rtol`` and ``atol`` control
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 They are a **stopping criterion, not an accuracy guarantee**, and the difference is worth
 stating because the names invite the other reading.
@@ -89,7 +89,7 @@ quadrature methods, ``n_tpts_per_slab``), recomputes, and stops when two success
 agree within ``atol + rtol*|P|``.  Nothing in that loop estimates the error of the answer
 it returns.  A stepping ODE integrator's ``rtol`` is a different quantity: it bounds an
 *estimated* local error per step, formed by comparing against an embedded lower-order
-formula.  Magnus forms no such estimate; it infers convergence from agreement.
+formula.  Magνs forms no such estimate; it infers convergence from agreement.
 
 Usually that is conservative.  For a sequence converging as :math:`C n^{-p}` the
 level-to-level gap overstates the error of the finer level, so an answer that stopped at
@@ -156,9 +156,9 @@ against another**: agreement between two paths is reported as agreement, never a
 
 .. _measured-distributions:
 
-Measured distributions, against those oracles.  They were measured with an earlier routing
+The distributions below were measured against those oracles, with an earlier routing
 threshold: an ``'auto'`` baseline scan then left the adiabatic hybrid for the cumulative scan
-from 25 baselines, and it now does so from 8, and from 2 below a tolerance of 1e-6
+from 25 baselines.  It now does so from 8, and from 2 below a tolerance of 1e-6
 (:data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`).  The cumulative scan had no silent
 misses in this population (the row for N ≥ 30 below).
 
@@ -223,7 +223,7 @@ derivation of that factor from the threshold.
 **γ-aware certification** (:data:`magnus.adiabatic.GAMMA_TO_ERROR`). When no non-adiabatic
 window opens, successive refinements differ only in the transport grid, so they converge to
 the same adiabatic limit and agree with each other whether or not that limit is right.
-Certifying an empty window list therefore additionally requires γ itself to be small enough
+For this reason, certifying an empty window list also requires γ itself to be small enough
 for the requested tolerance. *What it cannot do:* the constant converts γ into an error
 estimate good to about a factor of two, so certification near the bound is a closer call than
 it looks.
@@ -257,9 +257,9 @@ largest excess as a fraction of the total. **Concentration, not size** — an al
 hides variation in every interval, a narrow bump hides all of it in one. Measured at **0 false
 positives over 67 smooth and resolvable profiles**, detecting 68-90 % of features in the
 unresolvable band, for 0.37 ms once per call. *What it cannot do:* detection falls to ~0.73 for
-features far below the dense sampling, and it **reports rather than cures** — it names the
-position and the exact ``t_breakpoints`` to pass, verified end to end — warn, pass the
-printed edges back, re-run: 3.0e-02 to 1.0e-04 on the width-3e-5 calibration case.
+features far below the dense sampling.  It also **reports rather than cures**: it names the
+position and the exact ``t_breakpoints`` to pass.  On the width-3e-5 calibration case,
+passing the printed edges back and re-running reduced the error from 3.0e-02 to 1.0e-04.
 
 **The scan is sized to the request.**  It runs once per call, whatever the number of points,
 so its share of the work falls as the request grows.  It uses 8 sub-steps (0.37 ms) for up to
@@ -278,14 +278,14 @@ resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe
 profile, small γ, and a resolved Hamiltonian — correctly, given what any of them can see —
 and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Because they are
 wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
-wrong engine exactly when some other engine got it right.
+wrong engine exactly when some other engine got it right.  This limit belongs to any fixed
+grid, not to a particular test.
 
-The remedy is to supply ``t_breakpoints`` at the feature, and it was verified.  With edges
+The remedy, verified on this case, is to supply ``t_breakpoints`` at the feature.  With edges
 placed by hand at the feature's own width, the same case improves to 8.8e-04 at a single point
 and 8.9e-04 over a 60-point scan.  With the edges that the warning prints, which it finds by
-re-sampling the flagged interval, it improves to 1.0e-04. This is a property
-of any fixed grid, not of any particular test.  The condition is usually **detected and
-reported** rather than silent — see the feature scan above.
+re-sampling the flagged interval, it improves to 1.0e-04.  The condition is usually **detected
+and reported** rather than silent — see the feature scan above.
 
 **The second irreducible limit: broadband roughness.** The sub-probe scan is a
 *concentration* statistic, and that is exactly what makes it blind to structure spread over
@@ -369,17 +369,17 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        call with hundreds of slabs, less on a short one (:ref:`write-h-func-vectorized`).
    * - :class:`magnus.matter.DensityUnitWarning` (over-declared)
      - A density declared in g cm⁻³ is denser than a neutron star.
-     - Yes — catastrophically. The potential is inflated by ~18 orders; the tell is
-       :math:`P_{ee} = 1`.
+     - Yes — catastrophically. The potential is inflated by ~18 orders; the symptom
+       is :math:`P_{ee} = 1`.
      - The density is already in natural units: leave
        ``density_matter_is_in_g_per_cm3`` at False.
    * - :class:`magnus.matter.DensityUnitWarning` (under-declared)
      - A density left in natural units is far too small to be one — anything physical is
        4.3e18 or more, since that is what one g cm⁻³ becomes.
      - Yes, and this is the dangerous direction. The potential comes out ~19 orders too
-       small, i.e. zero, so the call returns **exactly the vacuum probability** — which
-       looks like an ordinary answer rather than a missing one, and there is no tell in
-       the numbers at all.
+       small, effectively zero, so the call returns **exactly the vacuum probability**.  It
+       looks like an ordinary answer rather than a missing one, and nothing in the
+       numbers reveals the error.
      - Pass ``density_matter_is_in_g_per_cm3=True``, or convert yourself (multiply by
        ``gd.UNIT_G_PER_CM3``).
    * - :class:`magnus.globaldefs.BaselineUnitWarning`
@@ -430,8 +430,8 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        1e-3.  Also on every energy-window average across declared discontinuities, and, for
        a Hamiltonian without energy dependence, where the limit does not apply.
      - The number is the average over the spread asked for, not over another.
-     - ``average_spread`` set to the resolution of the measurement; the s.e.m. is
-       reported for the window average, and ``average_n_samples`` lowers it.
+     - ``average_spread`` set to the resolution of the measurement; the standard error
+       of the mean is reported for the window average, and ``average_n_samples`` lowers it.
    * - :class:`magnus.hamiltonians.hamiltonians_pseudodirac.PseudoDiracSplittingWarning`
      - The pseudo-Dirac splitting is not small against the standard mass-squared ones.
      - The number is what was asked for; the *model* is the wrong one. At that size the

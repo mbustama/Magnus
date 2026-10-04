@@ -40,8 +40,7 @@ Batching and parallelization
    (d) ``n_jobs=3``: the first point in the calling process, the rest shared among
    three workers.  From the Magνs paper.
 
-A request for many probabilities can be made faster in two ways, which act differently and
-mostly do not combine.
+A request for many probabilities can be made faster in two ways, which act differently.
 
 **Batching** means passing an array in one call.  Computed one point at a time, a scan of
 :math:`N` energies runs :math:`N` refinement ladders; the energy-batched scan runs one ladder
@@ -57,7 +56,9 @@ make one call per baseline, with the full array of energies.
 **Parallelization** means computing points in several processes, with ``n_jobs``.  The first
 point runs in the calling process and the rest are shared among the workers, each on the
 per-point path, so all :math:`N` ladders still run, several at a time.  A parallel scan agrees
-with a serial one to the tolerance, not bit for bit.
+with a serial one to the tolerance, not bit for bit.  A scan whose serial work would take
+under a second runs in the calling process even when ``n_jobs > 1``, since starting the
+workers costs more.
 
 .. figure:: ../../img/paper/njobs_scaling.svg
    :width: 70%
@@ -68,8 +69,8 @@ with a serial one to the tolerance, not bit for bit.
    that every run takes the per-point path.  From the Magνs paper.
 
 On ten cores, ten processes finish scans of 1 000, 5 000 and 20 000 energies 1.9, 2.5 and 2.8
-times as fast as one: the gain grows with the scan and stays far from ten.  The two do not
-combine: the energy-batched scan and the constant-Hamiltonian engine answer only at
+times as fast as one: the gain grows with the scan and stays far from ten.  The two mostly do
+not combine: the energy-batched scan and the constant-Hamiltonian engine answer only at
 ``n_jobs=1``, and any other value sends the scan to the per-point path.  On 5 000 energies
 along the chord at :math:`\cos\theta_z = -0.9`, the batched path takes 0.11 s in one process,
 and ten processes take 1.1 s.  So pass arrays and leave ``n_jobs=1``; raise it only for a scan
@@ -78,8 +79,7 @@ no batched engine accepts, such as one where every energy has its own baseline.
 The batched and per-point paths agree to within the tolerance, not bit for bit: the batched
 scan runs one refinement ladder for all the energies, the per-point path one ladder per point.
 Along an Earth chord at :math:`\cos\theta_z = -0.7`, 40 energies from 0.5 to 20 GeV differ by up
-to 3.8e-5 at the default tolerance of 1e-3.  A scan whose serial work would take under a second runs in the
-calling process even when ``n_jobs > 1``, since starting the workers costs more.
+to 3.8e-5 at the default tolerance of 1e-3.
 
 **Threads.**  ``n_jobs`` uses processes.  Calls made from several threads of one process are
 safe as well: each call keeps its own per-call state, so concurrent calls return the serial
@@ -98,8 +98,8 @@ A chord through a spherically symmetric Earth meets every radius twice, so its d
 profile reads the same from either end.  :func:`magnus.magnus.magnus_expansion_multislab`
 evaluates :math:`A` on the first half of such a slab chain and derives the rest by
 reversal.  This halves the evaluations of the user's Hamiltonian **and nothing else**:
-the matrix exponentials and the commutators are unchanged.  The saving is therefore worth
-exactly what those evaluations cost.  Measured through
+the matrix exponentials and the commutators are unchanged.  The saving is worth exactly
+what those evaluations cost.  Measured through
 :func:`magnus.oscprob.osc_prob_earth`, ``costhz = -0.9``, 2 GeV, against a vectorized
 ``H_func`` whose cost scales per position:
 
@@ -112,7 +112,7 @@ exactly what those evaluations cost.  Measured through
      - Note
    * - single point, plain PREM
      - 0.905×
-     - a density lookup is too cheap to be worth halving
+     - a slowdown: a density lookup is too cheap to be worth halving
    * - single point, expensive ``H_func``
      - **1.41×-1.67×**
      -
@@ -135,8 +135,8 @@ caps any possible mirror gain at 1.001×-1.013×.
 
 **Symmetry is declared, not detected.**  Detecting it would need the very evaluations that
 the mirroring skips.  The slab *widths* are no guide: a monotonic, solar-like profile on a
-uniform grid has symmetric widths, and mirroring it would be wrong by 3.3e-01.  The Earth
-entry points therefore declare the symmetry, since a chord meets every radius twice by
+uniform grid has symmetric widths, and mirroring it would be wrong by 3.3e-01.  Instead, the
+Earth entry points declare the symmetry, since a chord meets every radius twice by
 geometry.  The declaration covers the interval over which the profile is symmetric, the
 full chord, so a request for a shorter baseline takes the ordinary path.
 
@@ -160,8 +160,8 @@ and 3 and the Jacobi eigensolver at 4 and 5.  The Cayley-Hamilton kernel applies
 :math:`K` the polynomial interpolating :math:`\exp(-i\lambda)` on its spectrum — no
 eigenvectors, and the eigenvalues in closed form.
 
-Interleaved round-robin, minima of many repetitions, with a control the change cannot
-touch:
+These timings interleave the backends round-robin, keep the fastest of many repetitions,
+and include a control the change cannot touch:
 
 .. list-table:: The exponential alone, :math:`\exp(-iK)` for a stack of N matrices
    :header-rows: 1
@@ -263,15 +263,14 @@ NSI resonances, constant density and vacuum — except on a solar profile at
 ``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
 :math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
 
-numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
+Numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
 ordinary install.  It costs about 90 ms of ``import magnus``; the first call on a machine
 compiles the kernels, about 2 s, and later sessions load them from the disk cache in about
-0.1 s.  Because it is required, a Python release that numba has no wheel for yet cannot
+0.1 s.  Because it is required, a Python release that Numba has no wheel for yet cannot
 install the package.
 
-The ``'eigh'`` fallback is still there and still correct — ``'auto'`` degrades to it if
-the import fails for any reason, and nothing but speed changes, every result agreeing to
-~1e-15.
+The ``'eigh'`` backend remains available and correct.  ``'auto'`` falls back to it if the
+import fails for any reason; only the speed changes, and every result agrees to ~1e-15.
 
 Two more steps are compiled.  First, the separable energy scan multiplies its slab
 operators in a Numba kernel.  Its results can differ from the NumPy route, used when Numba
@@ -322,9 +321,10 @@ entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
      - 1.4×
 
 The 4ν and 5ν rows were measured with ``eigh`` as their exponential; the Jacobi eigensolver
-they use is worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  In absolute terms a 3ν constant-density probability costs 3.9 µs under the
-paper's protocol (:doc:`comparison`), and what remains is wrapper parameter resolution rather
-than arithmetic: a code built for the constant case alone, such as NuFast-LBL, is cheaper.
+they use is worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  In absolute terms, a
+3ν constant-density probability costs 3.9 µs under the paper's protocol (:doc:`comparison`),
+and what remains is wrapper parameter resolution rather than arithmetic: a code built for the
+constant case alone, such as NuFast-LBL, is cheaper.
 
 Results are bit-identical to the per-point route on every flavor count and both neutrino signs.
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
@@ -368,17 +368,17 @@ Measured
      - 65 536
      - Fifteen workloads on three batched engines, d = 2…5, scans of 60 to 20 000 points,
        swept over 1 / 4.2 / 12.6 / 67 / 268 MB.  1 MB won eight of the eleven memory-bound
-       rows and was never worse than the previous 67 MB: **1.19×-1.38×** on Earth energy
+       rows and was never worse than 67 MB: **1.19×-1.38×** on Earth energy
        scans, growing with both flavor count and scan length, 1.06×-1.16× on cumulative
        baseline scans, flat within 2 % on short scans.  The interaction-picture engine is
        flat at 1.00× — it is compute-bound, so the constant does not reach it.  Every row
        was **bit-identical at every budget**, tiles being independent and only
-       concatenated, so this is a pure performance knob.  Measured on one machine (13 MB
+       concatenated, so the constant affects only speed.  Measured on one machine (13 MB
        L3, 6.5 MB L2), and note the optimum sits *below* the last-level cache, so sizing
        to a detected cache would land on a worse value than this fixed constant does.
    * - ``_local_evolution_operator`` ``max_n_slabs``
      - 32 768
-     - Legitimate patches converge at 800–12 800 slabs; a patch covering 88 % of a solar
+     - Short, local patches converge at 800–12 800 slabs; a patch covering 88 % of a solar
        trajectory needs 102 400 and should decline. 32 768 sits in the factor-of-eight gap.
    * - :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`
      - 8
@@ -418,8 +418,8 @@ Measured
    * - :data:`magnus.adiabatic.LOCAL_JUMP_RATIO`
      - 0.5
      - 79 flagged intervals over 1440 smooth configurations (ceiling **0.087**) against 348 over
-       432 piecewise ones (floor **1.000**). Swept over *sub-intervals*, the axis the original
-       ``RESOLUTION_RATIO`` measurement did not have.
+       432 piecewise ones (floor **1.000**). Swept over *sub-intervals*, an axis the
+       ``RESOLUTION_RATIO`` measurement above did not sample.
    * - ``find_resonance_candidates`` ``fd_step_frac``
      - 1e-6
      - Scored against the **analytic** :math:`dH/dl`. The optimum moves with the profile's
@@ -471,7 +471,7 @@ not mistaken for measured ones.
 
 All four are **cost ceilings rather than calibrations**: they bound work, and reaching one is
 reported by :class:`magnus.oscprob.ToleranceNotAchievedWarning`.  Leaving them unmeasured is
-therefore less of a risk than for a threshold that decides an outcome without a warning.  The
+less of a risk than for a threshold that decides an outcome without a warning.  The
 constants that *do* decide an outcome appear in the table above, or,
 for the refinement and routing gates (:data:`magnus.oscprob.MIN_EFFECTIVE_REFINEMENT`,
 :data:`magnus.oscprob.AUTO_LADDER_MAX_PHASE`, :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE`,

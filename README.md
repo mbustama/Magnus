@@ -222,7 +222,7 @@ independent ODE solver, an independently generated expansion and populations of
 random profiles; the [table of checks and
 results](https://mbustama.github.io/Magnus/index.html#what-accuracy-means) is in the
 documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
-[what they actually control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-actually-control).
+[what they control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-control).
 
 ## Salient features
 

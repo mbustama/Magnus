@@ -162,7 +162,7 @@ Growing and merging non-adiabatic windows
 A candidate with :math:`\gamma_{jk}` above a threshold marks a position that
 needs a Magnus patch, but it does not fix the *window* the patch must cover.  The
 region where adiabaticity fails has a physical width, unrelated to the spacing
-of the search grid.  :func:`magnus.adiabatic.find_nonadiabatic_windows` therefore
+of the search grid.  To find it, :func:`magnus.adiabatic.find_nonadiabatic_windows`
 grows a window outward from each candidate, doubling the step, until
 :math:`\gamma_{jk}` falls below the threshold, and then pads it by a safety
 factor.  The same physical case gives the same window whatever the search grid,
@@ -215,14 +215,15 @@ Self-certification
 Three settings control the strategy: the adiabaticity threshold, the grid that
 integrates the dynamical phase, and the probe grid that locates candidates.  No
 single value of any of them is safe for every Hamiltonian: a threshold that is
-conservative for one case can leave a crossing unpatched in another.  :func:`magnus.adiabatic.hybrid_propagator` therefore
-repeats the whole computation, each time dividing the threshold by 3 and
-doubling both grids.  It certifies the result only once two successive levels
-agree within the requested ``rtol`` and ``atol``, as
-:func:`magnus.oscprob.osc_prob` does for its slab count.
+conservative for one case can leave a crossing unpatched in another.  Instead of
+relying on one value, :func:`magnus.adiabatic.hybrid_propagator` repeats the
+whole computation, each time dividing the threshold by 3 and doubling both
+grids.  It certifies the result only once two successive levels agree within the
+requested ``rtol`` and ``atol``, as :func:`magnus.oscprob.osc_prob` does for its
+slab count.
 
 A window that does not move between levels holds the same patch in both, so
-this comparison cannot see a patch's own error; each patch is therefore
+this comparison cannot see a patch's own error.  Each patch is instead
 converged separately, to the tolerance above.  If a patch fails to converge
 within its slab cap, or the levels never agree, the propagator returns its best
 estimate, still unitary, and reports it as **not** certified.  The limits are
