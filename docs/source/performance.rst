@@ -89,7 +89,7 @@ another.  They do not run faster for it, since most of a call holds Python's glo
 interpreter lock.
 
 **The refinement ladder works against these savings.**  It computes every slab count below the
-one that converges and discards them: on an Earth chord, about four times the cost of a call
+one that converges and discards them: on an Earth chord, about three to four times the cost of a call
 given the right slab count in advance (:doc:`methodology`).
 
 The palindrome, and what it is worth

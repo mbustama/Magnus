@@ -56,7 +56,7 @@ Every parameter the wrappers of Table :ref:`ex-tab-wrappers` take, by flavor cou
 Three flavors
 ~~~~~~~~~~~~~
 
-Every ``osc_prob_3nu_*`` wrapper leaves its six standard parameters unset by default. An unset parameter is read from a named set, ``OSC_PARAMS_DEFAULT``, which is the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering  :cite:p:`Esteban:2024eli`. Naming a different set changes all six at once.
+Every ``osc_prob_3nu_*`` wrapper leaves its six standard parameters unset by default. An unset parameter is read from a named set, ``OSC_PARAMS_DEFAULT``, which is the NuFIT 6.1 best fit with Super-Kamiokande atmospheric data in normal ordering  :cite:p:`NuFIT61,Esteban:2024eli`. Naming a different set changes all six at once.
 
 .. code-block:: python
 
@@ -180,7 +180,7 @@ Two flavors take a different route. A two-flavor system has one mixing angle and
 Four flavors
 ~~~~~~~~~~~~
 
-A fourth, sterile flavor adds three mixing angles, two CP phases, and one mass splitting to the six three-flavor parameters, in the parametrization of Ref. :cite:p:`Kopp:2011qd`. The six three-flavor parameters behave as at three flavors: left unset, they are read from the named set. The six new ones default to zero, so a four-flavor call without them returns the three-flavor probabilities in its upper :math:`3 \times 3` block. All twelve can be given at once:
+A fourth, sterile flavor adds three mixing angles, two CP phases, and one mass splitting to the six three-flavor parameters, in the parametrization of Ref. :cite:p:`Bustamante:2019ggq`. The six three-flavor parameters behave as at three flavors: left unset, they are read from the named set. The six new ones default to zero, so a four-flavor call without them returns the three-flavor probabilities in its upper :math:`3 \times 3` block. All twelve can be given at once:
 
 .. code-block:: python
 

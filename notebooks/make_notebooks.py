@@ -18401,9 +18401,9 @@ save(fig, 'turbulence.pdf')'''),
 
 A sterile state adds an eigenvalue, and with it three more gaps for the medium to resonate
 with. At an eV-scale mass they are nearly three orders of magnitude above the active ones:
-where $\Delta_{32}$ asks for a mode of $10\,938$~km, they ask for modes of $12.4$~km.
-Nothing here is drawn; these are the numbers the text quotes, and the accuracy control that
-backs them.'''),
+where $\Delta_{32}$ asks for a mode of $11\,030$~km, they ask for modes of $12.4$~km.
+Nothing here is drawn: these numbers explain the slab counts of the four-flavor curves in
+Figs. 5h and 5i, and the accuracy control below backs them.'''),
     code(r'''# ------------------------------------ the same sweep with a sterile state
 TURB4_L = 12000.0*gd.UNIT_KM
 H_TURB4 = (np.array(hamiltonians.hamiltonian_4nu_vacuum(
@@ -18419,8 +18419,9 @@ print('sterile splittings ask for modes of %.4f, %.4f and %.4f km; the region ho
       '%.0f of the shortest' % (LAM4_KM[0], LAM4_KM[1], LAM4_KM[2],
                                 TURB4_L/gd.UNIT_KM/LAM4_KM[0]))
 
+TURB_LMAX_KM = max(TURB_NLAM)*LOSC/gd.UNIT_KM
 print('the longest region used in the figures, %.0f km, holds %.0f periods of the '
-      'shortest' % (37.3*10938.5, 37.3*10938.5/LAM4_KM[0]))
+      'shortest' % (TURB_LMAX_KM, TURB_LMAX_KM/LAM4_KM[0]))
 
 # A profile that oscillates everywhere is invisible to the structural tests, so what has
 # to answer for the accuracy is the refinement ladder.  Four settings at the resonance

@@ -139,7 +139,7 @@ Every wrapper takes its arguments in the same four groups: the energy, the geome
    # 0.013589, the standard wrapper's answer
 
 
-The fourth group (“new physics”) exists only in the wrappers whose name carries ``_nsi`` or ``_liv``; Table :ref:`ex-tab-parameters` lists its parameters. Every one of them defaults to zero, so one of those wrappers called without them returns the standard result, bit for bit identical to what the standard wrapper of the same environment returns. That makes it the control for any new-physics scan.
+The fourth group (“new physics”) exists only in the wrappers whose name carries ``_nsi`` or ``_liv``; Table :ref:`ex-tab-parameters` lists its parameters. Every one of them defaults to zero, so one of those wrappers called without them returns the standard result, bit-for-bit identical to what the standard wrapper of the same environment returns. That makes it the control for any new-physics scan.
 
 Passing ``rho`` as a scalar makes the Hamiltonian independent of position, so the request reaches the constant-Hamiltonian engine of :doc:`/engines` and the whole scan becomes one stack of matrix exponentials. Two hundred energies cost 0.123 ms vs. 0.090 ms for one, so the scan is nearly free.
 
@@ -222,7 +222,7 @@ The wrapper and scenario function above both reach the probability from named pa
    # Pme = 0.017126 again
 
 
-``hamiltonian_3nu_nsi`` returns the non-standard term alone, :math:`V_{\rm CC}` times the matrix of couplings, Eq. :eq:`ex-equ-h-nsi-3nu`, without the standard charged-current term. The standard term is a separate summand, which means that leaving ``V*proj`` out of the sum does not raise an error: it returns a converged, unitary probability of 0.005962 for a medium with no ordinary matter effect in it. However, this would represent a physically impossible scenario, since NSI co-exist with standard interactions. Preventing this is up to you.
+``hamiltonian_3nu_nsi`` returns the non-standard term alone, :math:`V_{\rm CC}` times the matrix of couplings, Eq. :eq:`ex-equ-h-nsi-3nu`, without the standard charged-current term. The standard term is a separate summand, which means that leaving ``V*proj`` out of the sum does not raise an error: it returns a converged, unitary probability of 0.005962 for a medium with no ordinary matter effect in it. This is unphysical, since NSI coexist with standard interactions; Preventing this is up to you.
 
 Assembling the Hamiltonian rarely means writing a matrix from scratch. Magνs ships forty-three Hamiltonian builders: vacuum, matter, non-standard interactions, and Lorentz violation at two to five flavors, in position-dependent and position-independent forms, and three for a pseudo-Dirac spectrum. Listing :ref:`Vacuum and constant density, three ways <ex-lst-constant>` uses one of them for the vacuum term and takes the projector from ``matter``. :ref:`ex-sec-hamiltonians` lists them all, so a direct call is usually a shipped Hamiltonian with something you added to it, e.g., a new non-standard contribution.
 
@@ -246,7 +246,7 @@ In brief, a user should use:
 Returning the evolution operator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every wrapper and scenario function above returns probabilities; for most purposes, that is the output wanted. But some observables are built from the amplitudes instead: the content of each mass eigenstate in the state that leaves a dense source, the factor the source contributes to the :ref:`averaged limit on a varying profile <avg-varying>`; the flavor composition at a detector after an incoherent mixture of mass eigenstates has crossed the Earth; the evolution through two media in sequence. None of them can be recovered from a probability matrix, since the phases are gone at that stage. For those cases, every probability function of Magνs, on any of the three routes above and at any flavor count, returns the evolution operator alongside the probabilities when asked via ``return_evolution_operator``:
+Every wrapper and scenario function above returns probabilities; for most purposes, that is the output wanted. But some observables are built from the amplitudes instead. Three examples are the mass-eigenstate content of a neutrino leaving a dense source, which is the factor the source contributes to :ref:`averaged limit on a varying profile <avg-varying>`; the flavor composition at a detector after an incoherent mixture of mass eigenstates has crossed the Earth; and the evolution through two media in sequence. None of them can be recovered from a probability matrix, since the phases are gone at that stage. For those cases, every probability function of Magνs, on any of the three routes above and at any flavor count, returns the evolution operator alongside the probabilities when asked via ``return_evolution_operator``:
 
 .. code-block:: python
 
@@ -287,7 +287,7 @@ The same probabilities come from one call over a two-slab profile with the edge 
 Asking for the averaged probability
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every wrapper, scenario function, and ``osc_prob_energy_baseline``, returns the phase average of :doc:`/averaged_probability` when called with ``average=True``. Two more keywords configure it: ``average_spread`` sets the relative energy spread, :math:`\sigma`, which is 10% by default, and ``average_initial_state`` sets the state the neutrino starts in, explained below. ``osc_prob`` itself, which computes a single point, does not accept ``average``. Nor can ``average=True`` be combined with ``return_evolution_operator`` (:ref:`ex-sec-evolution-operator`), since the averaged routes never form an evolution operator. On the wrappers and scenario functions, ``strategy_info['engine']`` reports ``'average'`` when the averaged route answered (:ref:`ex-sec-which-engine`).
+Every wrapper, scenario function, and ``osc_prob_energy_baseline`` return the phase average of :doc:`/averaged_probability` when called with ``average=True``. Two more keywords configure it: ``average_spread`` sets the relative energy spread, :math:`\sigma`, which is 10% by default, and ``average_initial_state`` sets the state the neutrino starts in, explained below. ``osc_prob`` itself, which computes a single point, does not accept ``average``. Nor can ``average=True`` be combined with ``return_evolution_operator`` (:ref:`ex-sec-evolution-operator`), since the averaged routes never form an evolution operator. On the wrappers and scenario functions, ``strategy_info['engine']`` reports ``'average'`` when the averaged route answered (:ref:`ex-sec-which-engine`).
 
 The phase average is not the mean of the probability over an energy range: it damps each interference term by the spread of its phase, but keeps the eigenvectors at the central energy (:doc:`/averaged_probability`). Wherever the limit (:ref:`constant <avg-limit>` or :ref:`varying <avg-varying>` Hamiltonian) agrees with the phase average within :math:`10^{-4}`, or within the tighter of ``rtol`` and ``atol`` if that is smaller, both absolutely and relative to the probability, Magνs returns the limit. How the phase average is computed follows :doc:`/averaged_probability`.
 

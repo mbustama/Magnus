@@ -3,7 +3,7 @@
 Constant density
 ----------------
 
-In matter of constant density, the Hamiltonian does not depend on position. Every commutator in the :ref:`recursion <magnus-recursion>` vanishes, the Magnus series stops at its first term, and the evolution operator is a single matrix exponential. Like for vacuum, Magνs computes this without exercising any of the method of :doc:`/methodology`.
+In matter of constant density, the Hamiltonian does not depend on position. Every commutator in the :ref:`recursion <magnus-recursion>` vanishes, the Magnus series stops at its first term, and the evolution operator is a single matrix exponential. As in vacuum, Magνs computes this without exercising any of the method of :doc:`/methodology`.
 
 .. _ex-lst-const-density:
 
