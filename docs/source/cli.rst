@@ -6,24 +6,18 @@ Command-line calculator
    :depth: 2
 
 
-In addition to the Python API (:doc:`quickstart`), Magνs installs a
-``magnus`` command (equivalently, ``python -m magnus``) for computing a
-single oscillation probability directly from the shell, with no Python
-required. It wraps the same ``osc_prob_{2,3,4,5}nu_*`` functions used by
-the Python API: ``magnus`` picks the right one from
-``--flavors``/``--environment``/``--scenario`` and calls it with the flags
-you give (see :doc:`architecture` for how those functions themselves are
-organized).  Its one subcommand, ``prob``, is the default and may be
-omitted: ``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are
-the same call.  ``magnus --help`` prints the options of ``prob`` after its
-own, so ``magnus --help`` and ``magnus prob --help`` both list every flag.
+Magνs installs a ``magnus`` command (also run as ``python -m magnus``) that
+computes a single oscillation probability from the shell, without writing
+Python.  It picks one of the ``osc_prob_{2,3,4,5}nu_*`` functions from
+``--flavors``, ``--environment`` and ``--scenario``, and calls it with the flags
+you give.  Its one subcommand, ``prob``, is the default and may be omitted, so
+``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are the same call;
+``magnus --help`` lists every flag.
 
 .. note::
-   The CLI computes **one probability at a time** (a single energy and
-   baseline). For scans, plots, or fitting, use the Python API -- it is
-   the same underlying code, just called in a loop or with array
-   arguments (which Magνs evaluates in a single batched, vectorized pass;
-   see :doc:`methodology`).
+   The CLI computes **one probability at a time**, at a single energy and
+   baseline.  For scans, plots or fits, use the Python API, which runs the same
+   code and computes a scan in one batched call (:doc:`performance`).
 
 Installation
 --------------
@@ -270,7 +264,7 @@ traceback:
    usage: magnus [-h] [-V] {prob} ...
    magnus: error: --sth and --dm2 are both required for --flavors 2.
 
-At two flavors the table's rows and columns are labelled ``0`` and ``1`` rather than by
+At two flavors the table's rows and columns are labeled ``0`` and ``1`` rather than by
 flavor: a two-flavor system stands for whichever pair ``--sth`` and ``--dm2`` describe, and
 ``--nu-i``/``--nu-f`` take 0 or 1 accordingly.
 
@@ -509,10 +503,10 @@ configures):
                            1-4 Hamiltonian evaluations per slab and matches its quadrature
                            order to the expansion order, so it is both the fastest and the
                            most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
-                           sample a uniform grid of 100 points per slab instead (the
-                           library default; the CLI does not expose it), and at a declared
-                           breakpoint sample each side of a jump with its own values.
-                           Default: gl.
+                           instead sample a uniform grid of points in each slab, starting
+                           from the library default of 100, which the CLI cannot change; at
+                           a declared breakpoint, they sample each side of a jump with its
+                           own values. Default: gl.
      --rtol RTOL           Relative tolerance on the agreement between successive
                            refinement levels -- a stopping rule, not a guaranteed accuracy.
                            Default: 1e-3.

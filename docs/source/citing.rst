@@ -24,8 +24,9 @@ the version you used — results can depend on it, and Magνs records its own:
 
    @software{Magnus,
      author  = {Bustamante, Mauricio},
-     title   = {{Mag$\\nu$s: neutrino oscillation probabilities via the
-                 Magnus expansion}},
+     title   = {{Mag$\\nu$s: neutrino oscillation probabilities for any
+                 Hermitian Hamiltonian, any number of flavors, and any
+                 matter profile}},
      url     = {https://github.com/mbustama/Magnus},
      version = {|release|},
      year    = {2026}

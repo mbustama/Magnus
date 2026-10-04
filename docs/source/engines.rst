@@ -107,9 +107,9 @@ or a piecewise-constant one whose edges are declared.
 Independence, and why it matters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The engines are **not** all independent of each other, and pretending otherwise would make
-any cross-check between them worthless. :data:`magnus.oscprob.ENGINE_FAMILIES` records the
-grouping the package will defend:
+The engines are **not** all independent of each other, and a cross-check between two
+engines that share their machinery proves little.  :data:`magnus.oscprob.ENGINE_FAMILIES`
+groups them into families:
 
 * ``'magnus-ladder'`` -- the general path, the cumulative scan and the separable scan. All
   three walk slabs with :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative
@@ -188,9 +188,9 @@ measurements behind its value:
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
   ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this
   many points, because the cumulative scan answers all of them from one traversal.  The
-  cumulative scan is the cheaper of the two at every size measured; the threshold is not lower
-  because a hybrid that stands aside passes the request to the next engine that applies, which
-  is not always the cumulative scan.
+  cumulative scan is the cheaper of the two at every size measured.  The threshold is not lower
+  because, below it, the request would not always reach the cumulative scan: it goes to the
+  next engine that applies.
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2. The same threshold
   below a tolerance of 1e-6, where the hybrid strategy is the slower route for a baseline scan.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
@@ -219,17 +219,19 @@ The ladder then runs at a tenth of the tolerance
 on slabs over which the Magnus series is guaranteed to converge.  The hybrid's test for an
 undeclared density jump still runs, and still warns.
 
-**At a tighter tolerance** the route stays open on ``integration_method='gl'`` at a single
-baseline, with a phase limit that shrinks with the tolerance and the order:
+**At a tighter tolerance**, the route stays open on ``integration_method='gl'`` at a single
+baseline, with a phase limit that shrinks with the tolerance and the order.  The limit is
 ``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
-capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad, which keeps partial
-solar chords on the hybrid.  The ladder's slab count grows as ``tol**(-1/p)``, while the
-hybrid's window search does not follow the tolerance.  The limit applies to an energy scan as
-well, and the ladder runs at the tolerance itself: its rungs are then deep in the asymptotic
-regime, where the difference between two of them already overestimates the finer one's error.
-The paper's Listing 1 takes this route at ``rtol = 1e-12``, ``atol = 1e-14`` and
-``magnus_exp_order = 8``: the limit there is 1 000 rad, and its four curves estimate 10 to 78.
-A baseline scan goes to the cumulative scan at such tolerances.
+capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad so that partial solar
+chords stay on the hybrid.  It shrinks because the ladder's slab count grows as
+``tol**(-1/p)``, while the cost of the hybrid's window search does not depend on the tolerance.
+The limit applies to an energy scan as well.  At these tolerances, the ladder runs at the
+requested tolerance itself, because its levels are deep in the asymptotic regime, where the
+difference between two of them already overestimates the error of the finer one.  For
+example, at ``rtol = 1e-12``, ``atol = 1e-14`` and ``magnus_exp_order = 8``, the limit is
+1 000 rad, and the four curves of the validation example in :doc:`diagnostics` have phases of
+10 to 78 rad, so they take this route.  A baseline scan goes to the cumulative scan at such
+tolerances.
 
 **Which engine answers a request.**  Put together, the rules above give the engine that
 answers each kind of request to a scenario function or a wrapper under ``strategy='auto'``, by
@@ -274,22 +276,19 @@ the adiabatic engine first below 1e-6.  ``strategy_info`` reports the engine tha
 
 .. _strategy-magnus:
 
-Passing ``strategy='magnus'`` reproduces the behavior from before the adiabatic engine was
-added, unconditionally: it keeps an energy scan on the energy-batched scan whatever its phase.
-It also turns off the cumulative scan, which postdates that behavior and builds a different
-slab grid, so it reproduces older numbers exactly on a baseline scan too, but is not the choice
-for a fast one.
+Passing ``strategy='magnus'`` uses only the Magnus engines: it keeps an energy scan on the
+energy-batched scan whatever its phase, and it turns off the cumulative scan, so a baseline
+scan is computed point by point.  This reproduces the results of releases that predate the
+adiabatic engine, but it is not the fast choice for a baseline scan.
 
-**The accuracy steps at the seam rather than varying smoothly, and that is by design.**
-Adding one baseline to a scan just below a seam (from 7 to 8 baselines at 1e-6 and looser,
-from 1 to 2 below) changes the answer, because it changes the engine.  In the cases measured
-the step was toward the more accurate answer, by up to six orders of magnitude; the
-docstring of :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the
-measurement.  A user who adds one point to a scan and sees the answer move by more than the
-tolerance is seeing a change of engine, not a fault; ``strategy_info`` names it.
+**The accuracy changes in a step at each threshold.**  Adding one baseline to a scan just
+below a threshold (from 7 to 8 baselines at 1e-6 and looser, from 1 to 2 below) changes the
+answer, because it changes the engine.  In the cases measured, the step was toward the more
+accurate answer, by up to six orders of magnitude; the docstring of
+:data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the measurement.
 
-**Seeing which engine answered.** The fallbacks are silent by design: they happen on
-ordinary calls and warning about them would be noise. Pass ``strategy_info`` to any scenario
+**Seeing which engine answered.**  Falling through from one engine to the next raises no
+warning, because it happens on ordinary calls.  Pass ``strategy_info`` to any scenario
 function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
 :func:`~magnus.oscprob.osc_prob_sun`, to see the route without changing it::
 
@@ -300,7 +299,7 @@ function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
     info['certified']   # for the hybrid strategy
     info['declined']    # [(engine, why it gave up)], for engines that tried
 
-A result that moves when a point is added to a scan, or a call that suddenly costs more, is
-often a change of engine, and the dictionary names it.  The one fallback that warns is the
-adiabatic engine declining a profile with a jump, or a feature too narrow for its grid, once
-per session.
+A result that moves by more than the tolerance when a point is added to a scan, or a call
+that suddenly costs more, usually reflects a change of engine, and the dictionary names it.
+The one fallback that warns, once per session, is the adiabatic engine declining a profile
+with a jump or with a feature too narrow for its grid.

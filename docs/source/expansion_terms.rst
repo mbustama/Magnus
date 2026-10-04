@@ -153,11 +153,12 @@ low orders and the generated high ones in a single check.
 Choosing an order
 -------------------
 
-Higher order buys a genuinely faster convergence rate in the slab width.  Measured
-against a tight ODE ground truth on a smooth Hamiltonian, a single slab, on the
-cumulative-quadrature path, where ``magnus_exp_order`` names the last term kept and the
-order delivered runs ahead of it (the table in :doc:`methodology`); a single slab's error
-carries one power of :math:`h` more than the global error:
+A higher order makes the error fall faster with the slab width.  The table below was
+measured on a single slab with a smooth Hamiltonian, against a tight-tolerance ODE
+solution.  It uses the cumulative-quadrature methods, on which ``magnus_exp_order`` is the
+index of the last term kept, and the order delivered is higher (see the table in
+:doc:`methodology`).  The error of a single slab carries one more power of :math:`h` than
+the error over the whole trajectory.
 
 .. list-table::
    :header-rows: 1

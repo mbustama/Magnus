@@ -207,7 +207,7 @@ The solar density profiles that every Sun wrapper takes through ``density_profil
    :width: 95%
    :alt: Three solar models compared
 
-   **Three solar models compared.** *Top*: the tabulated BS2005-AGS,OP  :cite:p:`Bahcall:2004pz` and B16-GS98  :cite:p:`Vinyoles:2016djt` standard solar models, and the exponential fit :math:`n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}` cm\ :math:`^{-3}`  :cite:p:`Giunti:2007ry`, with :math:`N_A` the Avogadro number, that the Sun wrappers use by default; underneath, the ratio of each to BS2005-AGS,OP. *Bottom*: :math:`\langle P_{\nu_e \to \nu_e}\rangle` at three flavors on each profile; underneath, the difference from the BS2005-AGS,OP result. See notebooks `#10 <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`__, `#13 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **Three solar models compared.** *Top*: the tabulated BS2005-AGS,OP  :cite:p:`Bahcall:2004pz` and B16-GS98  :cite:p:`Vinyoles:2016djt` standard solar models, and the exponential fit that the Sun wrappers use by default, :math:`n_e = 245\,N_A\,e^{-10.54\,r/R_\odot}` cm\ :math:`^{-3}`  :cite:p:`Giunti:2007ry`, with :math:`N_A` the Avogadro number; underneath, the ratio of each to BS2005-AGS,OP. *Bottom*: :math:`\langle P_{\nu_e \to \nu_e}\rangle` at three flavors on each profile; underneath, the difference from the BS2005-AGS,OP result. See notebooks `#10 <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`__, `#13 <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`__, and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 Table :ref:`ex-tab-solar-models` lists the solar density profiles that every Sun wrapper accepts through ``density_profile``. Besides an exponential profile, which is the default, Magνs ships twelve tabulated standard solar models from five series published between 2001 and 2023, several of them in more than one solar composition. Each is selected by name, which is not case-sensitive, e.g., ``density_profile='B16-GS98'``.
@@ -259,6 +259,6 @@ Figure :ref:`Error of the two-flavor solar approximation <ex-fig-solar-approx>` 
    (P_approx - P3)/P3   # 6e-3 at 20 MeV
 
 
-The ``P2`` returned equals Eq. :eq:`ex-equ-two-flavor-adiabatic` to within :math:`10^{-16}` at every energy.
+The ``P2`` equals Eq. :eq:`ex-equ-two-flavor-adiabatic` to within :math:`10^{-16}` at every energy.
 
 The approximation overestimates the probability at every energy, on every profile, and its relative error grows in proportion to the energy, as the size of the dropped terms does. On the two tabulated models, which give nearly the same probability (:ref:`ex-sec-solar-model-comparison`), the error is about :math:`3 \cdot 10^{-5}` at 0.1 MeV, :math:`3 \cdot 10^{-4}` at 1 MeV, and 0.6% at 20 MeV. On the exponential fit, it is 2.3 to 3.4 times larger, 2% at 20 MeV, because the fit’s central density is 2.4 times higher and the dropped terms grow with it.

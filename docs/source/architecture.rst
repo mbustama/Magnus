@@ -7,7 +7,7 @@ Code architecture
 
 This page describes how the code under ``src/magnus/`` is organized: the modules, the path a
 request takes through them, the four layers of ``magnus.oscprob``, and how to add a wrapper or a
-scenario of your own.  It follows Sec. 5 of the Magνs paper.
+scenario of your own.  It follows the code-description section of the Magνs paper.
 :doc:`engines` covers the engines a request can reach, and :doc:`methodology` the numerical
 method; this page is about the *code*.
 
@@ -37,11 +37,11 @@ window with a Magnus patch.  Magνs picks the route from the form of the request
 not.
 
 The numerical core is kept apart from the physics.  ``magnus.magnus`` imports nothing that
-concerns neutrinos: at module level it imports only ``expmkernels``, the compiled matrix
-exponential, and ``_validate``, the argument checks, and it reaches ``oscprob`` only for a
-warning class, imported inside the one function that raises it.  It is numerical linear algebra on an arbitrary matrix-valued function
-:math:`A(l)`, so it is tested against the recursion of :doc:`expansion_terms` without any of
-the probability code.  The physics, the environments and the core meet in one module,
+concerns neutrinos.  At module level, it imports only ``expmkernels``, the compiled matrix
+exponential, and ``_validate``, the argument checks; it imports one warning class from
+``oscprob`` inside the function that raises it.  It is numerical linear algebra on any
+matrix-valued function :math:`A(l)`, so it is tested against the recursion of
+:doc:`expansion_terms` without any of the probability code.  The physics, the environments and the core meet in one module,
 ``oscprob``.
 
 Modules
@@ -110,8 +110,7 @@ Three edges in that graph are worth knowing before changing an import:
 
 * ``hamiltonians4nu`` and ``hamiltonians5nu`` import ``magnus.matter`` for
   :func:`~magnus.matter.matter_potential_projector`, so that the sterile entry of the matter
-  term has one definition.  A second copy written by hand once gave a wrong answer on the NSI
-  route.
+  term has a single definition, shared by every route.
 * ``globaldefs`` imports ``magnus.hamiltonians`` inside a function, not at module scope.
   Moving it to the top closes the loop ``globaldefs -> hamiltonians -> matter ->
   globaldefs``, and the package no longer imports.
@@ -191,8 +190,7 @@ refinement and logging keywords that the layers below it own:
 This is a correctness requirement: copies of these keywords in each wrapper would drift
 apart, while with one declaration a default is changed in one place.
 
-Two permanent tests in ``tests/test_oscprob.py`` enforce this contract in
-CI, and will fail if it is ever violated again:
+Two tests in ``tests/test_oscprob.py`` enforce this contract in CI:
 
 * ``test_no_wrapper_redeclares_standard_refinement_kwargs`` — inspects
   every ``osc_prob_{2,3,4,5}nu_*`` function's signature via
@@ -206,10 +204,10 @@ If you are adding a wrapper and find yourself typing
 ``rtol: Optional[float] = 1.e-3`` in its signature, that is a signal you
 are working at the wrong layer: forward it through ``**kwargs`` instead.
 
-``return_evolution_operator`` and ``average`` follow the same rule, and show
-why the rule pays: declared by ``osc_prob_energy_baseline`` and the generic
-entry points, every one of the 56 ``osc_prob_{N}nu_*`` wrappers got them for
-free through ``**kwargs``.
+``return_evolution_operator`` and ``average`` follow the same rule.  They are
+declared by ``osc_prob_energy_baseline`` and the generic entry points, and every
+one of the 56 ``osc_prob_{N}nu_*`` wrappers accepts them through ``**kwargs``
+without further code.
 
 ``return_evolution_operator`` is declared by the core, ``osc_prob``, as well.
 The specialized engines answer with probabilities only, so when it is set the
@@ -217,10 +215,9 @@ entry points disable them for the call (through the same ``_engine_probe``
 mechanism the cross-check uses) and the general ladder answers.
 
 ``average`` is not declared by ``osc_prob``, which computes one point.  The
-passthrough guard reads its accepted keywords off the signatures, so a keyword
-that only the batching layer declares would pass the guard on ``osc_prob`` and
-fail deep inside the engine; ``osc_prob`` therefore refuses ``average`` and
-``cumulative`` by name.
+check on unknown keywords reads the accepted names from the signatures, so a
+keyword declared only by a higher layer would pass it and fail later, inside the
+engine.  ``osc_prob`` therefore refuses ``average`` and ``cumulative`` by name.
 
 Data flow: how the Hamiltonian and potential are built
 -----------------------------------------------------------
@@ -237,12 +234,11 @@ once per slab), then passed down as a single callable:
 
 
 Every intermediate object here is a plain Python callable
-(``VCC_func: l -> float``, ``H_func: l -> ndarray``); nothing is
-precomputed on a grid before reaching ``osc_prob``, which is what lets
-:func:`magnus.magnus.probe_eval_mode` decide, once, whether ``H_func``
-can be evaluated on a vectorized array of positions (silent
-vectorization -- see :doc:`methodology`) or must be called one position
-at a time.
+(``VCC_func: l -> float``, ``H_func: l -> ndarray``), and nothing is
+precomputed on a grid before ``osc_prob``.  This lets
+:func:`magnus.magnus.probe_eval_mode` decide, once, whether ``H_func`` accepts
+an array of positions or must be called one position at a time (see
+:doc:`methodology`).
 
 How to add your own wrapper
 ------------------------------
@@ -319,8 +315,8 @@ closest sibling to copy from. The recipe:
 
    ``angles`` is worth a word: it is a pure pass-through, and every wrapper in the
    package forwards it unexamined to the layer below, which is where the four
-   conventions are interpreted.  A wrapper that accepts it and forgets to forward it
-   compiles, documents itself correctly and silently ignores the caller, so
+   conventions are interpreted.  A wrapper that accepts it but does not forward it
+   would run and silently ignore the user's choice, so
    ``tests/test_angles.py`` asserts that every public function taking ``angles`` also
    reads it.
 
@@ -515,5 +511,5 @@ Where things live: a quick lookup
        :math:`V_{CC}` potential construction
      - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
-       parameter set (e.g. NuFIT 6.0)
+       parameter set (e.g. NuFIT 6.1)
      - ``magnus.globaldefs``

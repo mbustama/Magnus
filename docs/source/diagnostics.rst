@@ -5,8 +5,8 @@ Accuracy and diagnostics
    :local:
    :depth: 2
 
-What you actually asked for when you passed ``rtol``, what each safeguard can
-and cannot catch, and what every warning means.
+What ``rtol`` and ``atol`` control, what each safeguard can and cannot catch,
+and what every warning means.
 
 Accuracy
 ----------
@@ -25,7 +25,7 @@ Accuracy
 Precision, accuracy and tolerance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Three different things, often run together (Sec. 7.4 of the Magνs paper).  **Precision** is
+Three different things, often run together.  **Precision** is
 limited by rounding, **accuracy** by the refinement's stopping rule, and the **tolerance** is
 the user's setting for that rule.
 
@@ -51,22 +51,28 @@ model.
 
 *The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
-warnings, so Python's default filter shows each distinct message once per place it is raised:
-a warning with fixed text once per session, and one that reports a count or a width once for
-each value it reports.  ``warnings.simplefilter('always')`` shows every occurrence.  Filtering
-on :class:`~magnus.oscprob.ToleranceNotAchievedWarning` catches it and its subclasses,
-:class:`~magnus.oscprob.HybridCertificationWarning`,
-:class:`~magnus.oscprob.UnmarkedDiscontinuityWarning` and
-:class:`~magnus.oscprob.HiddenFeatureWarning`, but not the other warnings that can mean a wrong
-answer: :class:`~magnus.magnus.MagnusConvergenceWarning`, the unit warnings
-(:class:`~magnus.globaldefs.BaselineUnitWarning`, :class:`~magnus.globaldefs.EnergyUnitWarning`,
-:class:`~magnus.matter.DensityUnitWarning`),
-:class:`~magnus.globaldefs.MixingAngleConventionWarning`,
-:class:`~magnus.globaldefs.SterileMatterCompositionWarning` and
-:class:`~magnus.oscprob.PhaseAveragingWarning`, which derive from :class:`UserWarning` directly
-(:ref:`warning-catalogue`).  The warnings err on the side of caution, firing often on answers
-that prove accurate, because most flag a property of the input rather than predict the error.
-Less often an answer is inaccurate and none fires; the measured rates are in
+warnings, so Python's default filter shows each distinct message once per place it is raised,
+and ``warnings.simplefilter('always')`` shows every occurrence.
+
+Filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning` also catches its subclasses:
+
+* :class:`~magnus.oscprob.HybridCertificationWarning`
+* :class:`~magnus.oscprob.UnmarkedDiscontinuityWarning`
+* :class:`~magnus.oscprob.HiddenFeatureWarning`
+
+It does not catch the other warnings that can mean a wrong answer, which derive from
+:class:`UserWarning` directly (:ref:`warning-catalogue`):
+
+* :class:`~magnus.magnus.MagnusConvergenceWarning`
+* the unit warnings, :class:`~magnus.globaldefs.BaselineUnitWarning`,
+  :class:`~magnus.globaldefs.EnergyUnitWarning` and :class:`~magnus.matter.DensityUnitWarning`
+* :class:`~magnus.globaldefs.MixingAngleConventionWarning`
+* :class:`~magnus.globaldefs.SterileMatterCompositionWarning`
+* :class:`~magnus.oscprob.PhaseAveragingWarning`
+
+The warnings err on the side of caution: most flag a property of the input rather than
+predict the error, so they often fire on answers that prove accurate.  Less often, an answer is
+inaccurate and none fires; the measured rates are in
 :ref:`the table below <measured-distributions>`.
 
 .. _what-rtol-atol-control:
@@ -127,35 +133,33 @@ is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter: over
 is the tightest tolerance a solar energy scan can verify; below it, compare with
 ``strategy='hybrid'``, or raise ``max_n_slabs`` (about 2e6 slabs verify 1e-8 at 1 MeV).
 
-It is fair to ask why the gap is not converted into an error estimate by Richardson
-extrapolation -- for refinement ratio :math:`r` and order :math:`p`, the finer level's
-error is :math:`\text{gap}/(r^p - 1)` -- which is what the sibling NuOscProbExact does.
-The answer is that the required :math:`p` is not available.  Fitting the observed order on
+Magνs does not convert the gap into an error estimate by Richardson extrapolation, as
+NuOscProbExact does.  For a refinement ratio :math:`r` and order :math:`p`, that estimate is
+:math:`\text{gap}/(r^p - 1)`, and the required :math:`p` is not reliably known.  Fitting the observed order on
 the Earth chord against a 4096-slab reference gives :math:`p` = 3.84, 5.62 and 4.06 at 1, 2
 and 10 GeV for ``magnus_exp_order=4`` (nominal 4), but **1.15, 2.66 and 1.59** for
 ``magnus_exp_order=2`` (nominal 2) -- scattered by more than a factor of two, with one
-sequence not even monotone.  On solar configurations under ``strategy='magnus'`` the error
-sequence is frankly non-monotone at the slab counts the ladder visits, so no power law
-holds at all.  Assuming :math:`p` equals the requested Magnus order would divide the gap by
-too large a denominator wherever the true order is lower, reporting an error *smaller* than
-the truth -- the dangerous direction, and the same shape as the false-certification bug
-already on record in ``adiabatic.hybrid_propagator``.
+sequence not even monotone.  On solar configurations under ``strategy='magnus'``, the
+error does not decrease monotonically at the slab counts the ladder visits, so no power law
+holds.  Taking :math:`p` as the requested Magnus order would divide the gap by too large a
+denominator wherever the true order is lower, and so report an error *smaller* than the
+true one.
 
 
 **The oracle discipline.** ``solve_ivp``/DOP853 at ``rtol=1e-12, atol=1e-14`` is the only
 accuracy oracle, and its convergence is verified per configuration by tightening to
 ``rtol=1e-13`` and confirming the movement is far below the error being quoted. Where the
 profile makes ``scipy.linalg.expm`` exact -- a constant or declared-piecewise-constant ``H``
--- ``expm`` is used instead, because it is not an approximation at all. **No Magnus path is
-ever scored against another**: that is the mistake this whole page's robustness work exists
-to avoid, and a cross-check between two paths is reported as agreement, never as accuracy.
+-- ``expm`` is used instead, because it is exact there.  **No Magnus path is ever scored
+against another**: agreement between two paths is reported as agreement, never as accuracy.
 
 .. _measured-distributions:
 
-Measured distributions, against those oracles.  They were measured when the *seam* -- the
-number of baselines from which an ``'auto'`` baseline scan leaves the adiabatic hybrid for the
-cumulative scan, :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` -- was 25; it is
-now 8, and 2 below a tolerance of 1e-6.
+Measured distributions, against those oracles.  They were measured with an earlier routing
+threshold: an ``'auto'`` baseline scan then left the adiabatic hybrid for the cumulative scan
+from 25 baselines, and it now does so from 8, and from 2 below a tolerance of 1e-6
+(:data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`).  The cumulative scan had no silent
+misses in this population (the row for N ≥ 30 below).
 
 .. list-table::
    :header-rows: 1
@@ -187,13 +191,13 @@ now 8, and 2 below a tolerance of 1e-6.
      - **0**
 
 A *silent miss* is an answer outside the requested tolerance with no warning of any kind.
-It is the only failure mode that matters; an inaccurate answer that says so is the warnings'
-job. Every remaining silent miss in these populations sat below the seam -- single points and
-short scans on random smooth profiles, overshooting a requested 1e-3 by a factor of one to three.
+It is the failure that matters most, because an inaccurate answer that warns can be caught.
+Every silent miss in these populations was a single point or a short scan on a random smooth
+profile, outside a requested 1e-3 by a factor of one to three.
 
-**Unitarity** is exact by construction (every engine composes unitary factors), and measured
-on the package's own probability output it degrades only from ~3e-12 to 1.6e-11 across four
-decades of N, at d = 2…5.
+**Unitarity** holds by construction, since every engine composes unitary factors.  In floating
+point, the deviation of the probabilities from unitarity grows only from about 3e-12 to 1.6e-11
+across four decades of N, at d = 2…5.
 
 ``tests/test_fuzz_statistics.py`` runs a CI-sized version of the fuzzing above and asserts on
 the **distribution** -- silent-miss rate, median, worst case -- rather than on individual
@@ -206,8 +210,7 @@ catches a regression that moves the distribution.
 Robustness, and what each safeguard cannot do
 -----------------------------------------------
 
-Each safeguard below is stated with its limit, because the limits are what a user needs and
-what a reviewer will not otherwise find.
+Each safeguard below is stated with its limit.
 
 **The probe-scale resolution test** (``magnus.adiabatic._profile_is_resolved``). Decides
 whether ``H`` is continuous at the scale this package samples it on, by comparing how much of
@@ -228,7 +231,7 @@ it looks.
 population behind it are in :ref:`how-constants-were-set`). A patch is meant to be a short,
 local repair; one needing more slabs than a plain Magnus integration of the whole trajectory
 means the non-adiabatic region is not narrow and the hybrid strategy has no reason to exist for
-that request. Declining is the honest answer, and the general path is 70× faster there.
+that request.  The hybrid then declines, and the general path is 70× faster there.
 
 **Cross-method agreement** (:func:`magnus.oscprob.cross_check_strategies`). Runs whichever
 engines apply and reports the pairwise spread.  On eight constructions where a method had
@@ -257,6 +260,31 @@ features far below the dense sampling, and it **reports rather than cures** -- i
 position and the exact ``t_breakpoints`` to pass, verified end to end -- warn, pass the
 printed edges back, re-run: 3.0e-02 to 1.0e-04 on the width-3e-5 calibration case.
 
+**The scan is sized to the request.** It runs once per call whatever the point count, so its
+share of the work falls as the request grows: 8 sub-steps (0.37 ms) for up to three points, 16
+for four to fifteen, and 32 (2.85 ms) for sixteen or more, holding it under about 7 % of the call at every size.
+A single point keeps the cheapest scan by design -- the extra reach that finer sampling buys is
+at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
+physically plausible in a density profile.
+
+.. _wrong-together:
+
+**The first irreducible limit: a feature narrower than the probe spacing.** A Gaussian
+resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
+(spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
+(:math:`1.6\times10^{-4}`), nor by the cumulative scan's grid. Every engine reports a smooth
+profile, small γ, and a resolved Hamiltonian -- correctly, given what any of them can see --
+and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Because they are
+wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
+wrong engine exactly when some other engine got it right.
+
+The remedy is to supply ``t_breakpoints`` at the feature, and it is verified: with
+edges placed by hand at the feature's own width the same case goes to 8.8e-04 at a single
+point and 8.9e-04 over a 60-point scan, and with the set the warning itself prints (it
+localizes the feature by re-sampling the flagged interval) to 1.0e-04. This is a property
+of any fixed grid, not of any particular test.  The condition is usually **detected and
+reported** rather than silent -- see the feature scan above.
+
 **The second irreducible limit: broadband roughness.** The sub-probe scan is a
 *concentration* statistic, and that is exactly what makes it blind to structure spread over
 every scale rather than piled into one place. Measured on Kolmogorov density fluctuations built
@@ -271,43 +299,14 @@ reaches that, in the same way that no threshold reaches a feature which was neve
 
 What saves the answer is unrelated machinery: the errors such a profile produces (up to
 1.4e-02 instantaneous at 45 MeV) are caught by the **convergence** checks, which watch the
-refinement ladder rather than the profile. So the outcome is correct -- the caller is warned --
-but by accident of mechanism rather than because anything recognized the profile. If you are
-propagating through a turbulent or noisy medium, treat the structural diagnostics as silent by
-construction and rely on the tolerance machinery, or supply ``t_breakpoints`` yourself. A cheap
-statistic that *would* see this is described in ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md``
-§13.14; it is not shipped because it would need its own false-positive measurement first, and
-the errors it would flag are already reported.
-
-.. _wrong-together:
-
-**The one irreducible limit: a feature narrower than the probe spacing.** A Gaussian
-resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
-(spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
-(:math:`1.6\times10^{-4}`), nor by the cumulative scan's grid. Every engine reports a smooth
-profile, small γ, and a resolved Hamiltonian -- correctly, given what any of them can see --
-and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Because they are
-wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
-wrong engine exactly when some other engine got it right.
-
-The cure is caller-supplied ``t_breakpoints`` at the feature, and it is verified: with
-edges placed by hand at the feature's own width the same case goes to 8.8e-04 at a single
-point and 8.9e-04 over a 60-point scan, and with the set the warning itself prints (it
-localizes the feature by re-sampling the flagged interval) to 1.0e-04. This is a property
-of any fixed grid, not of any particular test.  The condition is usually **detected and
-reported** rather than silent -- see the feature scan above.
-
-**The scan is sized to the request.** It runs once per call whatever the point count, so its
-share of the work falls as the request grows: 8 sub-steps (0.37 ms) for up to three points, 16
-for four to fifteen, and 32 (2.85 ms) for sixteen or more, holding it under about 7 % of the call at every size.
-A single point keeps the cheapest scan by design -- the extra reach that finer sampling buys is
-at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
-physically plausible in a density profile.
+refinement ladder rather than the profile.  So the user is warned, but by checks that do not
+look at the profile.  For a turbulent or noisy medium, do not rely on the structural
+diagnostics: rely on the convergence checks, or supply ``t_breakpoints``.
 
 **A cross-check cannot close the rest.** Checking ``strategy='auto'``'s window-free results
 against the general Magnus ladder was measured and catches nothing: **what is left in that band
 is not engines disagreeing -- it is engines being wrong together**, which a cross-check cannot
-see by construction. See ``docs/dev/FINDINGS_ROBUSTNESS_PROGRAMME.md`` §11.2.
+see.
 
 
 .. _input-checks:
@@ -350,9 +349,8 @@ factories.  ``validate_input=False`` skips the scenario-level checks.
 Warnings: what each one means and what to do about it
 -------------------------------------------------------
 
-A warning here is an **instruction, not a disclaimer**. Each one below is held to four
-things, in this order: what was detected, what it means for the answer (including *by how
-much*, where the code knows), what to change, and when it is genuinely safe to ignore.
+Each warning below states what was detected, what it means for the answer (including *by how
+much*, where the code knows), what to change, and when it is safe to ignore.
 
 .. list-table::
    :header-rows: 1
@@ -460,7 +458,7 @@ much*, where the code knows), what to change, and when it is genuinely safe to i
      - ``strategy='hybrid'`` was forced and a point did not self-certify; or, with
        ``average=True``, the crossing probabilities on the adiabatic route could not be
        certified.
-     - **Unverified, which is not the same as wrong.** The result is still exactly unitary.
+     - **Unverified, which is not the same as wrong.** The result is still unitary.
      - ``strategy='auto'`` (falls back automatically); or ``t_breakpoints`` at known
        structure; or a looser tolerance.
    * - :class:`magnus.oscprob.HiddenFeatureWarning`
@@ -528,15 +526,12 @@ that the answer survived it.  Declaring the edges is still the advice worth taki
 ``MagnusConvergenceWarning`` measures the traceless part of :math:`\Omega`, since the trace is
 a global phase.  Of 69 single-point calls, some refinement level exceeded :math:`\pi` in 19,
 but **the level whose answer was returned did so in only 4**, so most of its firings describe
-an intermediate grid nobody receives.  It is not keyed to the returned level all the same: that
-was measured to lose far more true positives than false ones, because "the ladder started far
-from convergence" predicts a bad answer better than "the final grid is coarse" does.  The
-numbers are in ``magnus.magnus._deferred_slab_norm``.
+an intermediate grid.  Keying it to the returned level instead was measured to lose far more
+true positives than false ones, because a ladder that started far from convergence predicts a
+bad answer better than a coarse final grid does.
 
-Two of these deserve their honesty spelled out rather than buried:
-
-``MagnusConvergenceWarning`` **reports slab width, not accuracy.** The convergence bound it
-checks is sufficient, not necessary, so exceeding it does not imply a wrong answer. It fires
+``MagnusConvergenceWarning`` **reports slab width, not accuracy.**  The convergence bound it
+checks is sufficient, not necessary, so exceeding it does not imply a wrong answer.  It fires
 on results accurate to 1.6e-06 and on results seven times outside a requested 1e-3, and
 nothing available to it distinguishes the two.  Do not assume that a requested tolerance
 makes it safe to ignore: on a sawtooth density with ``rtol=atol=1e-3`` requested, under both

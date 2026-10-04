@@ -3,10 +3,9 @@
 Conventions
 ============
 
-Everything below is a *choice*. None of it is forced by the physics, all of it
-is forced by consistency, and a convention that is wrong **consistently** passes
-every internal test — which is why they are written down here rather than left
-in the code.
+Everything below is a *choice* that the physics does not fix.  A convention
+applied wrongly but consistently passes every internal test, so each one is
+stated here.
 
 
 At a glance
@@ -141,10 +140,10 @@ The charged-current potential enters the electron-flavor diagonal entry,
    \qquad V_{CC} = +\sqrt{2}\, G_F n_e ,
 
 and **for antineutrinos it changes sign**. That flip is applied once, inside
-:func:`magnus.matter.vcc_func_from_rho_func`, so a caller passing
-``nubar=True`` gets it automatically and code downstream must not apply it
-again: applied twice, it gives antineutrinos a positive potential and answers that
-look plausible.
+:func:`magnus.matter.vcc_func_from_rho_func`, so a user passing
+``nubar=True`` gets it automatically, and code downstream must not apply it
+again.  Applied twice, it gives antineutrinos a positive potential, and answers
+that look plausible.
 
 Mass ordering
 -------------
@@ -153,12 +152,11 @@ The ordering is carried by the **sign of** :math:`\Delta m^2_{31}`, not by a
 flag: positive is normal, negative is inverted.
 ``OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']``, the default parameter set, is the
 normal ordering, with :math:`\Delta m^2_{31} = +2.511 \times 10^{-3}`
-eV\ :sup:`2`. It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the same
-release :func:`~magnus.globaldefs.load_nufit_params` returns by default, and is
-derived from it rather than written out a second time.
-``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` carries every NuFIT release from 1.0
-on, in both orderings and, from 4.0 on, with and without that atmospheric data,
-if you want to name the fit explicitly.
+eV\ :sup:`2`.  It is NuFIT 6.1 with Super-Kamiokande atmospheric data, the
+release :func:`~magnus.globaldefs.load_nufit_params` returns by default.  To name
+a fit explicitly, ``magnus.globaldefs.OSC_PARAMS_PREDEFINED`` holds every NuFIT
+release from 1.0 on, in both orderings and, from 4.0 on, with and without that
+atmospheric data.
 
 For two flavors the same rule applies to :math:`\Delta m^2`, which is what
 makes the two-flavor case easy to get backwards: flipping its sign moves the
@@ -168,21 +166,20 @@ ordinary-looking probability.
 Mixing parameters
 -----------------
 
-Angles are given as **sines** by default (``angles='sin'``) -- not as angles,
-and not as :math:`\sin^2\theta`; ``angles=`` also accepts ``'sin2'``,
-``'rad'`` and ``'deg'``; under the last two an angle with a negative cosine (beyond
-:math:`\pm 90^\circ`) is refused, since the cosine is taken as :math:`+\sqrt{1 - s^2}`.
-By default ``s12`` is
-:math:`\sin\theta_{12}`. Quoted fits usually give :math:`\sin^2\theta`, so
-take the square root — ``gd.S12_NO_BF_NUFIT_6_0`` is ``np.sqrt(0.308)``.
+Angles are given as **sines** by default (``angles='sin'``): ``s12`` is
+:math:`\sin\theta_{12}`, not the angle and not :math:`\sin^2\theta_{12}`.
+``angles='sin2'``, ``'rad'`` and ``'deg'`` select the other forms.  Under
+``'rad'`` and ``'deg'``, an angle beyond :math:`\pm 90^\circ` is refused, because
+the cosine is taken as :math:`+\sqrt{1 - s^2}`.  Fits usually quote
+:math:`\sin^2\theta`; pass those with ``angles='sin2'``, or take the square root,
+as in ``gd.S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
 212 degrees.
 
-Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``. This is
-one of the few convention errors here that cannot pass quietly: unrecognized
-keywords are refused by name at the call site rather than forwarded down, so a
-two-flavor call written with the three-flavor names raises instead of returning
-a probability computed from the defaults.
+Two flavors take ``sth`` and ``Dm2`` rather than ``s12`` and ``D21``.  A mistake
+here cannot pass unnoticed: unrecognized keywords are refused by name, so a
+two-flavor call written with the three-flavor names raises an error instead of
+returning a probability computed from the defaults.
 
 Units
 -----
@@ -263,7 +260,7 @@ Two differences matter at the level of the comparison itself:
 * **The matter potential for a given density.**  Every code converts g cm\ :sup:`-3` to an
   electron density as :math:`\rho N_A Y_e`, but with its own rounding of the constant
   :math:`\sqrt{2} G_F N_A`: Prob3++'s is 0.04% below it, and the comparison
-  drivers rescale for it.  Until 1.2.0 Magνs divided by the mean free-nucleon mass instead,
-  0.8% below all of them (issue #168); the stored benchmark data were measured then, and
-  their rescaling factors, 0.992 for GLoBES, carry that 0.8%.
+  drivers rescale for it.  The stored benchmark data were measured with an older
+  Magνs, whose potential was 0.8% lower; their rescaling factors (0.992 for GLoBES)
+  include that difference (see the changelog for 1.2.0).
 * **Prob3++ takes Δm²32.**  Passing Δm²31 in its place changes probabilities by up to 0.26.

@@ -98,19 +98,18 @@ with :math:`m_{\rm H} = 1.00783` and :math:`m_{\rm He} = 4.00260` the atomic mas
 :math:`^1`\ H and :math:`^4`\ He in atomic mass units: everything heavier than hydrogen is
 counted as helium-4.  Against the full composition of BS05(OP) (:math:`^1`\ H,
 :math:`^4`\ He, :math:`^3`\ He, :math:`^{12}`\ C, :math:`^{14}`\ N, :math:`^{16}`\ O) this is
-within 0.002% at the centre and 0.07% at worst, near :math:`0.3\,R_\odot` where
+within 0.002% at the center and 0.07% at worst, near :math:`0.3\,R_\odot` where
 :math:`^3`\ He peaks.  The textbook :math:`\rho N_A (1 + X)/2`, which Bahcall's own
-electron-density tables follow, is 0.4 to 0.8% higher, and the mean free-nucleon mass
-used until 1.2.0, :math:`\rho (1 + X)/(2 m_N)`, put :math:`n_e` 0.1 to 0.4% lower (issue
-#168).  Notebooks 13 and 28 use the same formula; inside the table, ``'BS05-AGS-OP'`` gives
-notebook 28's profile bit for bit.  :math:`n_e` is interpolated linearly in its logarithm.
+electron-density tables follow, is 0.4 to 0.8% higher.  Notebooks 13 and 28 compute
+:math:`n_e` with the same formula, and inside the table they reproduce
+``'BS05-AGS-OP'`` exactly.  :math:`n_e` is interpolated linearly in its logarithm.
 
 For the wrappers with sterile states, the neutral-current term needs the
 neutron-to-proton ratio, helium's neutrons over all the protons, from the same atomic
 masses: :math:`n_n/n_p = [2(1 - X)/m_{\rm He}]/[X/m_{\rm H} + 2(1 - X)/m_{\rm He}]`.  With a solar model and
 ``ratio_number_neutrons_to_protons`` left at its default, ``None``, the wrappers take it
 from the same table, radius by radius; a value or a callable passed explicitly is used
-instead.  The exponential fit carries no composition, and keeps the 1.0 it always had.
+instead.  The exponential fit carries no composition, so with it the ratio defaults to 1.0.
 :func:`~magnus.oscprob.osc_prob_sun` passes only the electron density to ``H_func``; a
 Hamiltonian with sterile states that wants the composition can take it from
 :func:`magnus.solarmodels.neutron_to_proton_ratio_profile`.
@@ -119,7 +118,7 @@ Hamiltonian with sterile states that wants the composition can take it from
 Outside the table
 -----------------
 
-Only the B23 tables start at the centre, and the older ones stop short of the surface.
+Only the B23 tables start at the center, and the older ones stop short of the surface.
 Below the first row, the density holds its first value, since the core is flat.  Past the
 last row, it continues along the logarithmic slope of the last tabulated interval, so that
 it keeps falling rather than stopping at a constant or dropping to zero.  That is a
@@ -157,17 +156,17 @@ Coherent probabilities through a table
 
 The interpolated profile has a kink at every row, and the Bahcall tables, printed to four
 significant figures, step through the flat core.  The phase-averaged probability
-(``average=True``) does not notice: on all twelve models at 1, 5, 10 and 20 MeV, from the
-centre to 0.9 :math:`R_\odot`, it raised no warning.
+(``average=True``) is unaffected: on all twelve models at 1, 5, 10 and 20 MeV, from the
+center to 0.9 :math:`R_\odot`, it raised no warning.
 
-A coherent probability over most of the Sun can notice.  The hybrid engine may then fail
-to certify it and hand it to the slab ladder, which runs out of slabs and says so with
+A coherent probability over most of the Sun can be affected.  The hybrid engine may then
+fail to certify it and pass it to the slab ladder, which reaches its slab cap and raises
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  On the same grid, 4 of the 48
-coherent calls did (BP04 and BS05-OP at 10 and 20 MeV).  The answers were still within the
-default tolerance.  On eleven cases, those four among them, every default answer was within
-:math:`10^{-3}` of a reference converged to :math:`10^{-9}`, and the ones that warned were
-the closest, within :math:`3\times10^{-5}`.  The warning is the package saying it could not
-verify that.
+coherent calls did so (BP04 and BS05-OP at 10 and 20 MeV).  Their answers were still
+accurate: on eleven cases, those four among them, every default answer was within
+:math:`10^{-3}` of a reference converged to :math:`10^{-9}`, and the four that warned were
+within :math:`3\times10^{-5}`.  The warning means that Magνs could not verify the answer,
+not that the answer is wrong.
 
 For a coherent probability that is verified, put ``t_breakpoints`` at the rows, so that
 no slab straddles a kink, and start the slab ladder fine enough to resolve the

@@ -7,7 +7,7 @@ The Hamiltonians
    :local:
    :depth: 1
 
-A direct call to ``osc_prob`` takes the Hamiltonian as a matrix, or as a function of position that returns one (:ref:`ex-sec-wrapper-vs-direct`). Magνs ships builders for its standard and non-standard Hamiltonian terms (:ref:`ex-sec-shipped-hamiltonians`), and any other term can be written by hand (:ref:`ex-sec-building-new-hamiltonian`).
+A direct call to ``osc_prob`` takes the Hamiltonian as a matrix, or as a function of position that returns one (:ref:`ex-sec-wrapper-vs-direct`). Magνs ships builders for standard and non-standard terms (:ref:`ex-sec-shipped-hamiltonians`), and any other term can be written by hand (:ref:`ex-sec-building-new-hamiltonian`).
 
 .. _ex-tab-hamiltonians:
 
@@ -163,7 +163,7 @@ The call returns the matter term of the :ref:`matter Hamiltonian <conv-hamiltoni
    V_{\rm CC}\,
    {\rm diag}\!\left(1,\, 0,\, 0\right) \;,
 
-the charged-current potential acting on the electron flavor alone. (``VCC_EARTH_CRUST`` is :math:`V_{\rm CC}` in matter of density 3 g cm\ :math:`^{-3}` with :math:`Y_e = 0.5`.) At two flavors, the call is the same, and the projector is :math:`{\rm diag}(1, 0)`.
+the charged-current potential acting on the electron flavor alone. (``VCC_EARTH_CRUST`` is :math:`V_{\rm CC}` at density 3 g cm\ :math:`^{-3}` with :math:`Y_e = 0.5`.) At two flavors, the call is the same; the projector is :math:`{\rm diag}(1, 0)`.
 
 At four and five flavors, the projector also has an entry for each sterile flavor, :math:`r/2`, where :math:`r` is the neutron-to-proton ratio of the medium (:doc:`/conventions`). The builder takes :math:`r` as a second parameter, 1 by default. In neutral matter, :math:`r = (1 - Y_e)/Y_e` (:ref:`ex-sec-constant-density`), so :math:`r` follows from the electron fraction; for instance, from that of the core of the Earth, which Magνs stores in ``magnus.earth``:
 
@@ -385,7 +385,7 @@ with :math:`\mathbb{R}` the PMNS matrix, and
    =
    {\rm diag}\!\left(0,\, \Delta m^2_{21},\, \Delta m^2_{21} + \delta m^2_2,\, \Delta m^2_{31}\right) .
 
-In general, there is one state per active state, plus one per split state. Both matrices are also available on their own, from ``pseudo_dirac_mixing_matrix`` and ``pseudo_dirac_mass_squared``.
+In general, there is one state per active state, plus one per split state. Both matrices are available on their own, from ``pseudo_dirac_mixing_matrix`` and ``pseudo_dirac_mass_squared``.
 
 The matter builder, ``hamiltonian_pseudo_dirac_matter``, takes the potential, the number of active states, the same mapping of split states, and the neutron-to-proton ratio, :math:`r`, 1 by default. It returns :math:`V_{\rm CC}` times the projector in the same enlarged flavor basis. For the example above, which splits :math:`\nu_2`,
 

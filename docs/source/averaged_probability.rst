@@ -1,18 +1,13 @@
 Phase-averaged probabilities
 ============================
 
-This page documents the ``average`` keyword, the ``average_spread`` keyword that sets its
-width, and the ``average_initial_state`` keyword that sets the state the neutrino starts in
-(see `The initial state`_), accepted by
-:func:`magnus.oscprob.osc_prob_vacuum`,
-:func:`magnus.oscprob.osc_prob_matter_std_potential`,
-:func:`magnus.oscprob.osc_prob_matter_nsi` and
-:func:`magnus.oscprob.osc_prob_liv` -- and therefore, through the shared
-``**kwargs`` chain, by every ``osc_prob_{2,3,4,5}nu_*`` wrapper built on
-them -- together with the module that implements them,
-:mod:`magnus.avgprob`. See :doc:`adiabatic_strategy` for the
-position-dependent machinery this reuses, and :doc:`methodology` for the
-plain Magnus engine both sit alongside.
+This page documents three keywords and the module that implements them,
+:mod:`magnus.avgprob`: ``average``, which asks for the phase-averaged probability;
+``average_spread``, which sets the width of the average; and
+``average_initial_state``, which sets the state the neutrino starts in (see
+`The initial state`_).  Every scenario function and every
+``osc_prob_{2,3,4,5}nu_*`` wrapper accepts them.  For a varying profile, the
+average reuses the machinery of :doc:`adiabatic_strategy`.
 
 .. tip::
    **In short.**  ``average=True`` returns the probability averaged over an energy
@@ -72,8 +67,8 @@ the phase leaves only the terms whose phase does not vary:
 
 This is the exact :math:`L/E \to \infty` limit, reached when every relative phase runs
 through many cycles across what the measurement cannot resolve, and it costs one matrix
-product rather than an integration.  Three properties of the limit are worth stating,
-because each surprises someone eventually, and none survives away from it:
+product rather than an integration.  The limit has three properties, none of which
+holds away from it:
 
 * The result is **symmetric** in :math:`\alpha \leftrightarrow \beta`, so
   the averaged probability is the same in both directions.
@@ -148,10 +143,9 @@ probability.  Away from the limit, the three properties above fail:
 :math:`P_{\alpha\beta} \neq P_{\beta\alpha}` in general, and CP violation survives in the
 terms that do.
 
-Every point is computed as the limit first, and returned as such, bit for bit, wherever the
-phase average agrees with it to 1e-4, or to the tighter of ``rtol`` and ``atol`` if that is
-smaller, both absolutely and relative to each probability, so a result that was right before
-stays exactly what it was.
+Every point is first computed in the limit.  The limit is returned, bit for bit, wherever
+the phase average agrees with it to within 1e-4, or to within the tighter of ``rtol`` and
+``atol`` if smaller, both absolutely and relative to each probability.
 
 .. _avg-coherence:
 
@@ -171,12 +165,11 @@ each block,
    P(\nu_\alpha \to \nu_\beta) = \sum_{b} \Big|
    \sum_{i \in b} \mathbb{V}^*_{\alpha i} \mathbb{V}_{\beta i} \Big|^2 ,
 
-which reduces to the boxed expression when every block is a singleton.  The distinction between
-the block form and the naive sum is not academic.  A sterile state with a small
-:math:`\Delta m^2_{41}`, or any exactly degenerate spectrum, makes the
-naive sum quietly wrong: with *all* eigenvalues equal the correct answer
-is the identity -- nothing oscillates at all -- while the naive sum
-returns a spurious mixture.
+which reduces to the boxed expression when every block is a singleton.  The block form
+matters: for a sterile state with a small :math:`\Delta m^2_{41}`, or any exactly
+degenerate spectrum, the naive sum is wrong without any warning.  With *all* eigenvalues
+equal, nothing oscillates and the correct answer is the identity, but the naive sum
+returns a mixture.
 
 Pseudo-Dirac neutrinos are the case the block form was written for.
 Each mass eigenstate that carries a sterile partner splits into two states
@@ -194,7 +187,7 @@ the splitting up through the three regimes below with
 
 For them, use :func:`magnus.oscprob.osc_prob_pseudo_dirac_vacuum` with
 ``average=True`` rather than passing the Hamiltonian to
-:func:`~magnus.oscprob.osc_prob_energy_baseline` (issue #165).  The generic
+:func:`~magnus.oscprob.osc_prob_energy_baseline`.  The generic
 route takes each pair's phase from the difference of two eigenvalues, which an
 eigendecomposition resolves only to about :math:`10^{-16}` of the largest, so a
 splitting far below the standard ones is partly lost.  Against a 50-digit
@@ -241,7 +234,7 @@ The initial state
 -----------------
 
 The phase average depends on the state the neutrino starts in, which ``average_initial_state``
-sets (issue #73; Sec. 4.10.4 of the paper):
+sets:
 
 * ``'flavor'``, the default: the flavor state :math:`\nu_\alpha`, a coherent superposition of
   the eigenstates at the start of the path, as for a neutrino produced in the medium -- a beam,
@@ -254,12 +247,12 @@ sets (issue #73; Sec. 4.10.4 of the paper):
 The two differ only by the interference between eigenstates present at the start, each term
 damped by the spread of its phase from there on, so they agree wherever those phases are large.
 On a constant Hamiltonian the flavor start gives the phase average above and the decohered start
-gives the limit exactly, whatever the phases.  On a smooth profile, a flavor start on a path with
-no non-adiabatic window has a closed form; before paying for the transport it needs,
-:mod:`magnus.avgprob` estimates the phase slopes on 17 points, and where every interference term
-would be damped anyway it returns the decohered start's value, bit for bit.  On a profile with
-declared discontinuities the average is over an energy window started in flavor, and
-``'decohered'`` raises ``ValueError`` there.
+gives the limit exactly, whatever the phases.  On a smooth profile with no non-adiabatic
+window, a flavor start has a closed form.  Before computing it, :mod:`magnus.avgprob`
+estimates the phase slopes at 17 points; where every interference term would be damped
+anyway, it returns the decohered result, bit for bit.  On a profile with declared
+discontinuities, the average is over an energy window, starting in a flavor state, and
+``'decohered'`` raises ``ValueError``.
 
 .. code-block:: python
 
@@ -326,22 +319,20 @@ implementation assuming that formula:
      - 0.5680
      - 0.3%
 
-The search for windows runs on a grid of 200 probes.  A feature narrower
-than their spacing falls between two of them and is never examined, so no
-window would open there.  The profile is therefore checked first for
-features that sharp *and* able to move probability between levels -- an
-instantaneous change across them would move more than
-:data:`magnus.avgprob.SUDDEN_TRANSFER_THRESHOLD`, the default tolerance.
-Where there is one, the windows are taken from
-:func:`magnus.adiabatic.hybrid_propagator`, which refines its search until
-it certifies.  Of 24 fronts on a supernova shock ray, 0.07 to 2000 km wide,
-16 then come back within 0.01 of a decohered reference, and the other 8
-warn: where the feature is a discontinuity no refinement resolves, the call
-raises :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`, and the cure is
-to declare it with ``t_breakpoints``, which selects the energy-window
-average described below.  Everywhere else -- every solar profile measured,
-tabulated models included -- nothing is escalated, and the result is the
-one without the check, bit for bit.
+The search for windows runs on a grid of 200 probes.  A feature narrower than
+their spacing falls between two probes, and no window opens there.  The profile
+is therefore checked first for features that are this sharp *and* could move
+probability between levels, by more than
+:data:`magnus.avgprob.SUDDEN_TRANSFER_THRESHOLD`, the default tolerance, if crossed
+instantly.  Where there is one, the windows are taken from
+:func:`magnus.adiabatic.hybrid_propagator`, which refines its search until it
+certifies.  Of 24 fronts on a supernova shock ray, 0.07 to 2000 km wide, 16 then
+come back within 0.01 of a decohered reference, and the other 8 warn.  Where the
+feature is a discontinuity that no refinement resolves, the call raises
+:class:`magnus.oscprob.UnmarkedDiscontinuityWarning`; declare it with
+``t_breakpoints``, which selects the energy-window average described below.  On
+every solar profile measured, tabulated models included, the check finds nothing,
+and the result is unchanged.
 
 The phase average on a profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -364,7 +355,7 @@ energies along the path.  Each non-adiabatic window is an amplitude matrix, comp
 same Magnus patch at a few Gauss-Hermite nodes in :math:`u` (at most 31, set by how fast the
 phases inside the window run with energy, and a uniform grid beyond that).  Each adiabatic
 stretch between windows is a diagonal phase with an exact slope in :math:`u`, carried with the
-parallel-transport phase of its eigenvectors.  The density matrix is carried as terms labelled
+parallel-transport phase of its eigenvectors.  The density matrix is carried as terms labeled
 by accumulated slope, whose Gaussian average is analytic, and a term is dropped only once no
 later stretch can bring its slope back.
 
@@ -411,8 +402,8 @@ answer depends on its width.  The default width,
 a real detector's energy resolution -- and every use of it raises
 :class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the
 number of samples, and the standard error of the resulting mean, so the
-figure is never silently dependent on a constant the caller did not
-choose.  Callers with a known resolution should pass their own, through
+figure never depends silently on a constant the user did not choose.
+Users with a known resolution should pass their own, through
 ``average_spread``, which on this route is the half-width of the window
 as a fraction of the energy, strictly between 0 and 1.  The number of
 samples is ``average_n_samples``, 41 by default
@@ -446,9 +437,7 @@ density at every quadrature node.  Written for one position at a time, as ``100.
 l < edges[0] else 10.0``, it raises a ``ScalarHamiltonianWarning`` that names ``rho_func``.
 
 .. versionchanged:: 1.1.1
-   ``average_spread`` sets the window on this route, and ``average_n_samples`` is new
-   (issue #134).  Before, the window was always the default and ``average_spread`` was
-   accepted and ignored.
+   ``average_spread`` sets the window on this route, and ``average_n_samples`` is new.
 
 Cost
 -------
@@ -558,14 +547,12 @@ see above.
 ``osc_prob`` itself, which computes one point, does not take the keyword and
 says so if handed it.
 
-Am I computing the wrong thing?  ``strategy_info['sampling']``
-----------------------------------------------------------------
+Checking whether a scan resolves the oscillation: ``strategy_info['sampling']``
+--------------------------------------------------------------------------------
 
-The hardest part of this page in practice is not the mathematics -- it is
-noticing that it applies to you.  A scan of instantaneous probabilities
-over a long trajectory returns perfectly correct numbers, and they can
-still be the wrong quantity, because the observable is an average over a
-phase nobody resolves.
+A scan of instantaneous probabilities over a long trajectory returns correct
+numbers that can still be the wrong quantity: if no detector resolves the phase,
+the observable is the average.
 
 Every ``osc_prob_*`` entry point that accepts ``strategy_info``
 reports how coarsely the request samples the oscillation it is
@@ -598,17 +585,15 @@ Solar, one scale height     ~2200                         4 390
 Supernova ray               ~37 000                       73 392
 =========================== ============================ =========================
 
-**This is reported and never warned about, deliberately.**  The Nyquist
-criterion is objectively correct and would fire on 44 of 45 realistic
-scan sizes -- a warning firing on 98 % of calls is noise however right
-each firing is, and it would teach users to silence a category that also
-carries genuine discontinuity warnings.  The measurement behind that
-decision is ``adversarial_batteries/alias_fp.py``.
+**This is reported, not warned about.**  The Nyquist criterion would fire on
+44 of 45 realistic scan sizes.  A warning on 98% of calls would be noise, and
+would teach users to silence a category that also carries real discontinuity
+warnings.  The measurement is ``adversarial_batteries/alias_fp.py``.
 
 The report costs eigenvalues at eight points along the trajectory, so it
-is computed **only when ``strategy_info`` is supplied**: callers who do
-not ask pay nothing, and callers who do pay 5.5 % of the cheapest scan
-measured and under 0.1 % of a substantial one.
+is computed **only when ``strategy_info`` is supplied**.  Without it, the
+report costs nothing; with it, it costs 5.5% of the cheapest scan measured and
+under 0.1% of a substantial one.
 
 When ``aliased`` is ``True``, the question worth asking is whether you
 wanted the average all along.  If you did, ``average=True`` gives it
@@ -616,17 +601,15 @@ without resolving the oscillation, with the spread set by
 ``average_spread``, and :class:`magnus.oscprob.PhaseAveragingWarning` says
 where the answer depends on that spread.
 
-How much does the phase actually matter?
--------------------------------------------
+How much does the phase matter?
+--------------------------------
 
-It depends on the profile, and the difference is measurable rather than a
-matter of taste.  Averaging an instantaneous scan over six oscillation
-lengths and comparing against a ``solve_ivp`` reference
-(``adversarial_batteries/avg_check.py`` and ``avg_check2.py``).  The solar
-row is the log-linear interpolant of the BS05 table, which is the profile
-notebook 13 works from; ``avg_check.py`` prints a cubic-spline variant of
-the same ray beside it, and that one reads 8.889e-04 and 6.051e-04 for the
-two columns --- a different profile, and the same verdict:
+It depends on the profile.  The table below compares the error of an
+instantaneous scan with that of its average over six oscillation lengths, both
+against a ``solve_ivp`` reference (``adversarial_batteries/avg_check.py`` and
+``avg_check2.py``).  The solar row uses the log-linear interpolant of the BS05
+table, the profile of notebook 13; a cubic-spline interpolant gives 8.889e-04 and
+6.051e-04, with the same conclusion:
 
 =============================== ================== ================== ====================
 configuration                   instantaneous      averaged           averaged inside 1e-3
@@ -637,14 +620,13 @@ Supernova shock, 70 km front    4.917e-04          **2.151e-04**      yes
 Supernova shock, 0.07 km front  1.988e-01          **2.222e-01**      **no**, and warned
 =============================== ================== ================== ====================
 
-The last row is the one that matters, and it is the only one where the
-*observable* is wrong.  A shock front changes the adiabaticity of the level
-crossing, so it moves the conversion probability itself rather than the
-phase at which it oscillates; that is an **envelope** error and no
-averaging operation removes it.  Everywhere else the averaged answer lands
-inside the target even where a single baseline does not, because the
-instantaneous error is largely **phase** -- the profile perturbs *when* the
-oscillation is, and no observable resolves that.
+Only in the last row is the *observable* wrong.  A shock front changes the
+adiabaticity of the level crossing, so it moves the conversion probability itself,
+not only the phase of its oscillation.  That is an error in the **amplitude**, and
+no averaging removes it.  In the other rows, the averaged answer is within the
+target even where a single baseline is not, because the instantaneous error is
+mostly in the **phase**: the profile shifts *when* the oscillation peaks, which no
+observable resolves.
 
 .. warning::
 
@@ -653,8 +635,8 @@ oscillation is, and no observable resolves that.
    own.  On a profile whose density varies across the averaging window the
    bias does not shrink as the window widens, because a wider window also
    averages over different matter conditions: on the solar ray above, the
-   window mean moves from 0.5924 to 0.6023 between six and forty-eight
-   oscillation lengths, drifting away from rather than towards a limit.
+   window mean moves from 0.5962 to 0.6054 between six and forty-eight
+   oscillation lengths, drifting away from a limit rather than toward one.
    Notebook 13 prints that sweep.
    The reduction factor is meaningful only on a controlled comparison at
    fixed matter conditions, as in notebook 23.

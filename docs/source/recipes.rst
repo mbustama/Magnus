@@ -3,11 +3,9 @@ Numerical recipes
 
 What **Magνs** can compute, with the code that computes it.
 
-Each recipe below is a few lines. Where one is short enough to be worth running
-on the spot, it is executed when this page is built, so the output shown is what
-the code actually produced rather than what it produced once. The longer form of
-most recipes is a notebook, linked beside it; both call the same functions, so
-there is no third version to drift out of step.
+Each recipe below is a few lines.  The short ones run when this page is built, so
+the output shown is what the current code produces.  Most recipes have a longer
+form in a notebook, linked beside it, which calls the same functions.
 
 If you are looking for *which function* rather than *how to call it*, see
 :doc:`functions`, which lays out the whole ``osc_prob_*`` family by environment
@@ -45,12 +43,12 @@ matrix. Full walk-through:
 The evolution operator, for observables built from amplitudes
 ----------------------------------------------------------------
 
-A probability is a modulus squared. When the observable needs the amplitudes
-themselves -- the content of each mass eigenstate in the state that leaves a
-dense source, and from it the flavor composition at a detector so far away
-that the phases have averaged -- ask any entry point for the evolution
-operator alongside the probabilities. The refinement ladder then converges the
-operator itself, phases included.
+A probability is a modulus squared.  Some observables need the amplitudes
+themselves: for example, the content of each mass eigenstate in the state that
+leaves a dense source, and from it the flavor composition at a detector so far
+away that the phases have averaged.  For those, ask any entry point for the
+evolution operator alongside the probabilities.  The refinement ladder then
+converges the operator itself, phases included.
 
 .. jupyter-execute::
 
@@ -80,10 +78,9 @@ combinations it refuses.
 A scan, without a loop
 ----------------------
 
-Pass arrays and the whole scan is one call. This is the single most useful thing
-to know about using Magνs well: the engines batch over the energy axis, and for a
-position-dependent Hamiltonian the matter profile is then built once for the whole
-scan rather than once per point.
+Pass arrays, and the whole scan is one call.  The engines batch over the energy
+axis, so for a position-dependent Hamiltonian the matter profile is built once for
+the whole scan rather than once per point.  This is the largest saving available.
 
 .. jupyter-execute::
 
@@ -104,9 +101,8 @@ A batched call returns ``(n_points, d, d)``, with the point index **first**, so
 
    Three-flavor vacuum oscillations.
 
-Writing your own ``H_func`` so that it accepts an *array* of positions is the
-other half of this, and is worth a factor of several: see
-:ref:`write-h-func-vectorized` below.
+Writing your own ``H_func`` so that it accepts an *array* of positions saves a
+further factor of several: see :ref:`write-h-func-vectorized` below.
 
 
 Through the Earth
@@ -127,11 +123,10 @@ aligned with the layer boundaries all follow.
     print('chord   = %.0f km' % (L/gd.UNIT_KM))
     print('P_mue   = %.6f' % P[1][0])                 # 0.132224
 
-A detector underground is the same call with its depth named. The zenith angle
+A detector underground is the same call with its depth named.  The zenith angle
 is measured at the detector, so the baseline follows from the geometry and is
-computed rather than given. A buried detector also sees downward-going
-neutrinos through its overburden, which a detector on the surface has no path
-for at all.
+computed rather than given.  A buried detector also sees downward-going
+neutrinos, which cross its overburden; a detector on the surface does not.
 
 .. jupyter-execute::
 
@@ -145,11 +140,11 @@ for at all.
         print('costhz = %5.2f: %10.3f km, P_mumu = %.6f'
               % (costhz_det, L_km, P_buried[1][1]))
 
-PREM's outermost shell is 3 km of global-average ocean, which a detector under
-rock or ice is not sitting under. Replace its density with
-``density_matter_ocean``, and its composition with ``electron_fraction_ocean``.
-Both matter for a trajectory close to horizontal, which can spend its whole
-length inside that shell.
+PREM's outermost shell is 3 km of global-average ocean, which does not describe a
+detector under rock or ice.  Replace its density with ``density_matter_ocean``,
+and its composition with ``electron_fraction_ocean``.  Both matter for a
+trajectory close to horizontal, which can spend its whole length inside that
+shell.
 
 The PREM layer boundaries are inserted as mandatory slab edges automatically, so
 the quadrature never integrates across a density discontinuity. Notebooks
@@ -264,11 +259,11 @@ it takes one row per energy.
 A profile of your own
 ---------------------
 
-Any callable returning a density as a function of position works. The Sun's
-exponential profile ships as a helper, and carries a tag that lets the
-interaction-picture fast path recognize it.  For the Sun itself, twelve published
-standard solar models ship as well, and the Sun wrappers take them by name
-(see :doc:`solar_models`).
+Any callable returning a density as a function of position works.  The Sun's
+exponential profile ships as a helper, :func:`magnus.matter.exp_density_profile`;
+at two flavors, a profile built with it can use the faster interaction-picture
+engine (:doc:`engines`).  Twelve published standard solar models ship as well,
+and the Sun wrappers take them by name (see :doc:`solar_models`).
 
 .. jupyter-execute::
 
@@ -291,14 +286,15 @@ Notebooks
 and
 `14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
 do this with a real tabulated solar model and with a supernova shock front, and
-are the two places the package's limits are shown rather than asserted.
+measure where the package's accuracy runs out on each.
 
 .. figure:: ../../img/gallery/gallery_shock.png
    :width: 80%
    :alt: A supernova shock front, truth against Magnus
 
-   A sharp shock front, where the error is an envelope rather than a phase and
-   averaging does not rescue it.
+   A sharp shock front.  It changes the conversion probability itself, not only
+   the phase of the oscillation, so averaging over energy does not remove the
+   error.
 
 
 Phase-averaged probabilities
@@ -322,8 +318,9 @@ instantaneous value. Ask for it directly rather than averaging a scan by hand.
     print('instantaneous P_ee = %.6f' % inst[0][0])
     print('phase-averaged     = %.6f' % avg[0][0])    # 0.410154
 
-This matters for accuracy as well as for physics: an error that is a *phase*
-disappears under averaging, and one that is an *envelope* does not. See
+This matters for accuracy as well as for physics.  An error in the *phase* of
+the oscillation disappears under averaging; an error in its *amplitude*, the
+probability around which it oscillates, does not.  See
 :doc:`averaged_probability`, and
 `notebook 10 <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_.
 
@@ -331,7 +328,8 @@ disappears under averaging, and one that is an *envelope* does not. See
    :width: 90%
    :alt: Instantaneous against phase-averaged probabilities
 
-   What survives when the phase is unresolvable.
+   Instantaneous and phase-averaged probabilities: the average is what remains
+   when the phase cannot be resolved.
 
 Flavor composition of astrophysical neutrinos
 ---------------------------------------------
@@ -374,8 +372,7 @@ two successive levels agree.
     print('slab edges used : %d   (PREM boundaries included)' % info['n_slab_edges'])
     print('tolerance met   : %s' % info['tolerance_achieved'])
 
-**Read the tolerance for what it is.** It is a stopping criterion, not a
-guarantee: the ladder halts when two levels agree, and never estimates the error
+The tolerance is a stopping criterion, not a guarantee: the ladder halts when two levels agree, and never estimates the error
 of the answer it returns. Usually that is conservative; it is not always. The
 ``rtol`` entry of :func:`magnus.oscprob.osc_prob` says what it does and does not
 promise, and :ref:`what-rtol-atol-control` gives the measured detail.
@@ -389,15 +386,14 @@ error estimate in it; the same section explains why.
 Choosing a strategy, and seeing which engine answered
 -----------------------------------------------------
 
-``strategy='auto'`` (the default) picks the engine from the phase of the request, its
-shape and the tolerance: at the default tolerance a single point goes to the general
-Magnus ladder unless its phase exceeds 1e4 or it needs too many slabs, when it goes to an
-adiabatic-transport-plus-Magnus-patch propagator, and an energy scan goes to the
-energy-batched scan.  :ref:`dispatch-order` has the full table.  ``'hybrid'`` forces the
-adiabatic propagator, and ``'magnus'`` keeps to the Magnus engines.  The difference is not
-only speed: on the NSI configurations notebook 12 measures, ``'magnus'`` is the faster
-route and the less accurate one, raising ``ToleranceNotAchievedWarning`` rather than
-answering quietly.
+``strategy='auto'``, the default, picks the engine from the phase of the request, its
+shape and the tolerance.  At the default tolerance, an energy scan goes to the
+energy-batched scan.  A single point goes to the general Magnus ladder, unless its phase
+exceeds 1e4 or it needs too many slabs; then it goes to the adiabatic propagator with
+Magnus patches.  :ref:`dispatch-order` has the full table.  ``'hybrid'`` forces the
+adiabatic propagator, and ``'magnus'`` keeps to the Magnus engines.  The choice affects
+accuracy as well as speed: on the NSI configurations of notebook 12, ``'magnus'`` is
+faster but less accurate, and raises ``ToleranceNotAchievedWarning``.
 
 .. jupyter-execute::
 
@@ -435,12 +431,12 @@ family share their failure modes, and when only one family applies the function
 says so with :class:`~magnus.oscprob.CrossCheckInconclusiveWarning`.  A large spread
 is reported, never raised; read it before trusting a number that matters.
 
-When a spread is large, look first at ``check['unverified']``: the engines that said
-they did not reach the tolerance.  A spread involving one of them points at that
-engine.  ``check['max_spread_verified']`` is the spread across families among the
-others.  On the Sun at 1 MeV, a certified hybrid 3.8e-5 from a fine reference and a
-slab ladder capped at 20 000 slabs 1.9e-3 from it gave a 1.9e-3 spread; the ladder is
-the one listed as unverified.
+When a spread is large, look first at ``check['unverified']``: the engines that
+reported missing the tolerance.  A spread involving one of them points at that engine,
+and ``check['max_spread_verified']`` gives the spread among the others.  For example, on
+the Sun at 1 MeV, the hybrid engine certified an answer 3.8e-5 from a fine reference,
+while the slab ladder, stopped at its cap of 20 000 slabs, was 1.9e-3 from it.  The
+spread was 1.9e-3, and the ladder was listed as unverified.
 
 
 Telling it where the profile is not smooth
@@ -470,13 +466,13 @@ no number of slabs fixes one that straddles it.
         3, rho_func, 10.0*gd.UNIT_GEV, 3000.0*gd.UNIT_KM, osc, L0=0.0,
         t_breakpoints=[1000.0*gd.UNIT_KM], density_matter_is_in_g_per_cm3=True)
 
-The Earth entry points do this for you. It is worth doing by hand for a shock
-front, a castle-wall profile, or a tabulated model with a discontinuous
-derivative.  On a *scan* it is an established cure.  On a single point the per-point
-path already finds and declares the jumps itself (:ref:`warning-catalogue`), so
-passing them only skips that search.  The exception is a single phase-averaged point
-(``average=True``): there declaring a shock front changes the engine, and across 18
-shock configurations it improved 7 and worsened 11, so check such a point a second way.
+The Earth entry points do this for you.  Do it by hand for a shock front, a
+castle-wall profile, or a tabulated model with a discontinuous derivative.  On a
+*scan*, declaring the jumps fixes the error.  On a single point, Magνs finds and
+declares the jumps itself (:ref:`warning-catalogue`), so passing them only skips that
+search.  The exception is a single phase-averaged point (``average=True``).  There,
+declaring a shock front changes the engine: across 18 shock configurations, it
+improved 7 results and worsened 11, so check such a point a second way.
 `Notebook 14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
 is that measurement.
 
@@ -583,20 +579,24 @@ probability, repeated at each refinement level.
     P = oscprob.osc_prob(H_fast, t_ini=0.0, t_fin=10000.0*gd.UNIT_KM,
                          rtol=1e-8, atol=1e-8)
 
-The trailing ``[..., None, None]`` is the whole trick: it turns one potential per
-position into a stack of matrices, so NumPy broadcasts instead of Python looping.
-The output is bit-identical, and the gain grows with the number of positions the
-ladder evaluates.  For the call above, which ends at 378 slabs, ``H_fast`` is about
-5× faster than ``H_slow``; at the default tolerance (22 slabs) about 2×; over 1000 km
-at the default tolerance (2 slabs) the gain is small and not reliable (best of 15 runs,
-on one machine).  A scalar-only ``H_func`` raises
-:class:`~magnus.magnus.ScalarHamiltonianWarning` once per session, naming the fix.
+The trailing ``[..., None, None]`` turns one potential per position into a stack of
+matrices, so NumPy broadcasts instead of Python looping.  The output is bit-identical,
+and the gain grows with the number of positions the ladder evaluates: about 5× for the
+call above, which ends at 378 slabs, and about 2× at the default tolerance, which ends
+at 22.  On a call that needs only a few slabs, the gain is negligible.  A scalar-only
+``H_func`` raises :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session.
 
 The builders in :mod:`magnus.hamiltonians` do this for you: each takes its energy, ``VCC``
 or position as a number or an array, and an array returns a stack of matrices, one per
-entry.  ``hams.hamiltonian_3nu_nsi`` builds only the NSI term, so a full NSI matter
-Hamiltonian is ``h_vac/energy + vcc(l)[..., None, None]*e00 + hams.hamiltonian_3nu_nsi(vcc(l),
-0.1, 0.05, 0.0, 0.0, 0.0, 0.0)``, already vectorized.
+entry.  ``hams.hamiltonian_3nu_nsi`` builds only the NSI term, so a full, vectorized
+NSI matter Hamiltonian is
+
+.. code-block:: python
+
+    def H_nsi(l):
+        v = vcc(l)
+        return (h_vac/energy + v[..., None, None]*e00
+                + hams.hamiltonian_3nu_nsi(v, 0.1, 0.05, 0.0, 0.0, 0.0, 0.0))
 
 
 Where to go next

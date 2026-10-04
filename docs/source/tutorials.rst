@@ -7,11 +7,10 @@ order. Each carries its figures inline, so they can be read on GitHub without
 being run, and each ends with a footer pointing at the previous notebook, the
 next one, and the API reference.
 
-They are the long form of :doc:`recipes`. A recipe is a few lines and its
-output; a notebook is the same calculation with the reasoning around it — why
+They are the long form of :doc:`recipes`.  A recipe is a few lines and its
+output; a notebook is the same calculation with the reasoning around it: why
 the convention is what it is, what happens at the edges, and what the numbers
-were checked against. Both call the same functions, so there is no third
-version to drift out of step.
+were checked against.
 
 To run them rather than read them, clone the repository (the PyPI package does not
 include the notebooks) and install from it, with a Jupyter front end::
@@ -23,16 +22,13 @@ include the notebooks) and install from it, with a Jupyter front end::
 
 .. note::
 
-   The notebooks are not built into this documentation — executing twenty-nine of
-   them on every docs build would take the better part of an hour, and they are
-   more useful where their outputs are already stored. The links below go to
-   GitHub, which renders them with their figures.
+   The notebooks are not built into this documentation, because executing all
+   twenty-nine would take most of an hour.  The links below go to GitHub, which
+   shows them with their stored outputs and figures.
 
-   They are generated. ``notebooks/make_notebooks.py`` builds all of them,
-   executes them and stores their outputs, and CI runs the same execution on
-   every change to the notebooks or to the package: a notebook is documentation
-   that claims to work, and running it is what makes the claim checkable. Edit
-   the generator, not the ``.ipynb``.
+   The notebooks are generated: ``notebooks/make_notebooks.py`` builds, executes
+   and stores them, and CI executes them again on every change to the notebooks
+   or the package.  To change a notebook, edit the generator, not the ``.ipynb``.
 
 
 Start here
@@ -94,9 +90,8 @@ machinery is unchanged and only the Hamiltonian differs.
 
 `29. Pseudo-Dirac neutrinos <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_
    A sterile partner for each mass state, split by a :math:`\delta m^2` small
-   enough that the pair stays coherent after everything else has averaged.
-   Numbered late because it was written last, but it belongs here: it is the
-   physical case behind the coherent-block form of
+   enough that the pair stays coherent after everything else has averaged.  It
+   is the physical case behind the coherent-block form of
    :doc:`averaged_probability`.
 
 
@@ -107,47 +102,45 @@ The two notebooks for readers who want to know why the answers are what they
 are, rather than how to ask for them.
 
 `10. Phase-averaged probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_
-   What survives when the oscillation phase is unresolvable — and why an error
-   that is a phase disappears under averaging while one that is an envelope
-   does not.
+   What remains when the oscillation phase cannot be resolved, and why an
+   error in the phase disappears under averaging while an error in the
+   amplitude does not.
 
 `11. The matrix exponential <https://github.com/mbustama/Magnus/blob/main/notebooks/11_magnus_matrix_exponential.ipynb>`_
-   How :math:`\exp(\Omega)` is built, and why the route matters: the truncated
-   series is anti-Hermitian, so its exponential is exactly unitary only if the
-   exponential itself preserves that.
+   How :math:`\exp(\Omega)` is built, and why the method matters: the truncated
+   series is anti-Hermitian, and its exponential stays unitary to round-off only
+   if it is computed in a way that preserves that property.
 
 `12. The strategy parameter <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
    ``'auto'`` against ``'magnus'``, timed and scored against ``solve_ivp`` from
-   two to five flavors. The old route is not uniformly worse -- it wins on
-   accuracy in two of the seven cases -- but on two flavors it is slower than
-   the ``solve_ivp`` oracle itself; on the NSI cases it stops short of the
-   tolerance while staying exactly unitary.
+   two to five flavors.  ``'magnus'`` is more accurate in two of the seven
+   cases.  At two flavors, though, it is slower than ``solve_ivp`` itself, and
+   on the NSI cases it stops short of the tolerance.
 
 
 Where the limits are
 --------------------
 
-The three notebooks that show what Magνs gets wrong, and how to tell the two
-kinds of wrong apart.
+Three notebooks that show where Magνs is inaccurate, and how to tell an error
+in the phase from an error in the amplitude.
 
 `13. Tabulated solar models <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_
    The twelve standard solar models of :doc:`solar_models`, taken by name. On
    BS2005-AGS,OP, it separates the instantaneous probability from the one an
-   experiment measures. Averaging a scan over a window is the tempting route to
-   the second and has no converged value to offer; ``average=True`` reaches it
-   in closed form instead, matching the adiabatic MSW expression to 3e-16. Then
-   all twelve models compared on that observable: they agree to 2.4e-3, and the
-   exponential fit is off by 0.1.
+   experiment measures.  Averaging a scan over a window does not converge to
+   the second; ``average=True`` computes it in closed form, matching the
+   adiabatic MSW expression to 3e-16.  On that observable, the twelve models
+   agree to 2.4e-3, and the exponential fit is off by up to 0.1.
 
 `14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
-   The contrast. Here averaging does essentially nothing, because a shock
-   changes the adiabaticity of the level crossing and so moves the conversion
-   probability itself. Wrong, and loud about it.
+   Here, averaging barely reduces the error, because a shock changes the
+   adiabaticity of the level crossing and so moves the conversion probability
+   itself.  Magνs warns where its answer is inaccurate.
 
 `23. When averaging rescues you <https://github.com/mbustama/Magnus/blob/main/notebooks/23_magnus_when_averaging_helps.ipynb>`_
-   The mechanism behind those two, isolated on a cheap vacuum probability: a
-   phase error is suppressed a hundredfold by averaging, an envelope error by a
-   fixed factor of about seven that no number of cycles improves.
+   The mechanism behind those two, isolated on a vacuum probability: averaging
+   suppresses a phase error a hundredfold, but an amplitude error only by a
+   fixed factor of about seven, however many cycles are averaged.
 
 
 Conventions worth getting right
@@ -184,8 +177,8 @@ Using and diagnosing the machinery
 ----------------------------------
 
 `19. Bring your own Hamiltonian <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`_
-   The actual interface is one callable returning a Hermitian matrix. Covers the
-   vectorization trick, and what the Earth entry point declares on your behalf.
+   The interface is one callable returning a Hermitian matrix.  Covers writing
+   it for arrays of positions, and what the Earth entry point declares for you.
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
@@ -203,8 +196,8 @@ Using and diagnosing the machinery
    signal.
 
 `24. Performance <https://github.com/mbustama/Magnus/blob/main/notebooks/24_magnus_performance.ipynb>`_
-   What is worth doing, measured live — and, more usefully, when each trick is
-   worth nothing at all.
+   Which optimizations pay, measured as the notebook runs, and when each of them
+   gains nothing.
 
 
 Against other codes, and against the parameters
@@ -228,20 +221,16 @@ Watching it happen
 ------------------
 
 `27. Animated scenes <https://github.com/mbustama/Magnus/blob/main/notebooks/27_magnus_animations.ipynb>`_
-   Nine sweeps drawn as filmstrips, so reading the notebook costs nothing. Four
-   of them are the same scenes `NuOscProbExact's notebook 19
-   <https://github.com/mbustama/NuOscProbExact/blob/main/notebooks/19_animations.ipynb>`_
-   draws, computed here, so the two can be read side by side. The other five need
-   something a closed-form slab code does not have: a refinement ladder deciding
-   it has converged, a front that travels, an observable that is an average
-   rather than a value, and a Hamiltonian that genuinely varies along the path.
-   What the truncation order buys and which engine the dispatcher picks are
-   single comparisons rather than sweeps, and are shown as stills in notebook 24.
+   Nine parameter sweeps, drawn as filmstrips so that the notebook can be read
+   without running it.  Four are the scenes of `NuOscProbExact's notebook 19
+   <https://github.com/mbustama/NuOscProbExact/blob/main/notebooks/19_animations.ipynb>`_,
+   computed here for comparison.  The other five need what a closed-form slab
+   code does not have: a refinement ladder that checks convergence, a moving
+   front, an averaged observable, and a Hamiltonian that varies along the path.
 
    Setting ``RENDER = True`` writes the scenes as GIFs, and
-   ``tools/make_demo_video.py`` joins and shrinks them. The notebook carries the
-   full procedure, the measured costs, and the three traps worth knowing before
-   you spend twenty minutes on it.
+   ``tools/make_demo_video.py`` joins and compresses them.  The notebook describes
+   the procedure, its cost and its pitfalls.
 
 
 The paper
@@ -249,12 +238,11 @@ The paper
 
 `28. The paper's figures <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`_
    Every figure in the Computer Physics Communications article
-   (``resources/paper/``), produced in one run. Magνs's own numbers are computed as
-   it runs, so a figure cannot go stale without the notebook failing; every other
-   code's are read from the frozen ``external_*.json`` datasets, so none of them has
-   to be installed. It also carries the measurement behind the paper's sharpest
-   methodological caveat: on an Earth chord the probability inherits the relative
-   error of the matter potential essentially one for one, so a cross-code comparison
-   there is limited by the two Earth models long before it is limited by either
-   solver. :doc:`examples` presents the paper's usage section, with its snippets and
-   figures.
+   (``resources/paper/``), produced in one run.  Magνs's numbers are computed as
+   the notebook runs, so a stale figure makes the notebook fail.  The other codes'
+   numbers are read from the stored ``external_*.json`` datasets, so none of those
+   codes has to be installed.  The notebook also shows that, on an Earth chord,
+   the probability inherits the relative error of the matter potential almost one
+   for one.  A comparison between codes there is therefore limited by their Earth
+   models before it is limited by their solvers.  :doc:`examples` presents the
+   paper's usage section, with its snippets and figures.

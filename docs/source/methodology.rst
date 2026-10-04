@@ -38,12 +38,11 @@ roughly doubles per order.  :doc:`expansion_terms` derives them symbolically at 
 order, and the test suite checks every term against that derivation (see
 :ref:`validation`).
 
-**Truncating the series is exact for the group, not just approximate for
-the answer.**  Whatever order the sum stops at, :math:`\Omega` remains
-anti-Hermitian (since each :math:`\Omega_k` is a real combination of nested
-commutators of anti-Hermitian matrices), so :math:`\exp(\Omega)` is
-*exactly* unitary, regardless of the truncation order or the quadrature
-accuracy.  In floating point it comes close: one exponential deviates by
+**A truncated series still gives a unitary evolution operator.**  Whatever
+order the sum stops at, :math:`\Omega` remains anti-Hermitian, since each
+:math:`\Omega_k` is a real combination of nested commutators of anti-Hermitian
+matrices.  So :math:`\exp(\Omega)` is unitary, whatever the truncation order or
+the quadrature accuracy.  In floating point, it is unitary to round-off: one exponential deviates by
 :math:`\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert = 4\times10^{-16}` in the median (the worst
 of a stack of 4096 reaches :math:`4\times10^{-15}`), and a whole probability, built from
 many such factors, by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst across
@@ -84,12 +83,11 @@ with no cumulative quadrature and no separate commutator bookkeeping:
    \Omega^{(8)} &= \ldots \quad \text{(four-node scheme; see the reference)}
 
 with :math:`h` the slab width and :math:`A_i` the Hamiltonian sampled at
-the corresponding node.  Because the quadrature order is matched exactly
-to the truncation order, this method needs far fewer Hamiltonian
-evaluations for the same accuracy -- it is simultaneously the fastest and
-the most accurate choice whenever the Hamiltonian is smooth within a slab,
-which is why it is the default.  Layer-aligned slabs (below) make that the
-common case even across the Earth.
+the corresponding node.  Because the quadrature order matches the truncation
+order, this method needs far fewer Hamiltonian evaluations for the same
+accuracy.  It is the default because it is both the fastest and the most
+accurate method when the Hamiltonian is smooth within a slab, which slab
+edges at the layer boundaries (below) ensure even across the Earth.
 
 Orders 4, 6 and 8 need 1, 3 and 6 commutators, the fewest possible at each order
 :cite:p:`Blanes2002`; the paper's Table 4 lists the coefficients of the order-6 and
@@ -101,13 +99,14 @@ adaptive refinement below grows only ``n_slabs``.  The four points-per-slab
 settings (``n_tpts_per_slab``, ``min_n_tpts_per_slab``, ``max_n_tpts_per_slab``,
 ``growth_factor_n_tpts_per_slab``) do nothing with ``'gl'``; a value passed with it
 raises :class:`~magnus.oscprob.IgnoredQuadratureSettingWarning`, and the result is
-the same as without it.  The physics-informed
-starting slab count is applied for ``'gl'`` everywhere.  For the quadrature
-methods, whose accuracy is governed jointly by ``n_slabs`` and
-``n_tpts_per_slab``, the per-point ladder does not seed, and the
-energy-batched engine seeds only when the seed is at least
-:data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS` (4): measured, a smaller
-seed could send the ladder through an extra level, and a larger one never did.
+the same as without it.
+
+With ``'gl'``, the ladder always starts from a slab count estimated from the
+accumulated phase (below).  The quadrature methods depend on both ``n_slabs``
+and ``n_tpts_per_slab``, so their per-point ladder does not use that estimate.
+Their energy-batched scan uses it only when it is at least
+:data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS` (4) slabs: in measurements, a
+smaller starting count could add a refinement level, and a larger one never did.
 
 **Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).**
 Sample :math:`A` on a uniform grid of ``n_tpts_per_slab`` points and
@@ -238,11 +237,12 @@ every entry, :math:`|P^{(n)}_{\alpha\beta} - P^{(n-1)}_{\alpha\beta}| \le
 for two consecutive agreements instead of one.  Declared edges are present at every
 level, so they can shrink the step between two grids; an agreement counts only when the
 finer grid has at least 25% more edges than the coarser one.  Every level below the one
-that converges is computed and discarded: on an Earth chord this makes a call about four
-times slower than one given the right slab count, which ``convergence_info`` reports and
-``n_slabs`` with ``rtol=atol=None`` reuses.  Four devices keep the ladder short:
+that converges is computed and discarded: on an Earth chord, this makes a call three to four
+times slower than one given the right slab count.  ``convergence_info`` reports that count,
+and passing it as ``n_slabs`` with ``rtol=atol=None`` reuses it.  Four devices keep the ladder
+short:
 
-* **Physics-informed starting slab count.**  Rather than always starting
+* **A starting slab count from the accumulated phase.**  Rather than always starting
   from one slab, the refinement is seeded from an estimate of the
   accumulated (traceless) phase :math:`\lVert\Omega_1\rVert_2` over the
   whole trajectory, aiming for roughly :math:`2\pi` radians of phase per
@@ -250,8 +250,8 @@ times slower than one given the right slab count, which ``convergence_info`` rep
   converged at the first attempt.
 * **Warm starts across scan points.**  When computing many points (an
   energy scan, an oscillogram), each point's refinement is seeded from the
-  previous point's converged slab count and point count, rather than
-  reclimbing the same geometric ladder from scratch.
+  previous point's converged slab count and point count, rather than from
+  the bottom of the ladder.
 * **Slab edges aligned with density discontinuities.**  The PREM profile
   used for the Earth is piecewise-smooth, with density discontinuities at
   the boundaries between its ten shells :cite:p:`Dziewonski1981`.  A
@@ -261,7 +261,7 @@ times slower than one given the right slab count, which ``convergence_info`` rep
   trajectory crosses a PREM layer boundary (a closed-form quadratic in the
   zenith angle) and insert them as mandatory slab edges at every
   refinement level.
-* **A caller-supplied floor.**  Passing ``n_slabs`` together with a
+* **A floor set by the user.**  Passing ``n_slabs`` together with a
   tolerance sets a lower bound on the ladder: refinement starts at
   ``max(min_n_slabs, n_slabs)`` and only ever climbs from there (clipped at
   ``max_n_slabs``).  With the default ``n_slabs = 1`` the floor is inactive.
@@ -278,8 +278,8 @@ times slower than one given the right slab count, which ``convergence_info`` rep
    then be seeded with far too few.  The successive-iterate test is no
    protection here: refinements that all fail to see the profile can agree
    with each other while disagreeing with the truth, and a tighter ``rtol``
-   only compares two answers that are both wrong.  Tightening the tolerance
-   is the wrong lever; resolving the profile is the right one.
+   only compares two answers that are both wrong.  The remedy is to resolve
+   the profile, not to tighten the tolerance.
 
    If you know your profile's feature scale, say so, in either of two ways.
    Pass ``n_slabs`` (a floor, per the bullet above) so the ladder cannot
@@ -295,33 +295,24 @@ The slab cap itself is method-aware.  ``max_n_slabs`` defaults to None,
 meaning "use the cap appropriate to ``integration_method``": 20000 for
 ``'gl'`` and 2000 for the cumulative-quadrature methods (see
 ``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
-given).  A single cap cannot serve both families, because their cost per
-slab differs by more than an order of magnitude -- ``'gl'`` evaluates the
-Hamiltonian 1 to 4 times per slab, the quadrature methods
-``n_tpts_per_slab`` times.  With a shared cap of 2000, ``'gl'`` hit the
-ceiling on problems it could resolve comfortably (eV-scale sterile
-splittings over an Earth-crossing baseline need about 8,600 slabs) and
-reported that it could not verify convergence, on answers that were in fact
-far more accurate than the quadrature methods reached within the same cap.
-Even at 20000 slabs, ``'gl'`` is the cheaper worst case: 40,000 Hamiltonian
-evaluations at the default order and 80,000 at order 8, against the ~200,000
-that 2000 quadrature slabs at
-100 points per slab already permit.
+given).  The two caps differ because the cost per slab differs by more than
+an order of magnitude: ``'gl'`` evaluates the Hamiltonian 1 to 4 times per
+slab, the quadrature methods ``n_tpts_per_slab`` times.  ``'gl'`` needs the
+higher cap for problems such as eV-scale sterile splittings across the Earth,
+which take about 8,600 slabs.  Even at 20000 slabs, it is the cheaper worst
+case: 40,000 Hamiltonian evaluations at the default order and 80,000 at order
+8, against about 200,000 for 2000 quadrature slabs at 100 points each.
 
-If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab``,
+If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab`` or
 ``max_num_loops``) is reached before the tolerance is met, ``osc_prob``
-returns its best available estimate but raises
-``ToleranceNotAchievedWarning`` unconditionally (regardless of the
-``verbose`` setting) — the returned probabilities remain exactly unitary,
-so they can look entirely plausible while still being inaccurate.  This is
-the practical manifestation of the convergence criterion above: it is the
-expected behavior for extreme accumulated phases, such as low-energy solar
-neutrinos traversing most of the Sun, where an adiabatic treatment is the
-more natural tool — see :doc:`adiabatic_strategy` for the
-``strategy='hybrid'``/``'auto'`` alternative that automates exactly this,
-built directly on top of the machinery described on this page (its local
-patches call the same :func:`magnus.magnus.magnus_expansion_multislab`
-kernel).
+returns its best estimate and always raises ``ToleranceNotAchievedWarning``,
+whatever the ``verbose`` setting.  The probabilities are still unitary, so
+they can look plausible while being inaccurate.  This is expected for extreme
+accumulated phases, such as low-energy solar neutrinos crossing most of the
+Sun.  There, an adiabatic treatment is the better tool:
+:doc:`adiabatic_strategy` describes ``strategy='hybrid'`` and ``'auto'``, whose
+local patches use the same :func:`magnus.magnus.magnus_expansion_multislab`
+kernel.
 
 Choosing the expansion order
 -------------------------------
@@ -347,8 +338,8 @@ Across Earth, solar and exponential density profiles, order 6 runs 0.96 to 1.12 
 fast as order 4 at a requested tolerance of :math:`10^{-4}`, and 1.08 to 1.93 times as fast
 at :math:`10^{-8}`, under the timing protocol of :doc:`performance`.
 
-So: leave the order alone for everyday work, and raise it to 6 if you are asking for a
-tight tolerance, where it runs up to about twice as fast.  Dropping to order 2 is almost
+Keep the default order for everyday work, and raise it to 6 for a tight tolerance,
+where it runs up to about twice as fast.  Dropping to order 2 is almost
 never worthwhile: at :math:`10^{-8}` on an Earth chord it needs thousands of slabs where
 order 6 needs about a hundred.
 
@@ -359,8 +350,7 @@ roughly doubles per order (see :doc:`expansion_terms`).  ``'gl'`` reaches order
 there for accuracy studies rather than production runs.
 
 .. note::
-   How these numbers were obtained, since they are the basis for leaving the
-   defaults alone.  Two measurements, both against a tight-tolerance
+   The defaults rest on two measurements, both against a tight-tolerance
    reference computed at order 6 with the slab cap raised:
 
    #. **Cheapest configuration sweep.**  For each of seven cases -- Earth
@@ -381,14 +371,13 @@ there for accuracy studies rather than production runs.
    The starting slab count does not depend on the order: the final count is set by the
    refinement loop, so a coarser start for a higher order only adds an iteration.
 
-Silent vectorization and the energy-batched scan engine
--------------------------------------------------------------
+Vectorization and the energy-batched scan engine
+---------------------------------------------------
 
-Two further layers of performance engineering do not change any physics
-and require no change to user code *for correctness* -- though the first
-of them rewards one:
+Two further optimizations change no physics and need no change to user code,
+although the first runs faster if the Hamiltonian is written for arrays:
 
-* **Silent Hamiltonian vectorization.**  A user-supplied Hamiltonian or
+* **Hamiltonian vectorization.**  A user-supplied Hamiltonian or
   density-profile function is probed once: if it accepts an array of
   positions and returns a matching stack of matrices (verified against a
   scalar spot-check), that vectorized form is used for every subsequent
@@ -398,15 +387,19 @@ of them rewards one:
   vacuum term of the Hamiltonian depends on energy) are additionally
   cached.
 
-  **The fallback is correct but slow, and how slow is worth knowing.**
-  The engine samples the Hamiltonian at every quadrature node of every
-  slab -- a few hundred positions for a single probability, repeated at
-  each level of the adaptive refinement -- so a scalar-only function
-  turns that into a Python loop.  Measured on a three-flavor
-  exponential-density profile, making the same ``H_func`` array-capable
-  cut the time per :func:`~magnus.oscprob.osc_prob` call from 7.8 ms to
-  1.7 ms, a factor of 4.6, with bit-identical output.  See
-  :ref:`array-capable-hamiltonians` for how to write one.
+  The fallback gives the same answer, more slowly.  The engine samples the
+  Hamiltonian at every quadrature node of every slab, a few hundred positions
+  for one probability at each refinement level, so a scalar-only function
+  turns that into a Python loop.  On a three-flavor exponential-density
+  profile, making ``H_func`` array-capable cut the time per
+  :func:`~magnus.oscprob.osc_prob` call from 7.8 ms to 1.7 ms, with
+  bit-identical output; it raises
+  :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session.  An
+  array-capable function must still return a single ``(d, d)`` matrix when
+  given a scalar, which the probe checks.  A Hamiltonian that ignores its
+  argument is detected separately and broadcast, and the wrappers build
+  array-capable Hamiltonians already.  :ref:`write-h-func-vectorized` shows
+  how to write one.
 * **Energy-batched scans.**  The standard, NSI, and LIV Hamiltonians all
   have the separable form :math:`\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_\mathrm{CC}(l)\, M`,
   with :math:`\mathbb{H}_E` collecting the energy-dependent (vacuum and LIV) terms
@@ -417,61 +410,6 @@ of them rewards one:
   exponentials, and slab products all carry the energy axis as an
   additional batch dimension, with per-energy convergence masking so that
   energies that have already converged stop being recomputed.
-
-.. _array-capable-hamiltonians:
-
-Writing an array-capable Hamiltonian
---------------------------------------
-
-If you pass your own ``H_func`` to :func:`~magnus.oscprob.osc_prob`, whether
-it can be evaluated for many positions at once is the single largest factor
-under your control.  The change is usually small: write the position
-dependence with NumPy and let the matrix part broadcast.
-
-.. code-block:: python
-
-    import numpy as np
-    import magnus.globaldefs as gd
-    import magnus.hamiltonians as hamiltonians
-    import magnus.matter as matter
-
-    osc = gd.load_nufit_params('NuFIT 6.1')
-    h_vac = hamiltonians.hamiltonian_3nu_vacuum_energy_independent(**osc)
-    energy, l_scale = 1.0*gd.UNIT_GEV, 1000.0       # l_scale in km
-    def num_density_e_func(l):                      # an exponential profile [eV^3]
-        return 2.0*gd.N_AV*gd.UNIT_PER_CM3*np.exp(-(l/gd.UNIT_KM)/l_scale)
-    VCC_central = matter.VCC_func(0.0, num_density_e_func)
-
-    # Slow: one position at a time
-    def H_func(l):
-        VCC = matter.VCC_func(l, num_density_e_func)
-        return (1.0/energy)*h_vac + hamiltonians.hamiltonian_3nu_matter(VCC)
-
-    # Fast: the same physics, all positions at once
-    e00 = np.diag([1.0, 0.0, 0.0])
-    def H_func(l):
-        l = np.asarray(l, dtype=float)
-        VCC = VCC_central*np.exp(-(l/gd.UNIT_KM)/l_scale)   # an array
-        return (1.0/energy)*h_vac + VCC[..., None, None]*e00
-
-The ``[..., None, None]`` is what does the work: it turns one potential per
-position into a stack of matrices, so NumPy broadcasts where Python would
-otherwise loop.  The function must still return a single ``(d, d)`` matrix
-when handed a scalar -- the probe checks exactly that consistency before
-trusting the vectorized form.
-
-Note that this is a property of *your* function rather than of
-:func:`~magnus.oscprob.osc_prob`, whose own inner loops are already
-vectorized: the quadrature, the commutator algebra, the matrix exponentials
-and the slab products all carry a batch dimension.
-
-Two cases need no attention.  A Hamiltonian that **ignores** its argument --
-constant density -- is detected separately and broadcast, so it is already on
-a fast path.  And the ``osc_prob_{2,3,4,5}nu_*`` wrappers build their own
-Hamiltonians, already array-capable, so this applies only when you supply one.
-
-The fallback raises :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session,
-naming the fix.
 
 .. _validation:
 
@@ -508,7 +446,7 @@ the methodology above directly:
 
 In practice the default setting (``rtol = atol = 1e-3``, a stopping rule rather than a
 bound) is usually far more accurate than it promises; in the rare cases where it is not, the
-error stays within about twice the tolerance.  Over eight Earth chords from grazing to
+error stays within about three times the tolerance.  Over eight Earth chords from grazing to
 core-crossing at six energies between 0.5 and 20 GeV, the same call at :math:`10^{-7}`
 differs from it by about :math:`10^{-6}` in the median, by less than :math:`10^{-4}` in nine
 cases in ten, and by roughly :math:`10^{-3}` at most, on the core-crossing chord at

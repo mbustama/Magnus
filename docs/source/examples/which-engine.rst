@@ -31,7 +31,7 @@ The report has seven entries: ``'engine'``, the engine that answered, named as i
 
 This single energy went to the general Magnus ladder.
 
-The ``'sampling'`` entry shows how many points a scan along the trajectory needs to resolve the oscillation. It gives the shortest oscillation length along the trajectory, how many oscillations of that length fit in the trajectory, and how many points a scan needs to sample them twice per cycle, as the Nyquist criterion requires. A scan with fewer points is aliased: each value is correct, but a curve drawn through them is not the probability. For this call,
+The ``'sampling'`` entry shows how many points a scan along the trajectory needs to resolve the oscillation. It gives the shortest oscillation length, how many oscillations of that length fit in the trajectory, and how many points a scan needs to sample them twice per cycle, as the Nyquist criterion requires. A scan with fewer points is aliased: each value is correct, but a curve drawn through them is not the probability. For this call,
 
 .. code-block:: python
 

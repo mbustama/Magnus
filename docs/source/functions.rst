@@ -6,22 +6,17 @@ Available probability functions
    :depth: 2
 
 
-This page lists the user-facing ``osc_prob_*`` functions Magνs ships,
-grouped by environment and scenario, with the exact function name for each
-flavor count. It complements the API reference (generated from the
-docstrings directly, see the *API Reference* section in the sidebar) by
-showing the *shape* of the whole family at a glance -- useful when you know
-roughly what you want ("3-flavor, matter, with NSI") but not the exact name.
+This page lists the ``osc_prob_*`` functions Magνs ships, grouped by
+environment and scenario, with the name for each flavor count.  Use it when you
+know what you want ("3-flavor, matter, with NSI") but not the function's name;
+:doc:`api_reference` documents each one in full.
 
-The layers below the wrappers -- the scenario functions ``osc_prob_vacuum``,
-``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi`` and ``osc_prob_liv``, then
-``osc_prob_energy_baseline`` and ``osc_prob`` -- are not listed here; see
-:doc:`architecture` for what each does, when you would call it directly, and how the
-four layers fit together.  :doc:`cli` is the
-command-line calculator that wraps the same functions.  The closed-form
-reference functions ``osc_prob_2nu_vacuum_std``, ``osc_prob_2nu_matter_std`` and
-``osc_prob_3nu_vacuum_std``, used to validate the numerical ones, are left out too;
-see :mod:`magnus.oscprob`.
+Two groups of functions are not listed here.  The layers below the wrappers (the
+scenario functions, ``osc_prob_energy_baseline`` and ``osc_prob``) are described in
+:doc:`architecture`.  The closed-form functions ``osc_prob_2nu_vacuum_std``,
+``osc_prob_2nu_matter_std`` and ``osc_prob_3nu_vacuum_std``, used to validate the
+numerical ones, are in :mod:`magnus.oscprob`.  :doc:`cli` is the command-line
+calculator that wraps the same functions.
 
 Every function below returns a full :math:`d \times d` probability matrix
 (:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
@@ -153,12 +148,11 @@ Both named locations lie on the surface.  Either end of the trajectory can
 instead be put underground with ``source_depth`` and ``detector_depth``,
 which every function below accepts.  The zenith angle is measured at the
 detector, so a buried detector also sees downward-going neutrinos
-(:math:`\cos\theta_z > 0`) through its overburden, which a detector on the
-surface has no path for at all.  Naming ``detector_depth`` fixes where the
-trajectory ends, so the baseline is computed rather than given.  A third
-keyword, ``density_matter_ocean``, replaces the density of PREM's outermost
-shell: that shell is a global-average ocean, and a detector under rock or
-ice is not under one.
+(:math:`\cos\theta_z > 0`), which cross its overburden; a detector on the
+surface does not.  Naming ``detector_depth`` fixes where the trajectory ends, so
+the baseline is computed rather than given.  A third keyword,
+``density_matter_ocean``, replaces the density of PREM's outermost shell, a
+global-average ocean that does not describe a detector under rock or ice.
 
 .. list-table::
    :header-rows: 1
@@ -235,8 +229,8 @@ functions accept an arbitrary user-supplied Hamiltonian directly:
 * :py:func:`~magnus.oscprob.osc_prob_sun` -- like ``osc_prob``,
   but handles the solar density profile for you.
 
-See :doc:`architecture` for how these three relate to the ``osc_prob_{N}nu_*``
-functions above (they are, in fact, what those functions call internally).
+The ``osc_prob_{N}nu_*`` functions above call these three internally; see
+:doc:`architecture`.
 
 
 Returning the evolution operator
@@ -269,14 +263,12 @@ over the same interval, in the flavor basis, complex and unitary, with
 ``P == (abs(U)**2).T``; for arrays of points it has shape ``(n, d, d)``, and
 ``P == np.swapaxes(abs(U)**2, -1, -2)``.
 
-The operator comes from the general Magnus ladder, the one engine that forms it.
+The operator comes from the general Magnus ladder, the only engine that forms it.
 With the keyword set, the ladder compares the operator itself between refinement
-levels, at the same ``rtol`` and ``atol``, so what comes back is converged in its
-phases and not only in its moduli; the specialized engines of :doc:`engines`
-stand aside for the call, and a baseline scan that would otherwise take the
-cumulative traversal takes the per-point path instead. Two combinations are
-refused with an error, because no operator exists to return: ``average=True``,
-and ``strategy='hybrid'``.
+levels, at the same ``rtol`` and ``atol``, so its phases converge as well as its
+moduli.  The specialized engines of :doc:`engines` are skipped for the call, and a
+baseline scan is computed point by point.  Two combinations raise an error,
+because they form no operator: ``average=True`` and ``strategy='hybrid'``.
 
 The phase-averaged content at a distant detector, from ``U`` and ``osc`` of the call
 above, is then two lines:
@@ -290,15 +282,14 @@ above, is then two lines:
 with ``R`` the mixing matrix in vacuum.  The transpose puts ``P_far`` in the same
 order as ``P``: ``P_far[i][f]`` is the probability from flavor ``i`` to flavor ``f``.
 
-The phase average is likewise available on the direct route:
-``average=True`` on ``osc_prob_energy_baseline``, ``osc_prob_earth`` and
-``osc_prob_sun`` returns what the same keyword returns on a wrapper, by the same
-three routes (closed form, adiabatic transport, or an energy-window average
-across declared discontinuities), with the spread set by ``average_spread``, the
-number of energies sampled by the window average by ``average_n_samples``, and the
-starting state by ``average_initial_state`` (the flavor state by default).  A
-matrix, or a function of position alone, does not depend on energy, so no spread
-can act on it: pairs of levels whose phase has grown large are averaged, and the
-others stay coherent; see :doc:`averaged_probability`.
-``osc_prob`` computes one point and refuses the keyword by name, as it refuses
-``cumulative``.
+The phase average is also available on the direct route.  ``average=True`` on
+``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` returns what
+it returns on a wrapper, by the same three routes: closed form, adiabatic
+transport, or an energy-window average across declared discontinuities.  The same
+keywords apply: ``average_spread`` sets the spread, ``average_n_samples`` the
+number of energies in a window average, and ``average_initial_state`` the starting
+state, the flavor state by default.  A Hamiltonian given as a matrix, or as a
+function of position alone, does not depend on energy, so no spread acts on it;
+pairs of levels with a large phase are averaged and the others stay coherent (see
+:doc:`averaged_probability`).  ``osc_prob`` computes a single point, so it refuses
+``average``, as it refuses ``cumulative``.

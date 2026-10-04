@@ -12,9 +12,9 @@
 
 
 **Magνs** computes neutrino oscillation probabilities for two to five flavors, or
-for any Hamiltonian you write, in vacuum, in matter, through the Earth and through
-the Sun.  Its evolution operator is exactly unitary by construction, so every
-probability is non-negative and every row sums to one, at any accuracy setting.
+for any Hermitian Hamiltonian, in vacuum, in matter, through the Earth and through
+the Sun.  Its evolution operator is unitary to round-off at any accuracy setting,
+so every probability is non-negative and every row sums to one.
 
 ## Installation
 
@@ -78,8 +78,9 @@ P, U = oscprob.osc_prob_3nu_earth(1.0*gd.UNIT_GEV, costhz=-0.8, L=L,
                                   return_evolution_operator=True, **osc)
 ```
 
-A phase-averaged result (`average=True`) depends on `average_spread` unless the
-phases are large; a `PhaseAveragingWarning` says when.  The
+A phase-averaged result (`average=True`) depends on the energy spread,
+`average_spread`, wherever some oscillation phase is small, and a
+`PhaseAveragingWarning` flags those cases.  The
 [numerical recipes](https://mbustama.github.io/Magnus/recipes.html) page has
 a runnable snippet for each common task.
 
@@ -110,22 +111,22 @@ states, pseudo-Dirac pairs and a model of your own all go through the same call.
 Two to five flavors ship ready-made; the generic entry points take any
 dimension and any profile, given as a function of position.
 
-**Fast.**  An energy scan is one batched call rather than a loop, worth about an
-order of magnitude per probability; an oscillogram is one such call per zenith
-angle.  The median call over 164 Earth, solar, vacuum and constant-density
-configurations is **2 ms**, warm, on a laptop; [Performance](#performance) has the rest.
+**Fast.**  An energy scan is one batched call rather than a loop, which makes each
+probability one to two orders of magnitude cheaper.  Its cost follows how fast the
+density varies, not how many times the neutrino oscillates.
+[Performance](#performance) has the timings.
 
-**Accurate.**  Internally, Magνs propagates the evolution operator with the
-**Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
-a chain of position slabs, and every truncation is exactly unitary.  Asked for it, it agrees with an
-independent integration to a few parts in **10¹²** at two to five
+**Accurate.**  Magνs propagates the evolution operator with the **Magnus
+expansion**: it exponentiates truncated integrals of the Hamiltonian over a chain
+of position slabs, and every truncation is unitary.  At a tight tolerance, it
+agrees with an independent integration to a few parts in **10¹²** at two to five
 flavors.  Where it cannot certify its own answer, it says so.
 
-> **How do I say that?** Just like the name **Magnus** — the Greek letter
-> **ν** (nu), the neutrino's symbol, stands in for the "nu" syllable.  (Most of
-> this package was written in Denmark, so
-> [the Danish way](https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate)
-> is welcome too.)
+The [Against other codes](https://mbustama.github.io/Magnus/comparison.html#when-to-use-magnus)
+page measures when to use Magνs, and when another code is cheaper.
+
+> **How do I say that?** Like the name **Magnus**: the Greek letter **ν** (nu),
+> the neutrino's symbol, stands in for the "nu" syllable.
 
 ## What it can compute
 
@@ -140,7 +141,7 @@ flavors.  Where it cannot certify its own answer, it says so.
 - The same probabilities **from a shell**, with no Python, through the
   `magnus` command.
 
-## What it has been used for
+## Examples
 
 Each of these is one call with a different Hamiltonian, profile or observable.
 
@@ -153,7 +154,7 @@ Each of these is one call with a different Hamiltonian, profile or observable.
 - **Solar neutrinos** — twelve standard solar models, taken by name, and the
   averaged probability an experiment sees
   ([notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb)).
-- **Supernova shock fronts** — where a travelling discontinuity changes the
+- **Supernova shock fronts** — where a traveling discontinuity changes the
   conversion probability itself
   ([notebook 14](https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb)).
 - **Astrophysical flavor composition**, including pseudo-Dirac pairs that stay
@@ -164,54 +165,39 @@ Each of these is one call with a different Hamiltonian, profile or observable.
   or a jet inside a collapsing star
   ([notebook 19](https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb)).
 
-Every figure below comes from a notebook in
-[`notebooks/`](https://github.com/mbustama/Magnus/tree/main/notebooks/), lifted
-out of the executed file, so what you see is what that notebook produced.
+Every figure below is taken from the executed output of a notebook in
+[`notebooks/`](https://github.com/mbustama/Magnus/tree/main/notebooks/).
 
 | | |
 |:--:|:--:|
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_3nu_vacuum.png" width="380"/><br/>**Oscillation probabilities** against baseline or energy, for two to five flavors, in vacuum and in matter.<br/>[notebook 03](https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_long_baseline.png" width="380"/><br/>**Between two points on the Earth's surface** — Fermilab to SNOLAB, Homestake, CERN and the South Pole, through PREM.<br/>[notebook 04](https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_oscillogram.png" width="380"/><br/>**Oscillograms** across zenith angle and energy, one batched energy scan per zenith angle.<br/>[notebook 06](https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_biprobability.png" width="380"/><br/>**CP violation**, as bi-probability ellipses traced by the CP phase.<br/>[notebook 05](https://github.com/mbustama/Magnus/blob/main/notebooks/05_magnus_biprobability.ipynb) |
 | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_sterile_3plus2.png" width="380"/><br/>**Five flavors: a 3+2 sterile spectrum**, its fast oscillation filling the three-flavor envelope.<br/>[notebook 07](https://github.com/mbustama/Magnus/blob/main/notebooks/07_magnus_bsm_sterile_nu.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_custom_h.png" width="380"/><br/>**A Hamiltonian of your own** — here a long-range $L_e - L_\mu$ force through the Earth, against the standard curve.<br/>[notebook 19](https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb) |
-| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_density_arrangement.png" width="380"/><br/>**Arrangement beats the mean**: the same average density and the same path length, ordered differently, give different probabilities.<br/>[notebook 18](https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_averaged.png" width="380"/><br/>**Phase-averaged probabilities** — what survives when the oscillation is faster than anything can resolve.<br/>[notebook 10](https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb) |
-| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in about 0.7 s. The green trace is the *instantaneous* probability another code returns, thrashing between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
-| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_shock_bsm.png" width="380"/><br/>**The same two scenarios on a supernova shock**, where the identical $\varepsilon$ moves the answer thirty times further.<br/>[notebook 14](https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb) | |
+| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_density_arrangement.png" width="380"/><br/>**Arrangement matters**: the same average density over the same path length, ordered differently, gives different probabilities.<br/>[notebook 18](https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_averaged.png" width="380"/><br/>**Phase-averaged probabilities**: what remains when the oscillation is too fast for a detector to resolve.<br/>[notebook 10](https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb) |
+| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_averaged.png" width="380"/><br/>**The averaged solar survival probability**, returned directly in about 0.7 s. The green trace is the *instantaneous* probability that another code returns, which oscillates between 0.15 and 0.9.<br/>[notebook 25](https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb) | <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_solar_bsm.png" width="380"/><br/>**BSM against the standard curve**: NSI and a sterile state on a real BS2005 solar model, with the departure below.<br/>[notebook 13](https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb) |
+| <img src="https://raw.githubusercontent.com/mbustama/Magnus/main/img/gallery/gallery_shock_bsm.png" width="380"/><br/>**The same two scenarios on a supernova shock**, where the same $\varepsilon$ moves the probability by up to 0.14, against 0.014 in the Sun.<br/>[notebook 14](https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb) | |
 
-## When is Magνs the right tool?
-
-Three advantages follow from the method, whatever the Hamiltonian contains.
-Magνs is **robust**: the evolution operator is exactly unitary.  It is **fast**
-without giving up accuracy: its cost follows the profile, not the phase, where
-an ODE solver pays for every radian it resolves, and a scan over energy or
-baseline is one batched call on compiled kernels (an oscillogram, one such call per
-zenith angle).  And it is **flexible**: the
-Hamiltonian is a callable returning a Hermitian matrix of any size.
-
-When to reach for it, and when another code is cheaper, is measured on the
-[Against other codes](https://mbustama.github.io/Magnus/comparison.html#when-to-use-magnus)
-page.
-
-## When is it not the right tool?
+## When is Magνs not the right tool?
 
 Magνs solves the Schrödinger equation for a Hermitian Hamiltonian fixed before
 the propagation.  Decoherence, coupling to a bath and decay to invisible states
 need a non-unitary evolution; [nuSQuIDS](https://github.com/arguelles/nuSQuIDS)
 is the tool for those.  Collective oscillations need a Hamiltonian that depends
-on the solution, and Magνs does not ship the self-consistent iteration.  And a
-feature narrower than every sampling grid is missed by every engine together;
+on the solution, and Magνs does not ship the self-consistent iteration.  A
+feature narrower than every sampling grid goes unseen by all the engines alike;
 the matter scenario functions scan the profile for such features and warn, but
-the scan catches most, not all.  Magνs is not a flux, cross-section or detector
+the scan does not catch every one.  Magνs is not a flux, cross-section or detector
 code, a fitting framework, or an event generator: it computes oscillation
 probabilities and stops there.
 
 ## Performance
 
-A single three-flavor Earth probability takes about 2 ms at the default
-tolerance of 10⁻³; across 164 Earth, solar, vacuum and constant-density
-configurations the median call takes 2 ms and the slowest under a second.  These are per call, on the laptop
-behind every timing in the paper, with the first call of the session discarded:
-that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first
-time on a machine, when they compile.  The timing harness is
+A single three-flavor probability through the Earth takes about 2 ms at the
+default tolerance of 10⁻³.  Over 164 Earth, solar, vacuum and constant-density
+configurations, the median call takes 2 ms and the slowest under a second.  These
+times are per call, on one laptop, without the first call of a session, which
+also loads the compiled kernels: 0.1 to 0.3 s, or about 2 s the first time on a
+machine, when they compile.  The timing harness is
 [`docs/dev/adversarial_batteries/timing.py`](https://github.com/mbustama/Magnus/blob/main/docs/dev/adversarial_batteries/timing.py).
 
 **Pass arrays instead of looping.**  Every wrapper takes an array of energies,
@@ -219,9 +205,8 @@ of baselines or of both, and shares work across the points: worth one to two
 orders of magnitude, at every number of flavors from two to five.
 
 **Write your `H_func` to accept an array of positions.**  It is then called once
-per refinement stage rather than once per quadrature node: several times faster,
-with identical output.  The trick is broadcasting the potential into a stack of
-matrices:
+per refinement stage rather than once per quadrature node, which is several times
+faster, with identical output.  Broadcast the potential into a stack of matrices:
 
 ```python
 import numpy as np
@@ -242,12 +227,13 @@ def H_func(l):
 P = oscprob.osc_prob(H_func, 0.0, 1000.0*gd.UNIT_KM)
 ```
 
-A Hamiltonian that ignores its argument is detected and broadcast already.  The
-fallback warns once per session, naming the fix.
+A Hamiltonian that ignores its argument is detected and broadcast automatically.
+One written for a single position still works, more slowly, and raises a
+`ScalarHamiltonianWarning` once per session.
 
-**`n_jobs` helps only where no batched engine applies**, 2 to 3 times with ten
-workers; where one applies, a single process is faster.  More:
-[performance](https://mbustama.github.io/Magnus/performance.html).
+**`n_jobs` helps only where no batched engine applies**: there, ten workers make
+a scan 2 to 3 times faster.  Where a batched engine applies, a single process is
+faster.  See [performance](https://mbustama.github.io/Magnus/performance.html).
 
 ## What "accurate" means here
 
@@ -261,8 +247,6 @@ documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
 
 ## Salient features
 
-- **Two ways to use it**: as a Python module, or as a `magnus` command-line
-  calculator for a single probability.
 - **Any number of flavors, any Hamiltonian**: validated wrappers for 2ν, 3ν,
   4ν (3+1) and 5ν (3+2), named by environment and scenario
   ([functions](https://mbustama.github.io/Magnus/functions.html)), plus a
@@ -272,8 +256,6 @@ documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
   Sun on an exponential fit or any of twelve standard solar models
   ([solar models](https://mbustama.github.io/Magnus/solar_models.html)), or
   any profile you supply.
-- **Beyond the Standard Model**: non-standard interactions, Lorentz-invariance
-  violation, sterile states and pseudo-Dirac pairs.
 - **The Magnus expansion to order 10**, with the terms of orders 1 to 10
   checked against an independently coded recursion.  The default Gauss–Legendre integrators reach orders
   2, 4, 6 and 8 from 1, 2, 3 and 4 evaluations of the Hamiltonian per slab;
@@ -317,14 +299,14 @@ Magnus/
 ├── CHANGELOG.md                    # Version history (Keep a Changelog format)
 ├── CITATION.cff                    # Machine-readable citation metadata; drives GitHub's "Cite this repository"
 ├── LICENSE                         # GNU GPL v3 (GPL-3.0-only), the full license text
-├── MANIFEST.in                     # Adds tests/conftest.py to the sdist, which skips the checkout-only tests there
+├── MANIFEST.in                     # Adds tests/conftest.py to the sdist, so that tests needing a source checkout are skipped there
 ├── README.md                       # Project overview; also the PyPI project description
 ├── docs/                           # Sphinx documentation configuration and source
 ├── fig/                            # Plots produced by the example notebooks
 ├── img/                            # Figures used by the documentation
 ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
 ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
-├── resources/                      # Travels with the code; reaches neither the wheel nor the sdist
+├── resources/                      # Paper sources and benchmark drivers, kept in the repository but not distributed
 ├── tools/                          # Standalone utilities that are not part of the package
 ├── src/                            # The package itself -- the only thing a `pip install` delivers
 └── tests/                          # Test suite (pytest; runs in CI)
@@ -363,8 +345,8 @@ version you used, since results can depend on it.  The
 [citing](https://mbustama.github.io/Magnus/citing.html) page has the BibTeX
 entry.
 
-Mauricio Bustamante (2026).  *Magnus: neutrino oscillation probabilities via
-the Magnus expansion*.  GitHub repository:
+Mauricio Bustamante (2026).  *Magνs: neutrino oscillation probabilities for any
+Hermitian Hamiltonian, any number of flavors, and any matter profile*.  GitHub repository:
 https://github.com/mbustama/Magnus.
 
 **Methodology references:**

@@ -6,12 +6,11 @@ Against other codes
    :depth: 2
 
 Magνs is not the fastest way to compute every oscillation probability, and this page
-says where it is not.  It follows the cross-code comparison of the Magνs paper (not yet
-published; its source is in ``resources/paper/`` of the `repository
-<https://github.com/mbustama/Magnus/tree/main/resources/paper>`_): eight codes on three setups,
-NuOscProbExact at two to five flavors, and the cost of an averaged solar probability, all
-computed in notebook 28, and then which code to reach for.  Every code is timed in one
-process on one machine.
+says where it is not.  It follows the cross-code comparison of the Magνs paper, whose
+source is in `resources/paper/ <https://github.com/mbustama/Magnus/tree/main/resources/paper>`_:
+eight codes on three setups, NuOscProbExact at two to five flavors, and the cost of an
+averaged solar probability, all computed in notebook 28.  It ends with which code to use
+when.  Every code is timed in one process on one machine.
 
 .. warning::
 
@@ -41,7 +40,7 @@ chiefly the constant that fixes :math:`V_{\rm CC}`, so two codes can both reach
 :math:`10^{-14}` here and still disagree with each other at :math:`10^{-4}`.
 
 * **Constant density.**  Most codes land near round-off and differ only in cost,
-  from about 0.07 µs per probability for NuFast-LBL to about 100 µs for nuSQuIDS.  Magνs
+  from about 0.06 µs per probability for NuFast-LBL to about 100 µs for nuSQuIDS.  Magνs
   sits at :math:`3 \times 10^{-15}` and 3.9 µs.
 * **Earth, three flavors.**  To reach about :math:`3 \times 10^{-10}`, Magνs needs
   0.43 ms (256 slabs), nuSQuIDS 1.3 ms, NuOscProbExact 26 ms, nuCraft 62 ms and
@@ -123,7 +122,7 @@ constant-density slabs does well:
   are returned directly rather than reconstructed from a scan (:doc:`averaged_probability`).
 * **The accuracy lies below where a slab composition floors.**  On a core-crossing PREM chord
   NuOscProbExact stops near :math:`2 \times 10^{-10}`; Magνs reaches further.  Both are far
-  below the per-cent level that matters in a data analysis.
+  below the percent level that matters in a data analysis.
 
 Elsewhere another code may be cheaper:
 
@@ -136,7 +135,7 @@ Elsewhere another code may be cheaper:
      - Because
    * - Constant density
      - NuFast-LBL (three flavors); closed-form codes
-     - Every code reaches round-off; NuFast-LBL does it in about 0.07 µs, some sixty times
+     - Every code reaches round-off; NuFast-LBL does it in about 0.06 µs, some sixty times
        faster than Magνs
    * - Earth chord, three flavors, a fit that moves only :math:`\delta_{\rm CP}`
      - NuFast-Earth
