@@ -760,10 +760,9 @@ Turbulent matter profile
 
 .. figure:: ../../../img/paper/turbulence_rabi.svg
    :width: 95%
-   :alt: A density mode against its closed form
+   :alt: Turbulence: numerical against theory
 
-   **A density mode against its closed form.** Probability of transition between two matter levels coupled by a single density mode, against the wavenumber of the Fourier mode of the matter density in the medium, for a 5-GeV neutrino in a region of mean density :math:`\rho_0 = 4` g cm\ :math:`^{-3}` carrying one mode of amplitude :math:`C = 0.03`. The panels are region lengths of :math:`1`, :math:`3`, :math:`10`, and :math:`30\,L_{\rm osc}`, with :math:`L_{\rm osc} = 2\pi/\Delta_{32} = 11\,030` km the oscillation length driven by the 2-3 sector. The closed form of Refs.  :cite:p:`Patton:2013dba,Patton:2014lza`, Eq. :eq:`ex-equ-turb-rabi`, is evaluated for the two-flavor reduction of the 1-3 sector; Magνs is run at two, three, and four flavors, the last with :math:`\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10` and :math:`\Delta m^2_{41} = 1` eV\ :math:`^2`. The levels are those of the mean density, between which no transition occurs without the mode. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
-
+   **Turbulence: numerical against theory.** Transition probability between two matter levels, against the wavenumber :math:`q` of a single density mode of amplitude :math:`C = 0.03`, for a 5-GeV neutrino crossing a region of mean density :math:`\rho_0 = 4` g cm\ :math:`^{-3}`. The levels are those of the mean density, between which no transition occurs without the mode. The panels are region lengths of :math:`1`, :math:`3`, :math:`10`, and :math:`30\,L_{\rm osc}`, with :math:`L_{\rm osc} = 2\pi/\Delta_{32} = 11\,030` km. The closed form of Refs.  :cite:p:`Patton:2013dba,Patton:2014lza`, Eq. :eq:`ex-equ-turb-rabi`, is evaluated for the two-flavor reduction of the 1–3 sector. Magνs is run at two, three, and four flavors, the last with :math:`\sin^2\theta_{14} = \sin^2\theta_{24} = 0.10` and :math:`\Delta m^2_{41} = 1` eV\ :math:`^2`. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. _ex-fig-turbulence:
 
@@ -771,12 +770,11 @@ Turbulent matter profile
    :width: 95%
    :alt: The same mode in the flavor channel
 
-   **The same mode in the flavor channel.** Flavor transition probability :math:`P_{\nu_\mu \to \nu_e}` for the same neutrino, medium, mode, and region lengths as Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>`, at two, three, and four flavors. The line labeled :math:`q = \Delta_{32}` marks the mode that matches the three-flavor gap; the two- and four-flavor gaps lie a few percent away from it. The curves sit at different heights because the three flavor counts give different probabilities over the same region even without the mode. The closed-form curve is Eq. :eq:`ex-equ-turb-rw-flavor`, the flavor probability built from the propagator behind Eq. :eq:`ex-equ-turb-rabi`, for the same two-flavor system as in Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>`. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **The same mode in the flavor channel.** Probability :math:`P_{\nu_\mu \to \nu_e}` for the same neutrino, medium, mode, and region lengths as Figure :ref:`Turbulence: numerical against theory <ex-fig-turbulence-rabi>`, at two, three, and four flavors. The line labeled :math:`q = \Delta_{32}` marks the mode that matches the three-flavor gap; the two- and four-flavor gaps lie 2% and 3.5% above it. The curves sit at different heights because, even without the mode, the three flavor counts give different probabilities. The closed-form curve is Eq. :eq:`ex-equ-turb-rw-flavor`, for the same two-flavor system as in Figure :ref:`Turbulence: numerical against theory <ex-fig-turbulence-rabi>`. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
+Matter behind a supernova shock does not settle, because convection keeps stirring it. Its density fluctuates about its mean by tens of percent, on length scales from the size of the star to far below it  :cite:p:`Loreti:1995ae,Schirato:2002tg,Fogli:2006xy,Patton:2013dba,Patton:2014lza`. Therefore, the density along the path of an escaping neutrino has two components: a smooth profile that decreases with radius, and random fluctuations on top of it. The fluctuations can be decomposed into Fourier modes, each a periodic density variation of wavenumber :math:`q`. A mode moves neutrinos between two eigenstates of :math:`\mathbb{H}` when :math:`q` matches the gap between their eigenvalues, :math:`\Delta_{jk} = \lambda_j - \lambda_k`. This is the parametric resonance of :doc:`/methodology`.
 
-Matter behind a supernova shock does not settle: convection keeps stirring it. Its density fluctuates around its mean value by tens of percent, over a range of length scales spanning from the size of the star to far below it  :cite:p:`Loreti:1995ae,Schirato:2002tg,Fogli:2006xy,Patton:2013dba,Patton:2014lza`. Therefore, an escaping neutrino meets a profile with a density that has a regular component—decreasing with distance from the center—and a random component overlaid on it. In the Fourier decomposition of that random component, a mode of wavenumber :math:`q` moves neutrinos between a pair of eigenstates of :math:`\mathbb{H}` when :math:`q` coincides with the eigenvalue gap :math:`\Delta_{jk} = \lambda_j - \lambda_k`, the random density mode playing the role that an oscillating field plays in parametric resonance (:doc:`/methodology`).
-
-References  :cite:p:`Patton:2013dba,Patton:2014lza` solved that problem in closed form. Treating the random component as a perturbation on the regular one and keeping the resonant term, they obtained a Rabi formula for the transition between the two levels,
+References  :cite:p:`Patton:2013dba,Patton:2014lza` solved this problem in closed form. They treated the random component as a perturbation of the regular one and kept only its resonant term. For a density mode :math:`\rho(l) = \rho_0 \left[1 + C \cos(q l)\right]`, with :math:`\rho_0` the mean density and :math:`C` the relative amplitude of the mode, they obtained a Rabi formula for the transition between the two levels,
 
 .. math::
    :label: ex-equ-turb-rabi
@@ -784,13 +782,11 @@ References  :cite:p:`Patton:2013dba,Patton:2014lza` solved that problem in clos
    P_{jk}
    =
    \frac{\kappa^2}{p^2 + \kappa^2}\,
-   \sin^2\!\left(\sqrt{p^2 + \kappa^2}\; L\right) ,
-   \qquad
-   p = \tfrac{1}{2}\left(\Delta_{jk} - q\right) ,
+   \sin^2\!\left(\sqrt{p^2 + \kappa^2}\; L\right) \;,
 
-where :math:`L` is the length of the turbulent region and :math:`\kappa \equiv \tfrac{1}{2} C V_{\rm CC} \lvert U^m_{ej} U^m_{ek}\rvert` is the coupling induced between the two levels by a density mode :math:`\rho(l) = \rho_0 \left[1 + C \cos(q l)\right]`, with :math:`\rho_0` the mean density and :math:`U^m` the mixing matrix in matter. On resonance, where :math:`q = \Delta_{jk}`, the probability is :math:`\sin^2(\kappa L)`: the amplitude :math:`C` sets how long the region must be for complete conversion to occur.
+where :math:`L` is the length of the turbulent region and :math:`p \equiv \tfrac{1}{2} (\Delta_{jk} - q )` is the detuning of the mode from the gap. The coupling the mode induces between the levels is :math:`\kappa \equiv \tfrac{1}{2} C V_{\rm CC} \lvert U^m_{ej} U^m_{ek}\rvert`, with :math:`U^m` the mixing matrix in matter at :math:`\rho_0`. On resonance, where :math:`q = \Delta_{jk}`, the probability is :math:`\sin^2(\kappa L)`. Complete conversion requires a region of length :math:`\pi/(2\kappa)`, which grows as :math:`C` shrinks.
 
-As example, we consider a region of mean density :math:`\rho_0 = 4` g cm\ :math:`^{-3}` carrying one mode of amplitude :math:`C = 0.03`, crossed by a 5-GeV neutrino:
+As an example, we consider a 5-GeV neutrino crossing a region of mean density :math:`\rho_0 = 4` g cm\ :math:`^{-3}` that carries one mode of amplitude :math:`C = 0.03`:
 
 .. code-block:: python
 
@@ -813,7 +809,7 @@ As example, we consider a region of mean density :math:`\rho_0 = 4` g cm\ :mat
        return rho
 
 
-The gaps of the Hamiltonian at :math:`\rho_0` fix the range of :math:`q` to scan:
+The gaps of :math:`\mathbb{H}` at :math:`\rho_0` set the range of :math:`q` to scan:
 
 .. code-block:: python
 
@@ -834,10 +830,15 @@ The gaps of the Hamiltonian at :math:`\rho_0` fix the range of :math:`q` to scan
    d32 = abs(w[2] - w[1])
    LOSC = 2*np.pi/d32     # 11 030 km
 
+   # Coupling of levels 2 and 3, and the length
+   # of complete conversion, in units of LOSC
+   kap = 0.5*C*V0*abs(Vm[0, 1]*Vm[0, 2])
+   np.pi/(2*kap)/LOSC     # 37.4
 
-Here, :math:`\Delta_{32}` is matched by a mode of wavelength :math:`L_{\rm osc} \equiv 2\pi/\Delta_{32} = 11\,030` km, the oscillation length of that pair of levels.
 
-Eq. :eq:`ex-equ-turb-rabi` gives the transition probability between two eigenstates of :math:`\mathbb{H}`\ :cite:p:`Patton:2013dba,Patton:2014lza`. The same quantity is contained in the evolution operator :math:`\mathbb{U}` (:ref:`conv-hamiltonian`), once :math:`\mathbb{U}` is written in the basis of those eigenstates: :math:`\lvert [\mathbb{U}]_{jk} \rvert^2` is the transition probability between levels :math:`k` and :math:`j`. If the density were constant, :math:`\mathbb{H}` would be the same at every point of the region; its eigenstates would then evolve independently of one another, so :math:`\lvert [\mathbb{U}]_{jk} \rvert^2` would vanish for :math:`j \neq k`. The Fourier mode makes the density vary along the region, so :math:`\mathbb{H}` varies with it. In the basis of the eigenstates at :math:`\rho_0`, that variation appears as the off-diagonal elements :math:`C V_{\rm CC} \cos(ql)\, U^{m*}_{ej} U^m_{ek}` of :math:`\mathbb{H}`. Those elements mix the levels as the neutrino advances, so :math:`\mathbb{U}` acquires off-diagonal elements too; :math:`\lvert [\mathbb{U}]_{jk} \rvert^2` is what that mixing amounts to over the whole region. Magνs returns :math:`\mathbb{U}`; rotating it into that basis is one line:
+The mode that matches :math:`\Delta_{32}` has wavelength :math:`L_{\rm osc} \equiv 2\pi/\Delta_{32} = 11\,030` km, the oscillation length of levels 2 and 3. Complete conversion between them takes :math:`37\,L_{\rm osc}`. Only these two levels carry appreciable electron flavor, since :math:`\lvert U^m_{e1} \rvert^2 = 5.5 \times 10^{-4}`. Hence, the modes that match the other two gaps, :math:`\Delta_{21}` and :math:`\Delta_{31}`, couple their levels about 15 and 40 times more weakly.
+
+Magνs computes the same transition probability without the approximations behind Eq. :eq:`ex-equ-turb-rabi`, from the evolution operator :math:`\mathbb{U}` (:ref:`conv-hamiltonian`). Written in the basis of the eigenstates at :math:`\rho_0`, its element :math:`\lvert [\mathbb{U}]_{jk} \rvert^2` is the probability of a transition from level :math:`k` to level :math:`j`. In a medium of constant density, :math:`\mathbb{H}` is diagonal in that basis at every point. Each level then evolves on its own, and :math:`[\mathbb{U}]_{jk}` vanishes for :math:`j \neq k`. The mode adds :math:`C V_{\rm CC} \cos(ql)\, U^{m*}_{ej} U^m_{ek}` to each element of :math:`\mathbb{H}` in that basis. The off-diagonal elements mix the levels as the neutrino advances, and :math:`\lvert [\mathbb{U}]_{jk} \rvert^2` measures that mixing over the whole region. The diagonal elements raise and lower the levels with the density. Magνs returns :math:`\mathbb{U}` in the flavor basis; rotating it to the matter basis takes one line:
 
 .. code-block:: python
 
@@ -856,13 +857,15 @@ Eq. :eq:`ex-equ-turb-rabi` gives the transition probability between two eigensta
        return h + ham.hamiltonian_3nu_matter(
            V0*rho(l)/RHO0)
 
-   # One operator per slab, then the ordered
-   # product over the chain
+   # One operator per slab, from 9 nodes at
+   # Magnus order 6
    edges = np.linspace(0.0, L, 501)
    slabs = np.stack([edges[:-1], edges[1:]], 1)
    Us = chain(H, slabs, 9, 6)
+
+   # Ordered product, earliest slab first
    U = Us[0]
-   for u in Us[1:]:     # Earliest slab first
+   for u in Us[1:]:
        U = u @ U
 
    # Rotate to the matter basis, then read the
@@ -871,9 +874,9 @@ Eq. :eq:`ex-equ-turb-rabi` gives the transition probability between two eigensta
    P32                    # 0.001758
 
 
-Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>` compares Eq. :eq:`ex-equ-turb-rabi` with Magνs at four lengths of the turbulent region; the closed form is evaluated for the two-flavor system it was derived for, the 1–3 sector, with :math:`\kappa` from the two-flavor :math:`\mathbb{U}^m` at :math:`\rho_0`. The closed form of Refs. :cite:p:`Patton:2013dba,Patton:2014lza` keeps only the part of the coupling that varies slowly along the trajectory; the part it discards averages out only over many of its own cycles. One :math:`L_{\rm osc}` (Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>`, top panel) contains too few of them, so the closed form and the two-flavor Magνs curve differ appreciably; the difference shrinks as the region lengthens (Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>`, bottom three panels). A third or fourth flavor changes the eigenvalue gap and moves the resonance to a different wavenumber, while the length of the region sets its width: the longer the region, the more closely the mode has to match the gap.
+Figure :ref:`Turbulence: numerical against theory <ex-fig-turbulence-rabi>` shows this probability against :math:`q` for four lengths of the region, computed with Magνs and with Eq. :eq:`ex-equ-turb-rabi`. We evaluate the closed form for the two-flavor 1–3 sector, the system for which it was derived. The closed form relies on the rotating-wave approximation, which neglects a rapidly oscillating part of the coupling; that part averages out only over many oscillation lengths. Hence, it is accurate only in long regions: it differs from the two-flavor Magνs result by 28% of the peak at :math:`L = L_{\rm osc}`, but by only 0.4% at :math:`L = 30\,L_{\rm osc}`. The resonance narrows as the region lengthens, because a longer region requires a closer match between :math:`q` and the gap. Adding flavors changes the eigenvalues of :math:`\mathbb{H}`, and with them the gap that the mode must match. Hence, the resonance lies at :math:`q/\Delta_{32} = 1.020`, :math:`1`, and :math:`1.035` for two, three, and four flavors. The sterile state also draws 10% of the electron flavor into the fourth level. This lowers :math:`\lvert U^m_{e2} U^m_{e3} \rvert` from 0.33 to 0.25, so the coupling :math:`\kappa` is weaker and the four-flavor peak is lower.
 
-Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` shows the associated oscillation probabilities :math:`P_{\nu_\mu \to \nu_e}`, computed via
+Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` shows the flavor probability :math:`P_{\nu_\mu \to \nu_e}` for the same sweep, computed via
 
 .. code-block:: python
 
@@ -900,9 +903,9 @@ Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` shows the 
        4, one_mode(d32), E, L, OSC4, **kw)
 
 
-In Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>`, the largest change of the probability sits around the wavenumber :math:`q = \Delta_{32}`. This is the resonance of Figure :ref:`A density mode against its closed form <ex-fig-turbulence-rabi>`, seen in the flavor channel; as there, it narrows as the region lengthens. Above :math:`\Delta_{32}` the curves are flat: a mode faster than every gap cancels its effect along the trajectory.
+From :math:`10\,L_{\rm osc}` on, the probability changes most near :math:`q = \Delta_{32}`. This is the resonance of Figure :ref:`Turbulence: numerical against theory <ex-fig-turbulence-rabi>`, now seen in the flavor channel; as before, it narrows as the region lengthens. In shorter regions, modes with :math:`q < \Delta_{32}` change the probability by a comparable or larger amount; we explain why below. For :math:`q > \Delta_{32}`, the curves return to their values in the smooth medium. The three-flavor curve shows no resonance at the other two gaps, :math:`\Delta_{21} = 1.26\,\Delta_{32}` and :math:`\Delta_{31} = 2.26\,\Delta_{32}`, because the modes that match them couple their levels only weakly.
 
-Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` also shows the flavor probability that follows from the closed form. Near the resonance it follows the two-flavor Magνs curve, more closely the longer the region. At low wavenumber it does not: there it stays at the value of the smooth medium, while Magνs swings above it. That curve is built as follows. Eq. :eq:`ex-equ-turb-rabi` is the modulus squared of one element of the propagator of the two-level system in the rotating-wave approximation, the solution behind the closed form  :cite:p:`Patton:2013dba,Patton:2014lza`. In the matter basis of the mean density, that propagator is
+Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` also shows a flavor probability computed from the closed form. Eq. :eq:`ex-equ-turb-rabi` follows from the propagator of the two-level system in the rotating-wave approximation  :cite:p:`Patton:2013dba,Patton:2014lza`. Rotated to the flavor basis, it reproduces the resonance computed by Magνs, but not the effect of modes slower than the gap. In the matter basis at :math:`\rho_0`, the propagator is
 
 .. math::
    :label: ex-equ-turb-rw-u
@@ -918,7 +921,7 @@ Figure :ref:`The same mode in the flavor channel <ex-fig-turbulence>` also shows
    \end{pmatrix}
    \right] ,
 
-where :math:`\bar\lambda = \tfrac{1}{2}(\lambda_1 + \lambda_2)` and :math:`p = \tfrac{1}{2}(\lambda_2 - \lambda_1 - q)` are the mean of the two levels and the detuning, while :math:`\kappa_c = \tfrac{1}{2} C V_{\rm CC}\, U^{m*}_{e1} U^m_{e2}` is the coupling, with :math:`\lvert \kappa_c \rvert = \kappa`. The matrix in the exponent is the Hamiltonian in the frame that rotates with the mode, in which it is constant; the first factor undoes that rotation. The flavor probability reads the same propagator with flavor indices,
+where :math:`\bar\lambda = \tfrac{1}{2}(\lambda_1 + \lambda_2)` is the mean of the two levels, :math:`p = \tfrac{1}{2}(\lambda_2 - \lambda_1 - q)` is the detuning, and :math:`\kappa_c = \tfrac{1}{2} C V_{\rm CC}\, U^{m*}_{e1} U^m_{e2}` is the coupling, with :math:`\lvert \kappa_c \rvert = \kappa`. The matrix in the exponent is the Hamiltonian in a frame that rotates with the mode. In that frame, the Hamiltonian does not depend on position, so the propagator is a single matrix exponential. The diagonal prefactor transforms the result back to the matter basis. In the flavor basis, the probability is
 
 .. math::
    :label: ex-equ-turb-rw-flavor
@@ -927,4 +930,4 @@ where :math:`\bar\lambda = \tfrac{1}{2}(\lambda_1 + \lambda_2)` and :math:`p = \
    =
    \left\lvert \left[ U^m\, \tilde{\mathbb{U}}(L)\, U^{m\dagger} \right]_{e\mu} \right\rvert^2 .
 
-The matrix in Eq. :eq:`ex-equ-turb-rw-u` couples the two levels but does not move them: the rotating-wave approximation drops the part of the mode that raises and lowers the levels along with the density. At low wavenumber that part is all there is. Such a mode changes the density slowly; the levels follow it, with no transition driven between them. Eq. :eq:`ex-equ-turb-rw-u` misses that effect, so its curve stays at the value of the smooth medium at low wavenumber.
+Of the terms that the mode adds to :math:`\mathbb{H}`, the rotating-wave approximation keeps only the off-diagonal part that oscillates in step with the transition between the two levels. It discards the rest, including the diagonal terms, which shift the levels up and down with the density. Below the resonance, the off-diagonal terms drive no transition, as Figure :ref:`Turbulence: numerical against theory <ex-fig-turbulence-rabi>` shows. The diagonal terms still matter there: the levels follow the slowly varying density, which changes the phases they accumulate and, with them, :math:`P_{\nu_\mu \to \nu_e}`. Eq. :eq:`ex-equ-turb-rw-u` lacks these terms, so its curve stays at the value for the smooth medium.
