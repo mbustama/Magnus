@@ -380,6 +380,8 @@ TREE = [
      "MAGNUS_PAPER_CACHE_ONLY stops notebook 28 on a cache miss instead of recomputing"),
     ('tests/test_paper_cache_key_is_portable.py',
      "The figure cache's key survives a change of machine: a ULP must not move it"),
+    ('tests/test_paper_long_range_readout.py',
+     "Notebook 28's long-range solar figure reads the probability out in vacuum, at 20 R_sun"),
     ('tests/test_ci_honours_the_docs.py',
      'Every MAGNUS_* variable the docs tell CI to set, a workflow actually sets'),
     ('tests/test_notebooks_match_their_generator.py',

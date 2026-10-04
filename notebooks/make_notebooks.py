@@ -17258,26 +17258,34 @@ def long_range_potential(r_grid, ne_grid, m):
 
 LR_CHARGE = np.diag([1.0, -1.0, 0.0]).astype(complex)      # the L_e - L_mu charge
 # Two mediator ranges: the solar radius, the analogue of 1/m = R_earth in notebook 19,
-# and a tenth of it.  The shorter range samples the profile where it is steepest, so the
-# two are not a rescaling of each other.
+# and a tenth of it.
 LR_RANGES = [(1.0, r'$1/m = R_\odot$', RED),
              (0.1, r'$1/m = R_\odot/10$', BLUE)]
-V_LR = {}
-G2 = {}
+# The neutrino is made at 0.05 R_sun, where 8B production peaks (0.044 R_sun in the
+# BS05(AGS,OP) flux table, median 0.048 R_sun).  It is read out at 20 R_sun: the
+# potential of a light mediator reaches past the surface, 1e3 V_CC at the table's edge for
+# 1/m = R_sun, and a readout there tilts the eigenbasis by an amount that grows with the
+# energy -- an upturn above 9 MeV that no detector on Earth would see.  By 20 R_sun both
+# potentials have faded, and the exit is adiabatic, so the readout is the vacuum one.
+LR_R0, LR_END = 0.05*R_SUN, 20.0*R_SUN
+X_LR = np.concatenate([x_solar, np.geomspace(1.002*R_SUN, LR_END, 800)])
+NE_LR = _ne_pkg(X_LR)          # the package's profile, which fades to zero past the table
+V_LR = {frac: long_range_potential(X_LR, NE_LR, 1.0/(frac*R_SUN)) for frac, _, _ in LR_RANGES}
+# One coupling for both ranges, so that the curves differ only through the range: g'^2
+# makes the new potential a tenth of V_CC where the neutrino is made at 1/m = R_sun.  The
+# shorter range reaches fewer electrons and gives less there, about 0.03 V_CC.
+G2_LR = (0.1*float(PER_NE*_ne_pkg(LR_R0))
+         / float(np.interp(LR_R0, X_LR, V_LR[LR_RANGES[0][0]])))
+G2 = {frac: G2_LR for frac, _, _ in LR_RANGES}
 for frac, _, _ in LR_RANGES:
-    V_LR[frac] = long_range_potential(x_solar, ne_tab, 1.0/(frac*R_SUN))
-    # g'^2 fixed so the new potential is a tenth of V_CC at the center in each case,
-    # which is what makes the two curves comparable.
-    G2[frac] = 0.1*VCC0/V_LR[frac][0]
-    print('L_e - L_mu, 1/m = %.1f R_sun: V_new/V_CC = %.3f at the center, %.4f at 0.5 R_sun'
-          % (frac, G2[frac]*V_LR[frac][0]/VCC0,
-             G2[frac]*np.interp(0.5*R_SUN, x_solar, V_LR[frac])
-             / float(PER_NE*ne_sun(0.5*R_SUN))))
+    print('L_e - L_mu, 1/m = %.1f R_sun: V_new/V_CC = %.3f at 0.05 R_sun, %.3f at 0.5 R_sun'
+          % (frac, *(G2[frac]*np.interp(x, X_LR, V_LR[frac])/float(PER_NE*_ne_pkg(x))
+                     for x in (LR_R0, 0.5*R_SUN))))
 
 
 def vcc_sun(l):
-    """V_CC along the ray, on the tabulated model; takes an array of positions."""
-    return PER_NE*ne_sun(l)
+    """V_CC along the ray; past the table, the package's profile fades to zero."""
+    return PER_NE*_ne_pkg(l)
 
 
 def H_lr(frac=None):
@@ -17287,7 +17295,7 @@ def H_lr(frac=None):
     def f(E, l):
         h = HV3/E + hamiltonians.hamiltonian_3nu_matter_td(l, vcc_sun)
         if frac is not None:
-            v = G2[frac]*np.interp(l, x_solar, V_LR[frac])
+            v = G2[frac]*np.interp(l, X_LR, V_LR[frac])
             h = h + np.asarray(v)[..., None, None]*LR_CHARGE
         return h
     return f
@@ -17300,8 +17308,8 @@ def _lri_sweep():
     # average=True on the direct route: the closed form, the adiabatic transport or the
     # window average, decided from the Hamiltonian, exactly as behind the wrappers.
     def sweep(frac):
-        return np.asarray(quiet(oscprob.osc_prob_energy_baseline, H_lr(frac), E_LR, R_SUN,
-                                0.0, nu_i=gd.NUE, nu_f=gd.NUE, average=True)).tolist()
+        return np.asarray(quiet(oscprob.osc_prob_energy_baseline, H_lr(frac), E_LR, LR_END,
+                                LR_R0, nu_i=gd.NUE, nu_f=gd.NUE, average=True)).tolist()
     out = {'std': sweep(None)}
     for frac, _, _ in LR_RANGES:
         out['%g' % frac] = sweep(frac)
@@ -17310,7 +17318,7 @@ def _lri_sweep():
 
 _got = cached('solar_long_range',
               ('lri', 'average=True on osc_prob_energy_baseline', [float(e) for e in E_LR],
-               float(R_SUN), [f for f, _, _ in LR_RANGES],
+               float(R_SUN), float(LR_R0), float(LR_END), [f for f, _, _ in LR_RANGES],
                {'%g' % f: float(G2[f]) for f, _, _ in LR_RANGES}, sorted(OSC.items())),
               _lri_sweep, what='the long-range solar sweep')
 P_std = np.asarray(_got['std'])
@@ -17338,7 +17346,7 @@ axd = fig.add_axes([0.005, 0.735, 0.99, 0.255])
 axd.set_xlim(-1.55, 9.45); axd.set_ylim(-1.62, 1.52)
 axd.set_aspect('equal'); axd.axis('off')
 SUN_FILL = '#f7d68a'
-R_D, CX_D, PROD_D = 1.0, [0.0, 3.55, 7.10], -0.06
+R_D, CX_D, PROD_D = 1.0, [0.0, 3.55, 7.10], 0.05
 for _cx, (_rng, _col, _lab) in zip(CX_D, [(None, INK, r'Standard'),
                                           (0.10, BLUE, r'$1/m = R_\odot/10$'),
                                           (1.00, RED,  r'$1/m = R_\odot$')]):
@@ -17350,13 +17358,13 @@ for _cx, (_rng, _col, _lab) in zip(CX_D, [(None, INK, r'Standard'),
                                  facecolor=_col if _rng < 0.5 else 'none',
                                  alpha=0.55 if _rng < 0.5 else 1.0,
                                  edgecolor=_col, lw=0.5, zorder=5))
-    axd.add_patch(Circle((_cx, 0), 0.10*R_D, facecolor='white', edgecolor=INK, lw=0.6,
+    axd.add_patch(Circle((_cx, 0), 0.05*R_D, facecolor='white', edgecolor=INK, lw=0.6,
                          ls=(0, (2.2, 1.6)), zorder=6))
     axd.annotate('', xy=(_cx + 1.26, 0), xytext=(_cx + PROD_D, 0), zorder=8,
                  arrowprops=dict(arrowstyle='-|>', color=INK, lw=1.15, shrinkA=0, shrinkB=0))
     axd.plot([_cx + PROD_D], [0], marker='o', ms=2.8, color=INK, zorder=9)
     axd.text(_cx, -1.34, _lab, ha='center', va='top', fontsize=6.8, color=_col)
-axd.annotate(r'$\nu_e$ born inside $0.1\,R_\odot$', xy=(CX_D[0], 0.10),
+axd.annotate(r'$\nu_e$ born at $0.05\,R_\odot$', xy=(CX_D[0] + PROD_D, 0.02),
              xytext=(CX_D[0] + 0.35, 1.36), ha='center', va='bottom', fontsize=6.3,
              color=INK, arrowprops=dict(arrowstyle='-', color=INK, lw=0.5,
                                         shrinkA=1, shrinkB=1))

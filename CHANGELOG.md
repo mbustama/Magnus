@@ -9,6 +9,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Notebook 28's long-range solar figure read the probability out inside the Sun.**  The
+  `L_e - L_mu` sweep ended at the edge of the solar table, 0.98 R_sun, where the potential
+  of a mediator of range R_sun is still about 1e3 `V_CC`.  Read out in the eigenbasis there,
+  the curve turned up above about 9 MeV and crossed the standard one, an effect no detector
+  on Earth sees: the potential fades within a few solar radii and the exit is adiabatic.
+  The sweep now ends at 20 R_sun, where the readout is the vacuum one.  It also starts at
+  0.05 R_sun, where 8B neutrinos are made, instead of the center, and uses one coupling for
+  both mediator ranges, so that the two curves differ only through the range.  The figure's
+  cache entry is recomputed.
 - **The plotting functions' axis and tick labels were 10 points outside the notebooks.**
   `magnus.plotting` left text sizes to the `matplotlibrc` of wherever it ran, so in the
   documentation and in users' scripts the 18-by-9-inch figures had tiny labels.  The module
