@@ -16,12 +16,11 @@ A cavity in the Earth’s crust
    :width: 95%
    :alt: A cavity in the Earth’s crust
 
-   **A cavity in the Earth’s crust.** Effect of a cavity in the Earth’s crust on the :math:`\bar{\nu}_e` survival probability over a baseline of :math:`1\,500` km, computed with Magνs, after Ref.  :cite:p:`Arguelles:2012nw`. *Top*: the crust alone. *Bottom*: the change that four cavities make to it, each centered on the baseline, with the density and width its label gives. The dashed line marks 49 MeV, where the crust curve peaks. The beam of Ref.  :cite:p:`Arguelles:2012nw` spans 5–150 MeV; below 25 MeV, the oscillation is too rapid to draw. Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>` computes every curve. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
-
+   **A cavity in the Earth’s crust.** Effect of a cavity in the Earth's crust on the :math:`\bar{\nu}_e` survival probability over a baseline of :math:`1\,500` km, computed with Magνs, after Ref.  :cite:p:`Arguelles:2012nw`. *Top*: the crust alone, uniform at 3.3 g cm\ :math:`^{-3}` with :math:`Y_e = 0.5`. *Bottom*: the change that four cavities make to it, each centered on the baseline, with the density and width its label gives. The water cavity carries :math:`Y_e = 0.555`, the other three 0.5. The dashed line marks 49 MeV, where the crust curve peaks. The beam of Ref.  :cite:p:`Arguelles:2012nw` spans 5–150 MeV; below 25 MeV, the oscillation is too rapid to draw. Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>` computes every curve. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. _ex-lst-cavity:
 
-**A cavity in the Earth’s crust.** The curves of Figure :ref:`A cavity in the Earth’s crust <ex-fig-cavity>`. Each cavity is a density profile with two walls, declared as breakpoints. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+**A cavity in the Earth's crust.** A cavity search in the Earth's crust, after Ref.  :cite:p:`Arguelles:2012nw`: the :math:`\bar{\nu}_e` survival probability over :math:`1\,500` km of Earth's crust, with and without a cavity of different density centered on the baseline. A cavity is a density profile with two walls, whose positions are declared as breakpoints so that the refinement ladder runs inside the cavity. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -31,7 +30,7 @@ A cavity in the Earth’s crust
    import magnus.globaldefs as gd
 
    L0 = 1500.0                     # km, source to detector
-   RHO_CRUST, YE_CRUST = 3.3, 0.5  # round crust values
+   RHO_CRUST, YE_CRUST = 3.3, 0.5  # Near PREM's crust
    E = np.linspace(25.0, 150.0, 2500)*gd.UNIT_MEV
    osc = gd.load_nufit_params('NuFIT 6.1')
    kw = dict(osc_params=osc, L0=0.0, nu_i=gd.NUE,
@@ -78,15 +77,15 @@ A cavity in the Earth’s crust
        dP.append(P - P0)
 
 
-A region of anomalous density along the trajectory of a neutrino moving in an otherwise uniform medium changes the oscillation probability measured at the far end. This observation has motivated proposals for using neutrinos to search for underground cavities in the Earth’s crust. We use Magνs to implement the prescription of Ref. :cite:p:`Arguelles:2012nw`: a low-energy :math:`\bar{\nu}_e` beam crossing :math:`1\,500` km of crust, with the survival probability measured from 5 to 150 MeV. Our goal is primarily illustrative; we point out the doubtful feasibility of such an experimental setup.
+A region of anomalous density along the path of a neutrino through an otherwise uniform medium changes the oscillation probability measured at the far end. Using neutrinos to explore the interior of the Earth was proposed decades ago :cite:p:`DeRujula:1983ya,Ermilova:1986ph`; oscillations in matter offer one way to do it (see, e.g., Ref. :cite:p:`Winter:2006vg`). Reference :cite:p:`Arguelles:2012nw` applied this to a search for cavities in the Earth's crust. We use Magνs to implement the setup of Ref.  :cite:p:`Arguelles:2012nw`: a low-energy :math:`\bar{\nu}_e` beam crossing :math:`1\,500` km of crust, with the survival probability measured from 5 to 150 MeV. The example is illustrative; we do not claim that such an experiment is feasible.
 
-Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>` sets this up in Magνs. The crust is uniform at 3.3 g cm\ :math:`^{-3}` with :math:`Y_e = 0.5`, a round value close to the 0.4952 of the PREM crust. The cavity is a slab of different density centered on the baseline. We show cavities of four densities :cite:p:`Arguelles:2012nw`: water at 1 g cm\ :math:`^{-3}` and :math:`Y_e = 0.555`, an iron-banded formation at 5 g cm\ :math:`^{-3}`, a mineral deposit at 10 g cm\ :math:`^{-3}`, a zone of seismic faults at 25 g cm\ :math:`^{-3}`. Their widths along the neutrino trajectory fall from 250 to 50 km as the contrast with the crust grows. Each cavity has two walls. Every wall is a density jump: we pass their positions via ``t_breakpoints`` to the scenario function, allowing the refinement ladder to act inside the cavity.
+Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>` sets this up. The crust is uniform at 3.3 g cm\ :math:`^{-3}` with :math:`Y_e = 0.5`, a round value close to the 0.4952 of the PREM crust. A cavity is a slab of different density, centered on the baseline. We show four cavities, with the densities and labels of Ref.  :cite:p:`Arguelles:2012nw`: water at 1 g cm\ :math:`^{-3}` with :math:`Y_e = 0.555`, an iron-banded formation at 5 g cm\ :math:`^{-3}`, a mineral deposit at 10 g cm\ :math:`^{-3}`, and a zone of seismic faults at 25 g cm\ :math:`^{-3}`; the last two are denser than any natural rock, and serve to show how the effect grows with density. Their widths along the path range from 250 to 50 km, the densest being the narrowest. Each wall of a cavity is a density jump, so we pass the positions of both walls to the scenario function via ``t_breakpoints``; this places a slab edge on each wall, so that no slab straddles a jump (:doc:`/recipes`).
 
-Figure :ref:`A cavity in the Earth’s crust <ex-fig-cavity>` shows the resulting probabilities. Every cavity curve crosses zero near the :math:`49` MeV at which the crust curve peaks at 0.9997 (it would be exactly 1 if :math:`\theta_{13}` were zero). The presence of a cavity moves the peak energy. Adding column density pushes the peak up in energy; removing column density pulls it down. What a cavity does to the curve is to displace it bodily along the energy axis, leaving its shape almost untouched. For a denser cavity, at energies below the peak the peak has moved further away, so the probability there falls; at energies above the peak it has moved closer, so the probability rises. A lighter cavity moves the peak the other way, swapping both signs. Either way the shift crosses zero between the crust’s peak and the cavity’s, which puts the four crossings between 48.1 and 49.5 MeV.
+Figure :ref:`A cavity in the Earth’s crust <ex-fig-cavity>` shows the resulting probabilities. Without a cavity, the survival probability peaks at 0.9997 near 49 MeV, where the oscillation driven by :math:`\Delta m^2_{21}` completes half a cycle (the peak would reach exactly 1 if :math:`\theta_{13}` were zero). A cavity shifts this peak along the energy axis, leaving its shape almost unchanged. A denser cavity adds column density and pushes the peak to higher energy; a lighter one removes column density and pulls it to lower energy. Therefore, just below the peak of the crust curve, a denser cavity lowers the probability, and just above it, raises it; a lighter cavity does the opposite. Every curve of the change crosses zero between the peak of the crust curve and that of the cavity curve, between 48.2 and 49.5 MeV.
 
-Figure :ref:`A beam swept across a buried body <ex-fig-cavity-sweep>` turns the neutrino beam across the cavity. The source stays put and the baseline keeps its length; only the direction changes, by an angle :math:`\alpha`. Each direction cuts a different slice through the same cavity, a sphere of radius 125 km centered 750 km along the baseline. (Reference :cite:p:`Arguelles:2012nw` works with elliptical cavities, but a sphere carries the point just as well.) The spread of the angle is :math:`\alpha = \pm 9.59^\circ`; within those angles, the cavity width it crosses traces a semicircle.
+Figure :ref:`A beam swept across a buried body <ex-fig-cavity-sweep>` sweeps the beam across a buried body. The source stays fixed and the baseline keeps its length of :math:`1\,500` km; only the direction of the beam changes, by an angle :math:`\alpha`. The body is a sphere of radius 125 km at the density of the mineral deposit, 10 g cm\ :math:`^{-3}`, centered 750 km from the source along the baseline at :math:`\alpha = 0`. (Ref.  :cite:p:`Arguelles:2012nw` uses elliptical cavities, but a sphere makes the same point.) The beam crosses the body only for :math:`\lvert \alpha \rvert < 9.59^\circ`; the width it crosses is largest, 250 km, at :math:`\alpha = 0`, and falls to zero at the edges of that band.
 
-The probability contrast map reflects that semicircle. Structure fills the :math:`\alpha` band and fades at its edges as the width falls. Outside the band, the beam misses the body, so the profile is the uniform crust and the difference is exactly zero. The sweep is what separates a large, light body from a small heavy one: a single direction measures only the excess column, in which density and width are degenerate, while the angular width of the band fixes the size by itself. Listing :ref:`A beam swept across a buried body <ex-lst-cavity-sweep>` computes the map.
+The change in probability follows that width: it is largest near :math:`\alpha = 0` and fades toward the edges of the band. Outside the band, the beam misses the body, the profile is the uniform crust, and the change is exactly zero. The sweep is what separates a large, light body from a small, dense one. Along a single direction, the probability depends mainly on the excess column density, i.e., the density contrast times the width, so density and width cannot be told apart; the angular width of the band fixes the size of the body independently. Listing :ref:`A beam swept across a buried body <ex-lst-cavity-sweep>` computes the map.
 
 .. _ex-fig-cavity-sweep:
 
@@ -94,12 +93,11 @@ The probability contrast map reflects that semicircle. Structure fills the :math
    :width: 95%
    :alt: A beam swept across a buried body
 
-   **A beam swept across a buried body.** *Top*: the geometry. The beam leaves the source at an angle :math:`\alpha` and reaches a detector on the dashed arc, :math:`1\,500` km away. The two dashed straight lines are the beams tangent to the body, at :math:`\alpha = \pm 9.59^\circ`. A neutrino beam crosses the cavity width, :math:`w`. *Bottom left*: width against angle, i.e., the cavity’s silhouette. *Bottom right*: change in probability over energy and angle. The dashed vertical line marks the :math:`49` MeV of Figure :ref:`A cavity in the Earth’s crust <ex-fig-cavity>`. Listing :ref:`A beam swept across a buried body <ex-lst-cavity-sweep>` computes the map. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
-
+   **A beam swept across a buried body.** *Top*: the geometry. The beam leaves the source at an angle :math:`\alpha` and reaches a detector on the dashed arc, :math:`1\,500` km away. The two dashed straight lines are the beams tangent to the body, at :math:`\alpha = \pm 9.59^\circ`. The beam crosses a width :math:`w` of the body. *Bottom left*: width against angle, i.e., the cavity's silhouette. *Bottom right*: change in probability over energy and angle. The dashed vertical line marks the :math:`49` MeV of Figure :ref:`A cavity in the Earth’s crust <ex-fig-cavity>`. Listing :ref:`A beam swept across a buried body <ex-lst-cavity-sweep>` computes the map. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. _ex-lst-cavity-sweep:
 
-**A beam swept across a buried body.** The map of Figure :ref:`A beam swept across a buried body <ex-fig-cavity-sweep>`, which reuses ``n_e``, ``NE_CRUST``, ``L0``, and ``kw`` from Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>`. For each beam angle, ``crossing`` finds where the chord enters and leaves the body. Each call uses these two points twice: as the edges of the body in the density profile, and as ``t_breakpoints``. Angles at which the beam misses the body are skipped, since there the probability equals the crust-only ``P0``.
+**A beam swept across a buried body.** The map of Figure :ref:`A beam swept across a buried body <ex-fig-cavity-sweep>`, which reuses ``n_e``, ``NE_CRUST``, ``L0``, and ``kw`` from Listing :ref:`A cavity in the Earth's crust <ex-lst-cavity>`. For each beam angle, ``crossing`` finds where the chord enters and leaves the body. Each call uses these two points twice: as the edges of the body in the density profile, and as ``t_breakpoints``. Angles at which the beam misses the body are skipped, since there the probability equals the crust-only ``P0``. A cavity is a density profile with two walls, whose positions are declared as breakpoints, so that no slab straddles a wall. See :ref:`ex-sec-cavity` for details.
 
 .. code-block:: python
 
@@ -154,12 +152,11 @@ Geoneutrinos
    :width: 95%
    :alt: Geoneutrino geometry at Borexino
 
-   **Geoneutrino geometry at Borexino.** The geometry of a geoneutrino measurement at Borexino, at Gran Sasso, 1.4 km underground. A quarter of the Earth is cut away to expose the PREM layers of Figure :ref:`The Earth’s density profile <ex-fig-prem>`. Three chords reach production points beyond the local crust: in the far crust, 20 km deep and 3 400 km away, on a path that dips into the upper mantle; in the mantle, 1 000 km deep and 4 300 km away; and at the base of the mantle, 2 800 km deep and 7 300 km away, on a path through the outer core. The inset shows the local crust, to scale in distance and stretched in depth, with the crust layers of PREM and a production point 10 km deep and 100 km away. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **Geoneutrino geometry at Borexino.** The geometry of a geoneutrino measurement at Borexino, at Gran Sasso, 1.4 km underground. A quarter of the Earth is cut away to expose the PREM layers of Figure :ref:`The Earth’s density profile <ex-fig-prem>`. Three chords reach production points beyond the local crust: in the far crust, 20 km deep and 3 400 km away; in the mantle, 1 000 km deep and 4 300 km away; and at the base of the mantle, 2 800 km deep and 7 300 km away, on a path through the outer core. The inset shows the local crust, to scale in distance and stretched in depth, with the crust layers of PREM and a production point 10 km deep and 100 km away. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
+Geoneutrinos are the :math:`\bar{\nu}_e` emitted in the decay chains of uranium-238 and thorium-232 inside the Earth  :cite:p:`Bellini:2013wsa`. Inverse beta decay can detect only those above 1.8 MeV. The most energetic geoneutrinos, from the uranium chain, reach 3.3 MeV, so the detectable spectrum spans 1.8–3.3 MeV. The sources are the crust and the mantle. Uranium and thorium are lithophile elements: they concentrate in silicate rock, and are expected to be absent from the metallic core. The core still enters the calculation, though, as the medium that neutrinos from the far side of the mantle cross. For a detector at or near the surface, the production points lie from a few km to a full Earth diameter away. As an example, we take Borexino :cite:p:`Borexino:2008gab,Borexino:2019gps` as the detector, at Gran Sasso, 1.4 km underground.
 
-Geoneutrinos are the :math:`\bar{\nu}_e` emitted in the decay chains of uranium-238 and thorium-232 inside the Earth  :cite:p:`Bellini:2013wsa`. Inverse beta decay detects them above 1.8 MeV; the uranium chain ends at 3.3 MeV, so that window holds the whole detectable spectrum. The sources are the crust and the mantle. Uranium and thorium are lithophile elements: they concentrate in silicate rock in the crust and the mantle; the metallic core contains neither. Potassium-40, the one radioactive nuclide sometimes assigned to the core, emits below the energy detection threshold. The core still enters the calculation, though, as the medium that neutrinos from the far side of the mantle cross. For a detector at or near the surface, the production points lie from a few km to a full Earth diameter away. As example, we take Borexino as the detector, located at Gran Sasso, 1.4 km underground.
-
-Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>` shows the setup: four production points, in the local crust, the far crust, the mantle, and at the base of the mantle, illustrate the four kinds of path a geoneutrino takes to Borexino.
+Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>` shows the setup: four production points illustrate the kinds of path a geoneutrino takes to Borexino. One lies in the local crust, 10 km deep and 100 km away. One lies in the far crust, 20 km deep and 3 400 km away, on a path that dips into the upper mantle. One lies in the mantle, 1 000 km deep and 4 300 km away. The last lies at the base of the mantle, 2 800 km deep and 7 300 km away, on a path through the outer core.
 
 .. _ex-fig-geoneutrino-energy:
 
@@ -167,12 +164,11 @@ Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>` shows the s
    :width: 95%
    :alt: Geoneutrino survival against energy
 
-   **Geoneutrino survival against energy.** Survival probability of geoneutrinos reaching Borexino, against energy, from the four production points of Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>`. Every curve resolves the pair split by :math:`\Delta m^2_{31}`; it rides on the pair split by :math:`\Delta m^2_{21}` as a fine ripple. The line across every panel marks the phase average in vacuum. Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` computes the four panels. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **Geoneutrino survival against energy.** Survival probability of :math:`\bar{\nu}_e` geoneutrinos reaching Borexino, from the four production points of Figure :ref:`Geoneutrino geometry at Borexino <ex-fig-geoneutrinos>`. In every panel, the fast oscillation of the pair split by :math:`\Delta m^2_{31}` is resolved, riding as a fine ripple on the slower oscillation of the pair split by :math:`\Delta m^2_{21}`. This is visible clearly only in the near-production case (*top panel*). In the three distant-production cases (*bottom three panels*), the line marks the phase average in vacuum, 0.548; matter raises it along these chords by 0.3–0.8%, less than the width of the line. Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` computes the four panels. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
+Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` shows the survival probability against energy for these production points. Two oscillations appear: a slow one, from the pair of mass eigenstates split by :math:`\Delta m^2_{21}`, and a fast one, from the pairs split by :math:`\Delta m^2_{31}`. From the local crust, the slow oscillation completes less than one cycle across the window. From the three distant points, both complete tens to thousands of cycles, far more than a detector resolves in energy, so a measurement of a distant reservoir sees only the average probability. Within a few hundred kilometers of the detector, the slow oscillation does not average out across the window. For such nearby production points, the full probability must be used instead of the average; Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` uses it out to about 330 km.
 
-Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` shows the survival probability against energy for these four production points. From the local crust, the pair split by :math:`\Delta m^2_{21}`—the slow pair—completes three quarters of a cycle across the window; the pair split by :math:`\Delta m^2_{31}`—the fast pair—rides on it, 26 cycles across the window. From the far crust, the mantle and the base of the mantle, the slow pair alone cycles 26 to 56 times across the window; the fast pair, 900 to 1 900 times; the figure resolves both. A detector bins energy far more coarsely than that—which we do not show here—so a measurement of a distant reservoir sees instead the average probability.
-
-In Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`, the average value shown is the phase-average in vacuum, 0.548. Matter raises the average along these chords by 0.3–0.8%, less than the width of the line, so the vacuum value serves our calculation. The size of that shift follows from :doc:`/averaged_probability`. The passage through Earth is adiabatic: the largest jump in the electron density, at the core-mantle boundary, changes the mixing in matter by less than a percent at these energies, so the neutrino stays in the eigenstate it was produced in. The average is then the :ref:`averaged limit on a varying profile <avg-varying>` with :math:`P^{\rm cross}` the identity, fixed by the eigenbases at the two ends of the path alone. At both ends, the matter potential is 1–2% of the vacuum splitting of the slow pair, so each of those eigenbases is nearly the vacuum one. The route of :ref:`ex-sec-average-keyword` for a profile without declared discontinuities computes the average in matter. Along the mantle chord, with the density of PREM and the electron fraction of the mantle, next to the vacuum value, this is
+For the three distant production points, Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` marks the phase-averaged probability in vacuum, 0.548. Matter changes it little. The passage through the Earth is adiabatic: even the largest jump in electron density, at the core-mantle boundary, changes the mixing angle in matter by only about a percent at these energies, so the neutrino stays in the eigenstate in which it was produced. The average then depends only on the eigenstates at the two ends of the path [:ref:`averaged limit on a varying profile <avg-varying>`, with :math:`P^{\rm cross}` the identity; :doc:`/averaged_probability`]. At both ends, the matter potential is at most 2% of :math:`\Delta m^2_{21}/2E`, so those eigenstates are nearly the vacuum ones. As a result, matter raises the average by only 0.3–0.8%, less than the width of the line in Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`, and the vacuum value serves our calculation. The snippet below checks this along the mantle chord, with the density of PREM and the electron fraction of the mantle, using ``average=True`` (:ref:`ex-sec-average-keyword`):
 
 .. code-block:: python
 
@@ -183,32 +179,51 @@ In Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`
     Y_E_MANTLE_PREM)
 
    osc = gd.load_nufit_params('NuFIT 6.1')
-   c, depth = -0.552, 1000.0   # mantle chord
-   geo = dict(source_depth=depth,
-              detector_depth=1.4)          # km
-   L = chord(c, **geo)                     # km
-   def rho(l):   # PREM along the chord, g/cm^3
+
+   # The mantle chord: cosine of the zenith
+   # angle at the detector, and the depths of
+   # the production point and of Borexino [km]
+   c = -0.552
+   geo = dict(source_depth=1000.0,
+              detector_depth=1.4)
+
+   # Length of the chord [km]
+   L = chord(c, **geo)
+
+   # Density along the chord [g/cm^3]: PREM,
+   # with its ocean layer replaced by rock
+   def rho(l):
+       # Radius at distance l along the chord
        r = radius(c, l/gd.UNIT_KM, **geo)
        return prem(r,
                    density_matter_ocean=2.65)
+
    E = 2.5*gd.UNIT_MEV
+
+   # Phase-averaged survival probability in
+   # matter, at electron fraction of the mantle
    P_m = oscprob.osc_prob_matter_std_potential(
-    3, rho, E, L*gd.UNIT_KM, osc, average=True,
-    nubar=True, nu_i=gd.NUE, nu_f=gd.NUE,
+    3, rho, E, L*gd.UNIT_KM, osc,
+    average=True, nubar=True,
+    nu_i=gd.NUE, nu_f=gd.NUE,
     electron_fraction=Y_E_MANTLE_PREM,
     density_matter_is_in_g_per_cm3=True)
    # 0.551
+
+   # The same, in vacuum
    P_v = oscprob.osc_prob_3nu_vacuum(E,
     L*gd.UNIT_KM, average=True, nubar=True,
     nu_i=gd.NUE, nu_f=gd.NUE)
    # 0.548
 
 
-Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` computes the panels of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`. The Earth wrapper ``osc_prob_3nu_earth`` is called without ``average=True``: it returns the resolved probability of the panels. With ``average=True`` it would instead take the energy-window route of :ref:`ex-sec-average-keyword`, because it declares the PREM boundaries itself; the result would be a window mean with a standard error of 0.05. A production point enters through its depth and the cosine of its zenith angle at the detector, with ``nubar=True``. Every chord crosses PREM boundaries, six from the far crust, nine through the core; the call to ``osc_prob_3nu_earth`` declares them to the refinement ladder internally. The ocean layer of PREM is replaced by rock via ``density_matter_ocean``, since Gran Sasso is a continental site. The last call in Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` is the computation for the local crust. The production point sits at the end of its chord nearest to the detector, 100 km from it. The survival probability of a flavor is the same along a path and along its reverse, so the listing runs the segment from the detector to the production point, with the two depths in swapped roles and the zenith angle taken at the production point.
+Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` computes the panels of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` with the Earth wrapper, ``osc_prob_3nu_earth``. Each production point enters through its depth and the cosine of its zenith angle at the detector. Every chord crosses PREM boundaries—six on the far-crust chord, nine on the chord through the core—and the wrapper internally places a slab edge on each. Since Gran Sasso is a continental site, ``density_matter_ocean`` replaces the ocean layer of PREM with rock.
+
+(When a source is buried, the wrapper automatically places it on the far side of the chord, where the chord first reaches the source depth. However, the local-crust production point, 10 km deep and 100 km away, lies instead on the near side: along its chord, a depth of 10 km is first reached about 1 100 km from the detector. To overcome this, the last call in Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` swaps the two ends of the path: it treats the detector as the source, 1.4 km deep, and the production point as the detector, 10 km deep, with the zenith angle measured at the production point. The result is unchanged, because the survival probability is the same along a path and along its reverse.)
 
 .. _ex-lst-geoneutrinos:
 
-**Geoneutrino survival against energy.** The four panels of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`: the survival probability of a geoneutrino reaching Borexino from the far crust, the mantle, the base of the mantle, and the local crust, across the detectable window, on one energy grid fine enough to resolve the pair split by :math:`\Delta m^2_{31}` on the longest chord. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+**Geoneutrino survival against energy.** The four panels of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`: the survival probability of a geoneutrino reaching Borexino from the far crust, the mantle, the base of the mantle, and the local crust, across the detectable window, on one energy grid fine enough to resolve the pair split by :math:`\Delta m^2_{31}` on the longest chord. The call declares the PREM boundaries on each chord by itself. The ocean layer of PREM is replaced by rock. The local production point is run in reverse, from the detector. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -236,13 +251,8 @@ Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` compute
         nu_i=gd.NUE, nu_f=gd.NUE,
         density_matter_ocean=2.65)
 
-   # The local point, 10 km deep and 100 km away, sits
-   # at the near end of its chord; the call runs every
-   # chord from the far end.  The survival probability
-   # is the same along a path and along its reverse, so
-   # run the segment from the detector, with the depths
-   # swapped and the zenith angle taken at the
-   # production point.
+   # The local point, 10 km deep and 100 km away,
+   # run in reverse, from the detector (see text)
    P['local'] = oscprob.osc_prob_3nu_earth(E,
     costhz=0.078, source_depth=1.4*gd.UNIT_KM,
     detector_depth=10.0*gd.UNIT_KM, nubar=True,
@@ -256,19 +266,20 @@ Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>` compute
    :width: 95%
    :alt: Where the geoneutrino flux comes from
 
-   **Where the geoneutrino flux comes from.** Where the detectable geoneutrino flux at Borexino comes from and what oscillations leave of it. *Top*: the survival probability at 2.5 MeV against the distance to a production point 10 km deep, across the local crust, with the pair split by :math:`\Delta m^2_{31}` resolved; the horizontal line is the phase average. *Bottom*: the distribution of the flux of Eq. :eq:`ex-equ-geoflux` in the distance to the production point, per unit :math:`\log_{10} L` and as a fraction of the total, for a spherically symmetric Earth with a 35-km crust holding 7 TW of radiogenic power, a mantle with the abundances of the geochemical model of Ref. :cite:p:`Bellini:2013wsa`, and no uranium or thorium in the core. The unoscillated curve has :math:`\langle P_{\bar\nu_e \to \bar\nu_e} \rangle = 1`; the shading splits it between the two reservoirs. The oscillated curve folds in the survival probability averaged over the detectable window with equal weight in energy; its cumulative fraction is on the right axis. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **Where the geoneutrino flux comes from.** Where the detectable geoneutrino flux at Borexino comes from and what oscillations leave of it. *Top*: the survival probability at 2.5 MeV against the distance to a production point 10 km deep, across the local crust, with the pair split by :math:`\Delta m^2_{31}` resolved; the horizontal line is the phase average. *Bottom*: the distribution of the flux of Eq. :eq:`ex-equ-geoflux` in the distance to the production point, per unit :math:`\log_{10} L` and as a fraction of the total, for a spherically symmetric Earth with a 35-km crust holding 7 TW of radiogenic power, a mantle with the abundances of the geochemical model of Ref. :cite:p:`Bellini:2013wsa`, and no uranium or thorium in the core. The unoscillated curve has :math:`\langle P_{\bar\nu_e \to \bar\nu_e} \rangle = 1`. The oscillated curve folds in the survival probability averaged over the detectable window with equal weight in energy; its cumulative fraction is on the right axis. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
-
-Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` shows how the detectable flux is distributed over the distance to the production point and how much of it survives the oscillations. A flux measurement weighs the curves of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` by that distribution. The Earth model chosen for the figure is the simplest one that carries both reservoirs: a spherically symmetric crust 35-km thick holding 7 TW of radiogenic power at a thorium-to-uranium ratio of 4.5, a mantle with the abundances of the geochemical model of Ref. :cite:p:`Bellini:2013wsa`, no uranium or thorium in the core, and the density of PREM throughout. The flux at the detector is
+Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` shows how the detectable flux is distributed over the distance to the production point and how much of it survives the oscillations. A flux measurement weighs the curves of Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>` by that distribution. The Earth model chosen for the figure is the simplest one that carries both reservoirs: a spherically symmetric crust 35-km thick holding 7 TW of radiogenic power at a thorium-to-uranium ratio of 4.5, a mantle with the abundances of the geochemical model of Ref. :cite:p:`Bellini:2013wsa`, no uranium or thorium in the core, and the density of PREM throughout. The flux at the detector, located at :math:`\mathbf{r}_{\rm det}`, is
 
 .. math::
    :label: ex-equ-geoflux
 
-   F = \int_\oplus d^3r \, \frac{\varepsilon(\mathbf{r})}{4 \pi L^2} \, \langle P_{\bar\nu_e \to \bar\nu_e} \rangle (L) \,, \qquad L = \lvert \mathbf{r} - \mathbf{r}_{\rm det} \rvert \,,
+   F = \int_\oplus d^3r \, \frac{\varepsilon(\mathbf{r})}{4 \pi L^2} \, \langle P_{\bar\nu_e \to \bar\nu_e} (L) \rangle \,,
 
-where :math:`\varepsilon(\mathbf{r})` is the number of detectable :math:`\bar{\nu}_e` emitted per unit volume and time at position :math:`\mathbf{r}`, fixed by the density of PREM and the abundances above. The survival probability from that point, :math:`\langle P_{\bar\nu_e \to \bar\nu_e}(L) \rangle`, is the mean over the detectable window, 1.8–3.3 MeV. In spherical coordinates centered on the detector, :math:`d^3r = L^2 \, dL \, d\Omega` and the :math:`L^2` cancels: the production points between :math:`L` and :math:`L + dL` contribute :math:`dL / 4\pi` times the emissivity integrated over the directions in which that shell lies inside the Earth. The lower panel of Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` shows this distribution per unit :math:`\log_{10} L`, normalized to the total flux without oscillations, so that the area under a curve between two distances is the share of the flux from between them. In the unoscillated curve (normalized so :math:`\langle P_{\bar\nu_e \to \bar\nu_e} \rangle = 1`), 61% of the detectable flux comes from the crust, 17% from within 100 km, 30% from within 350 km, and 43% from within 1 000 km.
+where :math:`L \equiv \lvert \mathbf{r} - \mathbf{r}_{\rm det} \rvert` and :math:`\varepsilon(\mathbf{r})` is the number of detectable :math:`\bar{\nu}_e` emitted per unit volume and time at position :math:`\mathbf{r}`, fixed by the density of PREM and the abundances above. The survival probability from that point, :math:`\langle P_{\bar\nu_e \to \bar\nu_e}(L) \rangle`, is the mean over the detectable window, 1.8–3.3 MeV. In spherical coordinates centered on the detector, :math:`d^3r = L^2 \, dL \, d\Omega` and the :math:`L^2` cancels: the production points between :math:`L` and :math:`L + dL` contribute :math:`dL / 4\pi` times the emissivity integrated over the directions in which that shell lies inside the Earth. The lower panel of Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` shows this distribution per unit :math:`\log_{10} L`, normalized to the total flux without oscillations, so that the area under a curve between two distances is the share of the flux from between them. Without oscillations, the crust supplies 61% of the detectable flux, and the region within 350 km of the detector supplies 30%, all of it close enough that the full probability must be used instead of the average.
 
-The oscillated curve is the same distribution multiplied by :math:`\langle P_{\bar\nu_e \to \bar\nu_e}(L) \rangle`, computed in two pieces. Up to 331 km, the probability is propagated through the crust with the last call of Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>`, once per distance on the grid, then averaged over the energy window. Beyond 331 km, the vacuum probability averaged over the same window is used instead: matter changes the average by 0.01 at that distance and by less farther out (Figure :ref:`Geoneutrino survival against energy <ex-fig-geoneutrino-energy>`). The upper panel shows the probability through the crust at 2.5 MeV, before the average: the slow pair oscillates every 84 km and the fast pair every 2.5 km, as a ripple. In the lower panel, the oscillated curve still ripples out to a few hundred km, where the window holds too few cycles of the slow pair to average them out; farther out it is smooth. Over the whole Earth, oscillations leave 54% of the detectable flux.
+The oscillated curve is the unoscillated one multiplied by :math:`\langle P_{\bar\nu_e \to \bar\nu_e}(L) \rangle`, the survival probability averaged over the detectable window. Up to 331 km, we compute the probability in full, at each distance on the grid, with the last call of Listing :ref:`Geoneutrino survival against energy <ex-lst-geoneutrinos>`, and then average it over the window. Beyond 331 km, we use the average in vacuum instead, which differs from the full result by 0.01 at 331 km and by less farther out. The upper panel of Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` shows the full probability at 2.5 MeV: the slow oscillation has a period of 82 km, and the fast one, with a period of 2.5 km, appears as a ripple on it. Close to the detector, the window holds too few cycles of the slow oscillation to average it out, so the oscillated curve in the lower panel ripples out to a few hundred kilometers; farther out, it is smooth. Over the whole Earth, oscillations leave 54% of the detectable flux.
+
+Both curves in the lower panel of Figure :ref:`Where the geoneutrino flux comes from <ex-fig-geoneutrino-flux>` flatten at large distances, for a geometric reason. The production points at a distance :math:`L` from the detector lie on a sphere of radius :math:`L` centered on it. The part of this sphere at a distance between :math:`r` and :math:`r + dr` from the center of the Earth has area :math:`2 \pi L r \, dr / R_\oplus`. In Eq. :eq:`ex-equ-geoflux`, this area is divided by :math:`4 \pi L^2`, and on the logarithmic axis of the panel it is multiplied by :math:`L`, so the result does not depend on :math:`L`. Hence, a layer of the Earth contributes the same flux per decade of distance as long as the sphere reaches every depth of that layer. For the crust, this holds from 35 km out to a full Earth diameter; for the mantle, from about 2 900 to 9 900 km. The total stays flat over that range because the core, which holds no uranium or thorium in this model, adds nothing to it.
 
 .. _ex-sec-solar-tomography:
 
@@ -281,18 +292,15 @@ Neutrino tomography of the Sun
    :width: 95%
    :alt: Adiabaticity along a solar chord
 
-   **Adiabaticity along a solar chord.** *Top*: the setup. An isotropic flux of :math:`\nu_e` crosses the Sun and continues to Earth, where it may oscillate. The impact parameter :math:`b` is marked on one ray. *Bottom:* Adiabaticity of a neutrino trajectory through the Sun against neutrino energy, computed with Magνs on the B16-GS98 solar density profile  :cite:p:`Vinyoles:2016djt`, tabulated up to the surface, for four impact parameters, each defining a chord through the Sun. The parameter :math:`\gamma_{\rm max}` is the adiabaticity parameter of the :ref:`averaged limit on a varying profile <avg-varying>`, evaluated at its maximum value along the chord and over the three pairs of eigenvalue levels. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **Adiabaticity along a solar chord.** *Top*: the setup. An isotropic flux of :math:`\nu_e` crosses the Sun and continues to Earth, where it may oscillate. The impact parameter :math:`b` is marked on one ray. *Bottom:* Adiabaticity of a neutrino trajectory through the Sun against neutrino energy, computed with Magνs on the B16-GS98 solar density profile  :cite:p:`Vinyoles:2016djt`, tabulated up to the surface, for four impact parameters, each defining a chord through the Sun. The parameter :math:`\gamma_{\rm max}` is the adiabaticity parameter of :doc:`/adiabatic_strategy`, evaluated at its maximum value along the chord and over the three pairs of eigenvalue levels. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
+Neutrinos made outside the Solar System arrive from all directions, so a share of them crosses the Sun on its way to Earth. At around 10 MeV, they come mainly from the diffuse supernova neutrino background; from TeV to PeV, they are part of the high-energy astrophysical flux. Below, we compute what that does to their oscillations, using the density profile of the B16-GS98 solar model  :cite:p:`Vinyoles:2016djt` of :ref:`ex-tab-solar-models`.
 
-Neutrinos made outside the Solar System cross the Sun on their way to Earth. At around 10 MeV, they are mainly from the diffuse supernova neutrino background. From TeV to PeV, they are part of the high-energy astrophysical flux. Both fluxes are isotropic, so a share of each passes through the Sun before reaching a detector. Below, we compute what that does to their oscillations, using the B16-GS98 profile  :cite:p:`Vinyoles:2016djt` of Table :ref:`ex-tab-solar-models`. Unlike BS2005-AGS,OP, it is tabulated up to the solar surface, so every chord crosses the whole Sun.
+At the energies of this section, up to 1 PeV, a neutrino from a source outside the Solar System has traveled far enough for its oscillations to average out on the way (Figure :ref:`The averaged flavor composition settles once the source is far enough. <ex-fig-astro-baseline>`), so it reaches the Sun as an incoherent mixture of :math:`\nu_1`, :math:`\nu_2`, and :math:`\nu_3`. Therefore, the quantity to compute is the phase-averaged probability, propagated through the varying profile of the Sun as described in :doc:`/averaged_probability`. Where the passage is adiabatic, the neutrino stays in the instantaneous eigenstates of :math:`\mathbb{H}`; where it is not, Magνs crosses the region with a Magnus patch. If no region is non-adiabatic, the result is :ref:`averaged limit on a varying profile <avg-varying>`, with :math:`P^{\rm cross}` the level-crossing matrix between the eigenbases at entry and exit. Both ends of the path lie in vacuum, where the eigenvectors of :math:`\mathbb{H}` form the vacuum mixing matrix, so :math:`\mathbb{V}(l_0) = \mathbb{V}(l_1) = \mathbb{U}` in :ref:`averaged limit on a varying profile <avg-varying>`. If the passage is adiabatic, :math:`P^{\rm cross}` is the identity, and :ref:`averaged limit on a varying profile <avg-varying>` reduces to the vacuum :ref:`averaged limit <avg-limit>`: the Sun leaves no trace. Whether the passage is adiabatic depends on the energy, through the adiabaticity parameter of :doc:`/adiabatic_strategy`.
 
-A neutrino from such a source has traveled far enough that the wave packets of its mass eigenstates have separated. What arrives is an incoherent mixture, so what is measured is the phase-averaged probability of :doc:`/averaged_probability` instead of the instantaneous one. Inside the Sun, the Hamiltonian changes along the path, so the phase average is carried along it (:doc:`/averaged_probability`). The neutrino starts decohered in the eigenbasis at the point of entry and follows the instantaneous eigenstates. It crosses each non-adiabatic region through a Magnus patch and is read out in flavor at exit. Where no crossing is non-adiabatic, the result is the :ref:`averaged limit on a varying profile <avg-varying>`, with the level-crossing matrix :math:`P^{\rm cross}` between the eigenbases at entry and exit.
+This may seem at odds with the MSW effect, which changes solar neutrinos strongly (:ref:`ex-sec-sun`). The difference lies in where the path starts. A solar neutrino is born deep inside the Sun, at high density, as an eigenstate of :math:`\mathbb{H}` in matter; an adiabatic passage outward turns it into a single vacuum mass eigenstate, which is a different state. A neutrino crossing the Sun from outside starts and ends in vacuum, so an adiabatic passage returns it to the same mass eigenstate it entered as.
 
-Both ends of the path lie in vacuum, where the eigenvectors are the vacuum mixing matrix, so :math:`\mathbb{V}(l_0) = \mathbb{V}(l_1) = \mathbb{R}` in the :ref:`averaged limit on a varying profile <avg-varying>`. An adiabatic passage would make :math:`P^{\rm cross}` the identity. The varying-profile average would then collapse to the :ref:`averaged limit <avg-limit>` evaluated in vacuum, leaving no trace of the Sun. Whether or not the passage is adiabatic depends on the energy, via the adiabaticity parameter (:ref:`avg-varying`).
-
-A solar neutrino behaves differently: because it is born deep inside the Sun, at high density, it begins as a matter eigenstate. The adiabatic passage outward then maps it onto a single mass eigenstate. That is the MSW effect of :ref:`ex-sec-sun`. A neutrino crossing from outside meets the same density profile, but enters it as a vacuum mass eigenstate. Because the density vanishes at both ends of that path, adiabatic passage keeps the neutrino in one eigenstate of the instantaneous :math:`\mathbb{H}` and returns it to the mass eigenstate it entered with. What separates the two cases is where each path begins and ends.
-
-Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows how adiabatic the passage is, from MeV to PeV, for four choices of the impact parameter at which the neutrinos hit the Sun, and assuming three flavors. The :ref:`averaged limit on a varying profile <avg-varying>` attaches an adiabaticity parameter :math:`\gamma_{jk}(l)` to every pair of eigenvalues (1-2, 1-3, 2-3) of :math:`\mathbb{H}` at every point :math:`l` of the trajectory. It is large where two of those eigenvalues approach each other and small where they stay apart. The figure plots :math:`\gamma_{\rm max}`, the largest value found anywhere along the chord and over all three pairs, so a curve above one means the neutrino moves between eigenstates of :math:`\mathbb{H}` somewhere on its way through. The parameter can be computed using the ``adiabatic`` module of Magνs:
+Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows how adiabatic the passage is, from MeV to PeV, at three flavors, for four impact parameters. The adiabaticity parameter :math:`\gamma_{jk}(l)` of :doc:`/adiabatic_strategy` is defined for each pair of eigenvalues of :math:`\mathbb{H}`, 1-2, 1-3, and 2-3, at each point :math:`l` of the path; it is large where the two eigenvalues come close. The figure plots its largest value along the chord and over the three pairs, :math:`\gamma_{\rm max}`. Where :math:`\gamma_{\rm max} > 1`, the passage is not adiabatic: somewhere along the chord, the neutrino moves between eigenstates of :math:`\mathbb{H}`. The ``adiabatic`` module of Magνs computes :math:`\gamma_{\rm max}`:
 
 .. code-block:: python
 
@@ -303,9 +311,10 @@ Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows
    import magnus.globaldefs as gd
    import magnus.solarmodels as solarmodels
 
+   osc = gd.load_nufit_params('NuFIT 6.1')
    R = gd.SUN_RADIUS*gd.UNIT_KM
-   ne_sun = solarmodels.electron_density_profile(
-       'B16-GS98')
+   prof = solarmodels.electron_density_profile
+   ne_sun = prof('B16-GS98')
    b = 0.3*R                # impact parameter
    half = np.sqrt(R**2 - b**2)
    E = 100.0*gd.UNIT_GEV
@@ -331,7 +340,7 @@ Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows
 
 Here, ``ne_sun`` is the B16-GS98 table, interpolated in its logarithm, ``ne`` evaluates it along the chord, and ``hv`` is the vacuum Hamiltonian at this energy. The value shown is for a :math:`100`-GeV neutrino crossing at an impact parameter of :math:`b = 0.3\,R_\odot`.
 
-The parameter :math:`\gamma_{\rm max}` grows with energy because the vacuum splitting :math:`\Delta m^2/2E` shrinks while the matter potential in the Sun stays fixed. It is attained just inside the 1-2 resonance, where the matter potential equals :math:`\Delta m^2_{21}\cos 2\theta_{12}/2E`, independently of the impact parameter. As the energy grows, that density is reached further out: :math:`\gamma_{\rm max}` sits at :math:`0.97\,R_\odot` at :math:`100` GeV, at :math:`0.990\,R_\odot` at 1 TeV, and at :math:`0.998\,R_\odot` at 100 TeV. By 1 PeV, it reaches :math:`5\times10^6` on the diameter. [Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows only the effect of oscillations; absorption, which matters above the GeV scale, is outside what Magνs models (:doc:`/diagnostics`).]
+The parameter :math:`\gamma_{\rm max}` grows with energy because the vacuum splitting :math:`\Delta m^2/2E` shrinks while the matter potential stays fixed. The largest value comes from the 1-2 pair, near the point where its two eigenvalues come closest: the 1-2 resonance, where the matter potential equals :math:`\Delta m^2_{21}\cos 2\theta_{12}/2E`. This resonance occurs at a single radius in the Sun, set by the energy alone, so every chord reaches its :math:`\gamma_{\rm max}` at that radius. As the energy grows, that density is reached further out: :math:`\gamma_{\rm max}` sits at :math:`0.97\,R_\odot` at :math:`100` GeV, at :math:`0.990\,R_\odot` at 1 TeV, and at :math:`0.998\,R_\odot` at 100 TeV. By 1 PeV, it reaches :math:`5\times10^6` on the diameter.
 
 .. _ex-fig-solar-tomography:
 
@@ -339,8 +348,7 @@ The parameter :math:`\gamma_{\rm max}` grows with energy because the vacuum spli
    :width: 95%
    :alt: The Sun in the electron-neutrino channel
 
-   **The Sun in the electron-neutrino channel.** The Sun seen face-on in the :math:`\nu_e` survival channel, computed with Magνs on the B16-GS98 solar density profile  :cite:p:`Vinyoles:2016djt`. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged :math:`P_{\nu_e \to \nu_e}` at exit, for a relative energy spread of :math:`10\%`, averaged over the area of each pixel. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
-
+   **The Sun in the electron-neutrino channel.** The Sun seen face-on in the :math:`\nu_e` survival channel, computed with Magνs on the B16-GS98 solar density profile  :cite:p:`Vinyoles:2016djt`. The line of sight runs into the page, so each point of the disk is an impact parameter and the neutrino crosses the whole Sun along it. The color is the phase-averaged :math:`P_{\nu_e \to \nu_e}` at exit, for a relative energy spread of :math:`10%`, averaged over the area of each pixel. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` shows the averaged survival probability across the face of the Sun, at selected energies. The line of sight runs into the page, so each point in the disk fixes the impact parameter of one trajectory, along which the neutrino crosses the whole Sun. For one impact parameter, the probability is computed via
 
@@ -355,17 +363,10 @@ Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>`
        osc_params=osc, L0=0.0, nu_i=gd.NUE,
        nu_f=gd.NUE,
        density_is_of_number_of_electrons=True)
-   # PhaseAveragingWarning: the phase-averaged
-   # probability depends on the energy spread at
-   # 1 of 1 (energy, L) point(s): some interference
-   # has partly survived the spread
-   # average_spread=0.1, so the result changes by
-   # more than 0.001 per e-fold of it (largest
-   # 1.1e-02). ...
    P                        # 0.283618
 
 
-Here, ``average=True`` returns the phase average along the chord, without sampling energies, for a neutrino that reaches the Sun decohered (i.e., as :math:`\nu_1`, :math:`\nu_2`, or :math:`\nu_3`). The warning reports that part of the interference survives the default spread of 10%, the one Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` uses; ``average_spread`` sets another. The choice of initial state (:ref:`ex-sec-average-keyword`) matters on this chord:
+Here, ``average=True`` returns the phase average along the chord, and ``average_initial_state='decohered'`` tells Magνs that the neutrino reaches the Sun decohered, i.e., as :math:`\nu_1`, :math:`\nu_2`, or :math:`\nu_3` (:ref:`ex-sec-average-keyword`). The default, ``'flavor'``, would instead treat it as a :math:`\nu_e` produced at the edge of the Sun, which keeps the interference between :math:`\nu_1` and :math:`\nu_2`; their phase across the Sun is only about 1 rad at 100 GeV. The two choices give very different results on this chord:
 
 .. code-block:: python
 
@@ -378,23 +379,24 @@ Here, ``average=True`` returns the phase average along the chord, without sampli
        P = f(3, ne, E, 2*half, **kw,
              average_initial_state=start)
        print(start, P)  # 0.535944, 0.283618
-   # Each call raises the same warning
 
 
-A :math:`\nu_e` produced at the edge of the Sun would keep the interference between :math:`\nu_1` and :math:`\nu_2`, whose phase across the Sun is only about 1 rad at 100 GeV. A neutrino from a distant source arrives without it, which is why Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` uses ``'decohered'``. :ref:`ex-sec-averaging-is-not-estimating` shows why averaging a scan of probabilities does not necessarily reproduce this. (The phase average keeps the matter phase :math:`\int V_{\rm CC}\,dl`, :math:`8676` rad across the diameter. That phase does not depend on the energy, so no energy spread averages it. It draws rings in the core of the disk, :math:`1.8\times10^{-4}\,R_\odot` apart at :math:`b = 0.11\,R_\odot` and :math:`5.1\times10^{-4}\,R_\odot` apart at :math:`b = 0.3\,R_\odot`. At 1 TeV, they move :math:`P` by up to about :math:`\pm 0.03`. The value printed above sits on one of them: within one ring spacing of :math:`b = 0.3\,R_\odot`, :math:`P` ranges from 0.282 to 0.308. Each pixel of Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` is therefore averaged over its area. The panels from 30 GeV to 3 TeV sample :math:`7\,791` impact parameters each, :math:`6\,790` of them inside :math:`b = 0.5\,R_\odot`.)
+A neutrino from a distant source arrives without that interference, which is why Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` uses ``'decohered'``. Magνs computes the phase-averaged probability over the default relative energy spread of 10%, without sampling energies. Averaging a scan of probabilities over energy instead does not, in general, give the same result (:ref:`ex-sec-averaging-is-not-estimating`). On this chord, a little interference survives the 10% spread, so the phase-averaged probability depends slightly on the spread, by about 0.01 per :math:`e`-fold; Magνs issues a ``PhaseAveragingWarning`` saying so.
 
-At :math:`10` MeV, the disk is uniform at about :math:`\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55`: the Sun is transparent, exactly as :math:`P^{\rm cross} = \mathbb{1}` requires. At intermediate energies, rings appear, within the non-adiabatic region of Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>`. They are drawn by the crossings: where the passage is not adiabatic, the level-crossing probabilities depart from the identity. The phase average also keeps part of the interference that the :ref:`averaged limit <avg-limit>` discards. That interference changes the depth of the rings: at 300 GeV, the deepest one reaches :math:`P = 0.03` at :math:`b = 0.81\,R_\odot`, against :math:`0.20` in the :ref:`averaged limit <avg-limit>`. From 300 GeV up, the deepest ring moves outward, to :math:`b = 0.89\,R_\odot` at 1 TeV and :math:`0.91\,R_\odot` at 10 and 50 TeV. At 50 TeV, the disk is uniform again, but for a different reason than at 10 MeV: a :math:`\nu_e` that enters the Sun leaves it as a :math:`\nu_e`, at every impact parameter. The Sun only adds a phase to it; the survival probability does not depend on that phase.
+One phase survives the average: the matter phase, :math:`\int V_{\rm CC}\,dl`, which is :math:`8\,699` rad across the solar diameter. Because it does not depend on energy, no energy spread averages it out. Each chord, however, crosses a different amount of matter, so the matter phase varies with the impact parameter. As :math:`b` changes, the phase cycles through :math:`2\pi` over and over, and :math:`P` oscillates with it, drawing fine rings in the core of the disk. The rings are :math:`1.8\times10^{-4}\,R_\odot` apart at :math:`b = 0.11\,R_\odot` and :math:`5.1\times10^{-4}\,R_\odot` apart at :math:`b = 0.3\,R_\odot`, and at 1 TeV they change :math:`P` by up to about :math:`\pm 0.03`. The probability computed in the snippets above, :math:`P = 0.2836` at :math:`b = 0.3\,R_\odot`, lies on one of these rings: as :math:`b` moves by one ring spacing, :math:`5.1\times10^{-4}\,R_\odot`, around that value, :math:`P` changes appreciably, from 0.282 to 0.308. These rings are far finer than any realistic experimental angular resolution, so an observation would average over many of them. Therefore, each pixel of Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` is averaged over its area, which also keeps the rings from aliasing into false patterns. Each panel from 30 GeV to 3 TeV uses :math:`7\,791` impact parameters. Most of them, :math:`6\,790`, lie inside :math:`b = 0.5\,R_\odot`, where the rings are densest.
 
-To be clear, no neutrino telescope resolves any of this structure. While the Sun has been imaged in MeV neutrinos, most famously by Super-Kamiokande, the width of that image is set by the angular resolution of the detector: the recoil electron of neutrino-electron elastic scattering carries the neutrino direction only to within tens of degrees, against a disk of half a degree. At tens of TeV, the angular resolution is better, but still comparable to the size of the disk itself. The rings of Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` are a few arcseconds to a few arcminutes wide. The rings of the matter phase, over which each pixel is averaged, are :math:`0.2` to :math:`4` arcseconds apart. In addition, the panels of Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` at GeV energies—where the rings first appear—lie in a band where no astrophysical neutrino flux has been identified above the atmospheric background.
+At :math:`10` MeV, the disk is uniform at :math:`\sum_i |\mathbb{U}_{ei}|^4 \approx 0.55`: the Sun is transparent, as :math:`P^{\rm cross} = \mathbb{1}` requires. At intermediate energies, where Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` shows the passage to be non-adiabatic, rings appear: there, the level-crossing probabilities depart from the identity. The phase average also keeps part of the interference between eigenstates that :ref:`averaged limit on a varying profile <avg-varying>` drops, and this changes the depth of the rings: at 300 GeV, the deepest ring reaches :math:`P = 0.03` at :math:`b = 0.81\,R_\odot`, against :math:`0.22` from :ref:`averaged limit on a varying profile <avg-varying>`. At higher energies, the deepest ring moves outward, to :math:`b = 0.88\,R_\odot` at 1 TeV and :math:`0.91\,R_\odot` at 10 and 50 TeV. At 50 TeV, the disk is uniform again, but for a different reason than at 10 MeV: inside the Sun, the matter potential dominates, so a :math:`\nu_e` that enters the Sun leaves it as a :math:`\nu_e`, at every impact parameter, having only gained a phase, which does not affect the survival probability.
+
+No neutrino telescope can resolve this structure. Super-Kamiokande has imaged the Sun in MeV neutrinos :cite:p:`Super-Kamiokande:2005wtt`, but the image is blurred to about :math:`25^\circ` at 10 MeV, because the recoil electron in neutrino-electron scattering follows the neutrino direction only loosely; the solar disk spans half a degree. At TeV energies, neutrino telescopes reconstruct muon tracks to within about :math:`1^\circ`, comparable to the size of the disk, and particle showers only to within :math:`10^\circ`–:math:`15^\circ` :cite:p:`IceCube:2019cia`. The rings of Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>`, by contrast, are a few to a few tens of arcseconds wide. Moreover, at GeV energies, where the rings first appear, no astrophysical neutrino flux has been identified above the atmospheric background. Finally, both Figure :ref:`Adiabaticity along a solar chord <ex-fig-solar-adiabaticity>` and Figure :ref:`The Sun in the electron-neutrino channel <ex-fig-solar-tomography>` include only oscillations: absorption in the Sun, which becomes important above about 100 GeV, is outside what Magνs models (:ref:`limitations <what-magnus-is-not>`).
 
 .. _ex-sec-jet:
 
 Astrophysical relativistic jet
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Gamma-ray bursts are the relativistic jets that some massive stars launch as they collapse. Shells of plasma ejected by the central engine collide with one another along the jet; protons accelerated at those collisions make neutrinos of TeV to PeV energies  :cite:p:`Bustamante:2014oka`. The jet itself does not change their flavor composition: at the radii where the collisions happen, :math:`10^{13}`–:math:`10^{15}` cm, its density is around :math:`10^{-11}` g cm\ :math:`^{-3}`, nine orders of magnitude below the density at which a TeV neutrino resonates; the phase that the jet matter adds to the evolution is only :math:`10^{-4}`. Matter effects arise only while the jet is still inside the star, in the choked jets that never break out and in the precursor phase of the jets that do  :cite:p:`Mena:2006eq,Razzaque:2009kq,Sahu:2010ap,Varela:2014mma,Xiao:2015gea`. The neutrinos then cross the stellar envelope. Its density falls from about 0.3 g cm\ :math:`^{-3}` at the head of the jet to zero at the surface; somewhere along, neutrinos between :math:`100` GeV and :math:`100` TeV meet their 1-3 resonance. At the low energy end, the crossing is adiabatic and the neutrino leaves the star in a mass eigenstate; at the high end, it is not: the flavor content then survives. Therefore, the flavor ratios at Earth depend on the neutrino energy, in a way that reflects the density profile of the star  :cite:p:`Razzaque:2009kq,Xiao:2015gea`.
+Gamma-ray bursts are the relativistic jets that some massive stars launch as they collapse :cite:p:`Woosley:1993wj,MacFadyen:1998vz,Piran:2004ba,Meszaros:2006rc`.  Shells of plasma ejected by the central engine collide with one another along the jet :cite:p:`Rees:1994nw`; protons accelerated at those collisions can make TeV–PeV neutrinos :cite:p:`Paczynski:1994uv,Waxman:1997ti,Guetta:2003wi,Murase:2005hy,Hummer:2011ms,Bustamante:2014oka`. The jet itself does not change their flavor composition: at the radii where the collisions happen, :math:`10^{13}`–:math:`10^{15}` cm, its density is around :math:`10^{-11}` g cm\ :math:`^{-3}`, nine orders of magnitude below the density at which a TeV neutrino resonates; the phase that the jet matter adds to the evolution is below :math:`10^{-4}`. Matter effects arise only while the jet is still inside the star, in the choked jets that never break out and in the precursor phase of the jets that do  :cite:p:`Mena:2006eq,Razzaque:2009kq,Sahu:2010ap,Varela:2014mma,Xiao:2015gea`. The neutrinos then cross the stellar envelope. Its density falls from about 0.3 g cm\ :math:`^{-3}` at the head of the jet to zero at the surface, so every neutrino above about 50 GeV meets its 1-3 resonance somewhere along the way. At low energies, the crossing is adiabatic, and the neutrino leaves the star in a mass eigenstate; at high energies, it is not, and the neutrino keeps its flavor content. Therefore, the flavor ratios at Earth depend on the neutrino energy, in a way that reflects the density profile of the star  :cite:p:`Razzaque:2009kq,Xiao:2015gea`.
 
-As example, we take a jet at :math:`r_0 = 6.3 \cdot 10^{10}` cm inside a blue supergiant of radius :math:`R_\star = 3 \cdot 10^{12}` cm, with the hydrogen envelope of Refs. :cite:p:`Mena:2006eq,Razzaque:2009kq`, :math:`\rho(r) = 3.3 \cdot 10^{-6}\,(R_\star/r - 1)^3` g cm\ :math:`^{-3}`, and an electron fraction of :math:`Y_e = 1`:
+As example, we take a jet whose head is at :math:`r_0 = 6.3 \cdot 10^{10}` cm, inside a blue supergiant of radius :math:`R_\star = 3 \cdot 10^{12}` cm, with the hydrogen envelope of Refs.  :cite:p:`Mena:2006eq,Razzaque:2009kq`, :math:`\rho(r) = 3.3 \cdot 10^{-6}\,(R_\star/r - 1)^3` g cm\ :math:`^{-3}`, and an electron fraction of :math:`Y_e = 1`:
 
 .. code-block:: python
 
@@ -413,21 +415,40 @@ As example, we take a jet at :math:`r_0 = 6.3 \cdot 10^{10}` cm inside a blue s
        return 3.3e-6*(RSTAR/(l/CM) - 1.0)**3
 
 
-The density at the head is :math:`0.33` g cm\ :math:`^{-3}`. The oscillation length there is set by the potential, :math:`2\pi/V_{\rm CC} = 5 \cdot 10^{9}` cm, a tenth of :math:`r_0`, so the phase accumulated across the whole envelope is modest. The observable, the :ref:`phase-averaged probability <avg-phase-average>`, is built here from the evolution operator rather than from probabilities. The scenario functions return the operator alongside the probabilities when asked (``return_evolution_operator=True``), with the refinement ladder choosing the slabs internally:
+The density at the head is :math:`0.33` g cm\ :math:`^{-3}`. The oscillation length there is set by the potential, :math:`2\pi/V_{\rm CC} \approx 5 \cdot 10^{9} {\rm cm} \approx 0.1 r_0`.
+
+A neutrino born as :math:`\nu_\alpha` at the jet head leaves the star in the state :math:`\mathbb{U}(R_\star, r_0)\,\lvert\nu_\alpha\rangle`, where :math:`\mathbb{U}(R_\star, r_0)` is the evolution operator across the envelope. Its weight in the mass eigenstate :math:`\nu_i` is
+
+.. math::
+
+   w_{\alpha i} = \bigl\lvert [\mathbb{V}^\dagger(R_\star)\,\mathbb{U}(R_\star, r_0)]_{i\alpha} \bigr\rvert^2 \;,
+
+where :math:`\mathbb{V}(R_\star)` is the vacuum mixing matrix. On its way to Earth, over a cosmological distance, the mass eigenstates lose coherence  :cite:p:`Razzaque:2009kq`. The probability at Earth is then
+
+.. math::
+
+   \langle P_{\nu_\alpha \to \nu_\beta} \rangle = \sum_i w_{\alpha i}\, \lvert \mathbb{V}_{\beta i}(R_\star) \rvert^2 \;.
+
+This is :ref:`averaged limit on a varying profile <avg-varying>`, with the contribution of the star computed directly as :math:`w_{\alpha i}` and the vacuum eigenbasis at detection.
+
+The weights :math:`w_{\alpha i}` depend on the relative phases of the flavor amplitudes at the surface of the star. The flavor probabilities, :math:`\lvert \mathbb{U}_{\beta\alpha}(R_\star, r_0) \rvert^2`, discard those phases, so the weights must be computed from the evolution operator. The scenario functions return the operator alongside the probabilities when called with ``return_evolution_operator=True``. As usual, the refinement ladder chooses the slabs:
 
 .. code-block:: python
 
-   E = 1.0*gd.UNIT_TEV
+   E = 1.0*gd.UNIT_TEV  # 1 TeV
+   # Evolve from the jet head (L0) to the
+   # surface (L); also return the operator
    out = oscprob.osc_prob_matter_std_potential(
        3, rho, E, RSTAR*CM, OSC, L0=R0*CM,
-       electron_fraction=1.0,
+       electron_fraction=1.0,  # hydrogen
        rtol=1.0e-6, atol=1.0e-6,
        density_matter_is_in_g_per_cm3=True,
        return_evolution_operator=True)
+   # Probabilities and evolution operator
    P, U = out
 
 
-Here, ``P`` is the probability matrix at the surface of the star and ``U`` is the evolution operator from the jet head to the surface, in the flavor basis.
+Here, ``P`` holds the flavor probabilities at the surface of the star, and ``U`` is :math:`\mathbb{U}(R_\star, r_0)` in the flavor basis.
 
 .. _ex-fig-jet:
 
@@ -437,30 +458,30 @@ Here, ``P`` is the probability matrix at the surface of the star and ``U`` is th
 
    **Jet neutrinos in a stellar envelope.** Neutrinos from a relativistic jet inside a collapsing star. *Top:* the setup. Neutrinos are made at the head of the jet, at :math:`r_0 = 6.3 \cdot 10^{10}` cm from the center, and leave the star at :math:`R_\star = 3 \cdot 10^{12}` cm. *Middle:* matter density along their path, for a smooth envelope, the same envelope with turbulence overlaid, and the same envelope with a drop in density at the edge of the helium core. The right axis gives the energy whose 1-3 resonance lies at each density. *Bottom:* probability that a :math:`\nu_e` produced at the jet head is detected as :math:`\nu_e` at Earth, against its energy, for the three envelopes. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
-
-What a telescope detects is not the flavor content at the surface of the star: the neutrino travels a cosmological distance afterwards, over which the phases between its mass components average out, so it arrives as an incoherent mixture of mass eigenstates  :cite:p:`Razzaque:2009kq`. Its probability is the :ref:`phase-averaged form <avg-varying>`, with the eigenbasis at detection being the mixing matrix in vacuum, :math:`\mathbb{R}`. The factor in it that carries the star, the probability that a neutrino produced as :math:`\nu_\alpha` leaves it as the mass eigenstate :math:`\nu_i`, is read off the evolution operator as :math:`\lvert [\mathbb{R}^\dagger \mathbb{U}]_{i\alpha} \rvert^2`:
+From ``U``, the weights and the probability at Earth follow:
 
 .. code-block:: python
 
-   # Vacuum mass states; the content of each in
-   # the state that leaves the star, by flavor
+   # Vacuum mixing matrix, V(R_star)
    hv = np.array(ham.hamiltonian_3nu_vacuum(
        E, **OSC), dtype=complex)
-   w, R = np.linalg.eigh(hv)
-   content = abs(R.conj().T @ U)**2
-
-   # Phases average on the way to Earth
-   P_earth = abs(R)**2 @ content
+   _, R = np.linalg.eigh(hv)
+   # Weights, w[i, alpha]
+   w = abs(R.conj().T @ U)**2
+   # Probability at Earth, P[beta, alpha]
+   P_earth = abs(R)**2 @ w
    P_earth[gd.NUE, gd.NUE]    # 0.315
 
 
-Thus, the probability computed is :math:`P_{\nu_\alpha \to \nu_\beta} = \sum_i \left\lvert \left[ \mathbb{R}^\dagger\, \mathbb{U} \right]_{i\alpha} \right\rvert^2 \left\lvert \mathbb{R}_{\beta i} \right\rvert^2`. Without matter effects the same construction gives :math:`0.55`.
+Without matter effects, the same calculation gives :math:`0.55`.
 
-Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>` shows this probability between 0.1 TeV and 10 PeV for three density envelopes. The neutrinos are not all made at the same point: the production region at the jet head is about one oscillation length across, so each curve averages over production points spread over that length. Without this average, the lowest energies would show an interference pattern, since their resonance lies only a few oscillation lengths from the head; a region of that size washes it out. The first envelope is the smooth profile above. The second overlays turbulence on it: a single realization of forty modes with a Kolmogorov spectrum, with wavelengths from :math:`10^{10}` to :math:`10^{12}` cm at a root-mean-square amplitude of twenty percent. The third is model C of Ref. :cite:p:`Mena:2006eq`, the same star with the density dropping by a factor of five at the edge of the helium core, :math:`r = 10^{11}` cm; in the code, that edge is declared to the ladder as a breakpoint. Listing :ref:`Jet neutrinos in a stellar envelope <ex-lst-jet>` is the calculation behind the figure.
+Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>` shows this probability from 0.1 TeV to 10 PeV for three density envelopes. The first envelope is the smooth profile above. The second adds turbulence to it, as one realization of forty Kolmogorov modes with wavelengths from :math:`10^{10}` to :math:`10^{12}` cm and a root-mean-square amplitude of 20%. The third is model C of Refs.  :cite:p:`Mena:2006eq`, in which the density drops by a factor of five at the edge of the helium core, at :math:`10^{11}` cm. The code receives this edge as a breakpoint. The neutrinos are made across a region about one oscillation length wide, so each curve averages over eight production points spread across that length. At the lowest energies, the resonance lies only a few oscillation lengths from the head. A single production point would then show an interference pattern, which the average removes.
+
+Listing :ref:`Jet neutrinos in a stellar envelope <ex-lst-jet>` contains the calculation behind the figure. Each envelope takes well under a minute, over 161 energies and eight production points. At the requested tolerance of :math:`10^{-6}`, the ladder uses a few hundred slabs per energy at PeV energies and a few thousand at 0.1 TeV.
 
 .. _ex-lst-jet:
 
-**Jet neutrinos in a stellar envelope.** Computing the data in Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>`: the averaged :math:`\nu_e` survival probability at Earth for neutrinos from a jet head at :math:`r_0`, through the three envelopes. Each call returns the evolution operator from the refinement ladder alongside the probabilities; the projection onto the vacuum mass states and the sum over them are the :ref:`averaged limit on a varying profile <avg-varying>`, with the eigenbasis at detection the vacuum one. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+**Jet neutrinos in a stellar envelope.** Computing the data in Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>`: the averaged :math:`\nu_e` survival probability at Earth for neutrinos from a jet head at :math:`r_0`, through the three envelopes. Each call returns the evolution operator from the refinement ladder alongside the probabilities; the projection onto the vacuum mass states and the sum over them are :ref:`averaged limit on a varying profile <avg-varying>`, with the eigenbasis at detection the vacuum one. The eight production points span one oscillation length at the jet head, :math:`4.9 \cdot 10^{9}` cm. The turbulent envelope is one realization of forty Kolmogorov modes between :math:`10^{10}` and :math:`10^{12}` cm at 20% rms; the stepped one is model C of Refs.  :cite:p:`Mena:2006eq`, with the drop at the helium-core edge declared through ``t_breakpoints``. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -497,8 +518,8 @@ Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>` shows this probab
    r0s = R0 + 4.9e9*np.arange(8)/8.0
 
    def p_earth(rho, **extra):
-       """P at Earth, averaged over the production
-       points."""
+       """P at Earth, phase-averaged, and averaged
+       over the production points."""
        P_out = np.zeros((len(E), 3, 3))
        for r0 in r0s:
            P, U = oscprob.osc_prob_matter_std_potential(
@@ -521,11 +542,9 @@ Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>` shows this probab
    # Drawn: P_smooth[:, gd.NUE, gd.NUE], and the others
 
 
-The smooth envelope sets the trend. At 0.1 TeV, a :math:`\nu_e` leaves the star mostly as :math:`\nu_3`—which has the least electron content among the three mass eigenstates—and so is rarely detected as :math:`\nu_e`. With rising energy, the survival probability climbs to its vacuum value, reached at 100 TeV. The reason is where the resonance sits. A neutrino of higher energy resonates farther out, where the density falls more gently, but its oscillation length grows faster than that gain, so the crossing becomes abrupt and the flavor content survives it. The PeV neutrinos that IceCube detects come out of the star as if it were not there.
+For the smooth envelope, the :math:`\nu_e` survival probability at Earth rises with energy. At 0.1 TeV, a :math:`\nu_e` leaves the star mostly as :math:`\nu_3`, the mass eigenstate with the smallest electron content, so it is rarely detected as :math:`\nu_e`. At 100 TeV, the probability reaches its vacuum value. The probability rises because the resonance crossing becomes less adiabatic as the energy grows. The resonance density falls as :math:`1/E`. Deep in the envelope, :math:`\rho \propto r^{-3}`, so the resonance moves outward as :math:`r_{\rm res} \propto E^{1/3}`. There, the density changes over a distance :math:`\rho/\lvert d\rho/dr \rvert = r_{\rm res}/3 \propto E^{1/3}`, while the oscillation length at the resonance grows as :math:`E`. Their ratio, which sets how adiabatic the crossing is, therefore falls as :math:`E^{-2/3}`. Thus, at high energies, the crossing is non-adiabatic, and the neutrino keeps its flavor. At the PeV energies that IceCube detects, the star leaves the flavor content unchanged.
 
-Turbulence shifts the smooth curve by up to 0.05 below a few TeV. Those are the energies whose resonance lies where the modes of the realization match the local oscillation length; the mechanism is that of :ref:`ex-sec-turbulence`. The drop at the helium-core edge has a larger effect. The energies whose resonance density lies inside the drop, 0.15–0.7 TeV, do not cross the resonance gradually: they meet it in one jump, at the edge, so the crossing is non-adiabatic regardless of the energy and the flavor content survives. The result is the low-energy plateau in the probability seen in Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>`. Above the band, the two envelopes agree again.
-
-Each envelope takes well under a minute for the energies drawn and the eight production points averaged. The ladder settles on a few thousand slabs per energy at the tolerance requested (:math:`10^{-6}`), with the helium-core edge declared to it as a breakpoint.
+Turbulence shifts the probability by up to 0.05 below a few TeV. At these energies, the turbulent modes near the resonance have wavelengths comparable to the oscillation length (as in :ref:`ex-sec-turbulence`). At the drop, the density falls by a factor of five within a small fraction of an oscillation length. Neutrinos between 0.1 and 0.55 TeV have their 1-3 resonance density inside the drop. They skip over their resonance, rather than crossing it gradually, so the crossing is non-adiabatic. This produces the plateau at about 0.36 in Figure :ref:`Jet neutrinos in a stellar envelope <ex-fig-jet>`, which extends to about 1 TeV. Above about 1.5 TeV, the resonance lies well outside the helium core, and the drop no longer matters: the stepped and smooth envelopes give the same probability to within 0.01.
 
 .. _ex-sec-lri-sun:
 
