@@ -6,7 +6,7 @@ draw the figures of the example notebooks, each in one call.  See
 :doc:`tutorials` for the notebooks.
 
 What it draws
----------------
+-------------
 
 .. list-table::
    :header-rows: 1
@@ -46,7 +46,7 @@ What it draws
        can be overridden.
 
 Installation
---------------
+------------
 
 Nothing to do: Matplotlib is a dependency of Magνs, so ``pip install magnuspy``
 brings it and :mod:`magnus.plotting` is available straight away.
@@ -56,7 +56,7 @@ brings it and :mod:`magnus.plotting` is available straight away.
     from magnus import plotting
 
 A first figure
-----------------
+--------------
 
 .. jupyter-execute::
 
@@ -88,7 +88,7 @@ which returns exactly the six mixing parameters.  Unpacking
 ``description`` strings, which the probability functions reject.
 
 Adding the error subpanel
----------------------------
+-------------------------
 
 Passing ``residual`` adds the short lower panel the notebooks use to compare a
 Magnus result against a closed-form one.  The two panels then share their
@@ -126,7 +126,7 @@ so they read as a single figure:
     )
 
 The other layouts
--------------------
+-----------------
 
 Three of the functions can compute the probabilities themselves, through the
 Earth wrappers: :func:`~magnus.plotting.plot_probability_with_profile`,
@@ -207,10 +207,10 @@ computed; their docstrings have an example each.
 .. _plotting-api-conventions:
 
 API conventions
------------------
+---------------
 
 Named arguments, and no catch-all
-""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""
 
 Each function takes **named arguments for the things every figure has**
 (data, labels, limits, scales, tick spacings, title, legend placement, output
@@ -235,7 +235,7 @@ check:
         print(type(error).__name__, '->', error)
 
 Curves
-"""""""""
+""""""
 
 ``curves`` is a sequence, one entry per line.  An entry is either a bare
 ordinate array or a dictionary carrying the ordinate under ``'y'`` plus any
@@ -244,7 +244,7 @@ Line2D keyword.  Entries without an explicit color take the ``'C0'``,
 conventionally given ``color='k', ls='--'``.
 
 Returning ``(fig, ax)``
-""""""""""""""""""""""""""
+"""""""""""""""""""""""
 
 Every function returns both, so that the figure can be edited further.  Each
 call creates its own figure: there is no
@@ -262,7 +262,7 @@ and ``ax[1]`` the residual:
     ax.set_title('annotated after the fact', fontsize=20)
 
 House style
-"""""""""""""
+"""""""""""
 
 The module sets the text and tick sizes it draws with
 (:data:`~magnus.plotting.HOUSE_RC`: 25-point axis labels, 23-point tick labels, ticks
@@ -277,7 +277,7 @@ Matplotlib settings.  The other house values are exposed as
 rather than restate them.
 
 Labels
---------
+------
 
 :func:`~magnus.plotting.prob_label` builds the LaTeX for a probability from a
 flavor pair, the sterile states included:
@@ -291,7 +291,7 @@ flavor pair, the sterile states included:
     print(prob_label(gd.NUE, gd.NUS1))
 
 Saving
---------
+------
 
 Pass ``savefig`` to write the figure; ``savefig_kw`` is merged over
 :data:`~magnus.plotting.HOUSE_SAVEFIG_KW`, which is ``dpi=200``.  The

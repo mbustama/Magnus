@@ -1,5 +1,5 @@
 Methodology
-============
+===========
 
 .. contents::
    :local:
@@ -13,7 +13,7 @@ them, and the evidence used to validate all of it.  See
 :ref:`when-is-magnus-a-win` on the front page for the short version.
 
 The Magnus expansion
------------------------
+--------------------
 
 Neutrino flavor evolution is governed by the Schrödinger-like equation
 
@@ -38,16 +38,17 @@ roughly doubles per order.  :doc:`expansion_terms` derives them symbolically at 
 order, and the test suite checks every term against that derivation (see
 :ref:`validation`).
 
-**A truncated series still gives a unitary evolution operator.**  Whatever
-order the sum stops at, :math:`\Omega` remains anti-Hermitian, since each
-:math:`\Omega_k` is a real combination of nested commutators of anti-Hermitian
-matrices.  So :math:`\exp(\Omega)` is unitary, whatever the truncation order or
-the quadrature accuracy.  In floating point, it is unitary to round-off: one exponential deviates by
-:math:`\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert = 4\times10^{-16}` in the median (the worst
-of a stack of 4096 reaches :math:`4\times10^{-15}`), and a whole probability, built from
-many such factors, by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst across
-four decades in the number of points, at two to five flavors.  This is the central practical advantage over direct
-ODE integration, whose iterates only approximately preserve unitarity.
+**A truncated series still gives a unitary evolution operator.**  Whatever order the sum stops
+at, :math:`\Omega` remains anti-Hermitian, since each :math:`\Omega_k` is a real combination of
+nested commutators of anti-Hermitian matrices.  So :math:`\exp(\Omega)` is unitary, whatever the
+truncation order or the quadrature accuracy.  In floating point, it is unitary to round-off.  One
+exponential deviates by
+:math:`\lVert \mathbb{U}^\dagger \mathbb{U} - \mathbb{1}\rVert = 4\times10^{-16}` in the median
+(the worst of a stack of 4096 reaches :math:`4\times10^{-15}`).  A whole probability, built from
+many such factors, deviates by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst
+across four decades in the number of points, at two to five flavors.  This is the central
+practical advantage over direct ODE integration, whose iterates only approximately preserve
+unitarity.
 
 The series converges absolutely whenever
 :math:`\int_{l_0}^{l_1} \lVert A(l)\rVert_2\, dl < \pi` over the interval
@@ -62,7 +63,7 @@ sufficient condition for convergence is then not met, which says nothing
 yet about the error.
 
 Two integration methods
---------------------------
+-----------------------
 
 Evaluating the nested integrals of the expansion requires sampling :math:`A(l)` inside
 each slab.  Magνs offers two families, selected via
@@ -107,18 +108,16 @@ Their energy-batched scan uses it only when it is at least
 :data:`magnus.oscprob.QUADRATURE_SEED_MIN_SLABS` (4) slabs: in measurements, a
 smaller starting count could add a refinement level, and a larger one never did.
 
-**Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).**
-Sample :math:`A` on a uniform grid of ``n_tpts_per_slab`` points and
-integrate with cumulative trapezoid or Simpson's rule.  Slower for the same
-accuracy on a smooth profile, but fully general, and they reach order 10.  A
-kink or a discontinuity belongs on a slab edge, declared with
-``t_breakpoints``: there each slab takes its endpoint sample just inside
-itself, so both sides of a jump are integrated with their own values and the
-rule keeps its order.  One left *inside* a slab degrades every method.  The quadrature error
-(:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate
-the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows
-accordingly.  The grid starts at 100 points per slab, and the refinement grows it together
-with the number of slabs.
+**Cumulative quadrature (** ``'trapezoid'`` **,** ``'simpson'`` **).** Sample :math:`A` on a
+uniform grid of ``n_tpts_per_slab`` points and integrate with cumulative trapezoid or
+Simpson's rule.  These methods are slower for the same accuracy on a smooth profile, but they
+are fully general and reach order 10.  A kink or a discontinuity belongs on a slab edge,
+declared with ``t_breakpoints``: there each slab takes its endpoint sample just inside
+itself, so both sides of a jump are integrated with their own values and the rule keeps its
+order.  One left *inside* a slab degrades every method.  The quadrature error (:math:`O(h^2)`
+or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate the Magnus truncation error at
+high orders unless ``n_tpts_per_slab`` grows accordingly.  The grid starts at 100 points per
+slab, and the refinement grows it together with the number of slabs.
 
 **What ``magnus_exp_order`` means on each path.**  On ``'gl'`` it is the order the method
 delivers: the error over the trajectory falls as :math:`h^p`, or :math:`N_{\rm
@@ -173,11 +172,11 @@ one more term:
      - 10
      - (10)
    * - 9
-     - --
+     - ValueError
      - (10)
      - (10)
    * - 10
-     - --
+     - ValueError
      - 12
      - (12)
 
@@ -186,7 +185,7 @@ smooth, non-commuting problem against DOP853; entries in parentheses follow from
 rules above.  ``ValueError`` marks a request ``'gl'`` refuses.
 
 Unitarity from the spectral decomposition
-------------------------------------------------
+-----------------------------------------
 
 Since :math:`\Omega` is anti-Hermitian, Magνs computes
 :math:`\exp(\Omega)` from the eigendecomposition of the Hermitian matrix
@@ -197,16 +196,16 @@ Since :math:`\Omega` is anti-Hermitian, Magνs computes
    \exp(\Omega) = \mathbb{V}\, \mathrm{diag}\!\left(e^{-i\lambda}\right)\, \mathbb{V}^\dagger ,
    \qquad K = \mathbb{V}\, \mathrm{diag}(\lambda)\, \mathbb{V}^\dagger .
 
-This is faster than a general (Padé-based) matrix exponential for stacks of
-small matrices, and unitary to round-off (:math:`\mathbb{U}^\dagger \mathbb{U} - \mathbb{1}` of order
-1e-15; see :doc:`performance`).  By default (``EXPM_BACKEND = 'auto'``) the
-spectrum comes from compiled kernels — Cayley-Hamilton for 2×2 and 3×3,
-batched Jacobi for 4×4 and 5×5 — and from ``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
-``scipy.linalg.expm`` remains available for exotic, non-physical uses of
-the underlying :func:`magnus.magnus.magnus_expansion` engine.
+This is faster than a general (Padé-based) matrix exponential for stacks of small matrices, and
+unitary to round-off (:math:`\mathbb{U}^\dagger \mathbb{U} - \mathbb{1}` of order 1e-15; see
+:doc:`performance`).  By default (``EXPM_BACKEND = 'auto'``) the spectrum comes from compiled
+kernels — Cayley-Hamilton for 2×2 and 3×3, batched Jacobi for 4×4 and 5×5 — and from
+``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
+``scipy.linalg.expm`` remains available for exotic, non-physical uses of the underlying
+:func:`magnus.magnus.magnus_expansion` engine.
 
 Time-ordering
-----------------
+-------------
 
 A neutrino traversing a chain of slabs accumulates the evolution operator
 as a time-ordered product, with the *last* slab as the leftmost factor:
@@ -224,22 +223,20 @@ matrix arithmetic alone, no quadrature).
 .. _accumulated-phase:
 
 Adaptive refinement and slab placement
------------------------------------------
+--------------------------------------
 
-By default, ``osc_prob`` and its wrappers refine the number of slabs (and,
-for the quadrature methods, the number of points per slab) until the
-probability matrix stops changing within a requested tolerance
-(``rtol``, ``atol``): it multiplies the slab count by 1.5
-(``growth_factor_n_slabs``), recomputes, and stops when two successive levels agree in
-every entry, :math:`|P^{(n)}_{\alpha\beta} - P^{(n-1)}_{\alpha\beta}| \le
-{\tt atol} + {\tt rtol}\,|P^{(n-1)}_{\alpha\beta}|`.  ``strict_convergence=True`` asks
-for two consecutive agreements instead of one.  Declared edges are present at every
-level, so they can shrink the step between two grids; an agreement counts only when the
-finer grid has at least 25% more edges than the coarser one.  Every level below the one
-that converges is computed and discarded: on an Earth chord, this makes a call three to four
-times slower than one given the right slab count.  ``convergence_info`` reports that count,
-and passing it as ``n_slabs`` with ``rtol=atol=None`` reuses it.  Four devices keep the ladder
-short:
+By default, ``osc_prob`` and its wrappers refine the number of slabs (and, for the quadrature
+methods, the number of points per slab) until the probability matrix stops changing within a
+requested tolerance (``rtol``, ``atol``).  Each step multiplies the slab count by 1.5
+(``growth_factor_n_slabs``) and recomputes, and the ladder stops when two successive levels
+agree in every entry,
+:math:`|P^{(n)}_{\alpha\beta} - P^{(n-1)}_{\alpha\beta}| \le {\tt atol} + {\tt rtol}\,|P^{(n-1)}_{\alpha\beta}|`.  ``strict_convergence=True``
+asks for two consecutive agreements instead of one.  Declared edges are present at every level,
+so they can shrink the step between two grids; an agreement counts only when the finer grid has
+at least 25% more edges than the coarser one.  Every level below the one that converges is
+computed and discarded: on an Earth chord, this makes a call three to four times slower than
+one given the right slab count.  ``convergence_info`` reports that count, and passing it as
+``n_slabs`` with ``rtol=atol=None`` reuses it.  Four devices keep the ladder short:
 
 * **A starting slab count from the accumulated phase.**  Rather than starting
   from one slab, the refinement starts from an estimate of the accumulated
@@ -290,16 +287,16 @@ short:
    while running faster than the under-resolved version did.
 
 The slab cap itself is method-aware.  ``max_n_slabs`` defaults to None,
-meaning "use the cap appropriate to ``integration_method``": 20000 for
+meaning "use the cap appropriate to ``integration_method``": 20 000 for
 ``'gl'`` and 2000 for the cumulative-quadrature methods (see
 ``magnus.oscprob.MAX_N_SLABS_DEFAULT``; an explicit value is always used as
 given).  The two caps differ because the cost per slab differs by more than
 an order of magnitude: ``'gl'`` evaluates the Hamiltonian 1 to 4 times per
 slab, the quadrature methods ``n_tpts_per_slab`` times.  ``'gl'`` needs the
 higher cap for problems such as eV-scale sterile splittings across the Earth,
-which take about 8,600 slabs.  Even at 20000 slabs, it is the cheaper worst
-case: 40,000 Hamiltonian evaluations at the default order and 80,000 at order
-8, against about 200,000 for 2000 quadrature slabs at 100 points each.
+which take about 8600 slabs.  Even at 20 000 slabs, it is the cheaper worst
+case: 40 000 Hamiltonian evaluations at the default order and 80 000 at order
+8, against about 200 000 for 2000 quadrature slabs at 100 points each.
 
 If a refinement cap (``max_n_slabs``, ``max_n_tpts_per_slab`` or
 ``max_num_loops``) is reached before the tolerance is met, ``osc_prob``
@@ -313,10 +310,10 @@ local patches use the same :func:`magnus.magnus.magnus_expansion_multislab`
 kernel.
 
 Choosing the expansion order
--------------------------------
+----------------------------
 
 ``magnus_exp_order`` defaults to 4, and for the tolerances most calculations
-ask for that is the right choice.  The adaptive refinement already turns a
+ask for, that is the right choice.  The adaptive refinement already turns a
 higher order into fewer slabs on its own, so the order and the requested
 tolerance interact: raising the order pays only once the tolerance is tight
 enough to make the extra work per slab worthwhile.
@@ -325,7 +322,8 @@ enough to make the extra work per slab worthwhile.
    :width: 100%
    :alt: Cost and accuracy of a Magnus slab at three flavors
 
-   Cost and accuracy of a Magnus slab, at three flavors.  Top right: one slab against
+   Cost and accuracy of a Magnus slab, at three flavors.  Top left: the two density profiles,
+   constant and exponential.  Top right: one slab against
    an exact exponential of the same constant Hamiltonian; the deviation bottoms out
    near machine epsilon and rises along :math:`\Phi\varepsilon`.  Bottom left: time per
    probability for six Magnus configurations and for DOP853, all at a tolerance of
@@ -351,14 +349,13 @@ there for accuracy studies rather than production runs.
    The defaults rest on two measurements, both against a tight-tolerance
    reference computed at order 6 with the slab cap raised:
 
-   #. **Cheapest configuration sweep.**  For each of seven cases — Earth
+   #. **Cheapest configuration sweep.**  The sweep covered seven cases: Earth
       PREM 3ν at 0.5, 1 and 10 GeV; Earth PREM 5ν; an exponential density
-      profile; the Sun at 100 MeV; and Earth 3ν with NSI — and each of the
-      targets :math:`10^{-4}`, :math:`10^{-6}`, :math:`10^{-8}`, the smallest
-      slab count reaching that accuracy was found by explicit sweep at orders
-      2, 4 and 6, with the adaptive loop switched off.  Counted in
-      *Hamiltonian evaluations*, the optimal order rose monotonically with
-      tolerance in every case.
+      profile; the Sun at 100 MeV; and Earth 3ν with NSI.  For each case and each
+      of the targets :math:`10^{-4}`, :math:`10^{-6}` and :math:`10^{-8}`, it
+      found the smallest slab count reaching that accuracy at orders 2, 4 and 6,
+      with the adaptive loop switched off.  Counted in *Hamiltonian evaluations*,
+      the optimal order rose monotonically with tolerance in every case.
    #. **Wall-time confirmation.**  Evaluation count turned out to be a poor
       proxy: the fixed per-slab overhead (array setup, the eigendecomposition
       for the matrix exponential, the slab product) outweighs the node count,
@@ -370,16 +367,16 @@ there for accuracy studies rather than production runs.
    refinement loop, so a coarser start for a higher order only adds an iteration.
 
 Vectorization and the energy-batched scan engine
----------------------------------------------------
+------------------------------------------------
 
 Two further optimizations change no physics and need no change to user code,
 although the first runs faster if the Hamiltonian is written for arrays:
 
 * **Hamiltonian vectorization.**  A user-supplied Hamiltonian or
-  density-profile function is probed once: if it accepts an array of
+  density-profile function is probed once.  If it accepts an array of
   positions and returns a matching stack of matrices (verified against a
   scalar spot-check), that vectorized form is used for every subsequent
-  evaluation; otherwise Magνs falls back transparently to evaluating it
+  evaluation.  Otherwise, Magνs falls back transparently to evaluating it
   one point at a time.  Repeated evaluations of a density profile on
   identical position grids (common across an energy scan, where only the
   vacuum term of the Hamiltonian depends on energy) are additionally
@@ -411,7 +408,7 @@ although the first runs faster if the Hamiltonian is written for arrays:
 .. _validation:
 
 Validation strategy
------------------------
+-------------------
 
 The `test suite <https://github.com/mbustama/Magnus/tree/main/tests>`_,
 which runs in CI on every push (see the badge on :doc:`index`), validates
@@ -441,14 +438,14 @@ the methodology above directly:
   quadrature) that isolates the slab time-ordering from every other
   source of numerical error.
 
-In practice the default setting (``rtol = atol = 1e-3``, a stopping rule rather than a
-bound) is usually far more accurate than it promises; in the rare cases where it is not, the
-error stays within about three times the tolerance.  This was measured over eight Earth
-chords, from grazing to core-crossing, at six energies between 0.5 and 20 GeV, against the
-same call at :math:`10^{-7}`.  The difference is about :math:`10^{-6}` in the median, below
-:math:`10^{-4}` in nine cases in ten, and about :math:`10^{-3}` at most, on the core-crossing
-chord at 0.5 GeV.  :doc:`diagnostics` gives the distribution over much larger populations, scored
-against an independent reference.
+In practice, the default setting (``rtol = atol = 1e-3``, a stopping rule rather than a bound)
+is usually far more accurate than it promises; in the rare cases where it is not, the error
+stays within about three times the tolerance.  This was measured over eight Earth chords, from
+grazing to core-crossing, at six energies between 0.5 and 20 GeV, against the same call at
+:math:`10^{-7}`.  The difference is about :math:`10^{-6}` in the median, below :math:`10^{-4}`
+in nine cases in ten, and about :math:`10^{-3}` at most, on the core-crossing chord at 0.5
+GeV.  :doc:`diagnostics` gives the distribution over much larger populations, scored against an
+independent reference.
 
 See :doc:`references` for full citations of the works referred to above.
 

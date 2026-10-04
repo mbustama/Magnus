@@ -67,7 +67,7 @@ def _documented_rows():
     for cells in rows[1:]:                       # rows[0] is the header
         assert len(cells) == 5, "unexpected column count in row %r" % (cells,)
         windows = int(cells[1])
-        speedup = int(re.fullmatch(r'~?([\d,]+)x', cells[2]).group(1).replace(',', ''))
+        speedup = int(re.fullmatch(r'~?([\d,]+)[x×]', cells[2]).group(1).replace(',', ''))
         out.append((windows, speedup))
     return out
 

@@ -129,7 +129,7 @@ Without declared fronts, ``average=True`` resolves the 70-km fronts: it returns 
    # PhaseAveragingWarning: average=True on a
    # profile with discontinuities has no closed
    # form, so the probability was propagated
-   # across an energy window of +/-10.0\% and
+   # across an energy window of +/-10.0% and
    # averaged over 41 samples.  This is the
    # average over that window, not the L/E ->
    # infinity limit, and it depends on the

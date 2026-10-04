@@ -41,8 +41,8 @@ concerns neutrinos.  At module level, it imports only ``expmkernels``, the compi
 exponential, and ``_validate``, the argument checks; it imports one warning class from
 ``oscprob`` inside the function that raises it.  It is numerical linear algebra on any
 matrix-valued function :math:`A(l)`, so it is tested against the recursion of
-:doc:`expansion_terms` without any of the probability code.  The physics, the environments and the core meet in one module,
-``oscprob``.
+:doc:`expansion_terms` without any of the probability code.  The physics, the environments and
+the core meet in one module, ``oscprob``.
 
 Modules
 -------
@@ -165,17 +165,17 @@ calling the one below it:
 Earth and Sun geometry the wrappers use, and pass a curated set of arguments on to an internal
 function, ``_osc_prob_with_potential``, rather than through ``**kwargs``.
 
-The refinement keywords (``n_slabs``, ``max_n_slabs``, ``t_breakpoints``,
-``magnus_exp_order``, ``integration_method``, ``rtol``, ``atol``, ``strict_convergence``,
-``n_jobs`` and the rest) are declared by ``osc_prob`` and the layers between it and the wrappers, but not by the
-wrappers, which receive them through ``**kwargs``.  They do not appear in a wrapper's
-signature, and ``help()`` on a wrapper does not list them; its docstring names them and
-refers to ``osc_prob``.
+The refinement keywords (``n_slabs``, ``max_n_slabs``, ``t_breakpoints``, ``magnus_exp_order``,
+``integration_method``, ``rtol``, ``atol``, ``strict_convergence``, ``n_jobs`` and the rest)
+are declared by ``osc_prob`` and the layers between it and the wrappers, but not by the
+wrappers, which receive them through ``**kwargs``.  They do not appear in a wrapper's signature,
+and ``help()`` on a wrapper does not list them; its docstring names them and refers to
+``osc_prob``.
 
 .. _layer-contract:
 
 The layer contract: what a wrapper must **not** do
-------------------------------------------------------
+--------------------------------------------------
 
 Every wrapper ends in ``**kwargs`` and must **not** redeclare any of the
 refinement and logging keywords that the layers below it own:
@@ -220,7 +220,7 @@ keyword declared only by a higher layer would pass it and fail later, inside the
 engine.  To prevent that, ``osc_prob`` refuses ``average`` and ``cumulative`` by name.
 
 Data flow: how the Hamiltonian and potential are built
------------------------------------------------------------
+------------------------------------------------------
 
 The matter potential and the Hamiltonian are built once per call (not
 once per slab), then passed down as a single callable:
@@ -241,7 +241,7 @@ an array of positions or must be called one position at a time (see
 :doc:`methodology`).
 
 How to add your own wrapper
-------------------------------
+---------------------------
 
 Suppose you want to add support for a new environment, e.g., a
 user-supplied radial density profile for 3-flavor NSI oscillations,
@@ -260,8 +260,8 @@ closest sibling to copy from. The recipe:
    * the positional physics inputs, ``energy`` and ``L``;
    * whatever parametrizes *your* density profile, e.g., a
      ``density_func: Callable`` supplied by the user;
-   * the standard three-flavor oscillation parameters, ``s12, s23, s13, dCP,
-     D21, D31``, all ``Optional[float] = None``;
+   * the standard three-flavor oscillation parameters,
+     ``s12, s23, s13, dCP, D21, D31``, all ``Optional[float] = None``;
    * the standard NSI parameters, ``eps_ee, eps_em, ...``;
    * the trailing parameters every wrapper has: ``ratio_number_neutrons_to_protons``,
      ``electron_fraction``, ``nubar``, ``nu_i``, ``nu_f``, ``validate_input``,
@@ -479,7 +479,7 @@ each flavor count you support, move the function into ``magnus.oscprob`` next to
 section.
 
 Where things live: a quick lookup
--------------------------------------
+---------------------------------
 
 .. list-table::
    :header-rows: 1

@@ -1,5 +1,5 @@
 Against other codes
-=====================
+===================
 
 .. contents::
    :local:
@@ -21,7 +21,7 @@ when.  Every code is timed in one process on one machine.
    orders of magnitude" does.
 
 Eight codes, three setups
----------------------------
+-------------------------
 
 .. figure:: ../../img/paper/speed_accuracy_combined.svg
    :width: 100%
@@ -55,7 +55,7 @@ chiefly the constant that fixes :math:`V_{\rm CC}`, so two codes can both reach
   cost grows eightfold at four flavors against under threefold for Magνs.
 
 Against NuOscProbExact, two to five flavors
----------------------------------------------
+-------------------------------------------
 
 .. figure:: ../../img/paper/smooth_reach.svg
    :width: 100%
@@ -72,7 +72,7 @@ The closed form is the cheaper code at loose tolerances.  At tight tolerances it
 runs into an accuracy floor that more slabs cannot lower, and Magνs reaches past it.
 
 The averaged solar probability
---------------------------------
+------------------------------
 
 .. figure:: ../../img/paper/solar_average_cost.svg
    :width: 80%
@@ -100,7 +100,7 @@ the :math:`10^5` oscillations and averaging them away.  The call is
 .. _when-to-use-magnus:
 
 When to use Magνs, and when not
----------------------------------
+-------------------------------
 
 Structurally, Magνs sits between NuOscProbExact and nuSQuIDS: it composes slab exponentials
 as the first does, while resolving the variation of the Hamiltonian inside each slab, as the
@@ -149,7 +149,7 @@ Elsewhere another code may be cheaper:
      - They need a density matrix; no unitary solver here, Magνs included, represents them
 
 Before comparing any two codes' numbers
-------------------------------------------
+---------------------------------------
 
 **Check that they agree in vacuum first.**  If they do not, the disagreement is
 in the solvers.  If they agree in vacuum and disagree in matter, it is in the

@@ -1,5 +1,5 @@
 Engines and dispatch
-======================
+====================
 
 .. contents::
    :local:
@@ -12,7 +12,7 @@ for what to do when one warns.
 .. _the-engines:
 
 The engines
--------------
+-----------
 
 .. figure:: ../../img/paper/strategies.svg
    :width: 100%
@@ -106,7 +106,7 @@ used as an oracle by
 or a piecewise-constant one whose edges are declared.
 
 Independence, and why it matters
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The engines are **not** all independent of each other, and a cross-check between two
 engines that share their machinery proves little.  :data:`magnus.oscprob.ENGINE_FAMILIES`
@@ -134,7 +134,7 @@ disagreement is informative; their agreement is not.
 .. _dispatch-order:
 
 Dispatch
-----------
+--------
 
 Each matter scenario function (:func:`magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`magnus.oscprob.osc_prob_matter_nsi`, :func:`magnus.oscprob.osc_prob_liv`) tries the
@@ -223,14 +223,14 @@ undeclared density jump still runs, and still warns.
 **At a tighter tolerance**, the route stays open on ``integration_method='gl'`` at a single
 baseline, with a phase limit that shrinks with the tolerance and the order.  The limit is
 ``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
-capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2 000 rad so that partial solar
+capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2000 rad so that partial solar
 chords stay on the hybrid.  It shrinks because the ladder's slab count grows as
 ``tol**(-1/p)``, while the cost of the hybrid's window search does not depend on the tolerance.
 The limit applies to an energy scan as well.  At these tolerances, the ladder runs at the
 requested tolerance itself, because its levels are deep in the asymptotic regime, where the
 difference between two of them already overestimates the error of the finer one.  For
 example, at ``rtol = 1e-12``, ``atol = 1e-14`` and ``magnus_exp_order = 8``, the limit is
-1 000 rad, and the four curves of the validation example in :doc:`diagnostics` have phases of
+1000 rad, and the four curves of the validation example in :doc:`diagnostics` have phases of
 10 to 78 rad, so they take this route.  A baseline scan goes to the cumulative scan at such
 tolerances.
 
@@ -282,8 +282,8 @@ energy-batched scan whatever its phase, and it turns off the cumulative scan, so
 scan is computed point by point.  This reproduces the results of releases that predate the
 adiabatic engine, but it is not the fast choice for a baseline scan.
 
-**The accuracy changes in a step at each threshold.**  Adding one baseline to a scan just
-below a threshold (from 7 to 8 baselines at 1e-6 and looser, from 1 to 2 below) changes the
+**The accuracy changes in a step at each threshold.**  Adding one baseline to a scan that sits
+just below a threshold (from 7 to 8 baselines at 1e-6 and looser, from 1 to 2 below) changes the
 answer, because it changes the engine.  In the cases measured, the step was toward the more
 accurate answer, by up to six orders of magnitude; the docstring of
 :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the measurement.

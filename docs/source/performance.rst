@@ -1,5 +1,5 @@
 Performance
-=============
+===========
 
 .. contents::
    :local:
@@ -10,7 +10,7 @@ measured on.  The first sections follow the batching, timing and cost sections o
 paper.
 
 Speed
--------
+-----
 
 A single three-flavor probability through the Earth takes about 2 ms at the default tolerance
 of ``rtol = atol = 1e-3``.  Across 164 Earth and solar configurations — two to five flavors,
@@ -64,14 +64,14 @@ workers costs more.
    :width: 70%
    :alt: Parallel speed-up of an energy scan
 
-   Speed-up against ``n_jobs``, for scans of 1 000, 5 000 and 20 000 energies along an
+   Speed-up against ``n_jobs``, for scans of 1000, 5000 and 20 000 energies along an
    Earth chord at :math:`\cos\theta_z = -0.9`, each energy with its own baseline so
    that every run takes the per-point path.  From the Magνs paper.
 
-On ten cores, ten processes finish scans of 1 000, 5 000 and 20 000 energies 1.9, 2.5 and 2.8
+On ten cores, ten processes finish scans of 1000, 5000 and 20 000 energies 1.9, 2.5 and 2.8
 times as fast as one: the gain grows with the scan and stays far from ten.  The two mostly do
 not combine: the energy-batched scan and the constant-Hamiltonian engine answer only at
-``n_jobs=1``, and any other value sends the scan to the per-point path.  On 5 000 energies
+``n_jobs=1``, and any other value sends the scan to the per-point path.  On 5000 energies
 along the chord at :math:`\cos\theta_z = -0.9`, the batched path takes 0.11 s in one process,
 and ten processes take 1.1 s.  So pass arrays and leave ``n_jobs=1``; raise it only for a scan
 no batched engine accepts, such as one where every energy has its own baseline.
@@ -88,11 +88,11 @@ another.  They do not run faster for it, since most of a call holds Python's glo
 interpreter lock.
 
 **The refinement ladder works against these savings.**  It computes every slab count below the
-one that converges and discards them: on an Earth chord, about three to four times the cost of a call
-given the right slab count in advance (:doc:`methodology`).
+one that converges and discards them: on an Earth chord, about three to four times the cost of
+a call given the right slab count in advance (:doc:`methodology`).
 
 The palindrome, and what it is worth
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A chord through a spherically symmetric Earth meets every radius twice, so its density
 profile reads the same from either end.  :func:`magnus.magnus.magnus_expansion_multislab`
@@ -114,10 +114,10 @@ what those evaluations cost.  Measured through
      - 0.905×
      - a slowdown: a density lookup is too cheap to be worth halving
    * - single point, expensive ``H_func``
-     - **1.41×-1.67×**
+     - **1.41×–1.67×**
      -
    * - 12- and 40-energy scan, expensive ``H_func``
-     - **1.56×-1.64×**
+     - **1.56×–1.64×**
      - falls to the general ladder, so the mirror applies
    * - energy scan, standard PREM
      - 1.00×
@@ -130,8 +130,8 @@ half.
 **A standard PREM energy scan gains nothing.**  It is answered by the separable engine,
 which already evaluates the profile once for all the energies, a larger saving of the same
 kind.  Measured,
-that engine spends a fraction :math:`f` = 0.001-0.026 of its time in the profile, which
-caps any possible mirror gain at 1.001×-1.013×.
+that engine spends a fraction :math:`f` = 0.001–0.026 of its time in the profile, which
+caps any possible mirror gain at 1.001×–1.013×.
 
 **Symmetry is declared, not detected.**  Detecting it would need the very evaluations that
 the mirroring skips.  The slab *widths* are no guide: a monotonic, solar-like profile on a
@@ -149,7 +149,7 @@ up to 8.6e-15 relative.
 .. _expm-backend:
 
 The matrix exponential, and which backend computes it
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Every slab ends in a matrix exponential.  ``np.linalg.eigh`` costs **about 1.27 µs per
 3×3, whatever the stack size**: 1.268 µs at N = 108 and 1.279 µs at N = 4096.  The cost does
@@ -225,7 +225,7 @@ fraction :math:`f` of the time, making it 6.8× faster speeds up the call by
 quarter of a single 108-slab pass that ``eigh`` takes when profiled.  Across the
 workloads above, the end-to-end speed-up is 1.1× to 2.1×, not 6.8×.
 
-**At N = 1 the exponential is no longer the thing to optimize.** ``eigh`` on one 3×3 costs
+**At N = 1, the exponential is not the cost to reduce.** ``eigh`` on one 3×3 costs
 3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs — the
 difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
@@ -235,7 +235,7 @@ above.
 Hermitian eigenproblem has no practical closed form, but the speed-up does not come from a
 closed form.  It comes from removing ``eigh``'s fixed LAPACK overhead per matrix, about 2.3 µs
 on a 4×4, two thirds of the cost.  A batched Jacobi eigensolver, started for each matrix from
-the eigenvectors of the previous one, avoids that overhead: on a 13 000-slab chain, the
+the eigenvectors of the previous one, avoids that overhead: on a 13 000-slab chain, the
 exponential stage is 2.6× faster at 4ν and 1.7× at 5ν than with ``eigh``.  Unlike the kernels
 for d ≤ 3, it is iterative, so its results are not bit-identical to ``eigh``'s.  Its error is
 within 6.4× of ``eigh``'s at every norm, clustering and degeneracy measured, inside the
@@ -260,7 +260,7 @@ this way rounds to 0.00%.
 
 Switching backend moves probabilities by at most 4.6e-15 across PREM chords, energy scans,
 NSI resonances, constant density and vacuum — except on a solar profile at
-``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
+``strategy='magnus'``, which chains 33 575 slab exponentials and drifts 3.0e-12, within the
 :math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
 
 Numba is a required dependency, so ``'auto'`` reaches the compiled kernel on any
@@ -278,16 +278,16 @@ is unavailable, at the 1e-14 level: at most 1.28e-14 across 16 scan configuratio
 every refinement decision unchanged.  Second, the commutators of the Magnus schemes run in
 a Numba kernel that computes ``X @ Y - Y @ X`` in one pass over the stack, instead of two
 batched matrix products whose cost, at these sizes, is mostly call overhead.  On the two
-benchmark profiles, this makes each slab of the order-4 scheme 2.0-2.2x cheaper at three
-flavors and 3.1-3.4x at two; orders 6 and 8, with three and six commutators per slab, gain
-2.5-3.0x and 1.9-2.8x.  At four and five flavors the gain is about 1.1x, and on the
+benchmark profiles, this makes each slab of the order-4 scheme 2.0–2.2× cheaper at three
+flavors and 3.1–3.4× at two; orders 6 and 8, with three and six commutators per slab, gain
+2.5–3.0× and 1.9–2.8×.  At four and five flavors the gain is about 1.1×, and on the
 cumulative-quadrature methods, whose time goes to the integrals, it is negligible.
 Probabilities move by at most 6.7e-14 across 36 configurations, with every refinement
 decision and warning unchanged.
 
 
 A constant Hamiltonian needs no ladder at all
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When :math:`V_\text{CC}` does not vary with position, neither does :math:`H`, and the Magnus
 series **terminates at its first term**: :math:`\Omega_1 = -iH\Delta`, and every higher
@@ -321,7 +321,7 @@ entire energy scan is one stacked exponential over an ``(nE, d, d)`` array.
      - 1.4×
 
 The 4ν and 5ν rows were measured with ``eigh`` as their exponential; the Jacobi eigensolver
-they use is worth a further 1.8-1.9× at 4ν and 1.5-1.6× at 5ν end to end.  In absolute terms, a
+they use is worth a further 1.8–1.9× at 4ν and 1.5–1.6× at 5ν end to end.  In absolute terms, a
 3ν constant-density probability costs 3.9 µs under the paper's protocol (:doc:`comparison`),
 and what remains is wrapper parameter resolution rather than arithmetic: a code built for the
 constant case alone, such as NuFast-LBL, is cheaper.
@@ -339,13 +339,13 @@ for PREM and the Sun rather than only comparing numbers.
 .. _how-constants-were-set:
 
 How the constants were set
-----------------------------
+--------------------------
 
 Every calibration constant is listed here with the measurement that set it, or with an
 explicit statement that it has none.
 
 Measured
-~~~~~~~~~~
+~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -356,7 +356,7 @@ Measured
      - Population it was measured on
    * - :data:`magnus.adiabatic.GAMMA_TO_ERROR`
      - 0.85
-     - 149 configurations: resonance width over a decade, d = 2…5, 5–80 MeV, 0.5–2 density
+     - 149 configurations: resonance width over a decade, d = 2–5, 5–80 MeV, 0.5–2 density
        scale heights, pure adiabatic operator scored against ``solve_ivp``.  **Restricted to
        the small-γ rows the rule governs**; the maximum over all rows overestimates it.
    * - :data:`magnus.adiabatic.RESOLUTION_RATIO`
@@ -365,21 +365,21 @@ Measured
        (1.000), plus a deliberately weak jump 4.7× smaller than the steepest smooth step
        (0.773).
    * - :data:`magnus.oscprob.BATCH_WORKING_ENTRIES`
-     - 65 536
-     - Fifteen workloads on three batched engines, d = 2…5, scans of 60 to 20 000 points,
+     - 65 536
+     - Fifteen workloads on three batched engines, d = 2–5, scans of 60 to 20 000 points,
        swept over 1 / 4.2 / 12.6 / 67 / 268 MB.  1 MB won eight of the eleven memory-bound
-       rows and was never worse than 67 MB: **1.19×-1.38×** on Earth energy
-       scans, growing with both flavor count and scan length, 1.06×-1.16× on cumulative
-       baseline scans, flat within 2 % on short scans.  The interaction-picture engine is
+       rows and was never worse than 67 MB: **1.19×–1.38×** on Earth energy
+       scans, growing with both flavor count and scan length, 1.06×–1.16× on cumulative
+       baseline scans, flat within 2% on short scans.  The interaction-picture engine is
        flat at 1.00× — it is compute-bound, so the constant does not reach it.  Every row
        was **bit-identical at every budget**, tiles being independent and only
        concatenated, so the constant affects only speed.  Measured on one machine (13 MB
        L3, 6.5 MB L2), and note the optimum sits *below* the last-level cache, so sizing
        to a detected cache would land on a worse value than this fixed constant does.
    * - ``_local_evolution_operator`` ``max_n_slabs``
-     - 32 768
-     - Short, local patches converge at 800–12 800 slabs; a patch covering 88 % of a solar
-       trajectory needs 102 400 and should decline. 32 768 sits in the factor-of-eight gap.
+     - 32 768
+     - Short, local patches converge at 800–12 800 slabs; a patch covering 88% of a solar
+       trajectory needs 102 400 and should decline. 32 768 sits in the factor-of-eight gap.
    * - :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`
      - 8
      - Cost/accuracy crossover, measured over scan sizes and 42 workloads: the cumulative
@@ -397,20 +397,20 @@ Measured
        phase-based starting slab count against without it: a seed of 2 cost up to 2.14× the
        work and of 3 up to 1.24×; from 4 up it never cost any (worst 0.87× at 4, 0.36× at 5).
    * - :data:`magnus.oscprob.BATCHED_PHASE_GROUPING`
-     - 0.17 / 0.44 / 1.8 / 3.2 us per slab-energy at d = 2…5; 0.15 us per shared slab;
-       250 us per level; resolution law 22 S^0.71 (1e-8/tol)^0.18; margin 1.2; floor
+     - 0.17 / 0.44 / 1.8 / 3.2 µs per slab-energy at d = 2–5; 0.15 µs per shared slab;
+       250 µs per level; resolution law 22 S^0.71 (1e-8/tol)^0.18; margin 1.2; floor
        ``atol + 0.01 rtol`` >= 1e-4; four flavors or more
      - The cost model that splits an energy-batched scan into groups of energies with
        similar phase, each on its own grid.  The costs per slab and per level come from
        timings at 1 to 4096 slabs and 1 to 4 energies on an Earth chord.  The slab count
        at which an energy converges is fitted over 183 ladders of 4ν and 5ν scans at
        rtol = 1e-4 to 1e-8 (rms factor 1.32).  On a 4ν scan with
-       :math:`\Delta m^2_{41}` = 1 eV², 40 energies at 0.5-5 GeV, the grouping cuts the time
+       :math:`\Delta m^2_{41}` = 1 eV², 40 energies at 0.5–5 GeV, the grouping cuts the time
        from **650 ms to 215 ms** (370 ms point by point).  The tolerance floor comes from
        174 scans scored against 1e-9 references: split at rtol = atol = 1e-6, five returned
        an energy outside the tolerance without a warning, against none on one grid.
        Two- and three-flavor scans are never split: at three flavors, splitting saved
-       17-30% but raised the largest error across the core from 5.5e-5 to 1.0e-3.
+       17–30% but raised the largest error across the core from 5.5e-5 to 1.0e-3.
    * - :data:`magnus.oscprob.CUMULATIVE_N_ACC_SAFETY`
      - 4
      - The longest baseline sets the grid; shorter ones in the same scan would have chosen a
@@ -424,7 +424,7 @@ Measured
      - 1e-6
      - Scored against the **analytic** :math:`dH/dl`. The optimum moves with the profile's
        shortest length scale (1e-5 solar, 1e-6 sinusoid, 1e-7 for a narrow bump), but anywhere
-       in 1e-8…1e-5 the relative error stays below 3e-09 — six orders below anything that
+       in 1e-8 to 1e-5 the relative error stays below 3e-09 — six orders below anything that
        could move a probability here. **The band, not the value, is what to preserve.**
    * - ``hybrid_propagator`` ``threshold0``
      - 0.1
@@ -436,7 +436,7 @@ Measured
      - 0.3
      - 67 smooth and resolvable profiles (ceiling **0.060**) against features in the
        unresolvable band (0.91–1.00). **0 false positives at every threshold from 0.2 to 0.6**;
-       0.3 maximizes detection (68–90 %) at five times the measured ceiling.
+       0.3 maximizes detection (68–90%) at five times the measured ceiling.
    * - :data:`magnus.adiabatic.N_HIDDEN_FEATURE_SUBDIVISION`
      - 8
      - Calls of one to three points; scans of 4 to 15 points use 16 and longer ones 32.  Chosen
@@ -461,12 +461,12 @@ Measured
        the window costs 2.4× the time.
 
 Not measured
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~
 
 The following constants were not set by a measurement.  They are listed so that they are
 not mistaken for measured ones.
 
-``max_n_probe`` (6400), ``max_n_points`` (12864) and ``max_iters`` (12) in
+``max_n_probe`` (6400), ``max_n_points`` (12 864) and ``max_iters`` (12) in
 :mod:`magnus.adiabatic`; ``max_num_loops`` (50) in :mod:`magnus.oscprob`.
 
 All four are **cost ceilings rather than calibrations**: they bound work, and reaching one is
@@ -480,7 +480,7 @@ documentation.
 
 
 Reproducing any of this
--------------------------
+-----------------------
 
 The measurements on this page come from scripts under ``docs/dev/adversarial_batteries/`` and
 ``docs/dev/measurements/``.  The latter has one directory per measurement, with a README and,

@@ -217,12 +217,13 @@ faster.  See [performance](https://mbustama.github.io/Magnus/performance.html).
 
 ## What "accurate" means here
 
-Unitarity holds at any order and tolerance (see above).  Accuracy is measured against closed forms, an
-independent ODE solver, an independently generated expansion and populations of
-random profiles; the [table of checks and
-results](https://mbustama.github.io/Magnus/index.html#what-accuracy-means) is in the
-documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
-[what they control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-control).
+Unitarity holds at any order and tolerance (see above).  Accuracy is measured
+against closed forms, an independent ODE solver, an independently generated
+expansion and populations of random profiles; the [table of checks and
+results](https://mbustama.github.io/Magnus/index.html#what-accuracy-means) is in
+the documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee;
+see [what they
+control](https://mbustama.github.io/Magnus/diagnostics.html#what-rtol-and-atol-control).
 
 ## Salient features
 
@@ -236,9 +237,10 @@ documentation.  `rtol` and `atol` are a **stopping rule**, not a guarantee; see
   ([solar models](https://mbustama.github.io/Magnus/solar_models.html)), or
   any profile you supply.
 - **The Magnus expansion to order 10**, with the terms of orders 1 to 10
-  checked against an independently coded recursion.  The default Gauss–Legendre integrators reach orders
-  2, 4, 6 and 8 from 1, 2, 3 and 4 evaluations of the Hamiltonian per slab;
-  cumulative trapezoid and Simpson quadrature reach order 10.
+  checked against an independently coded recursion.  The default Gauss–Legendre
+  integrators reach orders 2, 4, 6 and 8 from 1, 2, 3 and 4 evaluations of the
+  Hamiltonian per slab; cumulative trapezoid and Simpson quadrature reach
+  order 10.
 - **Adaptive refinement** to a requested tolerance, slab edges on density
   discontinuities, and an energy-batched engine for scans; seven engines in
   all, chosen from the request
@@ -331,11 +333,11 @@ https://github.com/mbustama/Magnus.
 
 **Methodology references:**
 * Sergio Blanes, Fernando Casas, José A. Oteo & José Ros (2009). The Magnus
-  expansion and some of its applications. *Physics Reports, 470*(5-6),
-  151-238. [doi:10.1016/j.physrep.2008.11.001](https://doi.org/10.1016/j.physrep.2008.11.001).
+  expansion and some of its applications. *Physics Reports, 470*(5–6),
+  151–238. [doi:10.1016/j.physrep.2008.11.001](https://doi.org/10.1016/j.physrep.2008.11.001).
 * Sergio Blanes, Fernando Casas & Javier Ros (2000). Improved high order
   integrators based on the Magnus expansion. *BIT Numerical Mathematics,
-  40*(3), 434-450. [doi:10.1023/A:1022311628317](https://doi.org/10.1023/A:1022311628317).
+  40*(3), 434–450. [doi:10.1023/A:1022311628317](https://doi.org/10.1023/A:1022311628317).
 
 ## License
 

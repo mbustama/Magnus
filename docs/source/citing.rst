@@ -1,12 +1,12 @@
 How to cite
-============
+===========
 
 If Magνs contributed to work you are publishing, please cite it. A citation is
 what makes the effort of maintaining a package visible, and it lets a reader
 reproduce what you did.
 
 Cite the software
-------------------
+-----------------
 
 Until the accompanying paper is available, cite the software itself, including
 the version you used — results can depend on it, and Magνs records its own:
@@ -35,7 +35,7 @@ the version you used — results can depend on it, and Magνs records its own:
 Replace ``version`` with the one you used.
 
 What to say in the text
-------------------------
+-----------------------
 
 Enough for a reader to know what was computed and how precisely. In practice
 that is three things:
@@ -55,7 +55,7 @@ and read the dict afterwards: it reports what the refinement ladder did,
 including whether it converged or hit a cap.
 
 Citing the method
-------------------
+-----------------
 
 The Magnus expansion itself, and the Gauss–Legendre collocation integrators
 Magνs uses by default, are due to others. The :doc:`references` page has the
@@ -64,7 +64,7 @@ Blanes, Casas, Oteo and Ros :cite:p:`Blanes2009`, and the high-order integrators
 of Blanes, Casas and Ros :cite:p:`Blanes2000`.
 
 Related software
------------------
+----------------
 
 If your Hamiltonian is constant or piecewise constant, `NuOscProbExact
 <https://github.com/mbustama/NuOscProbExact>`_ solves that case in closed form

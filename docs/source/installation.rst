@@ -87,7 +87,7 @@ belong on the path:
    import magnus.globaldefs as gd
 
 Verifying the installation
----------------------------
+--------------------------
 
 The test suite, which mainly contributors need, confirms from a clone that everything is
 configured correctly for your system:
@@ -118,7 +118,7 @@ library (the documentation, the notebooks, the paper's assets and the CI workflo
 too, because the sdist does not ship those files; each states this in its skip reason.
 
 Measuring test coverage
-~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``test`` extra also installs ``pytest-cov``, so the same suite can report
 which lines and branches of the package it exercises:

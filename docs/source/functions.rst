@@ -27,9 +27,9 @@ left unset default to the NuFIT 6.1 best fit (normal ordering)
 sterile-sector parameters (4th/5th flavor) default to zero mixing.
 
 Vacuum
---------
+------
 
-No matter potential — the flavor Hamiltonian is just the vacuum mass/mixing
+No matter potential — the flavor Hamiltonian is the vacuum mass/mixing
 term, evaluated once and scaled by :math:`1/E`.
 
 .. list-table::
@@ -65,7 +65,7 @@ and stays exact where the generic route loses a small splitting; see
 :ref:`the note on pseudo-Dirac pairs <avg-pseudo-dirac>`.
 
 Matter, constant density
----------------------------
+------------------------
 
 A user-supplied matter density, uniform along the trajectory.  ``rho`` is in
 natural units, eV\ :sup:`4`: pass ``2.8*gd.UNIT_G_PER_CM3``, or pass ``2.8``
@@ -100,7 +100,7 @@ The command line's ``--rho`` is in g cm\ :sup:`-3`.
      - :py:func:`~magnus.oscprob.osc_prob_5nu_matter_liv_constant_density`
 
 Matter, exponential density
--------------------------------
+---------------------------
 
 A user-supplied matter density profile
 :math:`\rho(l) = \rho_{\rm central}\, e^{-l/l_{\rm scale}}`, with ``rho_central``
@@ -132,15 +132,15 @@ in the same units as ``rho`` above and ``l_scale`` in eV\ :sup:`-1`.
      - :py:func:`~magnus.oscprob.osc_prob_5nu_matter_liv_exp_density`
 
 Earth
--------
+-----
 
 The Preliminary Reference Earth Model (PREM) density profile, along a
 chord specified either by the cosine of the zenith angle (plus a
 baseline) or by two named locations (``loc_ini``/``loc_fin``; see
 :data:`magnus.earth.loc_coords_dms` for the predefined sites).
-:math:`\cos\theta_z = -1` is straight up through the Earth's center and 0 is
+A value of :math:`\cos\theta_z = -1` is straight up through the Earth's center and 0 is
 horizontal; :func:`magnus.earth.distance_traveled_inside_earth` gives the chord
-length for a zenith angle.  :math:`Y_e`, the electrons per atomic mass unit
+length for a zenith angle.  The electron fraction :math:`Y_e`, the electrons per atomic mass unit
 (:ref:`quickstart-conventions`), is set per layer (0.4656 in the core, 0.4957 in the
 mantle), and ``electron_fraction_core`` and its siblings override it.
 
@@ -180,9 +180,9 @@ global-average ocean that does not describe a detector under rock or ice.
      - :py:func:`~magnus.oscprob.osc_prob_5nu_earth_liv`
 
 Sun
------
+---
 
-The built-in exponentially-falling solar electron-density profile (see
+The built-in exponentially falling solar electron-density profile (see
 :func:`magnus.oscprob.osc_prob_sun`), from an initial radial
 position ``L0`` (0 is the center) to a final radial position ``L``, both in
 eV\ :sup:`-1`; ``gd.SUN_RADIUS*gd.UNIT_KM`` is the surface.  A solar-neutrino
@@ -216,7 +216,7 @@ solar models instead (see :doc:`solar_models`).
      - :py:func:`~magnus.oscprob.osc_prob_5nu_sun_liv`
 
 Generic entry points
-------------------------
+--------------------
 
 For anything the tables above don't cover — any other number of flavors,
 or a Hamiltonian that doesn't fit the vacuum/matter/NSI/LIV mold — three
@@ -234,7 +234,7 @@ The ``osc_prob_{N}nu_*`` functions above call these three internally; see
 
 
 Returning the evolution operator
------------------------------------
+--------------------------------
 
 Every function above returns probabilities.  Observables built from amplitudes,
 such as the mass-eigenstate content of the state that leaves a star, need the

@@ -20,7 +20,7 @@ you give.  Its one subcommand, ``prob``, is the default and may be omitted, so
    code and computes a scan in one batched call (:doc:`performance`).
 
 Installation
---------------
+------------
 
 ``pip install magnuspy`` installs the ``magnus`` command along with the package.
 From a checkout, ``pip install -e .`` does the same, and ``python -m magnus``
@@ -31,7 +31,7 @@ it reports the same number as ``magnus.__version__``, which is read
 from the ``version`` field of ``pyproject.toml``.
 
 Usage pattern
----------------
+-------------
 
 .. code-block:: text
 
@@ -88,7 +88,7 @@ full dispatch table:
      - ``osc_prob_{N}nu_sun[_nsi|_liv]``
 
 Examples
-----------
+--------
 
 .. The example blocks below are checked against the live CLI by
    tests/test_cli_examples_match.py.  Do not hand-edit their output: run
@@ -143,7 +143,7 @@ some slabs of this chord are wider than the sufficient condition for the series
 to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
 gives its measured false-alarm rate and says what to do about it.
 
-The Sun, from the center to the surface (:math:`R_\odot` = 695 700 km), through a
+The Sun, from the center to the surface (:math:`R_\odot` = 695 700 km), through a
 tabulated standard solar model rather than the exponential fit (:doc:`solar_models`
 lists the twelve, and ``--density-profile`` takes their names in any case):
 
@@ -222,7 +222,7 @@ from each other, as expected — this exact check is one of the CLI's
 regression tests (``tests/test_cli.py``, in a source checkout).
 
 Choosing a propagation strategy
-------------------------------------
+-------------------------------
 
 For a position-dependent Hamiltonian — ``--environment sun``,
 ``--environment earth``, or ``--environment matter --density-profile exp`` --
@@ -246,7 +246,7 @@ times all three against ``solve_ivp`` from two to five flavors, with and
 without NSI, printing the error beside each time.
 
 Errors are explicit rather than silent
-------------------------------------------
+--------------------------------------
 
 Missing a required flag, or an invalid combination, produces a clear
 message and a non-zero exit code instead of a wrong answer or a raw
@@ -268,7 +268,7 @@ flavor: a two-flavor system stands for whichever pair ``--sth`` and ``--dm2`` de
 ``--nu-i``/``--nu-f`` take 0 or 1 accordingly.
 
 Full flag reference
-----------------------
+-------------------
 
 .. The block below is generated from src/magnus/cli.py by docs/regen_cli_help.py
    and checked by lint.yml.  Edit the argparse help strings in cli.py, then run
@@ -529,7 +529,7 @@ configures):
                            value; ignored with --json. Default: 4.
 
 Implementation notes
------------------------
+--------------------
 
 ``magnus`` does not reimplement any physics: it calls the matching
 ``osc_prob_{N}nu_*`` wrapper with the flags you passed (see :func:`magnus.cli.main`).

@@ -20,7 +20,7 @@ average reuses the machinery of :doc:`adiabatic_strategy`.
    where it is the half-width of a top-hat energy window (`When there is no closed form`_).
 
 The problem: a phase nobody can resolve
-------------------------------------------
+---------------------------------------
 
 A neutrino from an astrophysical source arrives with an oscillation phase
 
@@ -46,7 +46,7 @@ integration the measurement performs anyway.
 .. _avg-limit:
 
 The averaged limit
----------------------
+------------------
 
 Write the amplitude in the basis that diagonalizes the Hamiltonian,
 :math:`\mathbb{H} = \mathbb{V} \,\mathrm{diag}(\lambda_i)\, \mathbb{V}^\dagger`:
@@ -72,12 +72,13 @@ holds away from it:
 
 * The result is **symmetric** in :math:`\alpha \leftrightarrow \beta`, so
   the averaged probability is the same in both directions.
-* In **vacuum** it is **identical for neutrinos and antineutrinos**,
-  since the antineutrino replaces :math:`\mathbb{V}` by :math:`\mathbb{V}^*` and
-  :math:`|\mathbb{V}^*|^2 = |\mathbb{V}|^2`.  :math:`\delta_{\rm CP}` still enters through the
-  magnitudes :math:`|\mathbb{V}_{\alpha i}|`, but produces no difference between the
-  two.  In matter they differ, because the potential changes sign; so does a
-  Lorentz-violating term of even ``n_liv``, in vacuum as well.
+* In **vacuum** it is **identical for neutrinos and antineutrinos**, since the
+  antineutrino replaces :math:`\mathbb{V}` by :math:`\mathbb{V}^*` and
+  :math:`|\mathbb{V}^*|^2 = |\mathbb{V}|^2`.  The phase :math:`\delta_{\rm CP}`
+  still enters through the magnitudes :math:`|\mathbb{V}_{\alpha i}|`, but
+  produces no difference between the two.  In matter they differ, because the
+  potential changes sign; so does a Lorentz-violating term of even ``n_liv``, in
+  vacuum as well.
 * It does **not depend on the baseline**, and depends on the energy only
   through the eigenvectors.  In vacuum those do not change with energy,
   since :math:`\mathbb{H} \propto 1/E`, so the result is a constant and a single
@@ -87,13 +88,13 @@ holds away from it:
 .. _avg-phase-average:
 
 The phase average
--------------------
+-----------------
 
 A measurement averages over what it cannot resolve, and the limit assumes that this includes
 every relative phase.  It need not.  A detector with an energy resolution of 10% averages a
-phase over the range the phase covers across that resolution, and a phase that barely changes
-with energy is not averaged at all: over 1000 km at 1 GeV the atmospheric phase is about
-6 rad, and the limit misses the oscillation entirely.
+phase over the range the phase covers across that resolution.  A phase that barely changes
+with energy is not averaged at all.  Over 1000 km at 1 GeV the atmospheric phase is about 6
+rad, and the limit misses the oscillation entirely.
 
 Instead, ``average=True`` returns the **phase average**.  Every interference term keeps its
 phase at the central energy and is weighted by the spread of that phase across a relative
@@ -139,8 +140,9 @@ A Hamiltonian that does not depend on energy — a matrix, or a function of posi
 passed to ``osc_prob_energy_baseline`` (see `Usage`_) — has no slope for a spread to act
 on.  ``average=True`` then averages the pairs of levels whose phase has grown large and keeps
 the others coherent: at a short baseline, where no phase has grown, it returns the coherent
-probability.  Away from the limit, the three properties above fail: :math:`P_{\alpha\beta} \neq
-P_{\beta\alpha}` in general, and CP violation survives in the terms that do.
+probability.  Away from the limit, the three properties above fail:
+:math:`P_{\alpha\beta} \neq P_{\beta\alpha}` in general, and CP violation survives in the terms
+that do.
 
 Every point is first computed in the limit.  The limit is returned, bit for bit, wherever
 the phase average agrees with it to within 1e-4, or to within the tighter of ``rtol`` and
@@ -149,7 +151,7 @@ the phase average agrees with it to within 1e-4, or to within the tighter of ``r
 .. _avg-coherence:
 
 Coherence, and where the spread matters
------------------------------------------
+---------------------------------------
 
 Whether a pair of eigenvalues has decohered is a statement about that pair, not about the
 spectrum as a whole.  The phase average decides it per pair through the weight; the functions
@@ -239,9 +241,9 @@ sets:
   the eigenstates at the start of the path, as for a neutrino produced in the medium — a beam,
   an atmospheric neutrino, a neutrino made in the Earth or in the Sun.
 * ``'decohered'``: an incoherent mixture of those eigenstates, with weights
-  :math:`|\mathbb{V}_{\alpha i}(l_0)|^2`, as for a neutrino that lost its coherence before reaching the
-  start of the path — one from a distant source crossing the Sun, as in the paper's solar
-  tomography.
+  :math:`|\mathbb{V}_{\alpha i}(l_0)|^2`, as for a neutrino that lost its coherence before
+  reaching the start of the path — one from a distant source crossing the Sun, as in the
+  paper's solar tomography.
 
 The two differ only by the interference between eigenstates present at the start, each term
 damped by the spread of its phase from there on, so they agree wherever those phases are large.
@@ -270,7 +272,7 @@ discontinuities, the average is over an energy window, starting in a flavor stat
 .. _avg-varying:
 
 Position-dependent Hamiltonians
------------------------------------
+-------------------------------
 
 When the Hamiltonian varies along the trajectory there is no single
 eigenbasis to decohere in.  Where every phase along the path has averaged
@@ -284,7 +286,7 @@ Hamiltonian from the eigenbasis at :math:`l_0` to the eigenbasis at
    P^{\rm cross}_{ij} \, |\mathbb{V}_{\beta j}(l_1)|^2 ,
 
 the standard MSW-plus-decoherence result, generalized here to any number
-of levels and any number of crossings.  :math:`P^{\rm cross}` is the
+of levels and any number of crossings.  The matrix :math:`P^{\rm cross}` holds the
 probability of ending on level :math:`j` having started on level
 :math:`i`.  Adiabatic evolution keeps a neutrino on its level, so
 :math:`P^{\rm cross}` is the **identity** wherever the adiabatic
@@ -334,7 +336,7 @@ every solar profile measured, tabulated models included, the check finds
 nothing, and the result is unchanged.
 
 The phase average on a profile
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The expression above composes the crossings as probabilities and reads the result out in the
 eigenbasis at :math:`l_1`, so it keeps no interference at all: between two crossings, or
@@ -345,45 +347,45 @@ phase that follows is zero, and the expression gives 0.40 where the neutrinos le
 for which that composition is unsafe.
 
 The phase average carries its definition onto the profile.  An energy offset
-:math:`u = \delta\ln E` moves every instantaneous eigenvalue by
-:math:`u\, d\lambda_i/d\ln E` and leaves the eigenvectors alone; the result is the Gaussian
-average over :math:`u` of the evolution under :math:`\mathbb{H} + u\, D_{\rm diag}`, with
-:math:`D_{\rm diag}` the part of :math:`d\mathbb{H}/d\ln E` diagonal in the instantaneous eigenbasis.
+:math:`u = \delta\ln E` moves every instantaneous eigenvalue by :math:`u\, d\lambda_i/d\ln E`
+and leaves the eigenvectors alone.  The result is the Gaussian average over :math:`u` of the
+evolution under :math:`\mathbb{H} + u\, D_{\rm diag}`, with :math:`D_{\rm diag}` the part of
+:math:`d\mathbb{H}/d\ln E` diagonal in the instantaneous eigenbasis.
 :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic` computes it without sampling
 energies along the path.  Each non-adiabatic window is an amplitude matrix, computed with the
 same Magnus patch at a few Gauss-Hermite nodes in :math:`u` (at most 31, set by how fast the
 phases inside the window run with energy, and a uniform grid beyond that).  Each adiabatic
 stretch between windows is a diagonal phase with an exact slope in :math:`u`, carried with the
-parallel-transport phase of its eigenvectors.  The density matrix is carried as terms labeled
-by accumulated slope, whose Gaussian average is analytic, and a term is dropped only once no
-later stretch can bring its slope back.
+parallel-transport phase of its eigenvectors.  The density matrix is carried as terms labeled by
+accumulated slope, whose Gaussian average is analytic, and a term is dropped only once no later
+stretch can bring its slope back.
 
 Because the definition reaches inside the windows, the answer does not depend on where they are
-drawn: one window over a stretch, and two windows with the stretch between them, return the same
-number.  Where there is no window, a decohered start carried adiabatically has no interference
-to keep, and ``average=True`` returns the expression above, bit for bit.  A start in flavor, the
-default, keeps the interference between the eigenstates present at production, damped by the
-spread of its phase from there on, in closed form (see `The initial state`_).  For a neutrino
-produced in the solar core that interference is damped away entirely, and every solar MSW curve
-is again the expression above, bit for bit.  Transfer between levels outside the windows is neglected, as in any adiabatic
-calculation; the limit drops the interference such a transfer carries and the phase average
-keeps it, so the windows are searched at an adiabaticity threshold of 0.01
-(:data:`magnus.avgprob.PHASE_AVERAGE_WINDOW_THRESHOLD`) rather than 0.1.  Against a brute-force
-average of the same definition on five solar chords from 10 GeV to 10 TeV, the result is within
-4.2e-5; on the same chords the limit is off by up to 0.14.
+drawn: one window over a stretch, and two windows with the stretch between them, return the
+same number.  Where there is no window, a decohered start carried adiabatically has no
+interference to keep, and ``average=True`` returns the expression above, bit for bit.  A start
+in flavor, the default, keeps the interference between the eigenstates present at production,
+damped by the spread of its phase from there on, in closed form (see `The initial state`_).  For
+a neutrino produced in the solar core that interference is damped away entirely, and every
+solar MSW curve is again the expression above, bit for bit.  Transfer between levels outside the
+windows is neglected, as in any adiabatic calculation; the limit drops the interference such a
+transfer carries and the phase average keeps it, so the windows are searched at an adiabaticity
+threshold of 0.01 (:data:`magnus.avgprob.PHASE_AVERAGE_WINDOW_THRESHOLD`) rather than
+0.1.  Against a brute-force average of the same definition on five solar chords from 10 GeV to
+10 TeV, the result is within 4.2e-5; on the same chords the limit is off by up to 0.14.
 
 The call's ``rtol`` and ``atol`` set the tolerance: the window patches and the stretch phases
-converge to the tighter of the two, 1e-3 by default, and the limit is returned only where it
-agrees with the phase average within that, or within 1e-4 if that is tighter, absolutely and
-relatively.  On twenty chords
-through the solar core, from 30 GeV to 3 TeV, the default moves the probability by at most
-4.6e-6 from its value at 1e-5, at 2.4 times the speed.  Called directly,
-:func:`magnus.avgprob.phase_averaged_probabilities_adiabatic` takes the two tolerances as
-``patch_atol`` and ``phase_tol``, 1e-5 each by default
-(:data:`magnus.avgprob.PHASE_AVERAGE_PATCH_ATOL`, :data:`magnus.avgprob.PHASE_AVERAGE_PHASE_TOL`).
+converge to the tighter of the two, 1e-3 by default.  The limit is returned only where it agrees
+with the phase average within that, or within 1e-4 if that is tighter, absolutely and
+relatively.  On twenty chords through the solar core, from 30 GeV to 3 TeV, the default moves
+the probability by at most 4.6e-6 from its value at 1e-5, at 2.4 times the speed.  Called
+directly, :func:`magnus.avgprob.phase_averaged_probabilities_adiabatic` takes the two
+tolerances as ``patch_atol`` and ``phase_tol``, 1e-5 each by default
+(:data:`magnus.avgprob.PHASE_AVERAGE_PATCH_ATOL`,
+:data:`magnus.avgprob.PHASE_AVERAGE_PHASE_TOL`).
 
 When there is no closed form
---------------------------------
+----------------------------
 
 A profile with discontinuities — the PREM layer boundaries an
 Earth-crossing trajectory steps through — has no instantaneous
@@ -393,12 +395,12 @@ and averages the results
 (:func:`magnus.avgprob.averaged_probabilities_numerically`).
 
 **This returns a different quantity from the other two paths.**  They
-return the phase average, which weights phases and samples no energy;
-this returns the probability averaged over one particular window — a
-top-hat of 41 energies, from a flavor state at the start — and the
-answer depends on its width.  The default width,
-:data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`, is 10% — the order of
-a real detector's energy resolution — and every use of it raises
+return the phase average, which weights phases and samples no
+energy.  This route returns the probability averaged over one particular
+window, a top-hat of 41 energies from a flavor state at the start, and
+the answer depends on the width of that window.  The default width,
+:data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`, is 10%, the order of a
+real detector's energy resolution.  Every use of it raises
 :class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the
 number of samples, and the standard error of the resulting mean, so the
 figure never depends silently on a constant the user did not choose.
@@ -406,12 +408,12 @@ Users with a known resolution should pass their own, through
 ``average_spread``, which on this route is the half-width of the window
 as a fraction of the energy, strictly between 0 and 1.  The number of
 samples is ``average_n_samples``, 41 by default
-(:data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`).  The standard error of
-the mean falls as the inverse square root of that number, and each
-sample costs a full propagation, so a target error :math:`\delta` needs
-about :math:`N(\sigma/\delta)^2` samples, with :math:`N` the samples
-used and :math:`\sigma` the error the warning reported.  The other
-routes sample nothing and refuse ``average_n_samples``.
+(:data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`).  The standard error of the
+mean falls as the inverse square root of that number, and each sample
+costs a full propagation, so a target error :math:`\delta` needs about
+:math:`N(\sigma/\delta)^2` samples, with :math:`N` the samples used and
+:math:`\sigma` the error the warning reported.  The other routes sample
+nothing and refuse ``average_n_samples``.
 
 .. code-block:: python
 
@@ -439,7 +441,7 @@ l < edges[0] else 10.0``, it raises a ``ScalarHamiltonianWarning`` that names ``
    ``average_spread`` sets the window on this route, and ``average_n_samples`` is new.
 
 Cost
--------
+----
 
 .. list-table::
    :header-rows: 1
@@ -467,7 +469,7 @@ B16-GS98 at :math:`b = 0.6\,R_\odot`.  For comparison, averaging the engine nume
 2001 energies for the vacuum number takes about 0.25 s, and is itself an approximation.
 
 Usage
---------
+-----
 
 .. jupyter-execute::
 
@@ -547,7 +549,7 @@ see above.
 says so if handed it.
 
 Checking whether a scan resolves the oscillation: ``strategy_info['sampling']``
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 A scan of instantaneous probabilities over a long trajectory returns correct
 numbers that can still be the wrong quantity: if no detector resolves the phase,
@@ -580,8 +582,8 @@ the counts are large:
 trajectory                  oscillations across it        baselines for Nyquist
 =========================== ============================ =========================
 Earth chord                 ~430                          861
-Solar, one scale height     ~2200                         4 390
-Supernova ray               ~37 000                       73 392
+Solar, one scale height     ~2200                         4390
+Supernova ray               ~37 000                       73 392
 =========================== ============================ =========================
 
 **This is reported, not warned about.**  The Nyquist criterion would fire on
@@ -601,7 +603,7 @@ without resolving the oscillation, with the spread set by
 where the answer depends on that spread.
 
 How much does the phase matter?
---------------------------------
+-------------------------------
 
 It depends on the profile.  The table below compares the error of an
 instantaneous scan with that of its average over six oscillation lengths, both
@@ -631,14 +633,13 @@ observable resolves.
 
    **Do not read the ratio of these two columns as a diagnostic.**  Both are
    finite-window means, and such a mean is an estimator with a bias of its
-   own.  On a profile whose density varies across the averaging window the
+   own.  On a profile whose density varies across the averaging window, the
    bias does not shrink as the window widens, because a wider window also
-   averages over different matter conditions: on the solar ray above, the
+   averages over different matter conditions.  On the solar ray above, the
    window mean moves from 0.5962 to 0.6054 between six and forty-eight
    oscillation lengths, drifting away from a limit rather than toward one.
-   Notebook 13 prints that sweep.
-   The reduction factor is meaningful only on a controlled comparison at
-   fixed matter conditions, as in notebook 23.
+   Notebook 13 prints that sweep. The reduction factor is meaningful only on
+   a controlled comparison at fixed matter conditions, as in notebook 23.
 
    To obtain the averaged probability, ask for it rather than estimating
    it.  ``average=True`` evaluates it with no window to choose: the solar
@@ -648,7 +649,7 @@ observable resolves.
    to 3e-16 across 1--20 MeV.
 
 Limitations and scope
--------------------------
+---------------------
 
 * The phase average is a statement about a **measurement with an energy
   resolution**.  It is not a model of quantum decoherence: there is no

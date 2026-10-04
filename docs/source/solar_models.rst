@@ -102,7 +102,7 @@ within 0.002% at the center and 0.07% at worst, near :math:`0.3\,R_\odot` where
 :math:`^3`\ He peaks.  The textbook :math:`\rho N_A (1 + X)/2`, which Bahcall's own
 electron-density tables follow, is 0.4 to 0.8% higher.  Notebooks 13 and 28 compute
 :math:`n_e` with the same formula, and inside the table they reproduce
-``'BS05-AGS-OP'`` exactly.  :math:`n_e` is interpolated linearly in its logarithm.
+``'BS05-AGS-OP'`` exactly.  The density :math:`n_e` is interpolated linearly in its logarithm.
 
 For the wrappers with sterile states, the neutral-current term needs the
 neutron-to-proton ratio, helium's neutrons over all the protons, from the same atomic
@@ -144,10 +144,10 @@ and the others are computed as usual:
     print(P_ee)
     print(caught[0].category.__name__)
 
-With ``stop_at_table_edge=True``, a path that starts past the last row has nothing
-inside the table to compute, and is refused with a ``ValueError``; without it, the
-profile is continued and a number is returned.  ``stop_at_table_edge`` with the
-exponential fit, which has no last row, is refused as well.  :func:`magnus.solarmodels.table_edge` gives the edge in the units of
+With ``stop_at_table_edge=True``, a path that starts past the last row has nothing inside the
+table to compute, and is refused with a ``ValueError``; without it, the profile is continued
+and a number is returned.  ``stop_at_table_edge`` with the exponential fit, which has no last
+row, is refused as well.  :func:`magnus.solarmodels.table_edge` gives the edge in the units of
 ``L``.
 
 

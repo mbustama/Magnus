@@ -1,5 +1,5 @@
 Accuracy and diagnostics
-==========================
+========================
 
 .. contents::
    :local:
@@ -9,7 +9,7 @@ What ``rtol`` and ``atol`` control, what each safeguard can and cannot catch,
 and what every warning means.
 
 Accuracy
-----------
+--------
 
 .. figure:: ../../img/paper/validation.svg
    :width: 100%
@@ -36,8 +36,8 @@ a serial one only to the requested tolerance, since each starts its refinement f
 point.  With the slab grid fixed, a batched scan and the same points one at a time agree to
 1e-14; left to refine, they stop at different slab counts and differ at the level of the
 tolerance.  The two matrix-exponential backends agree to about 1e-15 for one exponential, and by
-3e-12 on a solar chain of about 34 000 exponentials, within the :math:`N\varepsilon = 7.4
-\times 10^{-12}` that rounding allows over that many products.
+3e-12 on a solar chain of about 34 000 exponentials, within the
+:math:`N\varepsilon = 7.4 \times 10^{-12}` that rounding allows over that many products.
 
 *Accuracy* is how close Magνs comes to the true probability, measured below against external
 references.  It is already far better than a typical oscillation analysis needs: an analysis
@@ -79,7 +79,7 @@ inaccurate and none fires; the measured rates are in
 .. _what-rtol-atol-control:
 
 What ``rtol`` and ``atol`` control
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 They are a **stopping criterion, not an accuracy guarantee**, and the difference is worth
 stating because the names invite the other reading.
@@ -129,22 +129,22 @@ not certify, and the answer was 1.1e-6 off.  Its non-adiabaticity bound there wa
 already at ``max_n_slabs``, one level is computed, there is no second level to compare it
 with, and :class:`~magnus.oscprob.ToleranceNotAchievedWarning` says so.  Across the Sun this
 is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter: over
-0.5-20 MeV the returned level was up to 2.0e-3 off on the default exponential profile, where
+0.5–20 MeV the returned level was up to 2.0e-3 off on the default exponential profile, where
 ``strategy='hybrid'`` was within 6.3e-5, and 1e-6 to 8e-6 off on ``B16-GS98``.  About 1e-4
 is the tightest tolerance a solar energy scan can verify; below it, compare with
 ``strategy='hybrid'``, or raise ``max_n_slabs`` (about 2e6 slabs verify 1e-8 at 1 MeV).
 
 Magνs does not convert the gap into an error estimate by Richardson extrapolation, as
 NuOscProbExact does.  For a refinement ratio :math:`r` and order :math:`p`, that estimate is
-:math:`\text{gap}/(r^p - 1)`, and the required :math:`p` is not reliably known.  Fitting the observed order on
-the Earth chord against a 4096-slab reference gives :math:`p` = 3.84, 5.62 and 4.06 at 1, 2
-and 10 GeV for ``magnus_exp_order=4`` (nominal 4), but **1.15, 2.66 and 1.59** for
-``magnus_exp_order=2`` (nominal 2) — scattered by more than a factor of two, with one
-sequence not even monotone.  On solar configurations under ``strategy='magnus'``, the
-error does not decrease monotonically at the slab counts the ladder visits, so no power law
-holds.  Taking :math:`p` as the requested Magnus order would divide the gap by too large a
-denominator wherever the true order is lower, and so report an error *smaller* than the
-true one.
+:math:`\text{gap}/(r^p - 1)`, and the required :math:`p` is not reliably known.  Fitting the
+observed order on the Earth chord against a 4096-slab reference gives :math:`p` = 3.84, 5.62
+and 4.06 at 1, 2 and 10 GeV for ``magnus_exp_order=4`` (nominal 4), but **1.15, 2.66 and 1.59**
+for ``magnus_exp_order=2`` (nominal 2).  The second set is scattered by more than a factor of
+two, and one of its sequences is not even monotone.  On solar configurations under
+``strategy='magnus'``, the error does not decrease monotonically at the slab counts the ladder
+visits, so no power law holds.  Taking :math:`p` as the requested Magnus order would divide the
+gap by too large a denominator wherever the true order is lower, and so report an error
+*smaller* than the true one.
 
 
 **The oracle discipline.** ``solve_ivp``/DOP853 at ``rtol=1e-12, atol=1e-14`` is the only
@@ -173,7 +173,7 @@ misses in this population (the row for N ≥ 30 below).
    * - 145 random smooth profiles, d ∈ {2,3,4,5}, N ∈ {1,3,12,30,80}
      - 6.08e-08
      - 7.14e-04
-     - 6 (4.1 %)
+     - 6 (4.1%)
    * - the same, restricted to N ≥ 30 (cumulative scan)
      - ~8e-09
      - --
@@ -198,7 +198,7 @@ profile, outside a requested 1e-3 by a factor of one to three.
 
 **Unitarity** holds by construction, since every engine composes unitary factors.  In floating
 point, the deviation of the probabilities from unitarity grows only from about 3e-12 to 1.6e-11
-across four decades of N, at d = 2…5.
+across four decades of N, at d = 2–5.
 
 ``tests/test_fuzz_statistics.py`` runs a CI-sized version of the fuzzing above and asserts on
 the **distribution** — silent-miss rate, median, worst case — rather than on individual
@@ -209,7 +209,7 @@ catches a regression that moves the distribution.
 .. _safeguard-limits:
 
 Robustness, and what each safeguard cannot do
------------------------------------------------
+---------------------------------------------
 
 Each safeguard below is stated with its limit.
 
@@ -250,16 +250,16 @@ scan of any ordinary size returns correct values that must not be read as a curv
 :doc:`averaged_probability` for what to do when it says ``aliased``.
 
 **The sub-probe feature scan** (:func:`magnus.adiabatic.find_hidden_features`). Looks at the
-*profile* rather than at the answers, which is what lets it reach the one class no cross-check
-can: within each interval of the refinement-ceiling grid, it compares the total variation a
+*profile* rather than at the answers, which lets it reach the one class no cross-check
+can.  Within each interval of the refinement-ceiling grid, it compares the total variation a
 denser grid sees inside that interval with the change its endpoints show, and reports the
 largest excess as a fraction of the total. **Concentration, not size** — an aliased sinusoid
 hides variation in every interval, a narrow bump hides all of it in one. Measured at **0 false
-positives over 67 smooth and resolvable profiles**, detecting 68-90 % of features in the
+positives over 67 smooth and resolvable profiles**, detecting 68–90% of features in the
 unresolvable band, for 0.37 ms once per call. *What it cannot do:* detection falls to ~0.73 for
 features far below the dense sampling.  It also **reports rather than cures**: it names the
-position and the exact ``t_breakpoints`` to pass.  On the width-3e-5 calibration case,
-passing the printed edges back and re-running reduced the error from 3.0e-02 to 1.0e-04.
+position and the exact ``t_breakpoints`` to pass.  On the width-3e-5 calibration case, passing
+the printed edges back and re-running reduced the error from 3.0e-02 to 1.0e-04.
 
 **The scan is sized to the request.**  It runs once per call, whatever the number of points,
 so its share of the work falls as the request grows.  It uses 8 sub-steps (0.37 ms) for up to
@@ -272,7 +272,7 @@ physically plausible in a density profile.
 .. _wrong-together:
 
 **The first irreducible limit: a feature narrower than the probe spacing.** A Gaussian
-resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
+resonance of width :math:`3\times10^{-5}` of the trajectory is not sampled by the probe grid
 (spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
 (:math:`1.6\times10^{-4}`), nor by the cumulative scan's grid. Every engine reports a smooth
 profile, small γ, and a resolved Hamiltonian — correctly, given what any of them can see —
@@ -290,7 +290,7 @@ and reported** rather than silent — see the feature scan above.
 **The second irreducible limit: broadband roughness.** The sub-probe scan is a
 *concentration* statistic, and that is exactly what makes it blind to structure spread over
 every scale rather than piled into one place.  It was measured on Kolmogorov density
-fluctuations built as in the supernova literature: a :math:`k^{-5/3}` spectrum with a 40-50 dB
+fluctuations built as in the supernova literature: a :math:`k^{-5/3}` spectrum with a 40–50 dB
 dynamic range, which puts power below every grid this package uses.  The finest reachable grid
 sees only a third of the profile's total variation, and **neither structural test notices**:
 :func:`magnus.adiabatic.find_hidden_features` returns a concentration of 0.002 against its 0.30
@@ -314,7 +314,7 @@ see.
 .. _input-checks:
 
 Input checks: what is refused, and where
-------------------------------------------
+----------------------------------------
 
 Every argument of a public function is checked once per call, before any engine is chosen,
 so whether a value is refused does not depend on which engine would have answered.  The
@@ -349,7 +349,7 @@ factories.  ``validate_input=False`` skips the scenario-level checks.
 .. _warning-catalogue:
 
 Warnings: what each one means and what to do about it
--------------------------------------------------------
+-----------------------------------------------------
 
 Each warning below states what was detected, what it means for the answer (including *by how
 much*, where the code knows), what to change, and when it is safe to ignore.
@@ -466,7 +466,8 @@ much*, where the code knows), what to change, and when it is safe to ignore.
    * - :class:`magnus.oscprob.HiddenFeatureWarning`
      - The profile has structure too narrow for **any** grid here to sample.
      - Possibly wrong, and no strategy or tolerance helps — every engine misses it together.
-     - ``t_breakpoints`` at the position named in the message. This does not always remove the error.
+     - ``t_breakpoints`` at the position named in the message.  This does not always remove
+       the error.
    * - :class:`magnus.magnus.MagnusConvergenceWarning`
      - :math:`\lVert\Omega\rVert_2 \geq \pi` on some slab.
      - **Unknown.** This reports a slab width, not an error.
@@ -490,7 +491,7 @@ much*, where the code knows), what to change, and when it is safe to ignore.
 
 **Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its
 168 configurations that are valid input — the other 8 are refused — across the profile
-families this package serves, d = 2-3, scored against ``solve_ivp`` or — for
+families this package serves, d = 2–3, scored against ``solve_ivp`` or — for
 piecewise-constant profiles, where it is exact — ``expm``):
 
 .. list-table::
@@ -506,17 +507,17 @@ piecewise-constant profiles, where it is exact — ``expm``):
      - 19
      - 7
      - 12
-     - **63 %**
+     - **63%**
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - 56
      - 33
      - 23
-     - 41 %
+     - 41%
    * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`
      - 42
      - 29
      - 13
-     - 31 %
+     - 31%
 
 Silent misses across that whole population: **none of 160**; all 33 answers outside the
 tolerance carry at least one warning.

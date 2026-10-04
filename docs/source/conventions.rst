@@ -1,7 +1,7 @@
 .. _conventions:
 
 Conventions
-============
+===========
 
 These are the conventions Magνs follows: the parametrization, signs, units and
 indexing that another code may choose differently.  A convention applied wrongly
@@ -9,7 +9,7 @@ but consistently passes every internal test, so each one is stated here.
 
 
 At a glance
-------------
+-----------
 
 .. list-table::
    :header-rows: 1
@@ -193,7 +193,7 @@ them.
 .. _coming-from-other-codes:
 
 Coming from GLoBES, Prob3++ or nuSQuIDS
-----------------------------------------
+---------------------------------------
 
 The physics is the same; the bookkeeping differs.  Each entry for the other codes is
 what the drivers behind :doc:`comparison` pass them (``resources/benchmarks/external_drivers``,

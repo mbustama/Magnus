@@ -80,22 +80,22 @@ probability one to two orders of magnitude cheaper.  The cost of a probability
 follows how fast the density varies, not how many times the neutrino oscillates.  :ref:`performance`
 has the timings.
 
-**Accurate.**  Magνs propagates the evolution operator with the **Magnus
-expansion**: it exponentiates truncated integrals of the Hamiltonian over a chain
-of slabs, short consecutive stretches of the path.  At a tight tolerance, it agrees with an independent integration to a few
-parts in :math:`10^{12}` at two to five flavors.  Where it cannot certify its own
-answer, it says so.
+**Accurate.**  Magνs propagates the evolution operator with the **Magnus expansion**: it
+exponentiates truncated integrals of the Hamiltonian over a chain of slabs, short consecutive
+stretches of the path.  At a tight tolerance, it agrees with an independent integration to a few
+parts in :math:`10^{12}` at two to five flavors.  Where it cannot certify its own answer, it
+says so.
 
 .. hint::
    **How do I say that?** Like the name **Magnus**: the Greek letter **ν** (nu),
    the neutrino's symbol, stands in for the "nu" syllable.
 
 What it can compute
---------------------
+-------------------
 
-* Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth Model (PREM), any of
-  twelve tabulated standard solar models, a supernova shock front, or any density
-  you supply.
+* Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth
+  Model (PREM), any of twelve tabulated standard solar models, a supernova shock front, or any
+  density you supply.
 * The **phase-averaged** probability a solar or astrophysical experiment
   measures, over its energy resolution, without resolving the oscillation.
 * The **evolution operator** itself, alongside the probabilities, for observables
@@ -134,12 +134,12 @@ guided tour.
 .. _what-accuracy-means:
 
 What "accurate" means here
----------------------------
+--------------------------
 
 Magνs is a numerical integrator, so its error depends on how finely it discretizes.  One
 property holds regardless: every truncation of the Magnus series is anti-Hermitian, so the
-evolution operator is unitary at any order, any tolerance and any slab count.  The rest is measured against checks that are
-independent of one another:
+evolution operator is unitary at any order, any tolerance and any slab count.  The rest is
+measured against checks that are independent of one another:
 
 .. list-table::
    :header-rows: 1
@@ -173,12 +173,12 @@ profiles with declared edges, and none on 164 Earth, solar, vacuum and constant-
 configurations.
 
 ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the refinement ladder
-(:ref:`glossary`) stops once two successive answers agree.  Two slab counts can be wrong by the same amount and
-still agree, which is how a silent miss happens.  At the default ``rtol = atol = 1e-3`` a
-probability through the Earth is usually far more accurate than that: on eight chords at six
-energies, the median difference from the same call at 1e-7 is about 1e-6, and the largest
-about 1e-3.  :ref:`what-rtol-atol-control` gives the details, and :doc:`diagnostics` what each
-warning means.
+(:ref:`glossary`) stops once two successive answers agree.  Two slab counts can be wrong by the
+same amount and still agree, which is how a silent miss happens.  At the default
+``rtol = atol = 1e-3`` a probability through the Earth is usually far more accurate than that:
+on eight chords at six energies, the median difference from the same call at 1e-7 is about
+1e-6, and the largest about 1e-3.  :ref:`what-rtol-atol-control` gives the details, and
+:doc:`diagnostics` what each warning means.
 
 .. _when-is-magnus-a-win:
 
@@ -195,7 +195,7 @@ narrow windows where that fails (:doc:`adiabatic_strategy`); it decides the hand
 .. _when-is-magnus-not-the-right-tool:
 
 When is Magνs not the right tool?
--------------------------------------
+---------------------------------
 
 Some limits belong to the method, and no implementation would remove them:
 
@@ -207,10 +207,10 @@ Some limits belong to the method, and no implementation would remove them:
   flavor content of the neutrinos, so the problem is nonlinear.  In Magνs the Hamiltonian is
   fixed before the propagation.  Magνs could be the propagator inside a self-consistent
   iteration, but it does not ship one.
-* **A feature narrower than every grid.**  Every engine (the algorithm that answers a call; :ref:`glossary`) samples the Hamiltonian on a grid of
-  positions, so a feature narrower than the finest grid is missed by all of them together.
-  Magνs scans the profile for such features and warns, naming the breakpoints to
-  declare, but the scan does not catch every one.
+* **A feature narrower than every grid.**  Every engine (the algorithm that answers a call;
+  :ref:`glossary`) samples the Hamiltonian on a grid of positions, so a feature narrower than
+  the finest grid is missed by all of them together. Magνs scans the profile for such features
+  and warns, naming the breakpoints to declare, but the scan does not catch every one.
 
 Others belong to the implementation:
 
@@ -229,7 +229,7 @@ event generator: it computes oscillation probabilities only.
 .. _performance:
 
 Performance
-------------
+-----------
 
 A single three-flavor probability through the Earth takes about 2 ms at the default
 tolerance.  Over 164 Earth, solar, vacuum and constant-density configurations, the median
@@ -250,15 +250,15 @@ or about 2 s the first time on a machine, when they compile.  The configurations
   automatic.
 * **Ask for worker processes where no batched engine applies.**  ``n_jobs=10`` makes a
   per-point scan 2 to 3 times faster.  Where a batched engine applies, ``n_jobs > 1`` sends
-  the scan to the per-point path instead, about ten times slower on 5 000 energies, so one
+  the scan to the per-point path instead, about ten times slower on 5000 energies, so one
   process is the right default.
 
 The refinement ladder works against these savings: it computes every slab count below the one
-that converges.  On an Earth chord that makes a call about three to four times slower than one given the
-right slab count in advance.  :doc:`performance` has the rest.
+that converges.  On an Earth chord that makes a call about three to four times slower than one
+given the right slab count in advance.  :doc:`performance` has the rest.
 
 Salient features
------------------
+----------------
 
 * **Any number of flavors, any Hamiltonian**: validated wrappers for 2ν, 3ν,
   4ν (3+1 sterile) and 5ν (3+2 sterile) systems (:doc:`functions`), plus a
@@ -333,7 +333,7 @@ Salient features
    changelog
 
 Author
--------
+------
 
 Magnus was written by Mauricio Bustamante (mbustamante@gmail.com).  Bug reports
 and questions are best raised as `GitHub issues
@@ -341,7 +341,7 @@ and questions are best raised as `GitHub issues
 others can find.
 
 Citing
--------
+------
 
 If Magnus contributed to work you are publishing, please cite it, and say which
 version you used, since results can depend on it.  :doc:`citing` has the BibTeX

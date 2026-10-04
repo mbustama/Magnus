@@ -17,7 +17,7 @@ by every wrapper built on them, and by the generic entry points
 complements.
 
 The problem: extreme accumulated phase
-------------------------------------------
+--------------------------------------
 
 The plain Magnus engine (:doc:`methodology`) partitions a trajectory into
 slabs and is exact, to any desired order, within each one — but it must
@@ -41,7 +41,7 @@ is valid, and a Magnus computation in the narrow regions, if any, where it is
 not.
 
 Adiabatic transport
-------------------------
+-------------------
 
 Let :math:`\mathbb{H}(l)` be diagonalized at each position, :math:`\mathbb{H}(l) = \mathbb{V}(l)\,
 \mathrm{diag}(\lambda_1(l), \ldots, \lambda_d(l))\, \mathbb{V}(l)^\dagger`. The
@@ -66,7 +66,7 @@ original (flavor) basis, this is
 
 :func:`magnus.adiabatic.adiabatic_propagator` computes this, integrating
 :math:`\Phi_k` with Simpson's rule over a grid of diagonalized Hamiltonians.
-:math:`\Phi_k` is a smooth integral however large it grows, so the propagator
+The phase :math:`\Phi_k` is a smooth integral however large it grows, so the propagator
 does not resolve the phase step by step, as a Magnus slab or an ODE solver
 must, and its cost barely depends on the length of the trajectory.
 
@@ -96,7 +96,7 @@ integral and transport approach the adiabatic limit.
    transition the local Magnus patch exists to capture.
 
 Detecting resonances without differentiating eigenvectors
-----------------------------------------------------------------
+---------------------------------------------------------
 
 Adiabatic transport breaks down where two eigenvalues nearly cross: the gap
 between them becomes small, and the state cannot follow the rotation of the
@@ -151,13 +151,13 @@ contiguous stretch above the threshold.
 
 .. important::
 
-   :math:`d\mathbb{H}/dl` is computed with an **ordinary real finite difference**,
+   The derivative :math:`d\mathbb{H}/dl` is computed with an **ordinary real finite difference**,
    not complex-step differentiation (:math:`\mathrm{Im}[\mathbb{H}(l+ih)]/h`), which is
    valid only for functions that are real at real input: :math:`\mathbb{H}(l)` is
    complex whenever a CP-violating phase is nonzero.
 
 Growing and merging non-adiabatic windows
-----------------------------------------------
+-----------------------------------------
 
 A candidate with :math:`\gamma_{jk}` above a threshold marks a position that
 needs a Magnus patch, but it does not fix the *window* the patch must cover.  The
@@ -165,14 +165,13 @@ region where adiabaticity fails has a physical width, unrelated to the spacing
 of the search grid.  To find it, :func:`magnus.adiabatic.find_nonadiabatic_windows`
 grows a window outward from each candidate, doubling the step, until
 :math:`\gamma_{jk}` falls below the threshold, and then pads it by a safety
-factor.  The same physical case gives the same window whatever the search grid,
-which was verified directly.
+factor.  The same physical case gives the same window whatever the search grid.
 
 Windows that overlap or touch are merged.  Two nearby resonances are then
 patched as one region, rather than counted twice or left partly uncovered.
 
 Patching, and composing the pieces exactly
-------------------------------------------------
+------------------------------------------
 
 Inside a non-adiabatic window :math:`[l_b, l_c]`, adiabatic transport is not
 used.  Instead, the Magnus kernel (:func:`magnus.magnus.magnus_expansion_multislab`)
@@ -210,7 +209,7 @@ along the way.
    with an exact local Magnus computation.
 
 Self-certification
-------------------------
+------------------
 
 Three settings control the strategy: the adiabaticity threshold, the grid that
 integrates the dynamical phase, and the probe grid that locates candidates.  No
@@ -232,7 +231,7 @@ the two grids, and ``max_iters``, twelve passes.  They are arguments of
 :func:`magnus.adiabatic.hybrid_propagator`, and ``osc_prob`` uses their defaults.
 
 The ``strategy`` parameter
---------------------------------
+--------------------------
 
 ``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi``, and
 ``osc_prob_liv`` (and, transitively, every wrapper built on them), as well
@@ -257,10 +256,11 @@ user-supplied Hamiltonian), accept a ``strategy`` keyword with three values:
    ``ToleranceNotAchievedWarning``.
 
 ``'auto'`` (default)
-   Try ``'hybrid'`` under the same conditions; if it does not apply, or if
-   any requested point fails to self-certify, the whole request falls back to
-   the ``'magnus'`` engines.  The fallback raises no warning, except when the hybrid declines because of an
-   undeclared density jump, which raises ``UnmarkedDiscontinuityWarning``.
+   Try ``'hybrid'`` under the same conditions; if it does not apply, or if any
+   requested point fails to self-certify, the whole request falls back to the
+   ``'magnus'`` engines.  The fallback raises no warning, except when the hybrid
+   declines because of an undeclared density jump, which raises
+   ``UnmarkedDiscontinuityWarning``.
 
    Two rules can route a request elsewhere before the hybrid is tried.  A
    moderate accumulated phase goes to the Magnus ladder (the
@@ -295,7 +295,7 @@ probe grid** — see the two limits below.
    * **A bump narrower than the probe spacing**, which rises and falls between
      two probe points: neither the probe nor its refinement samples it, so
      :math:`\gamma` looks small and no window opens. Measured on a Gaussian
-     resonance of width :math:`10^{-5}(l_1-l_0)`, the returned probability was
+     resonance of width :math:`3\times10^{-5}(l_1-l_0)`, the returned probability was
      wrong by 2.9e-02 while reporting ``certified=True``. The general Magnus
      path is no better here (it misses the feature too, though it does warn).
      If a narrow feature's position is known, pass ``t_breakpoints``.
@@ -326,7 +326,7 @@ probe grid** — see the two limits below.
    )
 
 Validation
---------------
+----------
 
 Every claim above is checked against a tight-tolerance
 ``scipy.integrate.solve_ivp`` (``DOP853``) solution of the same Schrödinger
@@ -343,76 +343,75 @@ equation.  The validation grid covers each qualitatively different case:
 
    * - Case
      - Windows
-     - Speedup vs. ``solve_ivp``
+     - Speed-up vs. ``solve_ivp``
      - Unitarity
      - Max abs. error
    * - Standard 3ν (18 MeV, 0.9 :math:`R_\odot`-scale baseline)
      - 0
-     - ~3,600x
+     - ~3600×
      - :math:`6.7\times10^{-16}`
      - :math:`2.3\times10^{-4}`
    * - BSM (NSI) 3ν, engineered resonance
      - 1
-     - ~88x
+     - ~88×
      - :math:`1.8\times10^{-12}`
      - :math:`9.0\times10^{-4}`
    * - Standard 4ν (3+1 sterile)
      - 0
-     - ~4,670x
+     - ~4670×
      - :math:`8.9\times10^{-16}`
      - :math:`2.0\times10^{-4}`
    * - BSM (NSI) 4ν, engineered resonance
      - 1
-     - ~60x
+     - ~60×
      - :math:`1.6\times10^{-13}`
      - :math:`1.4\times10^{-4}`
    * - Standard 5ν (3+2 sterile)
      - 0
-     - ~4,800x
+     - ~4800×
      - :math:`1.1\times10^{-15}`
      - :math:`2.0\times10^{-4}`
    * - BSM (NSI) 5ν, engineered resonance
      - 1
-     - ~52x
+     - ~52×
      - :math:`1.7\times10^{-13}`
      - :math:`1.4\times10^{-4}`
    * - Synthetic, two independent resonances (kept separate)
      - 2
-     - ~30x
+     - ~30×
      - :math:`4.5\times10^{-13}`
      - :math:`3.2\times10^{-4}`
    * - Synthetic, two nearby resonances (merged into one window)
      - 1
-     - ~91x
+     - ~91×
      - :math:`1.3\times10^{-13}`
      - :math:`2.9\times10^{-3}`
 
 .. figure:: _static/adiabatic_speedup.svg
    :width: 96%
    :align: center
-   :alt: Bar chart of measured speedup versus solve_ivp across the
-         validation grid, log scale, ranging from about 4,800x for the
+   :alt: Bar chart of measured speed-up versus solve_ivp across the
+         validation grid, log scale, ranging from about 4800× for the
          fastest case down to about 30x for the slowest.
 
-   Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
+   Measured speed-up versus a tight-tolerance ``solve_ivp`` ground truth
    across the validation grid (log scale), plotting exactly the numbers in
    the table above — ``tests/test_adiabatic_validation_table.py`` holds the
    two against each other, so they cannot drift apart. Purely adiabatic
    cases (green) are fastest, since no exact patch is ever computed; cases
-   needing one or more Magnus patches (red) are still 30-90x faster than
+   needing one or more Magnus patches (red) are still 30–90× faster than
    direct integration, dominated by the (still cheap, since the window is
    narrow) patch computation and the self-certification refinement loop.
 
-Speedups for the patched cases are smaller because a patch, and the
-certification loop around it, is real Magnus work, while a purely adiabatic
-case computes no patch at all.  The purely adiabatic 5ν case has the largest
-speedup because it is also where ``solve_ivp`` is slowest: a larger Hamiltonian
-does nothing to shorten its work.  Across every case the unitarity is exact, and
-the agreement with direct integration is at the :math:`10^{-4}` level, reaching
-:math:`2.9\times10^{-3}` only for the two merged resonances.
+Speed-ups for the patched cases are smaller because a patch, and the certification loop around
+it, is real Magnus work, while a purely adiabatic case computes no patch at all.  The purely
+adiabatic 5ν case has the largest speed-up because it is also where ``solve_ivp`` is slowest: a
+larger Hamiltonian does nothing to shorten its work.  Across every case the result is unitary to
+:math:`2\times10^{-12}` or better, and the agreement with direct integration is at the
+:math:`10^{-4}` level, reaching :math:`2.9\times10^{-3}` only for the two merged resonances.
 
 Limitations and scope
---------------------------
+---------------------
 
 - The hybrid strategy requires a **smooth** Hamiltonian: the finite-difference
   Hellmann-Feynman diagnostics assume that :math:`d\mathbb{H}/dl` exists

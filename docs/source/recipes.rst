@@ -43,7 +43,7 @@ matrix. Full walk-through:
 .. _recipe-evolution-operator:
 
 The evolution operator, for observables built from amplitudes
-----------------------------------------------------------------
+-------------------------------------------------------------
 
 A probability is a modulus squared.  Some observables need the amplitudes
 themselves: for example, the content of each mass eigenstate in the state that
@@ -374,9 +374,9 @@ two successive levels agree.
     print('slab edges used : %d   (PREM boundaries included)' % info['n_slab_edges'])
     print('tolerance met   : %s' % info['tolerance_achieved'])
 
-The tolerance is a stopping criterion, not a guarantee: the ladder halts when two levels agree, and never estimates the error
-of the answer it returns. Usually that is conservative; it is not always. The
-``rtol`` entry of :func:`magnus.oscprob.osc_prob` says what it does and does not
+The tolerance is a stopping criterion, not a guarantee: the ladder halts when two levels agree,
+and never estimates the error of the answer it returns. Usually that is conservative; it is not
+always. The ``rtol`` entry of :func:`magnus.oscprob.osc_prob` says what it does and does not
 promise, and :ref:`what-rtol-atol-control` gives the measured detail.
 
 ``convergence_info`` reports what the ladder did — including
@@ -437,7 +437,7 @@ When a spread is large, look first at ``check['unverified']``: the engines that
 reported missing the tolerance.  A spread involving one of them points at that engine,
 and ``check['max_spread_verified']`` gives the spread among the others.  For example, on
 the Sun at 1 MeV, the hybrid engine certified an answer 3.8e-5 from a fine reference,
-while the slab ladder, stopped at its cap of 20 000 slabs, was 1.9e-3 from it.  The
+while the slab ladder, stopped at its cap of 20 000 slabs, was 1.9e-3 from it.  The
 spread was 1.9e-3, and the ladder was listed as unverified.
 
 
@@ -556,10 +556,10 @@ work through each.
 Writing an ``H_func`` that takes many positions at once
 -------------------------------------------------------
 
-If you supply your own Hamiltonian, writing it so that it can be evaluated for
-many positions at once is, after batching, the largest saving under your control. The engine samples it
-at every quadrature node of every slab — often a few hundred positions for one
-probability, repeated at each refinement level.
+If you supply your own Hamiltonian, writing it so that it can be evaluated for many positions
+at once is, after batching, the largest saving under your control. The engine samples it at
+every quadrature node of every slab — often a few hundred positions for one probability,
+repeated at each refinement level.
 
 .. code-block:: python
 

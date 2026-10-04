@@ -7,7 +7,7 @@ Every block runs as written, in order.  Magνs also works from the shell, one
 probability at a time, with no Python (:doc:`cli`).
 
 Your first probability
-------------------------
+----------------------
 
 Install with ``pip install magnuspy`` (the import name is ``magnus``; see
 :doc:`installation`), then:
@@ -38,7 +38,7 @@ are the NuFIT 6.1 best fit, normal ordering, unless you pass others.
 .. _units-table:
 
 Units
-------
+-----
 
 Magνs works in natural units throughout: energies in eV, distances in
 eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
@@ -79,7 +79,7 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
 .. _quickstart-conventions:
 
 Conventions
-------------
+-----------
 
 They are the standard ones, stated here so that you can check them against other codes.
 
@@ -104,7 +104,7 @@ beside those of GLoBES, Prob3++ and nuSQuIDS.
 .. _glossary:
 
 Terms used throughout
-----------------------
+---------------------
 
 * **Slab**: one step of the position grid; on each, Magνs exponentiates the Magnus
   expansion of :math:`H`, and the evolution operator is the product over slabs.
@@ -127,7 +127,7 @@ Terms used throughout
 .. _nufit-parameters:
 
 Choosing the oscillation parameters
--------------------------------------
+-----------------------------------
 
 Pass any parameter by name to override the default: ``s12``, ``s23``, ``s13``
 (sines), ``dCP`` (radians), ``D21``, ``D31`` (eV\ :sup:`2`).
@@ -158,7 +158,7 @@ listed in ``gd.NUFIT_GLOBAL_FITS``:
    older = gd.load_nufit_params('NuFIT 5.2', 'NO', category='without_SK')
 
 Vacuum: scans, one channel, antineutrinos
--------------------------------------------
+-----------------------------------------
 
 Pass an array where one energy or one baseline would go.  ``nu_i`` and ``nu_f``
 select one channel, and ``nubar=True`` gives antineutrinos:
@@ -192,7 +192,7 @@ At four and five flavors (``osc_prob_4nu_vacuum``, ``osc_prob_5nu_vacuum``), the
 sterile mixing defaults to zero.
 
 Matter of constant density
-----------------------------
+--------------------------
 
 A density can be given in natural units, or in g/cm³ with a flag.  Use one or the
 other, never both:
@@ -224,10 +224,10 @@ density and a scale length:
        l_scale=100.0*gd.UNIT_KM)
 
 The Earth
-----------
+---------
 
 A path through the Earth is fixed by two named sites, or by the zenith angle at
-the detector and the length of the chord.  :math:`\cos\theta_z = -1` is straight up
+the detector and the length of the chord.  A value of :math:`\cos\theta_z = -1` is straight up
 through the Earth's center, 0 is horizontal, and a neutrino with
 :math:`\cos\theta_z > 0` crosses no Earth to reach a detector at the surface.
 
@@ -266,7 +266,7 @@ slab of the integration grid is wide, not that the result is wrong;
 :doc:`diagnostics` explains every warning and what to do about it.
 
 The Sun
---------
+-------
 
 For solar neutrinos you almost always want the **phase-averaged** probability,
 which is what a detector with a finite energy resolution measures.  Pass
@@ -286,11 +286,12 @@ which oscillates rapidly:
                                    nu_i=gd.NUE, nu_f=gd.NUE, average=True,
                                    density_profile='B16-GS98')             # 0.332
 
-Without ``average=True``, the exponential fit gives 0.175 at the same energy.  :doc:`solar_models` lists the
-twelve standard solar models, and :doc:`averaged_probability` explains the average.
+Without ``average=True``, the exponential fit gives 0.175 at the same
+energy.  :doc:`solar_models` lists the twelve standard solar models, and
+:doc:`averaged_probability` explains the average.
 
 New physics: NSI and LIV
---------------------------
+------------------------
 
 Non-standard interactions are given as couplings relative to the standard matter
 potential.  Unset couplings are zero; the diagonal ones (``eps_ee``, ``eps_mm``,
@@ -312,7 +313,7 @@ Every matter environment above has NSI and LIV versions, and vacuum has LIV ones
 flavors; :doc:`functions` lists them all.
 
 Your own Hamiltonian
-----------------------
+--------------------
 
 :func:`~magnus.oscprob.osc_prob_earth` and :func:`~magnus.oscprob.osc_prob_sun`
 take the trajectory and the density profile from the package and the physics from
@@ -365,7 +366,7 @@ Any Hermitian matrix function of position, of any dimension, goes through
    to both.
 
 Where next
------------
+----------
 
 * :doc:`recipes`: a short, runnable snippet for each common task.
 * :doc:`functions`: every entry point, grouped by environment.

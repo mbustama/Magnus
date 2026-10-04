@@ -1,5 +1,5 @@
 Changelog
-==========
+=========
 
 This page renders the project's root `CHANGELOG.md
 <https://github.com/mbustama/Magnus/blob/main/CHANGELOG.md>`_ directly, so
