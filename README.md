@@ -215,8 +215,8 @@ time on a machine, when they compile.  The timing harness is
 [`docs/dev/adversarial_batteries/timing.py`](https://github.com/mbustama/Magnus/blob/main/docs/dev/adversarial_batteries/timing.py).
 
 **Pass arrays instead of looping.**  Every wrapper takes an array of energies,
-of baselines or of both, and shares work across the points: worth about an order
-of magnitude at two and three flavors, and several-fold at four and five.
+of baselines or of both, and shares work across the points: worth one to two
+orders of magnitude, at every number of flavors from two to five.
 
 **Write your `H_func` to accept an array of positions.**  It is then called once
 per refinement stage rather than once per quadrature node: several times faster,
