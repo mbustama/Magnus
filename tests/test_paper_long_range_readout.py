@@ -59,6 +59,7 @@ def cell():
     # The notebook's names for the shipped profile, including those the cell read before
     # this fix (ne_tab, ne_sun, VCC0), so that the old cell runs and fails on its physics.
     ns = dict(np=np, gd=gd, hamiltonians=hamiltonians, oscprob=oscprob, quiet=_quiet,
+              solarmodels=solarmodels,
               RED='red', BLUE='blue', x_solar=x_solar, R_SUN=float(x_solar[-1]),
               _ne_pkg=ne, ne_sun=ne, ne_tab=ne(x_solar), PER_NE=per_ne,
               VCC0=float(per_ne*ne(0.0)),
@@ -69,8 +70,8 @@ def cell():
 
 
 def test_the_neutrino_is_made_where_8b_neutrinos_are(cell):
-    # 8B production peaks at 0.044 R_sun in the BS05(AGS,OP) flux table; its median is 0.048.
-    assert 0.04 <= cell['LR_R0']/cell['R_SUN'] <= 0.06
+    # 8B production peaks at 0.046 R_sun in B16-GS98; its median is 0.049.
+    assert 0.04 <= cell['LR_R0']/cell['R_SUN_LR'] <= 0.06
 
 
 def test_both_ranges_share_one_coupling(cell):
@@ -94,3 +95,27 @@ def test_the_long_range_curve_does_not_turn_up_at_high_energy(cell):
     cell['E_LR'] = np.array([20.0])*gd.UNIT_MEV
     got = cell['_lri_sweep']()
     assert got['1'][0] < got['std'][0]
+
+
+def test_the_sun_reaches_its_surface(cell):
+    """B16-GS98 is tabulated to 1.0 R_sun, so the potential of the outer layers is the
+    model's own; BS2005-AGS,OP stopped at 0.98 R_sun."""
+    assert cell['LR_MODEL'] == 'B16-GS98'
+    assert cell['R_SUN_LR'] == pytest.approx(gd.SUN_RADIUS*gd.UNIT_KM)
+
+
+def test_the_8b_production_profile_reproduces_bahcalls():
+    """b8_production.py rebuilds the 8B production profile from a model's structure.  On
+    BS2005-AGS,OP, whose distribution Bahcall published, it must match that one."""
+    import importlib.util
+    path = ROOT/'docs'/'dev'/'measurements'/'solar_8b_flux'/'b8_production.py'
+    spec = importlib.util.spec_from_file_location('b8_production', path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    bat = mod.BATTERIES
+    s = mod._rows(bat/'bs05_agsop.dat', 12)
+    p = mod.b8_profile(s[:, 1], s[:, 2], s[:, 3], s[:, 6], s[:, 7], s[:, 8])
+    f = mod._rows(bat/'bs2005agsopflux.csv', 13)
+    published = f[:, 6]/np.trapezoid(f[:, 6], f[:, 0])
+    computed = np.interp(f[:, 0], s[:, 1], p)
+    assert np.max(np.abs(computed - published)) < 0.02*published.max()

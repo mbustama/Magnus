@@ -538,7 +538,7 @@ Long-range interactions in the Sun
    :width: 95%
    :alt: A long-range force in the Sun
 
-   **A long-range force in the Sun.** Averaged survival probability of solar neutrinos under a long-range :math:`L_e - L_\mu` interaction sourced by the electrons of the Sun. *Top:* the electrons that the neutrino feels at each mediator range. A :math:`\nu_e` born at :math:`0.05\,R_\odot` leaves along the ray drawn; the discs enclose the electrons within :math:`1/m` of it along the way. The charged-current potential is local, so it has no disc. At :math:`1/m = R_\odot/10`, the neutrino feels a narrow tube of electrons. At :math:`1/m = R_\odot`, it feels most of the Sun at once, even beyond the surface. *Middle:* :math:`\langle P_{\nu_e \to \nu_e}\rangle` against energy, in the BS2005-AGS,OP model of Figure :ref:`The averaged solar survival probability <ex-fig-solar>`, without the new potential and with it at the two ranges. Both ranges share one coupling, fixed so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` where the neutrino is born, for :math:`1/m = R_\odot`. The probability is read out at :math:`20\,R_\odot`, where the new potential has faded. *Bottom:* the difference from the standard case. See notebooks `#19 <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+   **A long-range force in the Sun.** Averaged survival probability of solar neutrinos under a long-range :math:`L_e - L_\mu` interaction sourced by the electrons of the Sun. *Top:* the electrons that the neutrino feels at each mediator range. A :math:`\nu_e` born at :math:`0.05\,R_\odot` leaves along the ray drawn; the discs enclose the electrons within :math:`1/m` of it along the way. The charged-current potential is local, so it has no disc. At :math:`1/m = R_\odot/10`, the neutrino feels a narrow tube of electrons. At :math:`1/m = R_\odot`, it feels most of the Sun at once, even beyond the surface. *Middle:* :math:`\langle P_{\nu_e \to \nu_e}\rangle` against energy, in the B16-GS98 solar model :cite:p:`Vinyoles:2016djt`, without the new potential and with it at the two ranges. Both ranges share one coupling, fixed so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` where the neutrino is born, for :math:`1/m = R_\odot`. The probability is read out at :math:`20\,R_\odot`, where the new potential has faded. *Bottom:* the difference from the standard case. See notebooks `#19 <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 
 This example adds a new term to the Hamiltonian, one that Magνs does not ship. We write it as described in :ref:`ex-sec-building-new-hamiltonian`, and average the probability as in the standard solar case of :ref:`ex-sec-sun`. The new term comes from gauging :math:`L_e - L_\mu`, the difference between the electron and muon lepton numbers, which is anomaly-free. Its gauge boson, :math:`Z'`, is a new light mediator :cite:p:`He:1990pn,Foot:1994vd`. The charge :math:`L_e - L_\mu` is :math:`+1` for the electron and :math:`\nu_e`, :math:`-1` for the muon and :math:`\nu_\mu`, and zero for every other field of the Standard Model. Therefore, the electrons of the Sun source a potential that :math:`\nu_e` and :math:`\nu_\mu` feel with opposite signs, and that :math:`\nu_\tau` does not feel. The Hamiltonian is
@@ -583,31 +583,55 @@ When the interaction range, :math:`1/m`, is larger than the body, the potential 
 
 where :math:`{\rm shc}(x) \equiv \sinh(x)/x`. Both are running integrals over the density profile, so one pass over the table of a solar model gives the potential at every radius. For a massless mediator, :math:`{\rm shc}` and the exponentials tend to 1, and Eq. :eq:`ex-equ-yukawa-1d` becomes the Coulomb potential of the electrons. Notebook `#19 <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`__ derives Eq. :eq:`ex-equ-yukawa-1d` and checks it against the closed form for a uniform ball.
 
-Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>` shows the averaged :math:`\nu_e` survival probability from 0.1 to 20 MeV. The neutrino is born at :math:`0.05\,R_\odot`, where most :math:`^8`\ B neutrinos are made :cite:p:`Bahcall:2004pz`. The figure compares the standard case with two mediator ranges, :math:`1/m = R_\odot` and :math:`R_\odot/10`, corresponding to :math:`m \approx 3 \cdot 10^{-16}` and :math:`3 \cdot 10^{-15}` eV, respectively. Both ranges share one coupling. We fix it so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` where the neutrino is born, for :math:`1/m = R_\odot`. The longer-ranged potential lowers the probability by up to 0.018, near 4 MeV. The shorter-ranged one lowers it by at most 0.005. Listing :ref:`A long-range force in the Sun <ex-lst-arbitrary>` contains the calculation behind the figure.
+Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>` shows the averaged :math:`\nu_e` survival probability from 0.1 to 20 MeV. The Sun is the B16-GS98 model :cite:p:`Vinyoles:2016djt`, whose density table reaches the surface. The neutrino is born at :math:`0.05\,R_\odot`, near where :math:`^8`\ B production peaks in that model. The figure compares the standard case with two mediator ranges, :math:`1/m = R_\odot` and :math:`R_\odot/10`, corresponding to :math:`m \approx 3 \cdot 10^{-16}` and :math:`3 \cdot 10^{-15}` eV, respectively. Both ranges share one coupling. We fix it so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` where the neutrino is born, for :math:`1/m = R_\odot`. The longer-ranged potential lowers the probability by up to 0.018, near 4 MeV. The shorter-ranged one lowers it by at most 0.005. Listing :ref:`A long-range force in the Sun <ex-lst-arbitrary>` contains the calculation behind the figure.
 
-At the same coupling, a longer range lets the neutrino feel more of the Sun's electrons. Where the neutrino is born, the longer-ranged potential is :math:`0.10\,V_{\rm CC}`, about four times the shorter-ranged one, :math:`0.026\,V_{\rm CC}`. This difference at birth sets the difference between the two curves. The neutrino leaves the Sun adiabatically, so its averaged probability depends only on the Hamiltonian where it is born and where it is detected.
+At the same coupling, a longer range lets the neutrino feel more of the Sun's electrons. Where the neutrino is born, the longer-ranged potential is :math:`0.10\,V_{\rm CC}`, about four times the shorter-ranged one, :math:`0.027\,V_{\rm CC}`. This difference at birth sets the difference between the two curves. The neutrino leaves the Sun adiabatically, so its averaged probability depends only on the Hamiltonian where it is born and where it is detected.
 
-Along the path, both new potentials fall more slowly than :math:`V_{\rm CC}`. The electron density of the Sun falls by five orders of magnitude from the center to the surface, and :math:`V_{\rm CC}` falls with it. In contrast, :math:`V_{e\mu}` is an integral over the electrons within about :math:`1/m`, which for the longer range include those of the dense core. Using the variables defined in Listing :ref:`A long-range force in the Sun <ex-lst-arbitrary>`, the ratio :math:`V_{e\mu}/V_{\rm CC}` at half a solar radius is
+Along the path, both new potentials fall more slowly than :math:`V_{\rm CC}`. The electron density of the Sun falls by about five orders of magnitude from the center to :math:`0.98\,R_\odot`, and :math:`V_{\rm CC}` falls with it. In contrast, :math:`V_{e\mu}` is an integral over the electrons within about :math:`1/m`, which for the longer range include those of the dense core. Using the variables defined in Listing :ref:`A long-range force in the Sun <ex-lst-arbitrary>`, the ratio :math:`V_{e\mu}/V_{\rm CC}` at half a solar radius is
 
 .. code-block:: python
 
    half = np.searchsorted(r, 0.5*R_SUN)
-   v_emu[1.0][half]/vcc[half]     # 2.27
-   v_emu[0.1][half]/vcc[half]     # 0.094
+   v_emu[1.0][half]/vcc[half]     # 2.39
+   v_emu[0.1][half]/vcc[half]     # 0.098
 
-At the edge of the solar table, :math:`0.98\,R_\odot`, the two ratios reach about :math:`10^3` and :math:`1.6`. The sketch at the top of Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>` illustrates this. With :math:`1/m = R_\odot`, the neutrino feels most of the Sun wherever it is, and the potential extends beyond the surface. We read out the probability at :math:`20\,R_\odot`, where the new potential has faded, as it has by the time the neutrino reaches Earth.
+At :math:`0.98\,R_\odot`, the two ratios are about 700 and 1.2. The sketch at the top of Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>` illustrates this. With :math:`1/m = R_\odot`, the neutrino feels most of the Sun wherever it is, and the potential extends beyond the surface. We read out the probability at :math:`20\,R_\odot`, where the new potential has faded, as it has by the time the neutrino reaches Earth.
 
 The Hamiltonian is a single function that returns the sum of the three terms. It accepts an array of positions, so the engine can evaluate it at many positions in one call (:doc:`/performance`). The averaged probability comes from ``osc_prob_energy_baseline`` with ``average=True``, as for any Hamiltonian. The standard case uses the same call, with :math:`V_{e\mu} = 0`. At 10 MeV,
 
 .. code-block:: python
 
    i = np.argmin(abs(Es - 10.0*gd.UNIT_MEV))
-   P_std[i]                      # 0.324
-   P_lri[1.0][i], P_lri[0.1][i]  # 0.316, 0.322
+   P_std[i]                      # 0.325
+   P_lri[1.0][i], P_lri[0.1][i]  # 0.317, 0.323
+
+.. _ex-fig-solar-8b-flux:
+
+.. figure:: ../../../img/paper/solar_8b_flux.svg
+   :width: 95%
+   :alt: The 8B neutrino flux at Earth under a long-range force
+
+   **The** :math:`^8`\ **B neutrino flux at Earth under a long-range force.** *Top:* flux of :math:`\nu_e` from :math:`^8`\ B decay at Earth, against energy, for the standard case and for the two mediator ranges of Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>`, with the same coupling. The dotted curve is the flux without oscillations: the :math:`^8`\ B spectrum of Ref. :cite:p:`Winter:2004kf` times the total flux of the B16-GS98 model, :math:`5.46 \cdot 10^6` cm\ :sup:`-2` s\ :sup:`-1` :cite:p:`Vinyoles:2016djt`. At each energy, the probability is averaged over where :math:`^8`\ B neutrinos are made in the model. *Bottom:* each case divided by the standard one. See notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+
+Figure :ref:`The 8B neutrino flux at Earth under a long-range force <ex-fig-solar-8b-flux>` shows what a detector on Earth would see: the flux of :math:`\nu_e` from :math:`^8`\ B decay, from 1 to 15 MeV. Real :math:`^8`\ B neutrinos are not all born at one radius. In the B16-GS98 model, 80% of them are born between :math:`0.025\,R_\odot` and :math:`0.081\,R_\odot`. Therefore, we average the probability over 28 birth radii, weighted by where :math:`^8`\ B neutrinos are made. We then multiply it by the :math:`^8`\ B spectrum :cite:p:`Winter:2004kf` and by the total flux of the model, :math:`5.46 \cdot 10^6` cm\ :sup:`-2` s\ :sup:`-1` :cite:p:`Vinyoles:2016djt`. The distribution of :math:`^8`\ B production in B16-GS98 was published online, but is no longer available. We rebuild it from the temperature, density, and composition of the model, as described in notebook `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__. On the BS2005-AGS,OP model, whose distribution is published :cite:p:`Bahcall:2004pz`, the same calculation agrees with it to 1% of its peak. Using the variables defined in Listing :ref:`A long-range force in the Sun <ex-lst-arbitrary>`, the flux for :math:`1/m = R_\odot` is
+
+.. code-block:: python
+
+   # Birth radii, weighted by where 8B is made
+   r_b = np.linspace(0.005, 0.14, 28)*R_SUN
+   w = f(r_b)*np.gradient(r_b)
+   w = w/w.sum()
+   # Average over them, then scale by the 8B
+   # spectrum and total flux, cm^-2 s^-1 MeV^-1
+   P = sum(wk*averaged(v_emu[1.0], rk)
+           for rk, wk in zip(r_b, w))
+   flux = 5.46e6*spectrum(Es)*P
+
+where ``f`` and ``spectrum`` interpolate the production distribution and the spectrum. The longer-ranged potential lowers the flux by up to 4.5%, near 5 MeV, and by 3.6% in total above 1 MeV. The shorter-ranged one lowers it by at most 1.3%.
 
 .. _ex-lst-arbitrary:
 
-**A long-range force in the Sun.** Computing the data in Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>`. The electron density comes from the BS2005-AGS,OP table :cite:p:`Bahcall:2004pz`, continued past the surface by the profile that ships with Magνs. The potential :math:`V_{e\mu}` is Eq. :eq:`ex-equ-yukawa-1d` on that profile. One coupling serves both ranges, fixed so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` at birth for :math:`1/m = R_\odot`. The vacuum and matter terms come from the shipped builders; only the new term is written here. The neutrino is born at :math:`0.05\,R_\odot`, and the :ref:`averaged probability <avg-varying>` is read out at :math:`20\,R_\odot`. See notebooks `#19 <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
+**A long-range force in the Sun.** Computing the data in Figure :ref:`A long-range force in the Sun <ex-fig-solar-lri>`. The electron density comes from the B16-GS98 table :cite:p:`Vinyoles:2016djt`, continued past the surface by the profile that ships with Magνs. The potential :math:`V_{e\mu}` is Eq. :eq:`ex-equ-yukawa-1d` on that profile. One coupling serves both ranges, fixed so that :math:`V_{e\mu}` is a tenth of :math:`V_{\rm CC}` at birth for :math:`1/m = R_\odot`. The vacuum and matter terms come from the shipped builders; only the new term is written here. The neutrino is born at :math:`0.05\,R_\odot`, and the :ref:`averaged probability <avg-varying>` is read out at :math:`20\,R_\odot`. See notebooks `#19 <https://github.com/mbustama/Magnus/blob/main/notebooks/19_magnus_custom_hamiltonian.ipynb>`__ and `#28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__.
 
 .. code-block:: python
 
@@ -620,12 +644,12 @@ The Hamiltonian is a single function that returns the sum of the three terms. It
 
    osc = gd.load_nufit_params('NuFIT 6.1')
 
-   # The BS2005-AGS,OP model that ships with Magnus,
+   # The B16-GS98 model that ships with Magnus,
    # on its tabulated radii and on to 20 R_sun
-   model = 'BS05-AGS-OP'
+   model = 'B16-GS98'
    tab = solarmodels.load_solar_model(model)
    r_tab = tab['r_over_r_sun']*gd.SUN_RADIUS*gd.UNIT_KM
-   R_SUN = r_tab[-1]                   # Table's last row
+   R_SUN = r_tab[-1]                   # The surface
    R0, R_END = 0.05*R_SUN, 20.0*R_SUN  # Birth, readout
    r = np.concatenate([r_tab, np.geomspace(
        1.002*R_SUN, R_END, 800)])
@@ -683,15 +707,14 @@ The Hamiltonian is a single function that returns the sum of the three terms. It
 
    Es = np.logspace(-1.0, np.log10(20.0), 70)*gd.UNIT_MEV
 
-   def averaged(v):
-       """<P_ee> from R0 to R_END, per E."""
+   def averaged(v, r0=R0):
+       """<P_ee> from r0 to R_END, per E."""
        return oscprob.osc_prob_energy_baseline(
-           H_lri(v), Es, R_END, R0, nu_i=gd.NUE,
+           H_lri(v), Es, R_END, r0, nu_i=gd.NUE,
            nu_f=gd.NUE, average=True)
 
    P_std = averaged(0.0*vcc)
    P_lri = {frac: averaged(v_emu[frac]) for frac in v_emu}
-
 
 .. _ex-sec-turbulence:
 

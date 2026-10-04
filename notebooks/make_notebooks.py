@@ -17261,31 +17261,38 @@ LR_CHARGE = np.diag([1.0, -1.0, 0.0]).astype(complex)      # the L_e - L_mu char
 # and a tenth of it.
 LR_RANGES = [(1.0, r'$1/m = R_\odot$', RED),
              (0.1, r'$1/m = R_\odot/10$', BLUE)]
-# The neutrino is made at 0.05 R_sun, where 8B production peaks (0.044 R_sun in the
-# BS05(AGS,OP) flux table, median 0.048 R_sun).  It is read out at 20 R_sun: the
-# potential of a light mediator reaches past the surface, 1e3 V_CC at the table's edge for
+# The Sun is B16-GS98, whose table reaches the surface (issue #62), so the potential of the
+# outer layers is the model's own rather than an extrapolation.
+LR_MODEL = 'B16-GS98'
+_ne_lr = solarmodels.electron_density_profile(LR_MODEL)
+X_TAB_LR = solarmodels.load_solar_model(LR_MODEL)['r_over_r_sun']*gd.SUN_RADIUS*gd.UNIT_KM
+R_SUN_LR = float(X_TAB_LR[-1])          # the solar radius: this table reaches it
+# The neutrino is made at 0.05 R_sun, where 8B production peaks (0.046 R_sun in B16-GS98,
+# median 0.049 R_sun; see the flux figure below).  It is read out at 20 R_sun: the
+# potential of a light mediator reaches past the surface, 1e3 V_CC near it for
 # 1/m = R_sun, and a readout there tilts the eigenbasis by an amount that grows with the
 # energy -- an upturn above 9 MeV that no detector on Earth would see.  By 20 R_sun both
 # potentials have faded, and the exit is adiabatic, so the readout is the vacuum one.
-LR_R0, LR_END = 0.05*R_SUN, 20.0*R_SUN
-X_LR = np.concatenate([x_solar, np.geomspace(1.002*R_SUN, LR_END, 800)])
-NE_LR = _ne_pkg(X_LR)          # the package's profile, which fades to zero past the table
-V_LR = {frac: long_range_potential(X_LR, NE_LR, 1.0/(frac*R_SUN)) for frac, _, _ in LR_RANGES}
+LR_R0, LR_END = 0.05*R_SUN_LR, 20.0*R_SUN_LR
+X_LR = np.concatenate([X_TAB_LR, np.geomspace(1.002*R_SUN_LR, LR_END, 800)])
+NE_LR = _ne_lr(X_LR)           # the package's profile, which fades to zero past the table
+V_LR = {frac: long_range_potential(X_LR, NE_LR, 1.0/(frac*R_SUN_LR))
+        for frac, _, _ in LR_RANGES}
 # One coupling for both ranges, so that the curves differ only through the range: g'^2
 # makes the new potential a tenth of V_CC where the neutrino is made at 1/m = R_sun.  The
 # shorter range reaches fewer electrons and gives less there, about 0.03 V_CC.
-G2_LR = (0.1*float(PER_NE*_ne_pkg(LR_R0))
+G2_LR = (0.1*float(PER_NE*_ne_lr(LR_R0))
          / float(np.interp(LR_R0, X_LR, V_LR[LR_RANGES[0][0]])))
 G2 = {frac: G2_LR for frac, _, _ in LR_RANGES}
 for frac, _, _ in LR_RANGES:
     print('L_e - L_mu, 1/m = %.1f R_sun: V_new/V_CC = %.3f at 0.05 R_sun, %.3f at 0.5 R_sun'
-          % (frac, *(G2[frac]*np.interp(x, X_LR, V_LR[frac])/float(PER_NE*_ne_pkg(x))
-                     for x in (LR_R0, 0.5*R_SUN))))
+          % (frac, *(G2[frac]*np.interp(x, X_LR, V_LR[frac])/float(PER_NE*_ne_lr(x))
+                     for x in (LR_R0, 0.5*R_SUN_LR))))
 
 
-def vcc_sun(l):
-    """V_CC along the ray; past the table, the package's profile fades to zero."""
-    return PER_NE*_ne_pkg(l)
+def vcc_lr(l):
+    """V_CC along the ray in B16-GS98; past the surface, the profile fades to zero."""
+    return PER_NE*_ne_lr(l)
 
 
 def H_lr(frac=None):
@@ -17293,7 +17300,7 @@ def H_lr(frac=None):
     builders, plus the long-range term when a mediator range is given.  Written for an
     array of positions, so the engine evaluates it once per slab."""
     def f(E, l):
-        h = HV3/E + hamiltonians.hamiltonian_3nu_matter_td(l, vcc_sun)
+        h = HV3/E + hamiltonians.hamiltonian_3nu_matter_td(l, vcc_lr)
         if frac is not None:
             v = G2[frac]*np.interp(l, X_LR, V_LR[frac])
             h = h + np.asarray(v)[..., None, None]*LR_CHARGE
@@ -17318,7 +17325,7 @@ def _lri_sweep():
 
 _got = cached('solar_long_range',
               ('lri', 'average=True on osc_prob_energy_baseline', [float(e) for e in E_LR],
-               float(R_SUN), float(LR_R0), float(LR_END), [f for f, _, _ in LR_RANGES],
+               LR_MODEL, float(R_SUN_LR), float(LR_R0), float(LR_END), [f for f, _, _ in LR_RANGES],
                {'%g' % f: float(G2[f]) for f, _, _ in LR_RANGES}, sorted(OSC.items())),
               _lri_sweep, what='the long-range solar sweep')
 P_std = np.asarray(_got['std'])
@@ -17379,7 +17386,7 @@ a.set_ylabel(r'Average probability, $\langle P_{\nu_e \to \nu_e}\rangle$', fonts
 a.set_ylim(top=0.55)
 a.tick_params(labelbottom=False); minor_y(a, 5)
 a.legend(loc='lower left', handlelength=1.6)
-corner(a, r'Sun (BS2005-AGS,OP)', loc='upper right', fontsize=8.0)
+corner(a, r'Sun (B16-GS98)', loc='upper right', fontsize=8.0)
 
 b = axes[1]
 for frac, _, col in LR_RANGES:
@@ -17391,6 +17398,94 @@ b.set_ylabel(r'$\Delta \langle P \rangle$', fontsize=8.0)
 b.set_ylim(-0.02, 0.02)
 minor_y(b, 5)
 save(fig, 'solar_long_range.pdf')'''),
+    md(r'''### Figure 5c --- the 8B flux at Earth under the long-range force
+
+The $\nu_e$ flux at Earth from $^8$B decay, for the standard case and the two mediator ranges
+of Figure 5b.  The neutrinos are no longer all born at one radius: each energy is averaged
+over the radial distribution of $^8$B production, and multiplied by the $^8$B spectrum and the
+total flux of B16-GS98.  The spectrum is Table IV of Winter et al. (2006).  The B16 release
+published its production distributions on a page that is no longer online, so
+`docs/dev/measurements/solar_8b_flux/b8_production.py` rebuilds the $^8$B one from the model's
+structure; on BS2005-AGS,OP, where Bahcall's distribution is published, the same calculation
+agrees with it to 1% of the peak.'''),
+    code(r'''# ----------------------------------- Figure 5c: the 8B flux at Earth, L_e - L_mu
+B8_DIR = HERE.parent/'docs'/'dev'/'measurements'/'solar_8b_flux'
+# Winter et al. (2006), Table IV: dN/dE, normalized to 1000 over E in MeV.
+_spec = np.loadtxt(B8_DIR/'winter2006_b8_spectrum.csv', delimiter=',', comments='#')
+# 8B production per unit radius in B16-GS98, normalized over r in R_sun (b8_production.py).
+_prod = np.loadtxt(B8_DIR/'b16_gs98_b8_production.csv', delimiter=',', comments='#')
+PHI_B8 = 5.46e6                  # cm^-2 s^-1, B16-GS98 (Vinyoles et al. 2017, Table 6)
+
+# Birth radii out to 0.14 R_sun, which holds 99.9% of 8B production, with trapezoid weights
+# on the production profile.
+B8_R = np.linspace(0.005, 0.14, 28)
+_f = np.interp(B8_R, _prod[:, 0], _prod[:, 1])
+B8_W = _f*np.gradient(B8_R)
+B8_W = B8_W/B8_W.sum()
+E_B8 = np.linspace(1.0, 15.0, 57)*gd.UNIT_MEV
+LAMBDA_B8 = np.interp(E_B8/gd.UNIT_MEV, _spec[:, 0], _spec[:, 1])/1000.0     # per MeV
+print('8B production: %.1f%% of it inside the birth radii drawn'
+      % (100*np.trapezoid(np.interp(np.linspace(0, 0.14, 400), _prod[:, 0], _prod[:, 1]),
+                          np.linspace(0, 0.14, 400))))
+
+
+def _b8_sweep():
+    # The averaged survival probability at each birth radius, weighted by where 8B is made.
+    def averaged(frac):
+        P = np.zeros(len(E_B8))
+        for r0, w in zip(B8_R, B8_W):
+            P += w*np.asarray(quiet(oscprob.osc_prob_energy_baseline, H_lr(frac), E_B8,
+                                    LR_END, r0*R_SUN_LR, nu_i=gd.NUE, nu_f=gd.NUE,
+                                    average=True))
+        return P.tolist()
+    out = {'std': averaged(None)}
+    for frac, _, _ in LR_RANGES:
+        out['%g' % frac] = averaged(frac)
+    return out
+
+
+_got = cached('solar_8b_flux',
+              ('8B flux', LR_MODEL, [float(e) for e in E_B8], [float(r) for r in B8_R],
+               [float(w) for w in B8_W], float(LR_END), [f for f, _, _ in LR_RANGES],
+               {'%g' % f: float(G2[f]) for f, _, _ in LR_RANGES}, sorted(OSC.items())),
+              _b8_sweep, what='the 8B flux at Earth under the long-range force')
+P_B8 = {key: np.asarray(v) for key, v in _got.items()}
+FLUX0 = PHI_B8*LAMBDA_B8                                    # cm^-2 s^-1 MeV^-1, no oscillation
+FLUX = {key: FLUX0*P for key, P in P_B8.items()}
+_dE = np.gradient(E_B8/gd.UNIT_MEV)
+print('  nu_e flux at Earth above 1 MeV, 1e6 cm^-2 s^-1: standard %.3f'
+      % (np.sum(FLUX['std']*_dE)/1e6))
+for frac, _, _ in LR_RANGES:
+    ratio = FLUX['%g' % frac]/FLUX['std']
+    print('    1/m = %.1f R_sun: %.3f, ratio to standard %.4f-%.4f, lowest at %.1f MeV'
+          % (frac, np.sum(FLUX['%g' % frac]*_dE)/1e6, ratio.min(), ratio.max(),
+             E_B8[np.argmin(ratio)]/gd.UNIT_MEV))
+
+fig = plt.figure(figsize=(COL, 3.9))
+_gs = fig.add_gridspec(2, 1, height_ratios=[2.0, 1.0], hspace=0.08,
+                       left=0.22, right=0.985, bottom=0.115, top=0.985)
+a = fig.add_subplot(_gs[0])
+b = fig.add_subplot(_gs[1], sharex=a)
+EM = E_B8/gd.UNIT_MEV
+a.plot(EM, FLUX['std']/1e5, color=INK, lw=1.3, ls='--', label=r'Standard $3\nu$')
+for frac, lab, col in LR_RANGES:
+    a.plot(EM, FLUX['%g' % frac]/1e5, color=col, lw=1.3,
+           label=r'$+\;L_e - L_\mu$,  ' + lab)
+a.set_ylabel(r'$^8$B $\nu_e$ flux at Earth, $\frac{d\Phi}{dE}$' '\n'
+             r'[$10^5$ cm$^{-2}$ s$^{-1}$ MeV$^{-1}$]', fontsize=8.0)
+a.set_ylim(0.0, 3.0)
+a.tick_params(labelbottom=False); minor_y(a, 5)
+# Under the arch of the curves, clear of both flanks.
+a.legend(loc='lower center', bbox_to_anchor=(0.40, 0.02), handlelength=1.4, fontsize=6.5)
+corner(a, r'Sun (B16-GS98)', loc='upper left', fontsize=8.0)
+for frac, _, col in LR_RANGES:
+    b.plot(EM, FLUX['%g' % frac]/FLUX['std'], color=col, lw=1.1)
+b.axhline(1.0, color=INK, lw=0.6, ls=':')
+b.set_xlim(EM[0], EM[-1])
+b.set_xlabel(r'Neutrino energy, $E$ [MeV]')
+b.set_ylabel(r'Ratio to standard', fontsize=8.0)
+minor_y(b, 5)
+save(fig, 'solar_8b_flux.pdf')'''),
     md(r'''## Figure 5e --- adiabaticity along a solar chord
 
 A neutrino that crosses the Sun from outside enters where the density vanishes, so it starts
