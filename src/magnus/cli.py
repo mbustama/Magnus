@@ -288,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     g_earth.add_argument('--costhz', type=_finite_float, default=None,
         help='Cosine of the neutrino zenith angle.')
     g_earth.add_argument('--loc-ini', default=None,
-        help='Initial location name (e.g. fermilab); see magnus.earth.loc_coords_dms. '
+        help='Initial location name (e.g., fermilab); see magnus.earth.loc_coords_dms. '
              'Must be given together with --loc-fin, as an alternative to --costhz.')
     g_earth.add_argument('--loc-fin', default=None,
         help='Final location name; see --loc-ini.')

@@ -3,9 +3,9 @@
 Conventions
 ============
 
-Everything below is a *choice* that the physics does not fix.  A convention
-applied wrongly but consistently passes every internal test, so each one is
-stated here.
+These are the conventions Magνs follows: the parametrization, signs, units and
+indexing that another code may choose differently.  A convention applied wrongly
+but consistently passes every internal test, so each one is stated here.
 
 
 At a glance
@@ -142,8 +142,8 @@ The charged-current potential enters the electron-flavor diagonal entry,
 and **for antineutrinos it changes sign**. That flip is applied once, inside
 :func:`magnus.matter.vcc_func_from_rho_func`, so a user passing
 ``nubar=True`` gets it automatically, and code downstream must not apply it
-again.  Applied twice, it gives antineutrinos a positive potential, and answers
-that look plausible.
+again.  Applied twice, it would give antineutrinos a positive potential, and the
+resulting probabilities would still look plausible.
 
 Mass ordering
 -------------
@@ -160,8 +160,8 @@ atmospheric data.
 
 For two flavors the same rule applies to :math:`\Delta m^2`, which is what
 makes the two-flavor case easy to get backwards: flipping its sign moves the
-MSW resonance into the other channel, and the result is still a perfectly
-ordinary-looking probability.
+MSW resonance into the other channel, and the result still looks like an
+ordinary probability.
 
 Mixing parameters
 -----------------
@@ -172,7 +172,7 @@ Angles are given as **sines** by default (``angles='sin'``): ``s12`` is
 ``'rad'`` and ``'deg'``, an angle beyond :math:`\pm 90^\circ` is refused, because
 the cosine is taken as :math:`+\sqrt{1 - s^2}`.  Fits usually quote
 :math:`\sin^2\theta`; pass those with ``angles='sin2'``, or take the square root,
-as in ``gd.S12_NO_BF_NUFIT_6_0 = np.sqrt(0.308)``.
+e.g., ``s12 = np.sqrt(0.308)``.
 Phases are in **radians**; the default :math:`\delta_{CP}` is 3.7001 rad, i.e.
 212 degrees.
 
@@ -227,7 +227,7 @@ in a source checkout).
      - ``electron_fraction``, 0.5 by default; per layer through the Earth
      - fixed at 0.5 inside the code
      - from the profile file on the Earth path
-     - an argument of the body, e.g. ``ConstantDensity(rho, 0.5)``
+     - an argument of the body, e.g., ``ConstantDensity(rho, 0.5)``
    * - Flavor indices
      - 0, 1, 2 = e, μ, τ; ``P[initial][final]``
      - 1, 2, 3; ``(initial, final, …)``

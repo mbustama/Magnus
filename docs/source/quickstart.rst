@@ -84,8 +84,8 @@ Conventions
 They are the standard ones, stated here so that you can check them against other codes.
 
 * **Mixing matrix**: the PDG parametrization,
-  :math:`U = R_{23}(\theta_{23})\,U_{13}(\theta_{13},\delta_{\rm CP})\,R_{12}(\theta_{12})`,
-  with :math:`U_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`.
+  :math:`\mathbb{R} = \mathbb{R}_{23}(\theta_{23})\,\mathbb{R}_{13}(\theta_{13},\delta_{\rm CP})\,\mathbb{R}_{12}(\theta_{12})`,
+  with :math:`\mathbb{R}_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`.
 * **Mass splittings**: ``D21`` :math:`= m_2^2 - m_1^2` and ``D31``
   :math:`= m_3^2 - m_1^2`.  The ordering is the sign of ``D31``: positive is
   normal, negative is inverted.
@@ -108,14 +108,14 @@ Terms used throughout
 
 * **Slab**: one step of the position grid; on each, Magνs exponentiates the Magnus
   expansion of :math:`H`, and the evolution operator is the product over slabs.
-* **Ladder**: the refinement that raises the slab count until two successive counts
-  agree to ``rtol`` and ``atol``.
+* **Ladder**: the refinement that raises the slab count until the answers at two
+  successive counts agree to ``rtol`` and ``atol``.
 * **Engine**: the algorithm that answers a call (the ladder, an energy-batched scan,
   a closed form, ...).  Magνs picks one from the shape of the request; :doc:`engines`
   lists them.
-* **Strategy**: the ``strategy`` argument, which chooses between the Magnus ladder
-  (``'magnus'``), the hybrid (``'hybrid'``) and letting Magνs decide (``'auto'``,
-  the default).
+* **Strategy**: the ``strategy`` argument, which chooses between the Magnus-expansion
+  engines only (``'magnus'``), the hybrid (``'hybrid'``) and letting Magνs decide
+  (``'auto'``, the default).
 * **Hybrid**: transport along the instantaneous eigenstates where the profile is
   adiabatic, with the Magnus expansion only across the windows where it is not
   (:doc:`adiabatic_strategy`).

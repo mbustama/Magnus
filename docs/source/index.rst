@@ -65,8 +65,8 @@ so every probability is non-negative and every row sums to one.
 
    * :doc:`Quick start <quickstart>` and :doc:`installation`
    * :doc:`What it can compute, with code <recipes>`
-   * `GitHub Repository <https://github.com/mbustama/Magnus>`_
-   * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
+   * `GitHub repository <https://github.com/mbustama/Magnus>`_
+   * `Example notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (:doc:`tutorials` gives a guided tour)
    * :doc:`How to cite <citing>`
 
 **Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
@@ -76,14 +76,13 @@ Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
 **Fast.**  An energy scan is one batched call rather than a loop, which makes each
-probability one to two orders of magnitude cheaper.  Its cost follows how fast the
-density varies, not how many times the neutrino oscillates.  :ref:`performance`
+probability one to two orders of magnitude cheaper.  The cost of a probability
+follows how fast the density varies, not how many times the neutrino oscillates.  :ref:`performance`
 has the timings.
 
 **Accurate.**  Magνs propagates the evolution operator with the **Magnus
 expansion**: it exponentiates truncated integrals of the Hamiltonian over a chain
-of slabs, short consecutive stretches of the path, and every truncation is
-unitary.  At a tight tolerance, it agrees with an independent integration to a few
+of slabs, short consecutive stretches of the path.  At a tight tolerance, it agrees with an independent integration to a few
 parts in :math:`10^{12}` at two to five flavors.  Where it cannot certify its own
 answer, it says so.
 
@@ -110,7 +109,7 @@ Examples
 Each of these is one call with a different Hamiltonian, profile or observable.
 
 * **Beam experiments** — appearance probabilities along the DUNE, T2K, Hyper-K and
-  ESS chords (the straight paths through the Earth between source and detector), from two named sites (`notebook 04
+  ESS chords through the Earth, from two named sites (`notebook 04
   <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_).
 * **Atmospheric oscillograms** — probability over zenith angle and energy, one
   batched energy scan per zenith angle (`notebook 06
@@ -139,8 +138,7 @@ What "accurate" means here
 
 Magνs is a numerical integrator, so its error depends on how finely it discretizes.  One
 property holds regardless: every truncation of the Magnus series is anti-Hermitian, so the
-evolution operator is unitary at any order, any tolerance and any slab count, and the
-probabilities add up to one to round-off.  The rest is measured against checks that are
+evolution operator is unitary at any order, any tolerance and any slab count.  The rest is measured against checks that are
 independent of one another:
 
 .. list-table::
@@ -211,8 +209,8 @@ Some limits belong to the method, and no implementation would remove them:
   iteration, but it does not ship one.
 * **A feature narrower than every grid.**  Every engine (the algorithm that answers a call; :ref:`glossary`) samples the Hamiltonian on a grid of
   positions, so a feature narrower than the finest grid is missed by all of them together.
-  The matter scenario functions scan the profile for such features and warn, naming the
-  breakpoints to declare; the scan catches most, not all.
+  Magνs scans the profile for such features and warns, naming the breakpoints to
+  declare, but the scan does not catch every one.
 
 Others belong to the implementation:
 
@@ -271,9 +269,6 @@ Salient features
   <https://doi.org/10.1016/0031-9201(81)90046-7>`_, including chords between
   named detector sites), the Sun on an exponential fit or any of twelve standard
   solar models (:doc:`solar_models`), or any density profile you supply.
-* **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
-  for every flavor count and matter environment above, and Lorentz-invariance
-  violation (LIV) for every flavor count and environment, vacuum included.
 * **Magnus expansion to order 10**, with every term checked against an
   independently generated recursion, and three integration methods.  The
   default, **Gauss-Legendre collocation integrators**, reaches orders

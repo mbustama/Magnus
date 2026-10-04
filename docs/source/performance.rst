@@ -13,8 +13,8 @@ Speed
 -------
 
 A single three-flavor probability through the Earth takes about 2 ms at the default tolerance
-of ``rtol = atol = 1e-3``.  Across 164 Earth and solar configurations -- two to five flavors,
-standard and non-standard Hamiltonians, neutrinos and antineutrinos -- the median call takes
+of ``rtol = atol = 1e-3``.  Across 164 Earth and solar configurations — two to five flavors,
+standard and non-standard Hamiltonians, neutrinos and antineutrinos — the median call takes
 2 ms and the slowest under a second.
 
 **How these times are measured.**  Every timing in the paper comes from one machine and one
@@ -142,7 +142,7 @@ full chord, so a request for a shorter baseline takes the ordinary path.
 
 Set :data:`magnus.magnus.USE_PALINDROME` to ``False`` to evaluate every slab in full.  The
 two routes agree to a few times 1e-15 rather than bitwise, because the mirrored slab's
-nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other -- two
+nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other — two
 floating-point expressions for the same real number.  On Earth single points that is worth
 up to 8.6e-15 relative.
 
@@ -151,13 +151,13 @@ up to 8.6e-15 relative.
 The matrix exponential, and which backend computes it
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every slab ends in a matrix exponential, and ``np.linalg.eigh`` costs **about 1.27 µs per
-3×3 whatever the stack size** -- measured 1.268 µs at N = 108 and 1.279 µs at N = 4096,
-flat, because it loops over LAPACK internally instead of vectorizing over the stack.
+Every slab ends in a matrix exponential.  ``np.linalg.eigh`` costs **about 1.27 µs per
+3×3, whatever the stack size**: 1.268 µs at N = 108 and 1.279 µs at N = 4096.  The cost does
+not fall with the stack, because ``eigh`` loops over LAPACK calls instead of vectorizing.
 :data:`magnus.magnus.EXPM_BACKEND` selects between that and the compiled kernels in
-:mod:`magnus.expmkernels` -- ``'numba'`` means the Cayley-Hamilton kernel at dimensions 2
+:mod:`magnus.expmkernels` — ``'numba'`` means the Cayley-Hamilton kernel at dimensions 2
 and 3 and the Jacobi eigensolver at 4 and 5.  The Cayley-Hamilton kernel applies to
-:math:`K` the polynomial interpolating :math:`\exp(-i\lambda)` on its spectrum -- no
+:math:`K` the polynomial interpolating :math:`\exp(-i\lambda)` on its spectrum — no
 eigenvectors, and the eigenvalues in closed form.
 
 Interleaved round-robin, minima of many repetitions, with a control the change cannot
@@ -226,7 +226,7 @@ quarter of a single 108-slab pass that ``eigh`` takes when profiled.  Across the
 workloads above, the end-to-end speed-up is 1.1× to 2.1×, not 6.8×.
 
 **At N = 1 the exponential is no longer the thing to optimize.** ``eigh`` on one 3×3 costs
-3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs -- the
+3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs — the
 difference is the anti-Hermiticity test and the temporaries around it, which do not shrink
 with the stack.  That fixed cost, not the exponential, is what caps the single-point rows
 above.
@@ -259,7 +259,7 @@ chords, solar slab chains, constant density, NSI), the fraction of matrices sent
 this way rounds to 0.00%.
 
 Switching backend moves probabilities by at most 4.6e-15 across PREM chords, energy scans,
-NSI resonances, constant density and vacuum -- except on a solar profile at
+NSI resonances, constant density and vacuum — except on a solar profile at
 ``strategy='magnus'``, which chains 33,575 slab exponentials and drifts 3.0e-12, within the
 :math:`N\epsilon` = 7.4e-12 that an ordered product of that length allows.
 
@@ -269,7 +269,7 @@ compiles the kernels, about 2 s, and later sessions load them from the disk cach
 0.1 s.  Because it is required, a Python release that numba has no wheel for yet cannot
 install the package.
 
-The ``'eigh'`` fallback is still there and still correct -- ``'auto'`` degrades to it if
+The ``'eigh'`` fallback is still there and still correct — ``'auto'`` degrades to it if
 the import fails for any reason, and nothing but speed changes, every result agreeing to
 ~1e-15.
 
@@ -330,10 +330,10 @@ Results are bit-identical to the per-point route on every flavor count and both 
 ``n_slabs``, ``n_tpts_per_slab``, ``t_breakpoints`` and ``rtol``/``atol`` are accepted and
 ignored, because they can only ask for a refinement of something already exact.
 
-**PREM and exponential profiles are untouched** -- their potential varies with position, so they
+**PREM and exponential profiles are untouched** — their potential varies with position, so they
 keep ``separable``, ``ip_exp`` or ``hybrid``.  A constant-H engine that captured one would
 propagate a whole chord with a single exponential of a single Hamiltonian: wrong by O(1) and
-still perfectly unitary, which is why ``tests/test_engines.py`` asserts the engine *identity*
+still unitary, which is why ``tests/test_engines.py`` asserts the engine *identity*
 for PREM and the Sun rather than only comparing numbers.
 
 .. _how-constants-were-set:
@@ -371,7 +371,7 @@ Measured
        rows and was never worse than the previous 67 MB: **1.19×-1.38×** on Earth energy
        scans, growing with both flavor count and scan length, 1.06×-1.16× on cumulative
        baseline scans, flat within 2 % on short scans.  The interaction-picture engine is
-       flat at 1.00× -- it is compute-bound, so the constant does not reach it.  Every row
+       flat at 1.00× — it is compute-bound, so the constant does not reach it.  Every row
        was **bit-identical at every budget**, tiles being independent and only
        concatenated, so this is a pure performance knob.  Measured on one machine (13 MB
        L3, 6.5 MB L2), and note the optimum sits *below* the last-level cache, so sizing
@@ -424,12 +424,12 @@ Measured
      - 1e-6
      - Scored against the **analytic** :math:`dH/dl`. The optimum moves with the profile's
        shortest length scale (1e-5 solar, 1e-6 sinusoid, 1e-7 for a narrow bump), but anywhere
-       in 1e-8…1e-5 the relative error stays below 3e-09 -- six orders below anything that
+       in 1e-8…1e-5 the relative error stays below 3e-09 — six orders below anything that
        could move a probability here. **The band, not the value, is what to preserve.**
    * - ``hybrid_propagator`` ``threshold0``
      - 0.1
      - See :data:`magnus.adiabatic.THRESHOLD0_PROVENANCE`. Accuracy identical at every value in
-       16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper -- but a
+       16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper — but a
        tolerance-derived start made an **energy scan 20× worse** (2.5e-05 → 4.95e-04), a
        workload that population did not contain, so the default stays at 0.1.
    * - :data:`magnus.adiabatic.HIDDEN_FEATURE_CONCENTRATION`
@@ -449,14 +449,14 @@ Measured
        3 profile families × d = 2, 3. The worst error is **4.49e-04 at essentially every value
        of every one of them**: these set where a doubling ladder starts, and the ladder reaches
        the same place regardless. ``patch_atol`` at 1e-9 is the one exception and is not really
-       about this constant -- see :func:`magnus.adiabatic.hybrid_propagator`.
+       about this constant — see :func:`magnus.adiabatic.hybrid_propagator`.
    * - ``min_threshold``
      - 1e-6
      - Identical at every value over 18 ordinary workloads, because the ladder stops long
        before the floor. **The regime it governs was then constructed rather than assumed**:
        the floor is reached only when :math:`\gamma_\max` is below it *and* the tolerance is
        tighter than ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`. There it does change
-       behavior (a window opens below :math:`\gamma_\max`) but not usefully --
+       behavior (a window opens below :math:`\gamma_\max`) but not usefully —
        ``certified=False`` at every value, error three orders inside tolerance either way, and
        the window costs 2.4× the time.
 

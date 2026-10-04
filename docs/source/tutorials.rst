@@ -95,10 +95,10 @@ machinery is unchanged and only the Hamiltonian differs.
    :doc:`averaged_probability`.
 
 
-What the method actually does
------------------------------
+How the method works
+--------------------
 
-The two notebooks for readers who want to know why the answers are what they
+Three notebooks for readers who want to know why the answers are what they
 are, rather than how to ask for them.
 
 `10. Phase-averaged probabilities <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_
@@ -135,7 +135,7 @@ in the phase from an error in the amplitude.
 `14. A supernova shock front <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
    Here, averaging barely reduces the error, because a shock changes the
    adiabaticity of the level crossing and so moves the conversion probability
-   itself.  Magνs warns where its answer is inaccurate.
+   itself.  On this profile, Magνs warns that its answer is inaccurate.
 
 `23. When averaging rescues you <https://github.com/mbustama/Magnus/blob/main/notebooks/23_magnus_when_averaging_helps.ipynb>`_
    The mechanism behind those two, isolated on a vacuum probability: averaging
@@ -152,7 +152,8 @@ one.
 `15. Antineutrinos, done properly <https://github.com/mbustama/Magnus/blob/main/notebooks/15_magnus_antineutrinos.ipynb>`_
    Conjugating the PMNS matrix and flipping the matter potential are two
    separate things, and doing one without the other returns a plausible wrong
-   answer. Measured: 0.014 correct against 0.057 and 0.023 for the two halves.
+   answer: the correct probability is 0.014, against 0.057 and 0.023 with only
+   one of the two changes.
 
 `18. Unusual density profiles <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
    Five profiles with the same mean density differing by up to 0.98 in
@@ -165,8 +166,8 @@ Physics questions
 
 `16. Exact versus the approximations <https://github.com/mbustama/Magnus/blob/main/notebooks/16_magnus_exact_vs_approximations.ipynb>`_
    The textbook closed forms are exact, and Magνs reproduces them to
-   :math:`10^{-14}`. What breaks is substituting a mean density for a varying
-   one: worth 0.58 in probability on a core-crossing chord.
+   :math:`10^{-14}`.  The error comes from replacing a varying density by its
+   mean: up to 0.58 in probability on a core-crossing chord.
 
 `17. Mass ordering and the octant <https://github.com/mbustama/Magnus/blob/main/notebooks/17_magnus_ordering_and_octant.ipynb>`_
    The ordering is carried entirely by the sign of ``D31``. Through the core it
@@ -182,8 +183,8 @@ Using and diagnosing the machinery
 
 `20. Numerical edge cases <https://github.com/mbustama/Magnus/blob/main/notebooks/20_magnus_numerical_edge_cases.ipynb>`_
    Exact degeneracies, zero baselines and empty requests all return numbers
-   rather than ``NaN``. Plus what each warning class means, and which to act
-   on.
+   rather than ``NaN``.  The notebook also explains each warning class, and
+   which ones to act on.
 
 `21. What rtol and atol promise <https://github.com/mbustama/Magnus/blob/main/notebooks/21_magnus_what_tolerance_means.ipynb>`_
    A stopping criterion, not an error bound. Measured against an independent
@@ -191,9 +192,10 @@ Using and diagnosing the machinery
    :math:`4.8\times10^{-2}` and reported success.
 
 `22. Which engine answered, and why <https://github.com/mbustama/Magnus/blob/main/notebooks/22_magnus_which_engine_answered.ipynb>`_
-   Seven engines (eight registered) in five families, and ``cross_check_strategies`` — an error bar
-   that needs no oracle, because two different methods disagreeing is itself the
-   signal.
+   Seven engines (eight registered) in five families, and
+   ``cross_check_strategies``, which flags a problem without a reference solution:
+   two independent methods that disagree point to an inaccurate answer, although
+   two that agree are not proven right.
 
 `24. Performance <https://github.com/mbustama/Magnus/blob/main/notebooks/24_magnus_performance.ipynb>`_
    Which optimizations pay, measured as the notebook runs, and when each of them
@@ -206,10 +208,10 @@ Against other codes, and against the parameters
 Where an independent method is the judge rather than Magνs itself.
 
 `25. Against other codes <https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb>`_
-   NuOscProbExact and nuSQuIDS on the same problems, every comparison refereed
-   by a third method. Where a closed form wins, where it stalls, and the
-   supernova shock where the *width of the front* — not the physics in it —
-   decides which method the case belongs to.
+   NuOscProbExact and nuSQuIDS on the same problems, each comparison checked
+   against a third method: where a closed form is faster, where its accuracy
+   stops improving, and a supernova shock where the *width of the front*, not
+   the physics in it, decides which method suits the case.
 
 `26. Fourteen years of NuFIT <https://github.com/mbustama/Magnus/blob/main/notebooks/26_magnus_nufit_evolution.ipynb>`_
    How the parameter likelihood, not just the best fit, moves the probability —
@@ -237,9 +239,9 @@ The paper
 ---------
 
 `28. The paper's figures <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`_
-   Every figure in the Computer Physics Communications article
-   (``resources/paper/``), produced in one run.  Magνs's numbers are computed as
-   the notebook runs, so a stale figure makes the notebook fail.  The other codes'
+   Every figure in the Magνs paper (``resources/paper/``), produced in one run.
+   Magνs's numbers are computed as the notebook runs, so the figures always
+   reflect the current code.  The other codes'
    numbers are read from the stored ``external_*.json`` datasets, so none of those
    codes has to be installed.  The notebook also shows that, on an Earth chord,
    the probability inherits the relative error of the matter potential almost one

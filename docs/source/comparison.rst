@@ -104,9 +104,8 @@ When to use Magνs, and when not
 
 Structurally, Magνs sits between NuOscProbExact and nuSQuIDS: it composes slab exponentials
 as the first does, while resolving the variation of the Hamiltonian inside each slab, as the
-second does by other means.  It is the code to reach for when the profile, the accuracy, the
-flavor count or the Hamiltonian takes a problem outside what a composition of
-constant-density slabs does well:
+second does by other means.  Use Magνs when one of the following puts a problem beyond what
+constant-density slabs handle well:
 
 * **The density varies continuously and fast against the oscillation length.**  A
   composition of constant-density slabs needs some :math:`10^4` steps per resonance crossing

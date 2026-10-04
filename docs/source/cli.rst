@@ -47,9 +47,8 @@ are real on the command line; complex ones need the Python API.
 ``--environment`` selects the propagation medium; ``--scenario`` selects
 the physics on top of it. Not every combination exists: ``--scenario nsi``
 requires a matter potential to modify, so it is not available with
-``--environment vacuum`` (the CLI rejects this combination with a clear
-error rather than silently ignoring the epsilon flags). The full dispatch
-table:
+``--environment vacuum`` (see `Errors are explicit rather than silent`_).  The
+full dispatch table:
 
 .. list-table::
    :header-rows: 1
@@ -122,7 +121,7 @@ The same calculation, one channel only:
    P = 0.0085
 
 Earth crossing from the cosine of the zenith angle (equivalently, from two
-named locations -- see ``--loc-ini``/``--loc-fin`` below):
+named locations — see ``--loc-ini``/``--loc-fin`` below):
 
 .. code-block:: text
 
@@ -184,7 +183,7 @@ Constant-density matter with non-standard interactions:
    nu_tau    0.0009  0.0001  0.9989
 
 Vacuum with a (deliberately large, for illustration) Lorentz-invariance-violating
-term -- compare to the plain-vacuum result above at the same energy and baseline:
+term — compare to the plain-vacuum result above at the same energy and baseline:
 
 .. code-block:: text
 
@@ -218,14 +217,14 @@ A 3+2 sterile scenario (5 flavors), machine-readable output:
    }
 
 With ``s14 = s15 = s24 = s25 = s34 = s35 = 0`` (their defaults), the two
-sterile states stay perfectly decoupled from the three active flavors and
-from each other, as expected -- this exact check is one of the CLI's
+sterile states stay decoupled from the three active flavors and
+from each other, as expected — this exact check is one of the CLI's
 regression tests (``tests/test_cli.py``, in a source checkout).
 
 Choosing a propagation strategy
 ------------------------------------
 
-For a position-dependent Hamiltonian -- ``--environment sun``,
+For a position-dependent Hamiltonian — ``--environment sun``,
 ``--environment earth``, or ``--environment matter --density-profile exp`` --
 ``--strategy`` selects how the evolution operator is propagated, exactly as the
 ``strategy`` keyword does in the Python API (see :doc:`adiabatic_strategy` for
@@ -234,7 +233,7 @@ ignored for vacuum and constant-density environments, whose Hamiltonians do not
 depend on position at all.
 
 Since ``auto`` is the default, you need this flag only to *opt out* of the
-hybrid strategy (``--strategy magnus``, which uses only the Magnus ladder) or
+hybrid strategy (``--strategy magnus``, which uses only the Magnus-expansion engines) or
 to force it and be warned when it cannot certify its own result
 (``--strategy hybrid``).
 
@@ -371,7 +370,7 @@ configures):
 
    Earth (--environment earth):
      --costhz COSTHZ       Cosine of the neutrino zenith angle.
-     --loc-ini LOC_INI     Initial location name (e.g. fermilab); see
+     --loc-ini LOC_INI     Initial location name (e.g., fermilab); see
                            magnus.earth.loc_coords_dms. Must be given together with --loc-
                            fin, as an alternative to --costhz.
      --loc-fin LOC_FIN     Final location name; see --loc-ini.

@@ -29,7 +29,7 @@ sterile-sector parameters (4th/5th flavor) default to zero mixing.
 Vacuum
 --------
 
-No matter potential -- the flavor Hamiltonian is just the vacuum mass/mixing
+No matter potential — the flavor Hamiltonian is just the vacuum mass/mixing
 term, evaluated once and scaled by :math:`1/E`.
 
 .. list-table::
@@ -218,15 +218,15 @@ solar models instead (see :doc:`solar_models`).
 Generic entry points
 ------------------------
 
-For anything the tables above don't cover -- any other number of flavors,
-or a Hamiltonian that doesn't fit the vacuum/matter/NSI/LIV mold -- three
+For anything the tables above don't cover — any other number of flavors,
+or a Hamiltonian that doesn't fit the vacuum/matter/NSI/LIV mold — three
 functions accept an arbitrary user-supplied Hamiltonian directly:
 
-* :py:func:`~magnus.oscprob.osc_prob` -- the general Magnus ladder, the base layer:
+* :py:func:`~magnus.oscprob.osc_prob` — the general Magnus ladder, the base layer:
   any Hamiltonian, any dimension, any environment you build yourself.
-* :py:func:`~magnus.oscprob.osc_prob_earth` -- like ``osc_prob``,
+* :py:func:`~magnus.oscprob.osc_prob_earth` — like ``osc_prob``,
   but handles the Earth-crossing geometry and PREM potential for you.
-* :py:func:`~magnus.oscprob.osc_prob_sun` -- like ``osc_prob``,
+* :py:func:`~magnus.oscprob.osc_prob_sun` — like ``osc_prob``,
   but handles the solar density profile for you.
 
 The ``osc_prob_{N}nu_*`` functions above call these three internally; see
@@ -236,31 +236,17 @@ The ``osc_prob_{N}nu_*`` functions above call these three internally; see
 Returning the evolution operator
 -----------------------------------
 
-Every function above returns probabilities, which is what most observables
-need. Some need the amplitudes instead: the content of each mass eigenstate in
-the state that leaves a star, the flavor composition at a detector so far away
-that the phases have averaged, or any quantity built from a product of
-operators. For those, pass ``return_evolution_operator=True`` to any of the
-functions, and the call returns the pair ``(P, U)`` instead of ``P`` alone:
-
-.. code-block:: python
-
-    import numpy as np
-    import magnus.oscprob as oscprob
-    import magnus.globaldefs as gd
-    import magnus.hamiltonians as hamiltonians
-
-    osc = gd.load_nufit_params('NuFIT 6.1')
-    P, U = oscprob.osc_prob_3nu_matter_exp_density(
-        1.0*gd.UNIT_GEV, 5000.0*gd.UNIT_KM, 0.0, 10.0, 1000.0*gd.UNIT_KM,
-        density_matter_is_in_g_per_cm3=True, return_evolution_operator=True,
-        **osc)
+Every function above returns probabilities.  Observables built from amplitudes,
+such as the mass-eigenstate content of the state that leaves a star, need the
+evolution operator instead.  For those, pass ``return_evolution_operator=True`` to
+any of the functions, and the call returns the pair ``(P, U)`` instead of ``P``
+alone; :ref:`recipe-evolution-operator` shows a worked example.
 
 ``P`` is exactly what the call returns without the keyword, so ``nu_i``, ``nu_f``
-and the batching over arrays keep their meaning. ``U`` is the evolution operator
+and the batching over arrays keep their meaning.  ``U`` is the evolution operator
 over the same interval, in the flavor basis, complex and unitary, with
 ``U[final, initial]`` the amplitude from the initial to the final flavor, so that
-``P == (abs(U)**2).T``; for arrays of points it has shape ``(n, d, d)``, and
+``P == (abs(U)**2).T``.  For arrays of points it has shape ``(n, d, d)``, and
 ``P == np.swapaxes(abs(U)**2, -1, -2)``.
 
 The operator comes from the general Magnus ladder, the only engine that forms it.
@@ -270,19 +256,7 @@ moduli.  The specialized engines of :doc:`engines` are skipped for the call, and
 baseline scan is computed point by point.  Two combinations raise an error,
 because they form no operator: ``average=True`` and ``strategy='hybrid'``.
 
-The phase-averaged content at a distant detector, from ``U`` and ``osc`` of the call
-above, is then two lines:
-
-.. code-block:: python
-
-    R = hamiltonians.pmns_mixing_matrix(osc['s12'], osc['s23'], osc['s13'], osc['dCP'])
-    content = abs(R.conj().T @ U)**2      # mass-state content, per initial flavor
-    P_far = (abs(R)**2 @ content).T       # phases averaged on the way
-
-with ``R`` the mixing matrix in vacuum.  The transpose puts ``P_far`` in the same
-order as ``P``: ``P_far[i][f]`` is the probability from flavor ``i`` to flavor ``f``.
-
-The phase average is also available on the direct route.  ``average=True`` on
+The phase average is also available when you pass your own Hamiltonian.  ``average=True`` on
 ``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` returns what
 it returns on a wrapper, by the same three routes: closed form, adiabatic
 transport, or an energy-window average across declared discontinuities.  The same

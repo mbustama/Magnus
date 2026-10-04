@@ -37,7 +37,7 @@ Listing :ref:`Through a supernova shock front <ex-lst-shock>` computes the curve
    # discontinuities.
 
 
-With or without breakpoints, the scan also raises two tolerance warnings, because at :math:`{\tt rtol} = 10^{-8}` the refinement reaches its cap of 20 000 slabs before certifying the result. With the fronts declared, the cap is immaterial: raising it tenfold changes the curve by less than :math:`10^{-5}`, well below the resolution of Figure :ref:`A supernova shock front <ex-fig-shock>`. The scans go to the cumulative engine, as the last line of the three-flavor call confirms; declared breakpoints would keep the hybrid engine of :doc:`/adiabatic_strategy` out in any case. Notebook #14 checks the result against an independent integration, and :doc:`/comparison` measures the cost of the front width.
+With or without breakpoints, the scan also raises two tolerance warnings, because at ``rtol`` :math:`= 10^{-8}` the refinement reaches its cap of 20 000 slabs before certifying the result. With the fronts declared, the cap is immaterial: raising it tenfold changes the curve by less than :math:`10^{-5}`, well below the resolution of Figure :ref:`A supernova shock front <ex-fig-shock>`. The scans go to the cumulative engine, as the last line of the three-flavor call confirms; declared breakpoints would keep the hybrid engine of :doc:`/adiabatic_strategy` out in any case. Notebook #14 checks the result against an independent integration, and :doc:`/comparison` measures the cost of the front width.
 
 .. _ex-lst-shock:
 

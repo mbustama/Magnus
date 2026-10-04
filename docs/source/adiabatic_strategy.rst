@@ -20,7 +20,7 @@ The problem: extreme accumulated phase
 ------------------------------------------
 
 The plain Magnus engine (:doc:`methodology`) partitions a trajectory into
-slabs and is exact, to any desired order, within each one -- but it must
+slabs and is exact, to any desired order, within each one — but it must
 still *resolve* however many radians of phase accumulate inside a slab. For
 an :math:`\rm MeV`-scale solar neutrino crossing most of the Sun's radius,
 the vacuum term alone (:math:`\Delta m^2/2E`, growing as :math:`1/E`)
@@ -92,7 +92,7 @@ integral and transport approach the adiabatic limit.
    avoid crossing, with minimum gap :math:`2\varepsilon` at :math:`l_\star`.
    An adiabatic trajectory (blue) stays on its eigenvalue branch through the
    crossing; a diabatic trajectory (gold) instead follows the original
-   (bare, dashed) levels straight through -- the sudden, non-adiabatic
+   (bare, dashed) levels straight through — the sudden, non-adiabatic
    transition the local Magnus patch exists to capture.
 
 Detecting resonances without differentiating eigenvectors
@@ -212,10 +212,10 @@ along the way.
 Self-certification
 ------------------------
 
-No single value of the adiabaticity threshold, of the grid that integrates the
-dynamical phase, or of the probe grid that locates candidates is safe for every
-Hamiltonian: a threshold that is conservative for one case can leave a crossing
-unpatched in another.  :func:`magnus.adiabatic.hybrid_propagator` therefore
+Three settings control the strategy: the adiabaticity threshold, the grid that
+integrates the dynamical phase, and the probe grid that locates candidates.  No
+single value of any of them is safe for every Hamiltonian: a threshold that is
+conservative for one case can leave a crossing unpatched in another.  :func:`magnus.adiabatic.hybrid_propagator` therefore
 repeats the whole computation, each time dividing the threshold by 3 and
 doubling both grids.  It certifies the result only once two successive levels
 agree within the requested ``rtol`` and ``atol``, as
@@ -276,7 +276,7 @@ adiabatic propagator make no assumption about the Hamiltonian's dimension
 or structure. It composes correctly with any number of simultaneous or
 sequential resonances, of any kind (standard MSW, NSI-induced, or
 otherwise), between any pair of levels, **provided each is visible on the
-probe grid** -- see the two limits below.
+probe grid** — see the two limits below.
 
 .. warning::
 
@@ -327,14 +327,14 @@ probe grid** -- see the two limits below.
 Validation
 --------------
 
-Every claim above is checked directly against a tight-tolerance
-``scipy.integrate.solve_ivp`` (``DOP853``) solution of the same
-Schrödinger equation, across a validation grid designed to exercise every
-qualitatively different case: zero resonances (purely adiabatic), one
-resonance, two well-separated resonances, and two resonances close enough
-together that their windows must merge; real 3-, 4-, and 5-flavor
-Hamiltonians (standard oscillations and BSM/NSI-induced resonances); and
-both real and genuinely complex (CP-violating) Hamiltonians.
+Every claim above is checked against a tight-tolerance
+``scipy.integrate.solve_ivp`` (``DOP853``) solution of the same Schrödinger
+equation.  The validation grid covers each qualitatively different case:
+
+* zero resonances (purely adiabatic), one resonance, two well-separated
+  resonances, and two resonances close enough that their windows merge;
+* 3-, 4- and 5-flavor Hamiltonians, with standard and NSI-induced resonances;
+* real and complex (CP-violating) Hamiltonians.
 
 .. list-table::
    :header-rows: 1
@@ -395,7 +395,7 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 
    Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
    across the validation grid (log scale), plotting exactly the numbers in
-   the table above -- ``tests/test_adiabatic_validation_table.py`` holds the
+   the table above — ``tests/test_adiabatic_validation_table.py`` holds the
    two against each other, so they cannot drift apart. Purely adiabatic
    cases (green) are fastest, since no exact patch is ever computed; cases
    needing one or more Magnus patches (red) are still 30-90x faster than

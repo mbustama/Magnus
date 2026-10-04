@@ -33,8 +33,8 @@ A request arrives at ``oscprob`` and leaves it for ``magnus``, which evaluates t
 slab by slab; for ``avgprob``, which computes the phase average (:doc:`averaged_probability`);
 or for ``adiabatic``, which transports the state along the instantaneous eigenstates
 (:doc:`adiabatic_strategy`).  The last two return to ``magnus`` only to cross a non-adiabatic
-window with a Magnus patch.  Magνs picks the route from the form of the request; the user does
-not.
+window with a Magnus patch.  Magνs picks the route from the form of the request, unless the
+user sets ``strategy``.
 
 The numerical core is kept apart from the physics.  ``magnus.magnus`` imports nothing that
 concerns neutrinos.  At module level, it imports only ``expmkernels``, the compiled matrix
@@ -243,7 +243,7 @@ an array of positions or must be called one position at a time (see
 How to add your own wrapper
 ------------------------------
 
-Suppose you want to add support for a new environment, e.g. a
+Suppose you want to add support for a new environment, e.g., a
 user-supplied radial density profile for 3-flavor NSI oscillations,
 ``osc_prob_3nu_matter_nsi_custom_density``. The existing
 ``osc_prob_3nu_matter_nsi_exp_density`` (in ``magnus.oscprob``) is the
@@ -254,22 +254,24 @@ closest sibling to copy from. The recipe:
    existing ``osc_prob_matter_nsi`` — you do **not** need to touch
    ``magnus.hamiltonians`` or the Magnus core at all.
 
-#. **Name only the parameters specific to your scenario.** Your
-   function's signature should have: the standard positional physics
-   inputs (``energy``, ``L``), whatever parametrizes *your* density
-   profile (e.g. a ``density_func: Callable`` the user supplies
-   directly), the standard oscillation parameters for 3 flavors
-   (``s12, s23, s13, dCP, D21, D31``, all ``Optional[float] = None``),
-   the standard NSI parameters (``eps_ee, eps_em, ...``), the standard
-   trailing parameters every wrapper has
-   (``ratio_number_neutrons_to_protons``, ``electron_fraction``,
-   ``nubar``, ``nu_i``, ``nu_f``, ``validate_input``, ``save_log``,
-   ``filename_log``, ``file_log``, ``close_file_log_upon_exit``,
-   ``verbose``), and end with ``**kwargs``.
+#. **Name only the parameters specific to your scenario.**  Your
+   function's signature should have, in order:
+
+   * the positional physics inputs, ``energy`` and ``L``;
+   * whatever parametrizes *your* density profile, e.g., a
+     ``density_func: Callable`` supplied by the user;
+   * the standard three-flavor oscillation parameters, ``s12, s23, s13, dCP,
+     D21, D31``, all ``Optional[float] = None``;
+   * the standard NSI parameters, ``eps_ee, eps_em, ...``;
+   * the trailing parameters every wrapper has: ``ratio_number_neutrons_to_protons``,
+     ``electron_fraction``, ``nubar``, ``nu_i``, ``nu_f``, ``validate_input``,
+     ``save_log``, ``filename_log``, ``file_log``, ``close_file_log_upon_exit``
+     and ``verbose``;
+   * ``**kwargs``, last.
 
 #. **Do not name any of the 15 refinement/logging kwargs listed in**
    :ref:`layer-contract` **above.** They flow through ``**kwargs``
-   automatically. This is what the two permanent guard tests check.
+   automatically.  This is what the two guard tests check.
 
 #. **Write the body as a single call down**, packaging your named
    parameters into the ``osc_params``/``nsi_params`` dicts that
@@ -313,7 +315,7 @@ closest sibling to copy from. The recipe:
                **kwargs
            )
 
-   ``angles`` is worth a word: it is a pure pass-through, and every wrapper in the
+   The ``angles`` keyword is a pure pass-through: every wrapper in the
    package forwards it unexamined to the layer below, which is where the four
    conventions are interpreted.  A wrapper that accepts it but does not forward it
    would run and silently ignore the user's choice, so
@@ -339,11 +341,10 @@ closest sibling to copy from. The recipe:
 How to add your own scenario
 ----------------------------
 
-If your new function needs genuinely new *physics* (not just a new
-environment) -- e.g. a Hamiltonian term that does not fit
-vacuum/matter/NSI/LIV -- then the right layer to extend is the second, the scenario functions: a new
-``osc_prob_<scenario>`` function, generic in ``num_flavors``, that builds the
-Hamiltonian as a function of energy (and of position, in matter) and hands it
+If your new function needs new *physics*, not just a new environment, such as a
+Hamiltonian term that does not fit vacuum, matter, NSI or LIV, extend the second layer.
+Write a new scenario function, ``osc_prob_<scenario>``, generic in ``num_flavors``.  It
+builds the Hamiltonian as a function of energy, and of position in matter, and hands it
 to ``osc_prob_energy_baseline``. That call is what gives your function arrays of
 energies and baselines, warm starts, the refinement keywords, ``average=True``,
 and the cumulative scan over baselines, with no further work.
@@ -459,12 +460,10 @@ new term switched off, it returns what ``osc_prob_matter_std_potential`` does:
     print('P(nu_mu -> nu_e), term on: ', np.round(np.asarray(P_on)[:, gd.NUMU, gd.NUE], 4))
 
 What a function written this way does **not** get is the batched engines.
-The shipped scenario functions try the phase average, the adiabatic transport
-with Magnus patches, the interaction-picture expansion, the constant-Hamiltonian
-engine and the energy-batched scan themselves, before calling
-``osc_prob_energy_baseline`` (see :doc:`engines`); a new function that goes
-straight to ``osc_prob_energy_baseline`` is answered, unless ``average=True``,
-by the cumulative scan or, point by point, by the general Magnus ladder. The
+The shipped scenario functions try the faster engines themselves before calling
+``osc_prob_energy_baseline`` (see :doc:`engines`).  A new function that goes
+straight to ``osc_prob_energy_baseline`` is answered, unless ``average=True``, by
+the cumulative scan or, point by point, by the general Magnus ladder. The
 answer is the same to the tolerance; the cost is not. On a scan of 200 energies
 from 0.3 to 10 GeV over the example profile above, with the term off, the
 shipped ``osc_prob_matter_std_potential`` (answered by the energy-batched scan)
@@ -511,5 +510,5 @@ Where things live: a quick lookup
        :math:`V_{CC}` potential construction
      - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
-       parameter set (e.g. NuFIT 6.1)
+       parameter set (e.g., NuFIT 6.1)
      - ``magnus.globaldefs``

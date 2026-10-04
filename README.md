@@ -112,13 +112,13 @@ Two to five flavors ship ready-made; the generic entry points take any
 dimension and any profile, given as a function of position.
 
 **Fast.**  An energy scan is one batched call rather than a loop, which makes each
-probability one to two orders of magnitude cheaper.  Its cost follows how fast the
-density varies, not how many times the neutrino oscillates.
+probability one to two orders of magnitude cheaper.  The cost of a probability
+follows how fast the density varies, not how many times the neutrino oscillates.
 [Performance](#performance) has the timings.
 
 **Accurate.**  Magνs propagates the evolution operator with the **Magnus
 expansion**: it exponentiates truncated integrals of the Hamiltonian over a chain
-of position slabs, and every truncation is unitary.  At a tight tolerance, it
+of position slabs.  At a tight tolerance, it
 agrees with an independent integration to a few parts in **10¹²** at two to five
 flavors.  Where it cannot certify its own answer, it says so.
 
@@ -185,7 +185,7 @@ need a non-unitary evolution; [nuSQuIDS](https://github.com/arguelles/nuSQuIDS)
 is the tool for those.  Collective oscillations need a Hamiltonian that depends
 on the solution, and Magνs does not ship the self-consistent iteration.  A
 feature narrower than every sampling grid goes unseen by all the engines alike;
-the matter scenario functions scan the profile for such features and warn, but
+Magνs scans the profile for such features and warns, but
 the scan does not catch every one.  Magνs is not a flux, cross-section or detector
 code, a fitting framework, or an event generator: it computes oscillation
 probabilities and stops there.
@@ -206,30 +206,10 @@ orders of magnitude, at every number of flavors from two to five.
 
 **Write your `H_func` to accept an array of positions.**  It is then called once
 per refinement stage rather than once per quadrature node, which is several times
-faster, with identical output.  Broadcast the potential into a stack of matrices:
-
-```python
-import numpy as np
-import magnus.globaldefs as gd
-import magnus.hamiltonians as hams
-from magnus import oscprob
-
-energy = 1.0*gd.UNIT_GEV
-h_vac = hams.hamiltonian_3nu_vacuum_energy_independent(**gd.load_nufit_params('NuFIT 6.1'))
-e00 = np.diag([1.0, 0.0, 0.0])                      # the nu_e entry of the matter term
-VCC_central, l_scale = 1.1e-13, 3000.0              # potential [eV], scale height [km]
-
-def H_func(l):
-    l = np.asarray(l, dtype=float)
-    VCC = VCC_central*np.exp(-(l/gd.UNIT_KM)/l_scale)   # an array
-    return (1.0/energy)*h_vac + VCC[..., None, None]*e00
-
-P = oscprob.osc_prob(H_func, 0.0, 1000.0*gd.UNIT_KM)
-```
-
-A Hamiltonian that ignores its argument is detected and broadcast automatically.
-One written for a single position still works, more slowly, and raises a
-`ScalarHamiltonianWarning` once per session.
+faster, with identical output; the
+[numerical recipes](https://mbustama.github.io/Magnus/recipes.html#write-h-func-vectorized)
+show how.  A Hamiltonian that ignores its argument is detected and broadcast
+automatically.
 
 **`n_jobs` helps only where no batched engine applies**: there, ten workers make
 a scan 2 to 3 times faster.  Where a batched engine applies, a single process is
@@ -237,8 +217,7 @@ faster.  See [performance](https://mbustama.github.io/Magnus/performance.html).
 
 ## What "accurate" means here
 
-Every truncation of the Magnus series is anti-Hermitian, so the evolution is
-unitary at any order and tolerance.  The rest is measured against closed forms, an
+Unitarity holds at any order and tolerance (see above).  Accuracy is measured against closed forms, an
 independent ODE solver, an independently generated expansion and populations of
 random profiles; the [table of checks and
 results](https://mbustama.github.io/Magnus/index.html#what-accuracy-means) is in the
@@ -286,11 +265,12 @@ Full documentation: **[mbustama.github.io/Magnus](https://mbustama.github.io/Mag
 
 ## Repository layout
 
-The top level only; the [documentation](https://mbustama.github.io/Magnus/installation.html#file-tree)
-adds the package under `src/`, and the complete listing, with a comment on every
-file, is `TREE` in
+The top level of the repository.  The
+[documentation](https://mbustama.github.io/Magnus/installation.html#file-tree) also
+shows the package under `src/`.  The complete listing, with a comment on every file,
+is `TREE` in
 [`tests/test_file_tree.py`](https://github.com/mbustama/Magnus/blob/main/tests/test_file_tree.py),
-which checks it against `git ls-files`.
+which checks it against the files in the repository.
 
 ```text
 Magnus/

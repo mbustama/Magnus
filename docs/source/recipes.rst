@@ -19,8 +19,8 @@ and flavor count.
 One probability
 ---------------
 
-The shortest useful thing the library does: an energy, a baseline, and the
-oscillation parameters it defaults to.
+The simplest call: an energy, a baseline, and the default oscillation
+parameters.
 
 .. jupyter-execute::
 
@@ -39,6 +39,8 @@ flavor first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
 matrix. Full walk-through:
 `notebook 01 <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_.
 
+
+.. _recipe-evolution-operator:
 
 The evolution operator, for observables built from amplitudes
 ----------------------------------------------------------------
@@ -64,7 +66,7 @@ converges the operator itself, phases included.
     # mass-state content of what leaves, and the flavor content far away
     R = hams.pmns_mixing_matrix(OSC['s12'], OSC['s23'], OSC['s13'], OSC['dCP'])
     content = abs(R.conj().T @ U)**2
-    P_far = abs(R)**2 @ content
+    P_far = (abs(R)**2 @ content).T        # indexed like P: [initial][final]
 
     print('at the edge of the source, P_ee = %.4f' % np.asarray(P)[0][0])   # 0.7818
     print('far away, phases averaged, P_ee = %.4f' % P_far[0, 0])           # 0.4929
@@ -108,8 +110,8 @@ further factor of several: see :ref:`write-h-func-vectorized` below.
 Through the Earth
 -----------------
 
-Give a zenith angle and the chord, its PREM density profile, and the slab edges
-aligned with the layer boundaries all follow.
+Give the zenith angle and the chord length.  The PREM density profile along the
+chord, and slab edges at its layer boundaries, are set up automatically.
 
 .. jupyter-execute::
 
@@ -479,7 +481,7 @@ is that measurement.
 A layered profile, exactly
 --------------------------
 
-A piecewise-constant profile -- a castle wall -- is exact once its slab edges are
+A piecewise-constant profile — a castle wall — is exact once its slab edges are
 declared: inside each layer the Hamiltonian is constant, and one exponential per
 layer is the whole answer.
 
@@ -554,8 +556,8 @@ work through each.
 Writing an ``H_func`` that takes many positions at once
 -------------------------------------------------------
 
-If you supply your own Hamiltonian, the single largest factor under your control
-is whether it can be evaluated for many positions at once. The engine samples it
+If you supply your own Hamiltonian, writing it so that it can be evaluated for
+many positions at once is, after batching, the largest saving under your control. The engine samples it
 at every quadrature node of every slab — often a few hundred positions for one
 probability, repeated at each refinement level.
 

@@ -83,7 +83,7 @@ A first figure
     )
 
 Note that ``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
-which returns exactly the six mixing parameters.  Splatting
+which returns exactly the six mixing parameters.  Unpacking
 ``gd.OSC_PARAMS_PREDEFINED[...]`` instead would also forward its ``name`` and
 ``description`` strings, which the probability functions reject.
 
@@ -212,9 +212,9 @@ API conventions
 Named arguments, and no catch-all
 """"""""""""""""""""""""""""""""""""
 
-Each function takes **named arguments for the things every figure has** --
-data, labels, limits, scales, tick spacings, title, legend placement, output
-path -- and **explicit pass-through dictionaries for the long tail** of
+Each function takes **named arguments for the things every figure has**
+(data, labels, limits, scales, tick spacings, title, legend placement, output
+path) and **explicit pass-through dictionaries for the long tail** of
 Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 ``subplots_kw``, and, per curve, any
 :class:`~matplotlib.lines.Line2D` keyword.
@@ -252,7 +252,7 @@ call creates its own figure: there is no
 ``nrows`` or ``ncols``, which the layout fixes, nor ``figsize``, which has its own
 ``figsize=`` argument.  ``ax`` is a single
 :class:`~matplotlib.axes.Axes` for the single-panel layouts and an array for
-the multi-panel ones -- with a residual subpanel, ``ax[0]`` is the main panel
+the multi-panel ones — with a residual subpanel, ``ax[0]`` is the main panel
 and ``ax[1]`` the residual:
 
 .. jupyter-execute::

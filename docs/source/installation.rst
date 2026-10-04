@@ -56,7 +56,7 @@ not yet released, clone the repository and install from it:
    pip install -e ".[test]"          # plus what the tests need
 
 The notebooks are in ``notebooks/``; opening them interactively also needs a Jupyter front
-end, such as JupyterLab.  Only contributors typically need the test suite.  Wherever these
+end, such as JupyterLab.  Wherever these
 pages cite a file under ``tests/``, ``docs/`` or ``notebooks/``, it is in such a checkout (or
 on GitHub), not in the installed package.
 
@@ -89,8 +89,8 @@ belong on the path:
 Verifying the installation
 ---------------------------
 
-From a clone, the test suite confirms that everything is configured correctly for your
-system:
+The test suite, which mainly contributors need, confirms from a clone that everything is
+configured correctly for your system:
 
 .. code-block:: bash
 

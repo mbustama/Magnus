@@ -101,7 +101,7 @@ engine that forms it.
 
 The eighth entry in the registry, ``scipy.linalg.expm``, never answers a request; it is
 used as an oracle by
-:func:`magnus.oscprob.cross_check_strategies` wherever it is *exact* -- a constant ``H``,
+:func:`magnus.oscprob.cross_check_strategies` wherever it is *exact* — a constant ``H``,
 or a piecewise-constant one whose edges are declared.
 
 Independence, and why it matters
@@ -111,20 +111,20 @@ The engines are **not** all independent of each other, and a cross-check between
 engines that share their machinery proves little.  :data:`magnus.oscprob.ENGINE_FAMILIES`
 groups them into families:
 
-* ``'magnus-ladder'`` -- the general path, the cumulative scan and the separable scan. All
+* ``'magnus-ladder'`` — the general path, the cumulative scan and the separable scan. All
   three walk slabs with :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative
   scan additionally *sizes* its grid from an ordinary adaptive :func:`magnus.oscprob.osc_prob`
   probe, so it inherits that path's stopping rule as well.
-* ``'interaction-picture'`` -- the two-flavor fast path. Same Magnus core, but the fast
+* ``'interaction-picture'`` — the two-flavor fast path. Same Magnus core, but the fast
   vacuum phase is factored out analytically first, so what it must resolve is a different
   function.
-* ``'adiabatic'`` -- the hybrid strategy. A genuinely different method; its blind spots are
+* ``'adiabatic'`` — the hybrid strategy. A different method, whose blind spots are
   the resonance detector's, not the quadrature's.
-* ``'phase-average'`` -- the phase average. It propagates only across non-adiabatic
+* ``'phase-average'`` — the phase average. It propagates only across non-adiabatic
   windows, with the hybrid's Magnus patch, and carries every stretch between them
   analytically, so it shares no quadrature with the ladder; what it shares with the others
   is the eigendecomposition of the same ``H``.
-* ``'exact'`` -- ``expm`` and the constant-Hamiltonian engine, independent of the rest.
+* ``'exact'`` — ``expm`` and the constant-Hamiltonian engine, independent of the rest.
 
 Two engines in the same family can be wrong in the same way at the same time. Their
 disagreement is informative; their agreement is not.
@@ -155,11 +155,11 @@ engines in a fixed order, falling through on ``NotImplemented``:
        the scan is shorter than
        :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` (than
        :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` below 1e-6),
-       and ``'auto'`` did not hand it to the ladder (below) --
+       and ``'auto'`` did not hand it to the ladder (below) —
        *and it certifies*
      - adiabatic + Magnus patch
      - Transports along the levels instead of resolving every oscillation
-   * - Exponential profile, two flavors, not handed to the ladder --
+   * - Exponential profile, two flavors, not handed to the ladder —
        *and it converges*
      - interaction picture
      - An exact reference solution exists for this one case
@@ -182,7 +182,7 @@ Each row falls through to the next on ``NotImplemented``, so the last row is
 reached whenever nothing above it applies.
 
 
-Three thresholds decide the seams.  Each is a constant whose docstring records the
+Three thresholds decide where one engine hands a request to another.  Each is a constant whose docstring records the
 measurements behind its value:
 
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under

@@ -12,9 +12,9 @@ average reuses the machinery of :doc:`adiabatic_strategy`.
 .. tip::
    **In short.**  ``average=True`` returns the probability averaged over an energy
    spread, 10% by default (``average_spread``).  When every oscillation phase is
-   large -- the Sun, astrophysical sources -- the result does not depend on the
-   spread.  When some phase is not -- a beam experiment at its first oscillation
-   maximum, for instance -- it does, and a ``PhaseAveragingWarning`` says so: set
+   large — the Sun, astrophysical sources — the result does not depend on the
+   spread.  When some phase is not — a beam experiment at its first oscillation
+   maximum, for instance — it does, and a ``PhaseAveragingWarning`` says so: set
    ``average_spread`` to the energy resolution of the measurement.  It is the width of
    a Gaussian in :math:`\ln E`, except on a profile with declared discontinuities,
    where it is the half-width of a top-hat energy window (`When there is no closed form`_).
@@ -38,8 +38,8 @@ the true phase is, the measurement integrates over many complete cycles
 of it.
 
 Computing such a probability by propagation is therefore doubly
-unattractive.  It is expensive -- resolving :math:`10^{16}` radians is
-exactly the regime that defeats slab refinement -- and it is pointless,
+unattractive.  It is expensive — resolving :math:`10^{16}` radians is
+exactly the regime that defeats slab refinement — and it is pointless,
 because every oscillatory term is about to be averaged away by the
 integration the measurement performs anyway.
 
@@ -135,8 +135,8 @@ minus the phase of its pair, its value in vacuum.  Without that, a pseudo-Dirac 
 1e-21 eV² reads a slope of 0.2 rad at 100 TeV over 100 Mpc, against a true 8e-5 rad, and its
 result depends on the spread although the pair is coherent.
 
-A Hamiltonian that does not depend on energy -- a matrix, or a function of position alone,
-passed on the direct route below -- has no slope for a spread to act on.  ``average=True``
+A Hamiltonian that does not depend on energy — a matrix, or a function of position alone,
+passed on the direct route below — has no slope for a spread to act on.  ``average=True``
 then averages the pairs of levels whose phase has grown large and keeps the others
 coherent: at a short baseline, where no phase has grown, it returns the coherent
 probability.  Away from the limit, the three properties above fail:
@@ -172,11 +172,11 @@ equal, nothing oscillates and the correct answer is the identity, but the naive 
 returns a mixture.
 
 Pseudo-Dirac neutrinos are the case the block form was written for.
-Each mass eigenstate that carries a sterile partner splits into two states
-separated by a :math:`\delta m^2` many orders below :math:`\Delta m^2_{21}`,
-so over an astrophysical baseline the standard phases have long since
-averaged away while every pair is still coherent -- one block per pair, and
-the naive sum is wrong by a factor of two.  The phase average needs no blocks for them: a pair
+Each mass eigenstate that carries a sterile partner splits into two states,
+separated by a :math:`\delta m^2` many orders below :math:`\Delta m^2_{21}`.  Over
+an astrophysical baseline, the standard phases have averaged away while every pair
+is still coherent.  Each pair is then one block, and the naive sum is wrong by a
+factor of two.  The phase average needs no blocks for them: a pair
 whose phase barely moves with energy keeps a weight near one.
 :mod:`magnus.hamiltonians.hamiltonians_pseudodirac` builds those
 Hamiltonians, with the pairing selectable per mass state; notebook 29 walks
@@ -237,11 +237,11 @@ The phase average depends on the state the neutrino starts in, which ``average_i
 sets:
 
 * ``'flavor'``, the default: the flavor state :math:`\nu_\alpha`, a coherent superposition of
-  the eigenstates at the start of the path, as for a neutrino produced in the medium -- a beam,
+  the eigenstates at the start of the path, as for a neutrino produced in the medium — a beam,
   an atmospheric neutrino, a neutrino made in the Earth or in the Sun.
 * ``'decohered'``: an incoherent mixture of those eigenstates, with weights
   :math:`|\mathbb{V}_{\alpha i}(l_0)|^2`, as for a neutrino that lost its coherence before reaching the
-  start of the path -- one from a distant source crossing the Sun, as in the paper's solar
+  start of the path — one from a distant source crossing the Sun, as in the paper's solar
   tomography.
 
 The two differ only by the interference between eigenstates present at the start, each term
@@ -295,7 +295,7 @@ window.
 Those windows are located with the Hellmann-Feynman diagnostic of
 :mod:`magnus.adiabatic` (see :doc:`adiabatic_strategy`), and the transfer
 across each one is computed with that module's own convergence-checked
-Magnus patch -- *not* with a Landau-Zener formula.  The result is an
+Magnus patch — *not* with a Landau-Zener formula.  The result is an
 exact treatment of the crossing rather than an asymptotic approximation
 to it.  As a check, the computed hop probability reproduces the analytic
 Landau-Zener value :math:`\exp(-2\pi\epsilon^2/|d\Delta/dl|)` to a few
@@ -386,8 +386,8 @@ through the solar core, from 30 GeV to 3 TeV, the default moves the probability 
 When there is no closed form
 --------------------------------
 
-A profile with discontinuities -- the PREM layer boundaries an
-Earth-crossing trajectory steps through -- has no instantaneous
+A profile with discontinuities — the PREM layer boundaries an
+Earth-crossing trajectory steps through — has no instantaneous
 eigenbasis to decohere in, so neither construction above applies.  There,
 ``average=True`` propagates the probability for real across an energy
 window and averages over it
@@ -395,11 +395,11 @@ window and averages over it
 
 **This returns a different quantity from the other two paths.**  They
 return the phase average, which weights phases and samples no energy;
-this returns the probability averaged over one particular window -- a
-top-hat of 41 energies, from a flavor state at the start -- and the
+this returns the probability averaged over one particular window — a
+top-hat of 41 energies, from a flavor state at the start — and the
 answer depends on its width.  The default width,
-:data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`, is 10% -- the order of
-a real detector's energy resolution -- and every use of it raises
+:data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`, is 10% — the order of
+a real detector's energy resolution — and every use of it raises
 :class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the
 number of samples, and the standard error of the resulting mean, so the
 figure never depends silently on a constant the user did not choose.
@@ -510,13 +510,13 @@ At a terrestrial baseline the phases have not decohered, and the answer depends 
                   for s in (0.05, 0.1, 0.3)]
     np.round(P_mumu, 4)
 
-The keyword is not confined to the wrappers.  On the direct route, a
-Hamiltonian of your own goes through ``osc_prob_energy_baseline`` (or through
-``osc_prob_earth`` and ``osc_prob_sun``, which add the geometry), and
-``average=True`` there takes the same three routes the wrappers take: the closed
-form when the Hamiltonian does not depend on position, adiabatic transport when
-it does and the profile is smooth, and an energy-window average when
-``t_breakpoints`` or ``t_slab_edges`` declare discontinuities.  The Hamiltonian
+The keyword is not confined to the wrappers.  A Hamiltonian of your own goes
+through ``osc_prob_energy_baseline``, or through ``osc_prob_earth`` and
+``osc_prob_sun``, which add the geometry.  There, ``average=True`` takes the same
+three routes as on the wrappers.  It uses the closed form when the Hamiltonian does
+not depend on position, and adiabatic transport when it does and the profile is
+smooth.  It averages over an energy window when ``t_breakpoints`` or
+``t_slab_edges`` declare discontinuities.  The Hamiltonian
 is passed as ``H(E, l)``, or as ``H(E)`` with
 ``H_func_is_function_only_of_energy=True``, or as a matrix.  A matrix, or a
 function of position alone, does not depend on energy, so no spread acts on it;
@@ -570,7 +570,7 @@ computing::
 ``cycles_per_step`` is the number to read.  Above about 0.5 the scan
 takes less than two samples per oscillation, so the returned array
 **cannot represent the oscillation** and must not be plotted or
-interpolated as a curve -- the individual values are right, the curve
+interpolated as a curve — the individual values are right, the curve
 through them is an artifact.  ``nyquist_points`` says how many baselines
 would be needed to sample it properly.
 
@@ -655,8 +655,8 @@ Limitations and scope
   resolution**.  It is not a model of quantum decoherence: there is no
   dissipative term here.  See the "When is Magνs not the right tool?"
   section of :doc:`index`.
-* A spread in geometry -- the size of the production region, the range of
-  impact parameters a pixel covers -- is not modeled.  A phase that does not
+* A spread in geometry — the size of the production region, the range of
+  impact parameters a pixel covers — is not modeled.  A phase that does not
   depend on energy, as the matter phases on a solar chord at TeV energies
   do, is kept whatever its size, and a figure has to average over its own
   geometry.
@@ -664,8 +664,8 @@ Limitations and scope
   described above.
 * Both eigenbases, at production and at detection, come from the one
   Hamiltonian given.  The limit of `Position-dependent Hamiltonians`_ also
-  describes mixing that differs between the two ends for other reasons -- a
-  non-unitary mixing matrix, or parameters that run with energy -- with
+  describes mixing that differs between the two ends for other reasons — a
+  non-unitary mixing matrix, or parameters that run with energy — with
   :math:`P^{\rm cross}` the identity and the two matrices supplied directly,
   but Magνs does not yet take them that way.
 

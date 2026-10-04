@@ -47,8 +47,7 @@ the quadrature accuracy.  In floating point, it is unitary to round-off: one exp
 of a stack of 4096 reaches :math:`4\times10^{-15}`), and a whole probability, built from
 many such factors, by :math:`3\times10^{-12}` to :math:`1.6\times10^{-11}` at worst across
 four decades in the number of points, at two to five flavors.  This is the central practical advantage over direct
-ODE integration, whose iterates only approximately preserve unitarity (see
-:ref:`accumulated-phase`).
+ODE integration, whose iterates only approximately preserve unitarity.
 
 The series converges absolutely whenever
 :math:`\int_{l_0}^{l_1} \lVert A(l)\rVert_2\, dl < \pi` over the interval
@@ -90,7 +89,7 @@ accurate method when the Hamiltonian is smooth within a slab, which slab
 edges at the layer boundaries (below) ensure even across the Earth.
 
 Orders 4, 6 and 8 need 1, 3 and 6 commutators, the fewest possible at each order
-:cite:p:`Blanes2002`; the paper's Table 4 lists the coefficients of the order-6 and
+:cite:p:`Blanes2002`; the Magνs paper lists the coefficients of the order-6 and
 order-8 schemes.  No collocation scheme of this form is known at order 10 or above.
 
 Because ``'gl'`` uses a fixed 1, 2, 3, or 4 nodes per slab, ``n_tpts_per_slab``
@@ -201,8 +200,8 @@ Since :math:`\Omega` is anti-Hermitian, Magνs computes
 This is faster than a general (Padé-based) matrix exponential for stacks of
 small matrices, and unitary to round-off (:math:`\mathbb{U}^\dagger \mathbb{U} - \mathbb{1}` of order
 1e-15; see :doc:`performance`).  By default (``EXPM_BACKEND = 'auto'``) the
-spectrum comes from compiled kernels -- Cayley-Hamilton for 2×2 and 3×3,
-batched Jacobi for 4×4 and 5×5 -- and from ``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
+spectrum comes from compiled kernels — Cayley-Hamilton for 2×2 and 3×3,
+batched Jacobi for 4×4 and 5×5 — and from ``numpy.linalg.eigh`` otherwise.  A general (non-anti-Hermitian) fallback based on
 ``scipy.linalg.expm`` remains available for exotic, non-physical uses of
 the underlying :func:`magnus.magnus.magnus_expansion` engine.
 
@@ -242,12 +241,11 @@ times slower than one given the right slab count.  ``convergence_info`` reports 
 and passing it as ``n_slabs`` with ``rtol=atol=None`` reuses it.  Four devices keep the ladder
 short:
 
-* **A starting slab count from the accumulated phase.**  Rather than always starting
-  from one slab, the refinement is seeded from an estimate of the
-  accumulated (traceless) phase :math:`\lVert\Omega_1\rVert_2` over the
-  whole trajectory, aiming for roughly :math:`2\pi` radians of phase per
-  slab — enough for the Gauss-Legendre method to already be close to
-  converged at the first attempt.
+* **A starting slab count from the accumulated phase.**  Rather than starting
+  from one slab, the refinement starts from an estimate of the accumulated
+  (traceless) phase :math:`\lVert\Omega_1\rVert_2` over the whole trajectory.
+  It aims for roughly :math:`2\pi` radians of phase per slab, enough for the
+  Gauss-Legendre method to be close to converged at the first level.
 * **Warm starts across scan points.**  When computing many points (an
   energy scan, an oscillogram), each point's refinement is seeded from the
   previous point's converged slab count and point count, rather than from
@@ -272,8 +270,8 @@ short:
 
    The phase estimate that seeds the ladder is an *integral* of the
    Hamiltonian along the trajectory, and an integral is blind to structure
-   that averages out.  A profile that oscillates rapidly about its mean --
-   a castle wall, a periodically layered medium -- can accumulate very
+   that averages out.  A profile that oscillates rapidly about its mean —
+   a castle wall, a periodically layered medium — can accumulate very
    little net phase while still demanding many slabs to resolve, and will
    then be seeded with far too few.  The successive-iterate test is no
    protection here: refinements that all fail to see the profile can agree
@@ -353,9 +351,9 @@ there for accuracy studies rather than production runs.
    The defaults rest on two measurements, both against a tight-tolerance
    reference computed at order 6 with the slab cap raised:
 
-   #. **Cheapest configuration sweep.**  For each of seven cases -- Earth
+   #. **Cheapest configuration sweep.**  For each of seven cases — Earth
       PREM 3ν at 0.5, 1 and 10 GeV; Earth PREM 5ν; an exponential density
-      profile; the Sun at 100 MeV; and Earth 3ν with NSI -- and each of the
+      profile; the Sun at 100 MeV; and Earth 3ν with NSI — and each of the
       targets :math:`10^{-4}`, :math:`10^{-6}`, :math:`10^{-8}`, the smallest
       slab count reaching that accuracy was found by explicit sweep at orders
       2, 4 and 6, with the adaptive loop switched off.  Counted in
@@ -365,7 +363,7 @@ there for accuracy studies rather than production runs.
       proxy: the fixed per-slab overhead (array setup, the eigendecomposition
       for the matrix exponential, the slab product) outweighs the node count,
       so fewer slabs matters more than fewer evaluations.  Re-timing the same
-      optima is what produced the ranges above, and it moved the crossover --
+      optima is what produced the ranges above, and it moved the crossover —
       order 2 wins on evaluations at :math:`10^{-4}` but loses on wall time.
 
    The starting slab count does not depend on the order: the final count is set by the
@@ -404,12 +402,11 @@ although the first runs faster if the Hamiltonian is written for arrays:
   have the separable form :math:`\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_\mathrm{CC}(l)\, M`,
   with :math:`\mathbb{H}_E` collecting the energy-dependent (vacuum and LIV) terms
   and :math:`M` a fixed matrix.  When many energies share a single
-  baseline, Magνs detects this and runs the *entire* scan as one batched
-  pipeline: the potential is sampled once per refinement level and shared
-  across all energies, and the quadrature, commutator algebra, matrix
-  exponentials, and slab products all carry the energy axis as an
-  additional batch dimension, with per-energy convergence masking so that
-  energies that have already converged stop being recomputed.
+  baseline, Magνs runs the *entire* scan as one batched computation.  The
+  potential is sampled once per refinement level and shared across all
+  energies.  The quadrature, commutators, matrix exponentials and slab
+  products carry the energy as an extra array dimension, and energies that
+  have converged are not recomputed.
 
 .. _validation:
 
@@ -446,14 +443,14 @@ the methodology above directly:
 
 In practice the default setting (``rtol = atol = 1e-3``, a stopping rule rather than a
 bound) is usually far more accurate than it promises; in the rare cases where it is not, the
-error stays within about three times the tolerance.  Over eight Earth chords from grazing to
-core-crossing at six energies between 0.5 and 20 GeV, the same call at :math:`10^{-7}`
-differs from it by about :math:`10^{-6}` in the median, by less than :math:`10^{-4}` in nine
-cases in ten, and by roughly :math:`10^{-3}` at most, on the core-crossing chord at
-0.5 GeV.  :doc:`diagnostics` gives the distribution over much larger populations, scored
+error stays within about three times the tolerance.  This was measured over eight Earth
+chords, from grazing to core-crossing, at six energies between 0.5 and 20 GeV, against the
+same call at :math:`10^{-7}`.  The difference is about :math:`10^{-6}` in the median, below
+:math:`10^{-4}` in nine cases in ten, and about :math:`10^{-3}` at most, on the core-crossing
+chord at 0.5 GeV.  :doc:`diagnostics` gives the distribution over much larger populations, scored
 against an independent reference.
 
 See :doc:`references` for full citations of the works referred to above.
 
-The conventions -- flavor order, signs, the mass ordering, the parameters and the
-units -- are on their own page, :doc:`conventions`.
+The conventions — flavor order, signs, the mass ordering, the parameters and the
+units — are on their own page, :doc:`conventions`.

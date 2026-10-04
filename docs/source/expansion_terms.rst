@@ -7,7 +7,7 @@ from the recursion; it stops at order 10.  :mod:`magnus.expansionterms`
 derives the same terms symbolically, in exact rational arithmetic, at any order.
 
 That serves two purposes.  It lets the hard-coded coefficients be *checked*
-rather than trusted -- the test suite regenerates them and compares -- and it lets
+rather than trusted — the test suite regenerates them and compares — and it lets
 you inspect an order beyond the implemented ceiling without running anything.
 
 .. contents::
@@ -130,8 +130,8 @@ order and can be compared without a tolerance:
 Checking the implementation against the derivation
 -----------------------------------------------------
 
-The reason this module is worth having is that it shares no code with the numerical
-core, so the two agreeing is evidence rather than a tautology.  The hard-coded
+This module shares no code with the numerical core, so agreement between the two is
+an independent check.  The hard-coded
 group factors:
 
 .. jupyter-execute::
@@ -193,7 +193,7 @@ are unaffected: order 8 there costs four Hamiltonian evaluations and six commuta
 
 Second, and more fundamentally, the Magnus series converges only while
 :math:`\int \lVert A \rVert\, dl < \pi`.  Beyond that radius **no** order helps, and
-the answer is narrower slabs -- see :doc:`methodology` and
+the answer is narrower slabs — see :doc:`methodology` and
 ``magnus.magnus.MagnusConvergenceWarning``.
 
 .. note::
@@ -209,11 +209,11 @@ API
 
 See :mod:`magnus.expansionterms` in the API reference for the full signatures.
 
-* :func:`magnus.expansionterms.bernoulli` -- :math:`B_n` as an exact Fraction
-* :func:`magnus.expansionterms.bernoulli_factor` -- the group coefficient
+* :func:`magnus.expansionterms.bernoulli` — :math:`B_n` as an exact Fraction
+* :func:`magnus.expansionterms.bernoulli_factor` — the group coefficient
   :math:`B_j/j!`
-* :func:`magnus.expansionterms.omega_terms` -- the terms of :math:`\Omega_n`
-* :func:`magnus.expansionterms.magnus_terms` -- every order up to the one requested
-* :func:`magnus.expansionterms.count_terms` -- how many terms an order has
-* :func:`magnus.expansionterms.format_term` -- one term as a string
-* :func:`magnus.expansionterms.print_magnus_terms` -- the expansion, printed
+* :func:`magnus.expansionterms.omega_terms` — the terms of :math:`\Omega_n`
+* :func:`magnus.expansionterms.magnus_terms` — every order up to the one requested
+* :func:`magnus.expansionterms.count_terms` — how many terms an order has
+* :func:`magnus.expansionterms.format_term` — one term as a string
+* :func:`magnus.expansionterms.print_magnus_terms` — the expansion, printed

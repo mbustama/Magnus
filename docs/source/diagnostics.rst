@@ -43,11 +43,12 @@ and by 3e-12 on a solar chain of about 34 000, within the :math:`N\varepsilon = 
 references.  It is already far better than a typical oscillation analysis needs: an analysis
 evaluates probabilities on a grid, interpolates, and folds them with a flux, a cross section
 and a detector response, and the error of that grid is orders of magnitude larger than anything
-the oscillation code contributes.  Higher accuracy still earns its place: it makes Magνs a
-reference against which another code, or a coarser setting of Magνs, can be checked; where no
-closed form exists it is often the only reference; it matters for quantities computed once
-rather than averaged over bins; and it separates the error of a method from the error of a
-model.
+the oscillation code contributes.  Higher accuracy is still useful:
+
+* it makes Magνs a reference against which another code, or a coarser setting of Magνs, can
+  be checked, and often the only reference where no closed form exists;
+* it matters for quantities computed once rather than averaged over bins;
+* it separates the error of a method from the error of a model.
 
 *The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
@@ -138,7 +139,7 @@ NuOscProbExact does.  For a refinement ratio :math:`r` and order :math:`p`, that
 :math:`\text{gap}/(r^p - 1)`, and the required :math:`p` is not reliably known.  Fitting the observed order on
 the Earth chord against a 4096-slab reference gives :math:`p` = 3.84, 5.62 and 4.06 at 1, 2
 and 10 GeV for ``magnus_exp_order=4`` (nominal 4), but **1.15, 2.66 and 1.59** for
-``magnus_exp_order=2`` (nominal 2) -- scattered by more than a factor of two, with one
+``magnus_exp_order=2`` (nominal 2) — scattered by more than a factor of two, with one
 sequence not even monotone.  On solar configurations under ``strategy='magnus'``, the
 error does not decrease monotonically at the slab counts the ladder visits, so no power law
 holds.  Taking :math:`p` as the requested Magnus order would divide the gap by too large a
@@ -149,8 +150,8 @@ true one.
 **The oracle discipline.** ``solve_ivp``/DOP853 at ``rtol=1e-12, atol=1e-14`` is the only
 accuracy oracle, and its convergence is verified per configuration by tightening to
 ``rtol=1e-13`` and confirming the movement is far below the error being quoted. Where the
-profile makes ``scipy.linalg.expm`` exact -- a constant or declared-piecewise-constant ``H``
--- ``expm`` is used instead, because it is exact there.  **No Magnus path is ever scored
+profile makes ``scipy.linalg.expm`` exact — a constant or declared-piecewise-constant ``H``
+— ``expm`` is used instead, because it is exact there.  **No Magnus path is ever scored
 against another**: agreement between two paths is reported as agreement, never as accuracy.
 
 .. _measured-distributions:
@@ -200,7 +201,7 @@ point, the deviation of the probabilities from unitarity grows only from about 3
 across four decades of N, at d = 2…5.
 
 ``tests/test_fuzz_statistics.py`` runs a CI-sized version of the fuzzing above and asserts on
-the **distribution** -- silent-miss rate, median, worst case -- rather than on individual
+the **distribution** — silent-miss rate, median, worst case — rather than on individual
 cases, because a per-case assertion on random input is brittle and an aggregate one still
 catches a regression that moves the distribution.
 
@@ -215,7 +216,7 @@ Each safeguard below is stated with its limit.
 **The probe-scale resolution test** (``magnus.adiabatic._profile_is_resolved``). Decides
 whether ``H`` is continuous at the scale this package samples it on, by comparing how much of
 the variation inside a probe interval falls in one half. *What it cannot do:* a jump smaller
-than **1.33×** the local smooth variation is genuinely indistinguishable from steep smooth
+than **1.33×** the local smooth variation is indistinguishable from steep smooth
 behavior at that sampling density; see :data:`magnus.adiabatic.RESOLUTION_RATIO` for the
 derivation of that factor from the threshold.
 
@@ -243,7 +244,7 @@ requested tolerance. *What it cannot do:* see engines that are
 engine asks itself: how coarsely does this request sample the oscillation it is computing?  A
 solar trajectory is a few thousand oscillations long and a supernova ray tens of thousands, so a
 scan of any ordinary size returns correct values that must not be read as a curve.  Surfaced as
-``strategy_info['sampling']`` and **never warned about** -- the Nyquist criterion would fire on
+``strategy_info['sampling']`` and **never warned about** — the Nyquist criterion would fire on
 44 of 45 realistic scan sizes, and a warning at that rate is noise.  Computed only when
 ``strategy_info`` was supplied, so the default path pays nothing.  See
 :doc:`averaged_probability` for what to do when it says ``aliased``.
@@ -252,18 +253,19 @@ scan of any ordinary size returns correct values that must not be read as a curv
 *profile* rather than at the answers, which is what lets it reach the one class no cross-check
 can: within each interval of the refinement-ceiling grid, it compares the total variation a
 denser grid sees inside that interval with the change its endpoints show, and reports the
-largest excess as a fraction of the total. **Concentration, not size** -- an aliased sinusoid
+largest excess as a fraction of the total. **Concentration, not size** — an aliased sinusoid
 hides variation in every interval, a narrow bump hides all of it in one. Measured at **0 false
 positives over 67 smooth and resolvable profiles**, detecting 68-90 % of features in the
 unresolvable band, for 0.37 ms once per call. *What it cannot do:* detection falls to ~0.73 for
-features far below the dense sampling, and it **reports rather than cures** -- it names the
-position and the exact ``t_breakpoints`` to pass, verified end to end -- warn, pass the
+features far below the dense sampling, and it **reports rather than cures** — it names the
+position and the exact ``t_breakpoints`` to pass, verified end to end — warn, pass the
 printed edges back, re-run: 3.0e-02 to 1.0e-04 on the width-3e-5 calibration case.
 
-**The scan is sized to the request.** It runs once per call whatever the point count, so its
-share of the work falls as the request grows: 8 sub-steps (0.37 ms) for up to three points, 16
-for four to fifteen, and 32 (2.85 ms) for sixteen or more, holding it under about 7 % of the call at every size.
-A single point keeps the cheapest scan by design -- the extra reach that finer sampling buys is
+**The scan is sized to the request.**  It runs once per call, whatever the number of points,
+so its share of the work falls as the request grows.  It uses 8 sub-steps (0.37 ms) for up to
+three points, 16 for four to fifteen, and 32 (2.85 ms) for sixteen or more, which keeps it
+under about 7% of the call at every size.
+A single point keeps the cheapest scan by design — the extra reach that finer sampling buys is
 at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
 physically plausible in a density profile.
 
@@ -273,24 +275,24 @@ physically plausible in a density profile.
 resonance of width :math:`10^{-5}` of the trajectory is not sampled by the probe grid
 (spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
 (:math:`1.6\times10^{-4}`), nor by the cumulative scan's grid. Every engine reports a smooth
-profile, small γ, and a resolved Hamiltonian -- correctly, given what any of them can see --
+profile, small γ, and a resolved Hamiltonian — correctly, given what any of them can see —
 and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Because they are
 wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
 wrong engine exactly when some other engine got it right.
 
-The remedy is to supply ``t_breakpoints`` at the feature, and it is verified: with
-edges placed by hand at the feature's own width the same case goes to 8.8e-04 at a single
-point and 8.9e-04 over a 60-point scan, and with the set the warning itself prints (it
-localizes the feature by re-sampling the flagged interval) to 1.0e-04. This is a property
+The remedy is to supply ``t_breakpoints`` at the feature, and it was verified.  With edges
+placed by hand at the feature's own width, the same case improves to 8.8e-04 at a single point
+and 8.9e-04 over a 60-point scan.  With the edges that the warning prints, which it finds by
+re-sampling the flagged interval, it improves to 1.0e-04. This is a property
 of any fixed grid, not of any particular test.  The condition is usually **detected and
-reported** rather than silent -- see the feature scan above.
+reported** rather than silent — see the feature scan above.
 
 **The second irreducible limit: broadband roughness.** The sub-probe scan is a
 *concentration* statistic, and that is exactly what makes it blind to structure spread over
-every scale rather than piled into one place. Measured on Kolmogorov density fluctuations built
-the way the supernova literature builds them -- a :math:`k^{-5/3}` spectrum with a 40-50 dB
-dynamic range, so there is power below every grid this package lays down -- the finest reachable
-grid sees only a third of the profile's total variation, and **neither structural test notices**:
+every scale rather than piled into one place.  It was measured on Kolmogorov density
+fluctuations built as in the supernova literature: a :math:`k^{-5/3}` spectrum with a 40-50 dB
+dynamic range, which puts power below every grid this package uses.  The finest reachable grid
+sees only a third of the profile's total variation, and **neither structural test notices**:
 :func:`magnus.adiabatic.find_hidden_features` returns a concentration of 0.002 against its 0.30
 threshold, and ``_profile_is_resolved`` declares the profile resolved on 144 of 144
 configurations. A power law spreads its sub-grid variation evenly over all 6400 reference
@@ -305,7 +307,7 @@ diagnostics: rely on the convergence checks, or supply ``t_breakpoints``.
 
 **A cross-check cannot close the rest.** Checking ``strategy='auto'``'s window-free results
 against the general Magnus ladder was measured and catches nothing: **what is left in that band
-is not engines disagreeing -- it is engines being wrong together**, which a cross-check cannot
+is not engines disagreeing — it is engines being wrong together**, which a cross-check cannot
 see.
 
 
@@ -338,8 +340,8 @@ A wrong type raises ``InputTypeError`` (from ``magnus._validate``), which is bot
 :class:`TypeError` and a :class:`ValueError`; a wrong value raises :class:`ValueError`.  The
 message names the function you called and the argument you passed.
 
-The functions that run at every quadrature node -- the density profiles, the ``*_td``
-builders, ``hamiltonian_Nnu_matter`` -- are not checked, since a check there would be paid
+The functions that run at every quadrature node — the density profiles, the ``*_td``
+builders, ``hamiltonian_Nnu_matter`` — are not checked, since a check there would be paid
 millions of times.  Their parameters are checked where they are set, by the wrappers and the
 factories.  ``validate_input=False`` skips the scenario-level checks.
 
@@ -362,20 +364,20 @@ much*, where the code knows), what to change, and when it is safe to ignore.
      - What to change
    * - :class:`magnus.magnus.ScalarHamiltonianWarning`
      - ``H_func`` accepts only one position at a time.
-     - No -- output is bit-identical.
+     - No — output is bit-identical.
      - Make ``H_func`` array-capable (``VCC[..., None, None]*e00``): about 5× faster on a
        call with hundreds of slabs, less on a short one (:ref:`write-h-func-vectorized`).
    * - :class:`magnus.matter.DensityUnitWarning` (over-declared)
      - A density declared in g cm⁻³ is denser than a neutron star.
-     - Yes -- catastrophically. The potential is inflated by ~18 orders; the tell is
+     - Yes — catastrophically. The potential is inflated by ~18 orders; the tell is
        :math:`P_{ee} = 1`.
      - The density is already in natural units: leave
        ``density_matter_is_in_g_per_cm3`` at False.
    * - :class:`magnus.matter.DensityUnitWarning` (under-declared)
-     - A density left in natural units is far too small to be one -- anything physical is
+     - A density left in natural units is far too small to be one — anything physical is
        4.3e18 or more, since that is what one g cm⁻³ becomes.
      - Yes, and this is the dangerous direction. The potential comes out ~19 orders too
-       small, i.e. zero, so the call returns **exactly the vacuum probability** -- which
+       small, i.e. zero, so the call returns **exactly the vacuum probability** — which
        looks like an ordinary answer rather than a missing one, and there is no tell in
        the numbers at all.
      - Pass ``density_matter_is_in_g_per_cm3=True``, or convert yourself (multiply by
@@ -394,7 +396,7 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        probability for it.
      - Multiply by ``gd.UNIT_MEV`` or ``gd.UNIT_GEV``.
    * - :class:`magnus.globaldefs.MixingAngleConventionWarning`
-     - ``angles='deg'`` was declared, but the values are the size of sines -- every
+     - ``angles='deg'`` was declared, but the values are the size of sines — every
        measured angle read as degrees would be about fifty times too small.
      - Yes. A converged, unitary and entirely wrong probability rather than an error.
      - Drop ``angles='deg'``; its default ``'sin'`` is what
@@ -410,13 +412,13 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        to 1.0 and never raise this warning.
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - The Hamiltonian is discontinuous at the grid scale and no ``t_breakpoints`` were
-       given -- on a cumulative scan, on the hybrid strategy, or with ``average=True``
+       given — on a cumulative scan, on the hybrid strategy, or with ``average=True``
        where the jump could move probability between levels.  Also raised by
        :func:`magnus.magnus.magnus_expansion_multislab` when a declared breakpoint lies
        strictly inside one of the slabs it was given.  On the per-point path of
        :func:`~magnus.oscprob.osc_prob_energy_baseline`, which every wrapper reaches for a
        single point, the jumps are also located and declared, and the message names them.
-     - Yes, and refinement cannot help -- a straddling slab only gets narrower, and the
+     - Yes, and refinement cannot help — a straddling slab only gets narrower, and the
        averaged route treats the jump as smooth.  On the per-point path, no: the answer was
        computed with the jumps declared (a castle wall: 4.1e-2 → 4.5e-13).
      - ``t_breakpoints`` at the jumps; on the per-point path, those the message prints, to
@@ -443,7 +445,7 @@ much*, where the code knows), what to change, and when it is safe to ignore.
      - Drop the setting, or pass ``integration_method='trapezoid'`` or ``'simpson'`` to use it.
    * - :class:`magnus.magnus.MagnusHighOrderCostWarning`
      - ``magnus_exp_order`` above 6 on ``'trapezoid'``/``'simpson'``.
-     - No -- it is a cost trade, not an error.
+     - No — it is a cost trade, not an error.
      - Usually narrower slabs at order 4 or 6 instead.
    * - :class:`magnus.oscprob.ToleranceNotAchievedWarning`
      - A refinement cap was reached with the last two levels still disagreeing; or, in the
@@ -463,8 +465,8 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        structure; or a looser tolerance.
    * - :class:`magnus.oscprob.HiddenFeatureWarning`
      - The profile has structure too narrow for **any** grid here to sample.
-     - Possibly wrong, and no strategy or tolerance helps -- every engine misses it together.
-     - ``t_breakpoints`` at the position named in the message. A partial cure.
+     - Possibly wrong, and no strategy or tolerance helps — every engine misses it together.
+     - ``t_breakpoints`` at the position named in the message. This does not always remove the error.
    * - :class:`magnus.magnus.MagnusConvergenceWarning`
      - :math:`\lVert\Omega\rVert_2 \geq \pi` on some slab.
      - **Unknown.** This reports a slab width, not an error.
@@ -475,7 +477,7 @@ much*, where the code knows), what to change, and when it is safe to ignore.
    * - :class:`magnus.oscprob.CrossCheckInconclusiveWarning`
      - :func:`~magnus.oscprob.cross_check_strategies` compared nothing, so its spread is
        0.0 for want of a second opinion rather than because two engines agreed.
-     - No -- but the *diagnostic* is empty, which reads like a clean bill of health.
+     - No — but the *diagnostic* is empty, which reads like a clean bill of health.
      - Pass an entry point that takes ``strategy`` (``osc_prob`` itself does not), and
        check ``out['ran']`` before reading any spread.
    * - :class:`magnus.oscprob.SolarModelRangeWarning`
@@ -487,9 +489,9 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        (B16, B23); see :doc:`solar_models`.
 
 **Measured false-positive rates** (``docs/dev/adversarial_batteries/warn_fp.py``, the 160 of its
-168 configurations that are valid input -- the other 8 are refused -- across the profile
-families this package serves, d = 2-3, scored against ``solve_ivp`` or -- for
-piecewise-constant profiles, where it is exact -- ``expm``):
+168 configurations that are valid input — the other 8 are refused — across the profile
+families this package serves, d = 2-3, scored against ``solve_ivp`` or — for
+piecewise-constant profiles, where it is exact — ``expm``):
 
 .. list-table::
    :header-rows: 1

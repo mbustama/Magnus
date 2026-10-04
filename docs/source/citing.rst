@@ -32,7 +32,7 @@ the version you used — results can depend on it, and Magνs records its own:
      year    = {2026}
    }
 
-Replace ``version`` with the one you actually ran.
+Replace ``version`` with the one you used.
 
 What to say in the text
 ------------------------
@@ -51,7 +51,7 @@ that is three things:
    configurations, so it is worth stating which one produced the numbers.
 
 If accuracy is central to your result, pass ``convergence_info={}`` to the call
-and read the dict afterwards: it reports what the refinement ladder actually did,
+and read the dict afterwards: it reports what the refinement ladder did,
 including whether it converged or hit a cap.
 
 Citing the method
