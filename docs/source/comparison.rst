@@ -5,12 +5,12 @@ Against other codes
    :local:
    :depth: 2
 
-Magνs is not the fastest way to compute every oscillation probability, and this page
-says where it is not.  It follows the cross-code comparison of the Magνs paper, whose
-source is in `resources/paper/ <https://github.com/mbustama/Magnus/tree/main/resources/paper>`_:
-eight codes on three setups, Magνs against NuOscProbExact at two to five flavors, and the cost
-of an averaged solar probability, all computed in notebook 28.  It ends with advice on which
-code to use for which problem.  Every code is timed in one process on one machine.
+Magνs is not the fastest way to compute every oscillation probability, and this page says where
+it is not.  It follows the cross-code comparison of the Magνs paper, whose source is in
+`resources/paper/ <https://github.com/mbustama/Magnus/tree/main/resources/paper>`_: eight codes
+on three setups, Magνs against NuOscProbExact at two to five flavors and the cost of an
+averaged solar probability, all computed in notebook 28.  It ends with advice on which code to
+use for which problem.  Every code is timed in one process on one machine.
 
 .. warning::
 
@@ -59,7 +59,7 @@ Magνs against NuOscProbExact, two to five flavors
 
 .. figure:: ../../img/paper/smooth_reach.svg
    :width: 100%
-   :alt: Accuracy against cost, Magnus against NuOscProbExact
+   :alt: Accuracy against cost, Magνs against NuOscProbExact
 
    Deviation from an extended-precision reference against time per probability, at
    two to five flavors, on a smooth exponential profile (left) and a core-crossing
@@ -85,7 +85,7 @@ The averaged solar probability
 
 Magνs computes the average directly, from one eigendecomposition at production and
 one at detection, and is four or more orders of magnitude faster than integrating
-the :math:`10^5` oscillations and averaging them away.  The call is
+the :math:`10^5` oscillations and averaging them away.  The call is:
 
 .. code-block:: python
 

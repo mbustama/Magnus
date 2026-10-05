@@ -28,15 +28,14 @@ itself at different positions, :math:`\mathbb{U}` is *not* simply
 :math:`\exp\!\left[-i\int_{l_0}^{l_1} \mathbb{H}(l)\, dl\right]`.
 
 The Magnus expansion instead writes :math:`\mathbb{U}(l_1, l_0) = \exp[\Omega(l_1)]`
-exactly, where :math:`\Omega = \sum_k \Omega_k` is built order by order from
-nested commutators of :math:`A(l) \equiv -i \mathbb{H}(l)`, by a Bernoulli-number recursion
-:cite:p:`Blanes2009` written out in :ref:`magnus-recursion`.  Magνs implements it
-through :math:`n = 10`; since :math:`B_j = 0` for odd :math:`j \geq 3`, only the
-:math:`j = 1` and even-:math:`j` commutator groups appear.  Orders 1 to 6 are written
-out inline; beyond that the terms are generated from the recursion, since their number
-roughly doubles per order.  :doc:`expansion_terms` derives them symbolically at any
-order, and the test suite checks every term against that derivation (see
-:ref:`validation`).
+exactly, where :math:`\Omega = \sum_k \Omega_k` is built order by order from nested
+commutators of :math:`A(l) \equiv -i \mathbb{H}(l)`, by a Bernoulli-number recursion
+:cite:p:`Blanes2009` written out in :ref:`magnus-recursion`.  Magνs implements it through
+:math:`n = 10`; since :math:`B_j = 0` for odd :math:`j \geq 3`, only the :math:`j = 1` and
+even-:math:`j` commutator groups appear.  Orders 1 to 6 are written out inline; beyond that,
+the terms are generated from the recursion, since their number roughly doubles per
+order.  :doc:`expansion_terms` derives them symbolically at any order, and the test suite
+checks every term against that derivation (see :ref:`validation`).
 
 **A truncated series still gives a unitary evolution operator.**  Whatever order the sum stops
 at, :math:`\Omega` remains anti-Hermitian, since each :math:`\Omega_k` is a real combination of
@@ -55,7 +54,7 @@ The series converges absolutely whenever
 :math:`\int_{l_0}^{l_1} \lVert A(l)\rVert_2\, dl < \pi` over the interval
 in question.  Magνs partitions the trajectory into a chain of slabs and
 evaluates the expansion independently in each one; a large accumulated
-phase (a long baseline, a strong potential, or both) is handled by adding
+phase (a long baseline, a strong potential or both) is handled by adding
 more, narrower slabs rather than by raising the expansion order.  Magνs
 checks :math:`\lVert\Omega\rVert_2` on every slab, from the spectrum
 already computed for the matrix exponential (see below), and emits
@@ -110,16 +109,15 @@ Their energy-batched scan uses it only when it is at least
 smaller starting count could add a refinement level, and a larger one never did.
 
 **Cumulative quadrature (**\ ``'trapezoid'``\ **,** ``'simpson'``\ **).** Sample :math:`A` on a
-uniform grid of ``n_tpts_per_slab`` points and integrate with cumulative trapezoid or
-Simpson's rule.  These methods are slower for the same accuracy on a smooth profile, but they
-are fully general and accept ``magnus_exp_order`` up to 10.  A kink or a discontinuity belongs
-on a slab edge, declared with ``t_breakpoints``: there each slab takes its endpoint sample
-immediately inside itself, so both sides of a jump are integrated with their own values and the
-rule keeps its order.  A discontinuity left *inside* a slab degrades every method.  The
-quadrature error (:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate
-the Magnus truncation error at high orders unless ``n_tpts_per_slab`` grows accordingly.  The
-grid starts at 100 points per slab, and the refinement grows it together with the number of
-slabs.
+uniform grid of ``n_tpts_per_slab`` points and integrate with cumulative trapezoid or Simpson's
+rule.  These methods are slower for the same accuracy on a smooth profile, but they are fully
+general and accept ``magnus_exp_order`` up to 10.  A kink or a discontinuity belongs on a slab
+edge, declared with ``t_breakpoints``: there, each slab takes its endpoint sample immediately
+inside itself, so both sides of a jump are integrated with their own values and the rule keeps
+its order.  A discontinuity left *inside* a slab degrades every method.  The quadrature error
+(:math:`O(h^2)` or :math:`O(h^4)` in the grid spacing :math:`h`) can dominate the Magnus
+truncation error at high orders unless ``n_tpts_per_slab`` grows accordingly.  The grid starts
+at 100 points per slab, and the refinement grows it together with the number of slabs.
 
 **What** ``magnus_exp_order`` **means on each path.**  On ``'gl'``, it is the order the method
 delivers: the error over the trajectory falls as :math:`h^p`, or
@@ -270,10 +268,10 @@ ladder short:
   trajectory crosses a PREM layer boundary (roots of a quadratic whose
   coefficients depend on the zenith angle) and insert them as mandatory
   slab edges at every refinement level.
-* **A floor set by the user.**  Passing ``n_slabs`` together with a
-  tolerance sets a lower bound on the ladder: refinement starts at
+* **A floor set by the user.**  Passing ``n_slabs`` together with a tolerance
+  sets a lower bound on the ladder: refinement starts at
   ``max(min_n_slabs, n_slabs)`` and only ever climbs from there (clipped at
-  ``max_n_slabs``).  With the default ``n_slabs = 1`` the floor is inactive.
+  ``max_n_slabs``).  With the default ``n_slabs = 1``, the floor is inactive.
 
 .. _refinement-blind-spot:
 
@@ -410,15 +408,14 @@ although the first runs faster if the Hamiltonian is written for arrays:
   argument is detected separately and broadcast.  The wrappers already build
   array-capable Hamiltonians.  :ref:`write-h-func-vectorized` shows
   how to write one.
-* **Energy-batched scans.**  The standard, NSI and LIV Hamiltonians all
-  have the separable form :math:`\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_\mathrm{CC}(l)\, M`,
-  with :math:`\mathbb{H}_E` collecting the energy-dependent (vacuum and LIV) terms
-  and :math:`M` a fixed matrix.  When many energies share a single
-  baseline, Magνs runs the *entire* scan as one batched computation.  The
-  potential is sampled once per refinement level and shared across all
-  energies.  The quadrature, commutators, matrix exponentials and slab
-  products carry the energy as an extra array dimension, and energies that
-  have converged are not recomputed.
+* **Energy-batched scans.**  The standard, NSI and LIV Hamiltonians all have the separable
+  form :math:`\mathbb{H}(E, l) = \mathbb{H}_E(E) + V_{\rm CC}(l)\, M`, with
+  :math:`\mathbb{H}_E` collecting the energy-dependent (vacuum and LIV) terms and :math:`M`
+  a fixed matrix.  When many energies share a single baseline, Magνs runs the *entire* scan
+  as one batched computation.  The potential is sampled once per refinement level and shared
+  across all energies.  The quadrature, commutators, matrix exponentials and slab products
+  carry the energy as an extra array dimension, and energies that have converged are not
+  recomputed.
 
 .. _validation:
 
@@ -458,8 +455,9 @@ is usually far more accurate than the tolerance suggests.  In the rare cases whe
 the error stays within about three times the tolerance over the populations that
 :doc:`diagnostics` reports, scored against an independent reference.  Over eight Earth chords,
 from grazing to core-crossing, at six energies between 0.5 and 20 GeV, the difference from the
-same call at :math:`10^{-7}` is about :math:`10^{-6}` in the median, below :math:`10^{-4}` in
-nine cases in ten, and about :math:`10^{-3}` at most, on the core-crossing chord at 0.5 GeV.
+same call at :math:`10^{-7}` is about :math:`10^{-6}` in the median and below :math:`10^{-4}`
+in nine cases in ten.  At most, it is about :math:`10^{-3}`, on the core-crossing chord at 0.5
+GeV.
 
 See :doc:`references` for full citations of the works referred to above.
 

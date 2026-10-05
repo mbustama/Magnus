@@ -36,7 +36,7 @@ parameters.
 
 The return value is the probability matrix, indexed ``P[nu_i][nu_f]``: the *initial*
 flavor first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
-matrix. Full walk-through: `notebook 01`_.
+matrix. The full walk-through is in `notebook 01`_.
 
 .. _notebook 01:
    https://github.com/mbustama/Magnus/blob/main/notebooks/
@@ -218,7 +218,7 @@ antineutrinos.
             return np.asarray(oscprob.osc_prob_3nu_earth(
                 E_dune, loc_ini='fermilab', loc_fin='homestake', nubar=nubar))
 
-    dune(False)                              # the first call pays the set-up
+    dune(False)                              # the first call pays the setup
 
     t0 = time.perf_counter()
     P_nu = dune(False)
@@ -300,7 +300,7 @@ measure where the package's accuracy breaks down in each case.
 
 .. figure:: ../../img/gallery/gallery_shock.png
    :width: 80%
-   :alt: A supernova shock front, truth against Magnus
+   :alt: A supernova shock front, truth against Magνs
 
    A sharp shock front.  It changes the conversion probability itself, not only
    the phase of the oscillation, so averaging over energy does not remove the
@@ -406,7 +406,7 @@ exceeds 1e4 or it needs too many slabs; then it goes to the adiabatic propagator
 Magnus patches.  :ref:`dispatch-order` has the full table.  ``'hybrid'`` forces the
 adiabatic propagator, and ``'magnus'`` keeps to the Magnus engines.  The choice affects
 accuracy as well as speed: on the NSI configurations of notebook 12, ``'magnus'`` is
-faster but less accurate, and raises ``ToleranceNotAchievedWarning``.
+faster but less accurate, and issues ``ToleranceNotAchievedWarning``.
 
 .. jupyter-execute::
 
@@ -483,13 +483,13 @@ no number of slabs repairs a slab that straddles the jump.
         t_breakpoints=[1000.0*gd.UNIT_KM], density_matter_is_in_g_per_cm3=True)
 
 The Earth entry points do this for you.  Do it by hand for a shock front, a
-castle-wall profile, or a tabulated model with a discontinuous derivative.  On a
+castle-wall profile or a tabulated model with a discontinuous derivative.  On a
 *scan*, declaring the jumps fixes the error.  On a single point, Magνs finds and
 declares the jumps itself (:ref:`warning-catalogue`), so passing them only skips that
 search.  The exception is a single phase-averaged point (``average=True``).  There,
 declaring a shock front changes the engine: across 18 shock configurations, it
-improves 7 results and worsens 11, so check such a point a second way.
-`Notebook 14`_ is that measurement.
+improves 7 results and worsens 11, so check such a point a second way. `Notebook 14`_
+is that measurement.
 
 .. _Notebook 14:
    https://github.com/mbustama/Magnus/blob/main/notebooks/

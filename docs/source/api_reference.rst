@@ -15,7 +15,7 @@ This is the exhaustive view. Four other pages are usually the faster way in:
 
 Constants are documented where they live rather than collected into a table of
 their own, because each one's docstring carries the measurement that set it —
-what was swept, on which workloads, and what the alternatives cost.
+what was swept, on which workloads and what the alternatives cost.
 
 .. The module pages are listed individually rather than through
    ``api/magnus/index``: that page is titled after the package, which put a

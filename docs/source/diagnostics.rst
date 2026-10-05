@@ -17,9 +17,9 @@ Accuracy
 
    The survival probability :math:`P_{\nu_e \to \nu_e}` at two to five flavors along an
    exponentially falling profile, computed with Magνs and with a DOP853 integration of the
-   same Hamiltonian (top); below, the largest deviation between the two, the departure of
-   each row from summing to one, and the *oracle floor*, how much DOP853 itself moves when
-   its tolerance is tightened.  Deviations below the floor cannot be resolved by this
+   same Hamiltonian (top).  Below are the largest deviation between the two, the departure
+   of each row from summing to one, and the *oracle floor*, how much DOP853 itself moves
+   when its tolerance is tightened.  Deviations below the floor cannot be resolved by this
    comparison.  From the Magνs paper.
 
 Precision, accuracy and tolerance
@@ -40,10 +40,10 @@ tolerance.  The two matrix-exponential backends agree to about 1e-15 for one exp
 :math:`N\varepsilon = 7.4 \times 10^{-12}` that rounding allows over that many products.
 
 *Accuracy* is how close Magνs comes to the true probability, measured below against external
-references.  It is already far better than a typical oscillation analysis needs: an analysis
-evaluates probabilities on a grid, interpolates, and folds them with a flux, a cross section
-and a detector response, and the error of that grid is orders of magnitude larger than anything
-the oscillation code contributes.  Higher accuracy is still useful:
+references.  It is already far better than a typical oscillation analysis needs.  An analysis
+evaluates probabilities on a grid, interpolates them and folds them with a flux, a cross
+section and a detector response.  The error of that grid is orders of magnitude larger than
+anything the oscillation code contributes.  Higher accuracy is still useful:
 
 * it makes Magνs a reference against which another code, or a coarser setting of Magνs, can
   be checked, and often the only reference where no closed form exists;
@@ -52,7 +52,7 @@ the oscillation code contributes.  Higher accuracy is still useful:
 
 *The tolerance* is a stopping rule, not a guarantee; the next section says what it controls.
 To judge whether an answer can be trusted, check the warnings.  They are standard Python
-warnings, so Python's default filter shows each distinct message once per place it is raised,
+warnings, so Python's default filter shows each distinct message once per place it is issued,
 and ``warnings.simplefilter('always')`` shows every occurrence.
 
 Filtering on :class:`~magnus.oscprob.ToleranceNotAchievedWarning` also catches its subclasses:
@@ -85,19 +85,19 @@ They are a **stopping rule, not an accuracy guarantee**, and the difference is w
 stating because the names invite the other reading.
 
 The refinement ladder computes the probability matrix, grows ``n_slabs`` (and, for the
-quadrature methods, ``n_tpts_per_slab``), recomputes, and stops when two successive levels
+quadrature methods, ``n_tpts_per_slab``), recomputes and stops when two successive levels
 agree within ``atol + rtol*|P|``.  Nothing in that loop estimates the error of the answer
 it returns.  A stepping ODE integrator's ``rtol`` is a different quantity: it bounds an
 *estimated* local error per step, formed by comparing against an embedded lower-order
 formula.  Magνs forms no such estimate; it infers convergence from agreement.
 
-Usually that is conservative.  For a sequence converging as :math:`C n^{-p}` the
-level-to-level gap overstates the error of the finer level, so an answer that stopped at
-``rtol=1e-3`` is typically better than 1e-3.  The measurement covered two PREM chords at 3 GeV
-under ``strategy='magnus'`` (``costhz`` = -0.8 and -1; ``'gl'``, ``'trapezoid'`` and
-``'simpson'``; ``magnus_exp_order`` 2–8; ``rtol = atol`` set to 1e-4 and 1e-8).  Against the
-DOP853 oracle described below, none of the 48 answers was outside the tolerance.  The worst was
-0.85 times it (``'gl'`` at order 2 and 1e-8), and the median 0.014 times it
+Usually that is conservative.  For a sequence converging as :math:`C n^{-p}`, the level-to-level
+gap overstates the error of the finer level, so an answer that stopped at ``rtol=1e-3`` is
+typically better than 1e-3.  The measurement covered two PREM chords at 3 GeV under
+``strategy='magnus'`` (``costhz`` = -0.8 and -1; ``'gl'``, ``'trapezoid'`` and ``'simpson'``;
+``magnus_exp_order`` 2–8; ``rtol = atol`` set to 1e-4 and 1e-8).  Against the DOP853 oracle
+described below, none of the 48 answers was outside the tolerance.  The worst was 0.85 times it
+(``'gl'`` at order 2 and 1e-8), and the median 0.014 times it
 (``docs/dev/measurements/issue161_rtol_gap/``).
 
 **But agreement is evidence, not proof.**  On a sequence that is still oscillating, two
@@ -106,17 +106,17 @@ density, the 3- and 4-slab levels agreed and the returned answer was wrong by **
 probability.  ``strict_convergence`` (off by default) requires two *consecutive* agreements for
 that reason.
 
-**The energy-batched scan** (``strategy='magnus'`` scans, and ``'auto'`` energy scans) meets the
-same coincidence on smooth profiles, where two coarse levels agree while each slab still spans
-several radians of phase.  On ``'gl'``, the default, it refuses such an agreement for any energy
-whose own slabs still span :math:`2\pi` or more
+**The energy-batched scan** (``strategy='magnus'`` scans, and ``'auto'`` energy scans) meets
+the same coincidence on smooth profiles, where two coarse levels agree while each slab still
+spans several radians of phase.  On ``'gl'``, the default, it refuses such an agreement for any
+energy whose own slabs still span :math:`2\pi` or more
 (:data:`magnus.oscprob.BATCHED_GL_MAX_SLAB_NORM`), and over a measurement pool of 477 scans it
-returns no silent miss.  ``'trapezoid'`` and ``'simpson'`` carry
-no such refusal, because the same test flags far more correct answers than wrong ones there.
-On the same pool they return 43 of 2580 energies outside the tolerance without a warning:
-33 on grids with breakpoints, the worst **163 times** outside it (``'simpson'``, a PREM chord
-at two flavors, ``rtol = atol = 1e-3``), and 10 on smooth profiles, the worst 11 times.
-Where that matters, keep ``'gl'``.
+returns no silent miss.  ``'trapezoid'`` and ``'simpson'`` carry no such refusal, because the
+same test flags far more correct answers than wrong ones there. On the same pool, they return
+43 of 2580 energies outside the tolerance without a warning: 33 on grids with breakpoints, the
+worst **163 times** outside it (``'simpson'``, a PREM chord at two flavors,
+``rtol = atol = 1e-3``), and 10 on smooth profiles, the worst 11 times. Where that matters,
+keep ``'gl'``.
 
 **The adiabatic hybrid certifies the same way**, by two successive levels agreeing, together
 with a bound on the non-adiabaticity of the stretch it transports without a window, so
@@ -127,9 +127,9 @@ not certify, and the answer was 1.1e-6 off.  Its non-adiabaticity bound there wa
 
 **A ladder that starts at its cap checks nothing.**  When the slab count a scan needs is
 already at ``max_n_slabs``, one level is computed, there is no second level to compare it
-with, and :class:`~magnus.oscprob.ToleranceNotAchievedWarning` says so.  Across the Sun this
-is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter: over
-0.5–20 MeV the returned level was up to 2.0e-3 off on the default exponential profile, where
+with, and :class:`~magnus.oscprob.ToleranceNotAchievedWarning` says so.  Across the Sun, this
+is every energy up to about 20 MeV once ``rtol = atol`` is 1e-4 or tighter: over 0.5–20 MeV,
+the returned level was up to 2.0e-3 off on the default exponential profile, where
 ``strategy='hybrid'`` was within 6.3e-5, and 1e-6–8e-6 off on ``B16-GS98``.  A solar energy
 scan can verify only a tolerance looser than about 1e-4; at 1e-4 or tighter, compare with
 ``strategy='hybrid'``, or raise ``max_n_slabs`` (about 2e6 slabs verify 1e-8 at 1 MeV).
@@ -242,12 +242,12 @@ requested tolerance. *What it cannot do:* see engines that are
 :ref:`wrong together <wrong-together>`.
 
 **The sampling report** (:func:`magnus.adiabatic.oscillation_sampling`). It answers a question
-no engine asks itself: how coarsely does this request sample the oscillation it is computing?  A
-solar trajectory is a few thousand oscillations long and a supernova ray tens of thousands, so a
-scan of any ordinary size returns correct values that must not be read as a curve.  The report
-appears as ``strategy_info['sampling']`` and **never raises a warning**: the Nyquist criterion
-would fire on 44 of 45 realistic scan sizes, and a warning at that rate is noise.  It is computed
-only when ``strategy_info`` was supplied, so the default path pays nothing.  See
+no engine asks itself: how coarsely does this request sample the oscillation it is computing?
+A solar trajectory is a few thousand oscillations long and a supernova ray tens of thousands,
+so a scan of any ordinary size returns correct values that must not be read as a curve.  The
+report appears as ``strategy_info['sampling']`` and **never issues a warning**: the Nyquist
+criterion would fire on 44 of 45 realistic scan sizes, and a warning at that rate is noise.  It
+is computed only when ``strategy_info`` was supplied, so the default path pays nothing.  See
 :doc:`averaged_probability` for what to do when it says ``aliased``.
 
 **The sub-probe feature scan** (:func:`magnus.adiabatic.find_hidden_features`). It looks at the
@@ -264,23 +264,22 @@ the printed edges back and re-running reduced the error from 3.0e-02 to 1.0e-04.
 
 **The scan is sized to the request.**  It runs once per call, whatever the number of points,
 so its share of the work falls as the request grows.  It uses 8 sub-steps (0.37 ms) for up to
-three points, 16 for four to fifteen, and 32 (2.85 ms) for sixteen or more, which keeps it
-under about 7% of the call at every size.
-A single point keeps the cheapest scan by design — the extra reach that finer sampling buys is
-at widths of :math:`3\times10^{-6}` of the trajectory and below, narrower than anything
-physically plausible in a density profile.
+three points, 16 for four to fifteen and 32 (2.85 ms) for sixteen or more, which keeps it
+under about 7% of the call at every size. A single point keeps the cheapest scan by design —
+the extra reach that finer sampling buys is at widths of :math:`3\times10^{-6}` of the
+trajectory and below, narrower than anything physically plausible in a density profile.
 
 .. _wrong-together:
 
 **The first irreducible limit: a feature narrower than the probe spacing.** A Gaussian
 resonance of width :math:`3\times10^{-5}` of the trajectory is not sampled by the probe grid
-(spacing :math:`5\times10^{-3}`), nor by its refinement ceiling
-(:math:`1.6\times10^{-4}`), nor by the cumulative scan's grid. Every engine reports a smooth
-profile, small γ, and a resolved Hamiltonian — correctly, given what any of them can see —
-and all of them are wrong together by **2.9e-02 against a requested 1e-3**. Because they are
-wrong *together*, the cross-check sees nothing either: it detects disagreement, so it finds a
-wrong engine exactly when some other engine got it right.  This limit belongs to any fixed
-grid, not to a particular test.
+(spacing :math:`5\times10^{-3}`), nor by its refinement ceiling (:math:`1.6\times10^{-4}`),
+nor by the cumulative scan's grid. Every engine reports a smooth profile, small γ and a
+resolved Hamiltonian — correctly, given what any of them can see — and all of them are wrong
+together by **2.9e-02 against a requested 1e-3**. Because they are wrong *together*, the
+cross-check sees nothing either: it detects disagreement, so it finds a wrong engine exactly
+when some other engine got it right.  This limit belongs to any fixed grid, not to a
+particular test.
 
 The remedy, verified on this case, is to supply ``t_breakpoints`` at the feature.  With edges
 placed by hand at the feature's own width, the same case improves to 8.8e-04 at a single point
@@ -318,7 +317,7 @@ Input checks: what is refused, and where
 
 Every argument of a public function is checked once per call, before any engine is chosen,
 so whether a value is refused does not depend on which engine would have answered.  The
-rules:
+rules are:
 
 * **Numbers** are Python or NumPy reals (``np.float32``, ``np.int64`` and 0-d arrays
   included), never ``bool`` and never complex, and finite.  Energy and ``L`` are checked
@@ -409,7 +408,7 @@ much*, where the code knows), what to change, and when it is safe to ignore.
        unaffected.
      - Omit the ratio and let it be derived from :math:`Y_e`.  That is the default (``None``)
        on the Earth and Sun wrappers; the constant- and exponential-density wrappers default
-       to 1.0 and never raise this warning.
+       to 1.0 and never issue this warning.
    * - :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`
      - Issued in any of these cases:
 

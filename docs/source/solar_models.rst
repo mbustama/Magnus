@@ -192,7 +192,7 @@ oscillation:
                                     max_n_slabs=10_000_000)
     print('P_ee = %.9f' % P_ee)    # 0.126766302
 
-On the same eleven cases this came within :math:`4\times10^{-9}` of the reference, with no
+On the same eleven cases, this came within :math:`4\times10^{-9}` of the reference, with no
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two issued
 :class:`~magnus.magnus.MagnusConvergenceWarning`, which reports a slab width rather than an
 error (see :doc:`diagnostics`).  The measurements are in
@@ -204,12 +204,12 @@ Provenance
 ----------
 
 :func:`magnus.solarmodels.solar_model_info` gives each model's reference, the source it was
-taken from, the date, the SHA-256 of the original file, and its terms of use.  Each table,
-in ``magnus/data/solar_models/``, carries the same in its header, above the authors'
-original header.  The Bahcall tables come from the IAS archive, whose terms ask only for a
-note on how they are used; the B16 tables from the Internet Archive's copy of the authors'
-page, which is offline; and the B23 tables from their Zenodo release, under
-CC BY 4.0.  If you use a model, cite its paper.
+taken from, the date, the SHA-256 of the original file and its terms of use.  Each table, in
+``magnus/data/solar_models/``, carries the same in its header, above the authors' original
+header.  The Bahcall tables come from the IAS archive, whose terms ask only for a note on how
+they are used.  The B16 tables come from the Internet Archive's copy of the authors' page,
+which is offline, and the B23 tables from their Zenodo release, under CC BY 4.0.  If you use
+a model, cite its paper.
 
 ``tools/build_solar_model_tables.py`` rebuilds the tables from the original files, and with
 ``--check`` verifies that the committed ones are exactly what those files give.  It refuses

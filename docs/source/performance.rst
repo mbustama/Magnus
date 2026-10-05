@@ -97,9 +97,9 @@ The palindrome, and what it is worth
 A chord through a spherically symmetric Earth meets every radius twice, so its density
 profile reads the same from either end.  :func:`magnus.magnus.magnus_expansion_multislab`
 evaluates :math:`A` on the first half of such a slab chain and derives the rest by
-reversal.  This halves the evaluations of the user's Hamiltonian **and nothing else**:
-the matrix exponentials and the commutators are unchanged.  The saving is worth exactly
-what those evaluations cost.  Measured through
+reversal.  This halves the evaluations of the user's Hamiltonian **and nothing else**: the
+matrix exponentials and the commutators are unchanged.  The saving is worth exactly what
+those evaluations cost.  The table was measured through
 :func:`magnus.oscprob.osc_prob_earth`, ``costhz = -0.9``, 2 GeV, against a vectorized
 ``H_func`` whose cost scales per position:
 
@@ -142,7 +142,7 @@ full chord, so a request for a shorter baseline takes the ordinary path.
 Set :data:`magnus.magnus.USE_PALINDROME` to ``False`` to evaluate every slab in full.  The
 two routes agree to a few times 1e-15 rather than bitwise, because the mirrored slab's
 nodes are reached as ``(L - b) + h*s`` on one route and ``a + h*s`` on the other — two
-floating-point expressions for the same real number.  On Earth single points that is worth
+floating-point expressions for the same real number.  On Earth single points, that is worth
 up to 8.6e-15 relative.
 
 .. _expm-backend:
@@ -223,8 +223,8 @@ and include a control the change cannot touch:
 fraction :math:`f` of the time, making it 6.8× faster speeds up the call by
 :math:`1/((1-f) + f/6.8)` (Amdahl's law).  The scan's 2.11× corresponds to
 :math:`f \approx 0.6`, and the single point's 1.22× to :math:`f \approx 0.2`, close to the
-quarter of a single 108-slab pass that ``eigh`` takes when profiled.  Across the
-workloads above, the end-to-end speed-up is 1.1× to 2.1×, not 6.8×.
+quarter of a single 108-slab pass that ``eigh`` takes when profiled.  Across the workloads
+above, the end-to-end speed-up is 1.1×–2.1×, not 6.8×.
 
 **At N = 1, the exponential is not the cost to reduce.** ``eigh`` on a single 3×3, outside
 a stack, costs 3.5 µs, and reaching it through ``_expm_stack`` costs 14.2 µs — the
@@ -245,10 +245,10 @@ which dimensions use a compiled kernel.
 
 Neither backend is unitary to the last bit: :math:`U^\dagger U - I` measures 4e-16 for a
 single 3×3 and 4e-15 for a stack of 4096, growing with stack size and never reaching zero.
-Against a 40-digit reference the kernel is the same order or slightly better at every norm
-from :math:`\lVert K \rVert` = 1 to 1e5 **on unclustered spectra**, and both degrade linearly
-in that norm, which is the conditioning of the problem rather than a property of either route.
-A whole probability, built from many such factors, deviates by :math:`3\times10^{-12}` to
+Against a 40-digit reference, the kernel is the same order or slightly better at every norm
+from :math:`\lVert K \rVert` = 1 to 1e5 **on unclustered spectra**.  Both degrade linearly in
+that norm, which is the conditioning of the problem rather than a property of either route. A
+whole probability, built from many such factors, deviates by :math:`3\times10^{-12}` to
 :math:`1.6\times10^{-11}` at worst.
 
 The qualifier "on unclustered spectra" matters.  Where nearly degenerate eigenvalues meet a
@@ -371,16 +371,16 @@ Measured
        (0.773).
    * - :data:`magnus.oscprob.BATCH_WORKING_ENTRIES`
      - 65 536
-     - Fifteen workloads on three batched engines, d = 2–5, scans of 60–20 000 points,
-       swept over 1 / 4.2 / 12.6 / 67 / 268 MB.  1 MB won eight of the eleven memory-bound
-       rows and was never worse than 67 MB: **1.19×–1.38×** on Earth energy
-       scans, growing with both flavor count and scan length, 1.06×–1.16× on cumulative
-       baseline scans, flat within 2% on short scans.  The interaction-picture engine is
-       flat at 1.00× — it is compute-bound, so the constant does not reach it.  Every row
-       was **bit-identical at every budget**, tiles being independent and only
-       concatenated, so the constant affects only speed.  It was measured on one machine
-       (13 MB L3, 6.5 MB L2).  The optimum sits *below* the last-level cache, so sizing to
-       a detected cache would land on a worse value than this fixed constant does.
+     - Fifteen workloads on three batched engines, d = 2–5, scans of 60–20 000 points, swept
+       over 1 / 4.2 / 12.6 / 67 / 268 MB.  A budget of 1 MB won eight of the eleven memory-bound
+       rows and was never worse than 67 MB: **1.19×–1.38×** on Earth energy scans, growing with
+       both flavor count and scan length, 1.06×–1.16× on cumulative baseline scans, flat within
+       2% on short scans.  The interaction-picture engine is flat at 1.00× — it is
+       compute-bound, so the constant does not reach it.  Every row was **bit-identical at every
+       budget**, tiles being independent and only concatenated, so the constant affects only
+       speed.  It was measured on one machine (13 MB L3, 6.5 MB L2).  The optimum sits *below*
+       the last-level cache, so sizing to a detected cache would land on a worse value than
+       this fixed constant does.
    * - ``_local_evolution_operator`` ``max_n_slabs``
      - 32 768
      - Short, local patches converge at 800–12 800 slabs; a patch covering 88% of a solar
@@ -435,14 +435,14 @@ Measured
    * - ``hybrid_propagator`` ``threshold0``
      - 0.1
      - See :data:`magnus.adiabatic.THRESHOLD0_PROVENANCE`. Accuracy identical at every value in
-       16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper — but a
-       tolerance-derived start made an **energy scan 20× worse** (2.5e-05 → 4.95e-04), a
-       workload that population did not contain, so the default stays at 0.1.
+       16 of 18 rows at a fixed baseline, and a lower start up to **6.5×** cheaper.  A
+       tolerance-derived start, however, made an **energy scan 20× worse** (2.5e-05 →
+       4.95e-04), a workload that population did not contain, so the default stays at 0.1.
    * - :data:`magnus.adiabatic.HIDDEN_FEATURE_CONCENTRATION`
      - 0.3
      - 67 smooth and resolvable profiles (ceiling **0.060**) against features in the
-       unresolvable band (0.91–1.00). **0 false positives at every threshold in 0.2–0.6**;
-       0.3 maximizes detection (68–90%) at five times the measured ceiling.
+       unresolvable band (0.91–1.00). **No false positives at any threshold in 0.2–0.6**; 0.3
+       maximizes detection (68–90%) at five times the measured ceiling.
    * - :data:`magnus.adiabatic.N_HIDDEN_FEATURE_SUBDIVISION`
      - 8
      - Calls of one to three points; scans of 4–15 points use 16 and longer ones 32.  Chosen
@@ -463,7 +463,7 @@ Measured
        the floor is reached only when :math:`\gamma_\max` is below it *and* the tolerance is
        tighter than ``GAMMA_TO_ERROR`` :math:`\times \gamma_\max`. There it does change
        behavior (a window opens below :math:`\gamma_\max`) but not usefully —
-       ``certified=False`` at every value, error three orders inside tolerance either way, and
+       ``certified=False`` at every value, error three orders inside tolerance either way and
        the window costs 2.4× the time.
 
 Not measured
@@ -472,8 +472,9 @@ Not measured
 The following constants were not set by a measurement.  They are listed so that they are
 not mistaken for measured ones.
 
-``max_n_probe`` (6400), ``max_n_points`` (12 864) and ``max_iters`` (12) in
-:mod:`magnus.adiabatic`; ``max_num_loops`` (50) in :mod:`magnus.oscprob`.
+They are ``max_n_probe`` (6400), ``max_n_points`` (12 864) and
+``max_iters`` (12) in :mod:`magnus.adiabatic`, and ``max_num_loops``
+(50) in :mod:`magnus.oscprob`.
 
 All four are **cost ceilings rather than calibrations**: they bound work, and reaching one is
 reported by :class:`magnus.oscprob.ToleranceNotAchievedWarning`.  Leaving them unmeasured is
@@ -490,7 +491,7 @@ Reproducing any of this
 
 The measurements on this page come from scripts under ``docs/dev/adversarial_batteries/`` and
 ``docs/dev/measurements/``.  The latter has one directory per measurement, with a README and,
-for most, the outputs.  The main scripts of the former:
+for most, the outputs.  The main scripts of the former are:
 
 .. list-table::
    :header-rows: 1

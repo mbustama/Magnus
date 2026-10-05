@@ -240,7 +240,7 @@ strategy and be warned when it cannot certify its own result (``--strategy hybri
 
 ``--strategy magnus`` is rarely what you want.  It resolves the oscillation phase slab by
 slab.  A low-energy solar neutrino accumulates a very large phase, so this route reaches a
-refinement cap and raises ``ToleranceNotAchievedWarning``.  `Notebook 12
+refinement cap and issues ``ToleranceNotAchievedWarning``.  `Notebook 12
 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
 times all three against ``solve_ivp`` from two to five flavors, with and
 without NSI, printing the error beside each time.
@@ -513,16 +513,15 @@ configures):
                            1e-3.
      --n-jobs N_JOBS       Number of parallel joblib workers. Default: 1.
      --strategy {auto,hybrid,magnus}
-                           How to propagate a position-dependent Hamiltonian: 'magnus' uses
-                           only the Magnus-expansion engines; 'hybrid' also tries adiabatic
-                           transport with a Magnus patch at each non-adiabatic window,
-                           warning if it cannot certify the result; 'auto' sends a smooth
+                           How to propagate a position-dependent Hamiltonian. 'magnus' uses
+                           only the Magnus-expansion engines. 'hybrid' also tries adiabatic
+                           transport with a Magnus patch at each non-adiabatic window and
+                           warns if it cannot certify the result. 'auto' sends a smooth
                            profile whose estimated accumulated phase is at most 1e4 rad (at
-                           a tolerance of 1e-6 or looser) to the Magnus ladder, and
-                           otherwise tries hybrid and falls back to the Magnus engines
-                           without a warning, except for an undeclared density jump. Vacuum
-                           and constant-density environments accept only 'auto'. Default:
-                           auto.
+                           a tolerance of 1e-6 or looser) to the Magnus ladder. Otherwise,
+                           it tries hybrid and falls back to the Magnus engines without a
+                           warning, except for an undeclared density jump. Vacuum and
+                           constant-density environments accept only 'auto'. Default: auto.
      --verbose {0,1,2}     Verbosity level. Default: 0.
 
    Output:

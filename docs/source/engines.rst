@@ -185,15 +185,16 @@ reached whenever nothing above it applies.
 Three thresholds decide where one engine hands a request to another.  Each is a constant
 whose docstring records the measurements behind its value:
 
-* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
-  ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this
-  many points, because the cumulative scan answers all of them from one traversal.  The
-  cumulative scan is the cheaper of the two at the median at every size measured.  A lower
-  threshold would not help: below 8 points, the hybrid's request does not always pass to the
-  cumulative scan, but to whichever engine applies next.
-* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2. The same threshold
-  below a tolerance of 1e-6, where the hybrid strategy is the slower route for a baseline scan.
-* :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
+* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under ``strategy='auto'``,
+  the hybrid strategy stands aside for a baseline scan of at least this many points, because
+  the cumulative scan answers all of them from one traversal.  The cumulative scan is the
+  cheaper of the two at the median at every size measured.  A lower threshold would not help:
+  below 8 points, a request the hybrid strategy yields goes to whichever engine applies next,
+  not necessarily to the cumulative scan.
+* :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2.  It is the same
+  threshold below a tolerance of 1e-6, where the hybrid strategy is the slower route for a
+  baseline scan.
+* :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this, there is no prefix to
   reuse.
 
 .. _auto-ladder-route:
@@ -287,7 +288,7 @@ changes the answer, because it changes the engine.  In the cases measured, the s
 the more accurate answer, by up to six orders of magnitude; the docstring of
 :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the measurement.
 
-**Seeing which engine answered.**  Falling through from one engine to the next raises no
+**Seeing which engine answered.**  Falling through from one engine to the next issues no
 warning, because it happens on ordinary calls.  Pass ``strategy_info`` to any scenario
 function or wrapper, or to :func:`~magnus.oscprob.osc_prob_earth` or
 :func:`~magnus.oscprob.osc_prob_sun`, to see the route without changing it::

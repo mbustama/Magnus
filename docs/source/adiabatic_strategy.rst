@@ -6,9 +6,9 @@ Adiabatic + Magnus hybrid strategy
    :depth: 2
 
 
-This page documents the ``strategy`` parameter: the problem it solves, the
-method behind it (:mod:`magnus.adiabatic`), and the evidence that validates it.
-The parameter is accepted by the matter scenario functions
+This page documents the ``strategy`` parameter: the problem it solves, the method
+behind it (:mod:`magnus.adiabatic`) and the evidence that validates it. The parameter
+is accepted by the matter scenario functions
 (:func:`~magnus.oscprob.osc_prob_matter_std_potential`,
 :func:`~magnus.oscprob.osc_prob_matter_nsi` and :func:`~magnus.oscprob.osc_prob_liv`),
 by every wrapper built on them, and by the generic entry points
@@ -24,7 +24,7 @@ slabs and is accurate to any desired order within each one, but it must
 still *resolve* however many radians of phase accumulate inside a slab.  For
 an :math:`\rm MeV`-scale solar neutrino crossing most of the Sun's radius,
 the vacuum term alone (:math:`\Delta m^2/2E`, growing as :math:`1/E`)
-accumulates :math:`\mathcal{O}(10^3\text{--}10^6)` radians.  Reaching a
+accumulates :math:`\mathcal{O}(10^3\text{–}10^6)` radians.  Reaching a
 requested tolerance then requires a very large number of slabs.  If a
 refinement cap is reached first, ``osc_prob`` returns its best estimate and
 issues ``ToleranceNotAchievedWarning``: the warning is correct, but the answer
@@ -220,7 +220,7 @@ Self-certification
 ------------------
 
 Three settings control the strategy: the adiabaticity threshold, the grid that
-integrates the dynamical phase, and the probe grid that locates candidates.  No
+integrates the dynamical phase and the probe grid that locates candidates.  No
 single value of any of them is safe for every Hamiltonian: a threshold that is
 conservative for one case can leave a crossing unpatched in another.  Instead of
 relying on one value, :func:`magnus.adiabatic.hybrid_propagator` repeats the
@@ -244,12 +244,11 @@ The ``strategy`` parameter
 The functions listed at the top of this page accept a ``strategy`` keyword with
 three values:
 
-``'magnus'``
-   Use only the Magnus-expansion engines, never the adiabatic one: the
-   two-flavor interaction picture where it applies (two-level Hamiltonians on
-   an exponential profile; see :doc:`engines`), the energy-batched scan, or the
-   general adaptive slab refinement.  It also turns off the cumulative baseline
-   scan; see :ref:`strategy='magnus' <strategy-magnus>`.
+``'magnus'`` Use only the Magnus-expansion engines, never the adiabatic one:
+   the two-flavor interaction picture where it applies (two-level Hamiltonians
+   on an exponential profile; see :doc:`engines`), the energy-batched scan or
+   the general adaptive slab refinement.  It also turns off the cumulative
+   baseline scan; see :ref:`strategy='magnus' <strategy-magnus>`.
 
 ``'hybrid'``
    Try :func:`magnus.adiabatic.hybrid_propagator` in addition to the Magnus
@@ -281,7 +280,7 @@ Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
 adiabatic propagator make no assumption about the Hamiltonian's dimension
 or structure. It composes correctly with any number of simultaneous or
-sequential resonances, of any kind (standard MSW, NSI-induced, or
+sequential resonances, of any kind (standard MSW, NSI-induced or
 otherwise), between any pair of levels, **provided each is visible on the
 probe grid** — see the two limits below.
 
@@ -291,12 +290,11 @@ probe grid** — see the two limits below.
    decline to certify; the second can return a wrong answer reported as
    certified:
 
-   * **A profile that is not smooth at the probe scale.** Every diagnostic
-     here finite-differences :math:`\mathbb{H}(l)` between probe points. On a density
-     step, a kink, or any feature sharp compared with the probe spacing,
-     those derivatives are meaningless. ``hybrid_propagator`` measures
-     this directly and declines to certify, so
-     :func:`magnus.oscprob.osc_prob` falls through to the
+   * **A profile that is not smooth at the probe scale.** Every diagnostic here
+     finite-differences :math:`\mathbb{H}(l)` between probe points. On a density
+     step, a kink or any feature sharp compared with the probe spacing, those
+     derivatives are meaningless. ``hybrid_propagator`` measures this directly and
+     declines to certify, so :func:`magnus.oscprob.osc_prob` falls through to the
      general Magnus path, which handles such profiles correctly. Passing
      ``t_breakpoints`` at the discontinuities is better still.
    * **A bump narrower than the probe spacing**, which rises and falls between
@@ -340,7 +338,7 @@ Every claim above is checked against a tight-tolerance
 equation.  The validation grid covers each qualitatively different case:
 
 * zero resonances (purely adiabatic), one resonance, two well-separated
-  resonances, and two resonances close enough that their windows merge;
+  resonances and two resonances close enough that their windows merge;
 * 3-, 4- and 5-flavor Hamiltonians, with standard and NSI-induced resonances;
 * real and complex (CP-violating) Hamiltonians.
 

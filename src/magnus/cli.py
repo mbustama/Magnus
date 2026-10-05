@@ -444,14 +444,14 @@ def build_parser() -> argparse.ArgumentParser:
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',
         help='Number of parallel joblib workers. Default: 1.')
     g_num.add_argument('--strategy', choices=['auto', 'hybrid', 'magnus'], default='auto',
-        help="How to propagate a position-dependent Hamiltonian: 'magnus' uses only the "
-             "Magnus-expansion engines; 'hybrid' also tries adiabatic transport with a "
-             "Magnus patch at each non-adiabatic window, warning if it cannot certify the "
-             "result; 'auto' sends a smooth profile whose estimated accumulated phase is at "
-             "most 1e4 rad (at a tolerance of 1e-6 or looser) to the Magnus ladder, and "
-             "otherwise tries hybrid and falls back to the Magnus engines without a warning, "
-             "except for an undeclared density jump. Vacuum and constant-density environments "
-             "accept only 'auto'. Default: auto.")
+        help="How to propagate a position-dependent Hamiltonian. 'magnus' uses only the "
+             "Magnus-expansion engines. 'hybrid' also tries adiabatic transport with a "
+             "Magnus patch at each non-adiabatic window and warns if it cannot certify the "
+             "result. 'auto' sends a smooth profile whose estimated accumulated phase is at "
+             "most 1e4 rad (at a tolerance of 1e-6 or looser) to the Magnus ladder. "
+             "Otherwise, it tries hybrid and falls back to the Magnus engines without a "
+             "warning, except for an undeclared density jump. Vacuum and constant-density "
+             "environments accept only 'auto'. Default: auto.")
     g_num.add_argument('--verbose', type=int, default=0, choices=[0, 1, 2],
         help='Verbosity level. Default: 0.')
 

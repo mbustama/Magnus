@@ -68,7 +68,7 @@ parts, of which there are :math:`\binom{n-2}{j-1}`.  Hence, the number of terms 
    \#\,\Omega_n = \sum_{j\,:\,B_j \neq 0} \binom{n-2}{j-1} ,
 
 which is what the implementation for orders 7 to 10 iterates over directly,
-rather than storing the 244 expressions of orders 7 to 10.
+rather than storing their 244 expressions.
 
 How many terms there are
 ------------------------

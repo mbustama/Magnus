@@ -296,11 +296,11 @@ Magnus/
 
 ## Continuous integration
 
-Every push runs the test suite on Python 3.10–3.13 and lints with Ruff;
-the documentation is built with warnings as errors.  The 29 notebooks
-execute too, across four parallel shards, with a notebook served from cache
-when neither the package nor that notebook has changed.  The badges at the top
-report those runs.
+Every push runs the test suite on Python 3.10–3.13 and lints with Ruff; the
+documentation is built with warnings as errors.  The 29 notebooks execute too,
+across four parallel shards, with each shard served from cache when neither
+the package nor the notebook sources and data have changed.  The badges at the
+top report those runs.
 
 ## Requirements
 

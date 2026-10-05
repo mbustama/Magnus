@@ -33,10 +33,9 @@ A neutrino from an astrophysical source arrives with an oscillation phase
 
 of order :math:`10^{16}` for a TeV neutrino from 100 Mpc away.  No
 ingredient of that number is known to anything close to the precision the
-phase would demand: not the distance, not the size of the source, and not
-the energy of the neutrino.  Whatever
-the true phase is, the measurement integrates over many complete cycles
-of it.
+phase would demand: not the distance, not the size of the source and not
+the energy of the neutrino.  Whatever the true phase is, the measurement
+integrates over many complete cycles of it.
 
 Computing such a probability by propagation is doubly
 unattractive.  It is expensive — resolving :math:`10^{16}` radians is
@@ -73,11 +72,11 @@ holds away from it:
 
 * The result is **symmetric** in :math:`\alpha \leftrightarrow \beta`, so
   the averaged probability is the same in both directions.
-* In **vacuum** it is **identical for neutrinos and antineutrinos**, since the
+* In **vacuum**, it is **identical for neutrinos and antineutrinos**, since the
   antineutrino replaces :math:`\mathbb{V}` by :math:`\mathbb{V}^*` and
   :math:`|\mathbb{V}^*|^2 = |\mathbb{V}|^2`.  The phase :math:`\delta_{\rm CP}`
   still enters through the magnitudes :math:`|\mathbb{V}_{\alpha i}|`, but
-  produces no difference between the two.  In matter they differ, because the
+  produces no difference between the two.  In matter, they differ because the
   potential changes sign.  A Lorentz-violating term of even ``n_liv`` also
   changes sign, so the two differ in vacuum as well.
 * It does **not depend on the baseline**, and depends on the energy only
@@ -120,7 +119,7 @@ surviving       0.995   0.82    0.61    0.14    0.011   3e-4    4e-6
 =============== ======= ======= ======= ======= ======= ======= =======
 
 Hence, the phase average is the boxed limit where every phase runs through many cycles, the
-oscillation probability itself where none does, and a smooth weighting in between.  The
+oscillation probability itself where none does and a smooth weighting in between.  The
 spread is ``average_spread``, 0.1 by default (:data:`magnus.avgprob.AVG_PHASE_SPREAD`), and
 it should be the resolution of the measurement.
 
@@ -342,13 +341,12 @@ The phase average on a profile
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The expression above composes the crossings as probabilities and reads the result out in the
-eigenbasis at :math:`l_1`, so it keeps no interference at all: between two crossings, or
-between the last crossing and the end of the path, every phase is dropped however short it is.
+eigenbasis at :math:`l_1`, so it keeps no interference at all.  Between two crossings, or
+between the last crossing and the end of the path, every phase is dropped, however short it is.
 On a chord through the edge of the Sun at 10 TeV, the last window ends where the path does, the
-phase that follows is zero, and the expression gives 0.40, whereas the true probability at exit
-is 0.54.
-:func:`magnus.avgprob.averaged_probabilities_adiabatic`, which returns it, reports the pairs
-for which that composition is unsafe.
+phase that follows is zero and the expression gives 0.40, whereas the true probability at exit
+is 0.54. :func:`magnus.avgprob.averaged_probabilities_adiabatic`, which returns it, reports the
+pairs for which that composition is unsafe.
 
 The same definition of the phase average extends to a varying profile.  An energy offset
 :math:`u = \delta\ln E` moves every instantaneous eigenvalue by :math:`u\, d\lambda_i/d\ln E`
@@ -400,23 +398,22 @@ and averages the results
 (:func:`magnus.avgprob.averaged_probabilities_numerically`).
 
 **This returns a different quantity from the other two paths.**  They
-return the phase average, which weights phases and samples no
-energy.  This route returns the probability averaged over one particular
-window, a top-hat of 41 energies from a flavor state at the start, and
-the answer depends on the width of that window.  The default width,
+return the phase average, which weights phases and samples no energy.  This
+route returns the probability averaged over one particular window, a
+top-hat of 41 energies from a flavor state at the start, and the answer
+depends on the width of that window.  The default width,
 :data:`magnus.avgprob.AVG_DEFAULT_ENERGY_SPREAD`, is 10%, the order of a
 real detector's energy resolution.  Every call on this route emits
-:class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the
-number of samples, and the standard error of the resulting mean, so the
-figure never depends silently on a constant the user did not choose.
-Users with a known resolution should pass their own, through
-``average_spread``, which on this route is the half-width of the window
-as a fraction of the energy, strictly between 0 and 1.  The number of
-samples is ``average_n_samples``, 41 by default
-(:data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`).  The standard error of the
-mean falls as the inverse square root of that number, and each sample
-costs a full propagation, so a target error :math:`\delta` needs about
-:math:`N(s/\delta)^2` samples, with :math:`N` the samples used and
+:class:`magnus.oscprob.PhaseAveragingWarning` naming the width, the number
+of samples and the standard error of the resulting mean, so the figure
+never depends silently on a constant the user did not choose. Users with a
+known resolution should pass their own, through ``average_spread``, which
+on this route is the half-width of the window as a fraction of the energy,
+strictly between 0 and 1.  The number of samples is ``average_n_samples``,
+41 by default (:data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`).  The standard
+error of the mean falls as the inverse square root of that number, and each
+sample costs a full propagation, so a target error :math:`\delta` needs
+about :math:`N(s/\delta)^2` samples, with :math:`N` the samples used and
 :math:`s` the standard error the warning reported.  The other routes sample
 nothing and refuse ``average_n_samples``.
 
@@ -672,8 +669,8 @@ Limitations and scope
   Hamiltonian given.  The limit of `Position-dependent Hamiltonians`_ also
   describes mixing that differs between the two ends for other reasons — a
   non-unitary mixing matrix, or parameters that run with energy — with
-  :math:`P^{\rm cross}` the identity and the two matrices supplied directly,
-  but Magνs does not accept them in that form.
+  :math:`P^{\rm cross}` the identity and the two matrices supplied
+  directly.  Magνs does not accept them in that form.
 
 See :doc:`functions` and the API reference for the full listing of
 :mod:`magnus.avgprob`.

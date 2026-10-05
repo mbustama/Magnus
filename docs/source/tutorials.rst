@@ -81,12 +81,14 @@ machinery is unchanged and only the Hamiltonian differs.
    Four- and five-flavor systems, where the extra states do not couple to the
    weak interaction.
 
-`08. Non-standard interactions <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`_
-   Adds a new matter potential with off-diagonal couplings the Standard Model
-   does not have.
+`08. Non-standard interactions
+   <https://github.com/mbustama/Magnus/blob/main/notebooks/08_magnus_bsm_nsi.ipynb>`_ The
+   notebook adds a matter potential with off-diagonal couplings the Standard Model does not
+   have.
 
-`09. Lorentz-invariance violation <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_
-   Adds an energy dependence that the vacuum term does not have.
+`09. Lorentz-invariance violation
+   <https://github.com/mbustama/Magnus/blob/main/notebooks/09_magnus_bsm_liv.ipynb>`_ The
+   notebook adds an energy dependence that the vacuum term does not have.
 
 `29. Pseudo-Dirac neutrinos <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_
    A sterile partner for each mass state, split by a :math:`\delta m^2` small
@@ -155,10 +157,11 @@ right one.
    answer: the correct probability is 0.014, against 0.057 and 0.023 with only
    one of the two changes.
 
-`18. Unusual density profiles <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
-   Five profiles with the same mean density give probabilities that differ by up
-   to 0.98 — and the single rearrangement that changes nothing, exactly,
-   whenever :math:`\delta_{\rm CP}` is 0 or :math:`\pi`.
+`18. Unusual density profiles
+   <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
+   Five profiles with the same mean density give probabilities that differ by up to 0.98.  One
+   rearrangement changes nothing, exactly, whenever :math:`\delta_{\rm CP}` is 0 or
+   :math:`\pi`.
 
 
 Physics questions

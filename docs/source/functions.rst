@@ -262,13 +262,12 @@ baseline scan is computed point by point.  Two combinations raise an error
 because neither forms an operator: ``average=True`` and ``strategy='hybrid'``.
 
 The phase average is also available when you pass your own Hamiltonian.  ``average=True`` on
-``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` behaves as it does
-on a wrapper and uses the same three routes: closed form, adiabatic
-transport, or an energy-window average across declared discontinuities.  The same
-keywords apply: ``average_spread`` sets the spread, ``average_n_samples`` the
-number of energies in a window average, and ``average_initial_state`` the starting
-state, the flavor state by default.  A Hamiltonian given as a matrix, or as a
-function of position alone, does not depend on energy, so no spread acts on it;
-pairs of levels with a large phase are averaged and the others stay coherent (see
-:doc:`averaged_probability`).  ``osc_prob`` computes a single point, so it refuses
-``average``, as it refuses ``cumulative``.
+``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` behaves as it does on
+a wrapper and uses the same three routes: closed form, adiabatic transport or an
+energy-window average across declared discontinuities.  The same keywords apply:
+``average_spread`` sets the spread, ``average_n_samples`` the number of energies in a window
+average, and ``average_initial_state`` the starting state, the flavor state by default.  A
+Hamiltonian given as a matrix, or as a function of position alone, does not depend on
+energy, so no spread acts on it; pairs of levels with a large phase are averaged and the
+others stay coherent (see :doc:`averaged_probability`).  ``osc_prob`` computes a single
+point, so it refuses ``average``, as it refuses ``cumulative``.
