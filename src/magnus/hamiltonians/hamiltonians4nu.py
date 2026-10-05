@@ -542,7 +542,7 @@ def hamiltonian_4nu_matter_td(l: float, VCC_func: Callable,
         :math:`r = n_n/n_p` of the medium, as in :func:`hamiltonian_4nu_matter`: a number, or
         a function of position, evaluated at ``l``.  Default: 1.0 (isoscalar matter).
 
-        .. versionchanged:: 1.1.1
+        .. versionchanged:: 1.2.0
            Added (issue #121).  Without it, this function equalled
            :func:`hamiltonian_4nu_matter` only at :math:`r = 1`.
 

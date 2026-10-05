@@ -6,7 +6,7 @@ The Sun entry points — ``osc_prob_{2,3,4,5}nu_sun[_nsi|_liv]`` and
 electron density by default.  ``density_profile`` puts a published standard
 solar model in its place, from tables that ship with the package.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 
 .. list-table::
    :header-rows: 1

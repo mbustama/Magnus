@@ -381,7 +381,7 @@ def renamed_keyword(old: str, new: str):
     Only keyword use is affected: the parameter keeps its position, so positional calls are
     unchanged.  The check is one dictionary lookup per call.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -412,7 +412,7 @@ def take_renamed_key(source_func_name: str, params: dict, old: str, new: str) ->
     ``liv_params``.  The caller's dictionary is not modified: a copy is returned when a key is
     moved, and ``params`` itself otherwise.  Both keys present raises :class:`ValueError`.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------

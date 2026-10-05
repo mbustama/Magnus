@@ -440,7 +440,7 @@ density at every quadrature node.  Written for one position at a time, as
 ``100.0 if l < edges[0] else 10.0``, it issues a ``ScalarHamiltonianWarning`` that names
 ``rho_func``.
 
-.. versionchanged:: 1.1.1
+.. versionchanged:: 1.2.0
    ``average_spread`` sets the window on this route, and ``average_n_samples`` was added.
 
 Cost

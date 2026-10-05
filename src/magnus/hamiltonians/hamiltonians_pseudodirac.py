@@ -24,7 +24,7 @@ which the naive sum over eigenstates is wrong.  See
 **No partial averaging is provided here, deliberately.**  A fully coherent
 pair is handled by the block form and a fully decohered pair by the ordinary
 sum; the regime in between is the phase average of :mod:`magnus.avgprob`,
-which ``average=True`` returns since 1.1.1.  These routines build the
+which ``average=True`` returns since 1.2.0.  These routines build the
 Hamiltonian; the existing engines propagate it.  For the phase average in
 vacuum, :func:`magnus.oscprob.osc_prob_pseudo_dirac_vacuum` takes the pairs
 directly and forms each pair phase from its splitting.  The generic engines

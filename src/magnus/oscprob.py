@@ -475,7 +475,7 @@ probabilities: ``'gl'`` fixes the points per slab, so no further level is comput
 
 .. versionadded:: 1.0.0
 
-.. versionchanged:: 1.1.1
+.. versionchanged:: 1.2.0
    The energy-batched engine holds an agreement across the clamped last step onto the slab cap
    on ``'gl'`` to the fraction of the tolerance that step can vouch for.
 """
@@ -496,7 +496,7 @@ the seed against without it, by seed: at 2, worst 2.14x (median 0.81x); at 3, wo
 (0.67x); at 4, worst 0.87x (0.54x); at 5 and above, never more than 0.36x.  So 4 is the smallest
 seed that never cost work.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -549,7 +549,7 @@ energies than wrong ones, so they are left as they were.
 **Why not at the slab cap.** There the ladder can no longer add slabs, so a refusal would only
 repeat the level; the engine keeps its previous behavior at the cap and on its last level.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -686,7 +686,7 @@ seed, plus those four levels) takes some 25 us over the seeds.  Below ``min_dim`
 function returns before either.  Without the first bound and the flavor floor, a
 100-energy two-flavor Earth scan paid 0.18 ms for the dynamic program, 10 % of its 1.9 ms.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1048,7 +1048,7 @@ The measure matters on the Sun.  The norm of the integrated Hamiltonian, which
 MSW region and reads 2.2 to 2.9 times low there: it put a two-flavor request at 10 MeV over
 0.9 R_sun, whose phase is 1.46e4 rad, at 5 572.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1115,7 +1115,7 @@ two-flavor request at 10 MeV over 0.9 R_sun started at 18 334, could not refine,
 :class:`ToleranceNotAchievedWarning` where the hybrid strategy answers in 0.05 s.  The workloads
 behind :data:`AUTO_LADDER_MAX_PHASE` start at 5 to 4 700.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1137,7 +1137,7 @@ five flavors.  Most of that was the margin.  Run at the requested tolerance, the
 the four scans of the paper's Listing 1 at ``rtol = 1e-12``, ``atol = 1e-14`` and order 8 in
 0.015 to 0.13 of the hybrid strategy's time.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1170,7 +1170,7 @@ Unlike :data:`AUTO_LADDER_MAX_PHASE`, the tightened limit also applies to an ene
 energy-batched engine takes: the scans that exempted them were measured at loose tolerances
 (issue #84).
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1190,7 +1190,7 @@ the difference between two of them overestimates the finer one's error by about
 the hybrid strategy on 18 of 139 workloads at order 4, over 8 times on the four-flavor scan of
 the paper's Listing 1.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 CUMULATIVE_N_ACC_SAFETY = 4
@@ -1587,7 +1587,7 @@ class UnmarkedDiscontinuityWarning(ToleranceNotAchievedWarning):
 
     The hybrid strategy raises it for the same reason when it declines a profile, and so does
     ``average=True`` when a discontinuity could move probability between levels: the
-    averaging engine treats the profile as smooth, and before 1.1.1 did so silently (issue
+    averaging engine treats the profile as smooth, and before 1.2.0 did so silently (issue
     #60).  In every case the cure is the same -- ``t_breakpoints`` at the discontinuity.
 
     The cumulative scan lays a uniform accuracy grid over the trajectory (plus the requested
@@ -1745,7 +1745,7 @@ class PhaseAveragingWarning(UserWarning):
     statement that the *question* does not apply at that baseline, which
     is why it warns rather than refining anything.
 
-    Since 1.1.1 ``average=True`` returns the phase average over a relative
+    Since 1.2.0 ``average=True`` returns the phase average over a relative
     energy spread ``average_spread`` (see :mod:`magnus.avgprob`), which is
     defined at every baseline, and the warning says instead that the result
     **depends on that spread**: some interference term has partly survived
@@ -1762,7 +1762,7 @@ class PhaseAveragingWarning(UserWarning):
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Fires where the phase average depends on the spread.
     """
 
@@ -1807,7 +1807,7 @@ class SolarModelRangeWarning(UserWarning):
     ``stop_at_table_edge`` is for a caller who would rather have no number than one computed
     there: those probabilities come back as NaN, and this says how many and where the edge is.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
 
 
@@ -2066,7 +2066,7 @@ def _not_a_single_number(source_func_name: str, names: list) -> ValueError:
     element with a sequence") that named neither the argument nor the rule.  Built only on the
     failing path, so a valid call pays nothing for it.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     return ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name + ": " +
         ", ".join(names) + (" is not a single number" if len(names) == 1 else
@@ -2081,7 +2081,7 @@ def _raise_if_array_params(source_func_name: str, params: dict) -> None:
     their array has already failed; returns quietly when every entry is a scalar, and the
     caller then re-raises the original error.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     bad = [k for k, v in params.items() if (v is not None) and (np.ndim(v) != 0)]
     if bad:
@@ -2279,11 +2279,6 @@ def _validate_entry(source_func_name: str, values: dict, func=None) -> None:
     reach the scenario functions through it.  Once per call; never inside an engine.
 
     .. versionadded:: 1.2.0
-
-    .. versionchanged:: 1.2.0
-       Refuses flags given as None, a validate_input that is not a bool, t_breakpoints of which
-       none lies on the path, average with cumulative=True and an unwritable filename_log; warns
-       when a points-per-slab setting is given with 'gl' (issue #160 §4 to §6).
     """
     where = "oscprob." + source_func_name
     rules = _ENTRY_RULES
@@ -2961,7 +2956,7 @@ def validate_input_osc_prob_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth`` and ``detector_depth``.
 
     Parameters
@@ -3149,7 +3144,7 @@ def _earth_chord_symmetry(costhz: float,
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth`` and ``detector_depth``, either of which declines the symmetry.
 
     Parameters
@@ -3246,7 +3241,7 @@ def _reject_parameter_set_name_without_set(num_flavors: int, default_osc_params_
     Hamiltonian is supplied whole, so a set name there changed nothing -- silently, while a
     misspelled keyword on the same call raised.  One string comparison on a valid call.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if (default_osc_params_set_name != 'OSC_PARAMS_DEFAULT') and \
             not (2 < num_flavors <= gd.MAGNUS_MAX_PREDEFINED_NUM_FLAVORS):
@@ -4185,7 +4180,7 @@ def osc_prob(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator``.
 
     .. versionchanged:: 1.2.0
@@ -5129,7 +5124,7 @@ Hamiltonian for the slopes of the phase average.  Truncation goes as its square 
 for a Hamiltonian linear in 1/E), round-off as its inverse; a slope that round-off could explain
 is replaced from its phase in :mod:`magnus.avgprob`, which is told this step.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -5146,10 +5141,7 @@ probability moves by the gate, or by the gate times its own size.  Absolute alon
 zero-phase limit, about 1e-32, for a probability of 4e-7 at small phase.  Entries below
 :data:`_PHASE_AVERAGE_RELATIVE_FLOOR` on both sides are round-off, and have no relative change.
 
-.. versionadded:: 1.1.1
-
-.. versionchanged:: 1.2.0
-   Relative as well as absolute, and the tolerance-aware gate on every route (issue #163).
+.. versionadded:: 1.2.0
 """
 
 
@@ -5280,7 +5272,7 @@ def _avg_prob_dispatch(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Returns the phase average; takes ``average_spread`` and ``energy_dependent``.
 
     .. versionchanged:: 1.2.0
@@ -5610,7 +5602,7 @@ def _avg_prob_dispatch(
         # Issue #60.  The profile has a feature narrower than the averaging engine's probe
         # grid, able to move probability between levels, and no refinement resolves it: a
         # discontinuity.  The engine could only treat it as smooth, which is what it did
-        # silently before 1.1.1 -- measured wrong by up to 0.56 on a supernova shock ray.
+        # silently before 1.2.0 -- measured wrong by up to 0.56 on a supernova shock ray.
         warnings.warn(gd.WARNING_MSG_NO_COLOR + " oscprob." + source_func_name + ": average=True "
             "on a profile with a discontinuity that was not declared, at " +
             str(unresolved_points) + " of " + str(n_pts) + " (energy, L) point(s).  The "
@@ -6301,7 +6293,7 @@ def _osc_prob_scan_separable(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Warns on an acceptance at the slab cap that refined only the points per slab (#71).
 
     Parameters
@@ -6486,10 +6478,7 @@ def _osc_prob_scan_separable_ladder(
     that a scan split into several groups of energies (see :func:`_phase_groups`) still
     warns once per call.
 
-    .. versionadded:: 1.1.1
-
-    .. versionchanged:: 1.2.0
-       The slab-cap warning no longer claims to show once per session (issue #144 §1).
+    .. versionadded:: 1.2.0
     """
     nE, dim = H_E.shape[0], H_E.shape[-1]
 
@@ -6684,7 +6673,7 @@ def _vectorized_potential(VCC_func: Callable) -> Callable:
     indexes its samples, and crashed on it (issue #113).  Wrapped only when the engine's
     own samples come back 0-dimensional, so a vectorized potential pays nothing.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     def vcc(l):
         return np.broadcast_to(np.asarray(VCC_func(l)), np.shape(l))
@@ -6702,7 +6691,7 @@ def _phase_groups(seeds: np.ndarray, dim: int, growth_factor_n_slabs: float, tol
     programming over the distinct seed values in increasing order (energies with the same
     seed never gain from being split).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     cost = BATCHED_PHASE_GROUPING
     if (dim < cost['min_dim']) or not (tol >= cost['min_tol']):
@@ -7769,7 +7758,7 @@ class _PreferLadder:
     remaining engines run at the tolerances and slab floor of :meth:`request`, and the
     interaction-picture fast path is skipped.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Attributes
     ----------
@@ -7805,7 +7794,7 @@ class _PreferLadder:
         :func:`magnus.magnus.suggest_n_slabs` allows twice that width on purpose, and on this
         route every request then warned about slabs the ladder went on to refine away.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
         """
         m = AUTO_LADDER_TOLERANCE_MARGIN if self.tolerance_margin is None else self.tolerance_margin
         rtol = None if rtol is None else rtol/m
@@ -7830,7 +7819,7 @@ def _estimated_phase(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: np.nd
     energies spread over their range, about 85 evaluations of the Hamiltonian whatever the size
     of the request.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -7865,7 +7854,7 @@ def _auto_ladder_max_phase(tol: float, magnus_exp_order: int, batched_scan: bool
     ``AUTO_LADDER_MAX_PHASE*(tol/AUTO_LADDER_MIN_TOLERANCE)**(1/magnus_exp_order)`` capped at
     :data:`AUTO_LADDER_TIGHT_MAX_PHASE`, for a scan as well.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if tol >= AUTO_LADDER_MIN_TOLERANCE:
         return np.inf if batched_scan else AUTO_LADDER_MAX_PHASE
@@ -7907,11 +7896,7 @@ def _auto_prefers_ladder(H_at_energy: Callable, energy_arr: np.ndarray, L_arr: n
     fails it still goes to the ladder, which is where the hybrid strategy would have sent it, but
     with the reason and the warning the hybrid strategy gives.
 
-    .. versionadded:: 1.1.1
-
-    .. versionchanged:: 1.2.0
-       A profile with a feature sharp at the probe scale starts the ladder at the probe spacing
-       (issue #161); see :data:`AUTO_SHARP_FEATURE_SLABS_PER_PROBE`.
+    .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -8637,7 +8622,7 @@ def osc_prob_energy_baseline(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator`` and ``average``.
 
     .. versionchanged:: 1.2.0
@@ -8782,7 +8767,7 @@ def osc_prob_energy_baseline(
         pass ``cumulative=False`` here, or ``strategy='magnus'`` to the wrappers (which opts
         out of the adiabatic strategy and already implies ``cumulative=False``); this function
         has no ``strategy`` parameter.  Both hold for ``'gl'``; ``'trapezoid'`` and
-        ``'simpson'`` results at declared breakpoints moved in 1.1.1 (see
+        ``'simpson'`` results at declared breakpoints moved in 1.2.0 (see
         :func:`magnus.magnus.magnus_expansion_multislab`).
 
         ``cumulative=False`` is the narrower flag and guarantees only that **the cumulative scan
@@ -8843,7 +8828,7 @@ def osc_prob_energy_baseline(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -8855,14 +8840,14 @@ def osc_prob_energy_baseline(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     strategy_info : dict, optional
         If given, filled on return with the engine that answered and the route the request
         took, as on the wrappers: ``strategy_info['engine']`` is ``'average'``,
         ``'constant'``, ``'magnus'``, ... (see :func:`osc_prob_matter_std_potential`).
         Default: None.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -8872,7 +8857,7 @@ def osc_prob_energy_baseline(
         With ``return_evolution_operator=True``, the pair ``(P, U)``: ``P`` as above and ``U``
         the operators, one ``(d, d)`` array per point, ``(n, d, d)`` for arrays of points.
     """
-    # strategy_info (issue #114): until 1.1.1 this entry point had no such keyword, so it fell
+    # strategy_info (issue #114): until 1.2.0 this entry point had no such keyword, so it fell
     # into **kwargs and was rejected by osc_prob as unknown on every route but average=True,
     # which returned before any keyword check and left the caller's dict empty.  When given,
     # the call re-enters itself under the same probe the wrappers open; when not, this test is
@@ -9499,7 +9484,7 @@ def _check_operator_request(average: bool, strategy: Optional[str], source_func_
     with ``return_evolution_operator=True`` raises here, naming the entry point, rather than
     being silently ignored.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if average:
         raise ValueError(gd.ERROR_MSG_NO_COLOR + " oscprob." + source_func_name +
@@ -9920,7 +9905,7 @@ def osc_prob_vacuum(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator`` and ``strategy_info``.
 
     .. versionchanged:: 1.2.0
@@ -9961,7 +9946,7 @@ def osc_prob_vacuum(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -9973,7 +9958,7 @@ def osc_prob_vacuum(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     nubar : bool, optional
         If True, compute the probability for antineutrinos. Default: False.
     nu_i : int, optional
@@ -10073,7 +10058,7 @@ def osc_prob_vacuum(
         The other keys (``'family'``, ``'certified'``, ``'declined'``, ``'trace'``) have the
         meaning given there.  Costs nothing when omitted.  Default: None.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -10523,7 +10508,7 @@ def osc_prob_matter_std_potential(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator``.
 
     .. versionchanged:: 1.2.0
@@ -10602,7 +10587,7 @@ def osc_prob_matter_std_potential(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -10614,7 +10599,7 @@ def osc_prob_matter_std_potential(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'.
@@ -10626,7 +10611,7 @@ def osc_prob_matter_std_potential(
           unconditionally.  It therefore also opts out of the cumulative baseline scan, which
           postdates that behavior: pass ``strategy='magnus'`` to reproduce older numbers
           exactly, on a baseline scan as well as at a single point -- with ``'gl'``, the
-          default.  With ``'trapezoid'``/``'simpson'`` the numbers moved in 1.1.1: at
+          default.  With ``'trapezoid'``/``'simpson'`` the numbers moved in 1.2.0: at
           declared breakpoints they now sample each side of a jump with its own values, and
           the energy-batched engine seeds their starting slab count when it is at least
           :data:`QUADRATURE_SEED_MIN_SLABS`.
@@ -10668,7 +10653,7 @@ def osc_prob_matter_std_potential(
           hybrid's test for a density jump nobody declared still runs, with its reason and its
           warning.
 
-        .. versionchanged:: 1.1.1
+        .. versionchanged:: 1.2.0
            ``'auto'`` hands a moderate phase at a loose tolerance to the ladder (issue #70),
            an energy scan the energy-batched scan will take at any phase (issue #84), and a
            small phase at a tight tolerance (issue #120).
@@ -11179,7 +11164,7 @@ def osc_prob_matter_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator``.
 
     .. versionchanged:: 1.2.0
@@ -11261,7 +11246,7 @@ def osc_prob_matter_nsi(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -11273,7 +11258,7 @@ def osc_prob_matter_nsi(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -11746,7 +11731,7 @@ def osc_prob_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator``.
 
     .. versionchanged:: 1.2.0
@@ -11833,7 +11818,7 @@ def osc_prob_liv(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -11845,7 +11830,7 @@ def osc_prob_liv(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     strategy : str, optional
         Numerical strategy used to compute the evolution operator: 'auto' (default), 'hybrid',
         or 'magnus'; see the ``strategy`` parameter of :func:`osc_prob_matter_std_potential` for
@@ -14543,7 +14528,7 @@ def osc_prob_2nu_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -14890,7 +14875,7 @@ def osc_prob_3nu_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -15254,7 +15239,7 @@ def osc_prob_4nu_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -15639,7 +15624,7 @@ def osc_prob_5nu_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -15986,7 +15971,7 @@ def osc_prob_earth(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -16128,7 +16113,7 @@ def osc_prob_earth(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -16140,7 +16125,7 @@ def osc_prob_earth(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -16285,7 +16270,7 @@ def _osc_prob_with_potential(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``return_evolution_operator`` and ``average``.
 
     .. note::
@@ -16386,7 +16371,7 @@ def _osc_prob_with_potential(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -16398,7 +16383,7 @@ def _osc_prob_with_potential(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     \**kwargs
         Additional arguments forwarded to :func:`osc_prob_energy_baseline`.
 
@@ -16546,7 +16531,7 @@ def _solar_profile(density_profile, ratio_number_neutrons_to_protons, source_fun
     standard solar model, its tabulated electron density, and the ratio as given or, left unset,
     the model's own composition (:mod:`magnus.solarmodels`).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if _is_exponential(density_profile):
         return None, (1.0 if ratio_number_neutrons_to_protons is None
@@ -16596,7 +16581,7 @@ def _stop_at_table_edge(density_profile, stop_at_table_edge, L, L0, source_func_
     blank; a warning says how many and where the edge is.  A path that *starts* past the edge
     has nothing inside the table to compute, and is refused outright.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if not stop_at_table_edge:
         return L, None
@@ -16634,7 +16619,7 @@ def _refuse_past_table_edge(P, beyond):
     ``P`` is whatever the wrapper returns -- a probability, a matrix, one per point, or the pair
     ``(P, U)`` -- and its first axis runs over the points when there is more than one.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if beyond is None:
         return P
@@ -16716,7 +16701,7 @@ def osc_prob_2nu_sun(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -16911,7 +16896,7 @@ def osc_prob_3nu_sun(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -17113,7 +17098,7 @@ def osc_prob_4nu_sun(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
@@ -17365,7 +17350,7 @@ def osc_prob_5nu_sun(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
@@ -17607,7 +17592,7 @@ def osc_prob_sun(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``average``, ``density_profile`` and ``stop_at_table_edge``.
 
     .. versionchanged:: 1.2.0
@@ -17693,7 +17678,7 @@ def osc_prob_sun(
         refused there.  Default: None,
         meaning :data:`magnus.avgprob.AVG_DEFAULT_N_SAMPLES`, 41.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     average_initial_state : str, optional
         The state the neutrino starts in, for ``average=True``: ``'flavor'`` or
         ``'decohered'``.  ``'flavor'``: the flavor state
@@ -17705,7 +17690,7 @@ def osc_prob_sun(
         available on a profile with declared discontinuities, whose average starts in flavor.
         Refused without ``average=True``.  Default: None, meaning ``'flavor'``.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
     density_profile : str, optional
         The Sun's electron density, which sets the ``VCC`` passed to ``H_func``.  ``'exp'``,
         the default, is the exponential fit described above.  The name of a standard solar
@@ -19362,7 +19347,7 @@ def osc_prob_2nu_earth_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -19718,7 +19703,7 @@ def osc_prob_3nu_earth_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -20104,7 +20089,7 @@ def osc_prob_4nu_earth_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -20526,7 +20511,7 @@ def osc_prob_5nu_earth_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -20898,7 +20883,7 @@ def osc_prob_2nu_sun_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -21094,7 +21079,7 @@ def osc_prob_3nu_sun_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -21322,7 +21307,7 @@ def osc_prob_4nu_sun_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
@@ -21617,7 +21602,7 @@ def osc_prob_5nu_sun_nsi(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
@@ -24179,7 +24164,7 @@ def osc_prob_2nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -24546,7 +24531,7 @@ def osc_prob_3nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -24944,7 +24929,7 @@ def osc_prob_4nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -25383,7 +25368,7 @@ def osc_prob_5nu_earth_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth``, ``detector_depth`` and ``density_matter_ocean``.
        Their defaults leave the trajectory and the density profile exactly as
        they were: both endpoints on the surface, and PREM's own ocean.
@@ -25745,7 +25730,7 @@ def osc_prob_2nu_sun_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -25926,7 +25911,7 @@ def osc_prob_3nu_sun_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.
 
@@ -26146,7 +26131,7 @@ def osc_prob_4nu_sun_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own
@@ -26438,7 +26423,7 @@ def osc_prob_5nu_sun_liv(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Takes ``density_profile``, to use a tabulated standard solar model in place of the
        exponential fit, and ``stop_at_table_edge``.  ``ratio_number_neutrons_to_protons``
        defaults to None: 1.0 with the exponential profile, as before, and the model's own

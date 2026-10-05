@@ -150,7 +150,7 @@ r"""tuple of str: Module-level constant
 The subcommands :func:`build_parser` registers.  The first, ``prob``, is the default:
 a command line that names none runs it (issue #138).
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -160,7 +160,7 @@ def _with_default_subcommand(argv):
     ``magnus --flavors 3 ...`` becomes ``magnus prob --flavors 3 ...``.  An empty command
     line, ``-h``/``--help`` and ``-V``/``--version`` are left to the top-level parser.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -185,7 +185,7 @@ class _HelpWithDefaultSubcommand(argparse.Action):
     ``magnus --help`` is looking for; printing only the subcommand list would send them to
     ``magnus prob --help`` for every option (issue #138).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -208,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
         subcommand, which :func:`main` supplies when none is given, and its ``-h`` prints
         the help of ``prob`` after its own.
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The epilog names ``prob`` as the default subcommand, and ``magnus -h`` also prints
        the options of ``prob`` (issue #138).
 
@@ -586,7 +586,7 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
     Every invalid combination of flags exits here rather than downstream, so the message
     names the flags the user typed rather than the library's parameters.
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The sun branch forwards the density profile and ``--stop-at-table-edge``, and a
        solar model or ``--stop-at-table-edge`` outside ``--environment sun`` is refused.
 
@@ -827,7 +827,7 @@ def main(argv=None) -> int:
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        ``prob`` is optional (issue #138).
 
     Parameters

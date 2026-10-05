@@ -524,7 +524,7 @@ def test_the_neutron_to_proton_ratio_is_inert_on_the_sun_only_below_four_flavour
 
 
 # ---------------------------------------------------------------------------
-# Underground source and detector (1.1.1)
+# Underground source and detector (1.2.0)
 # ---------------------------------------------------------------------------
 
 def test_the_default_depths_reproduce_the_surface_chord_bit_for_bit():

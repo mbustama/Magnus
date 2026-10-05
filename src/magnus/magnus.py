@@ -1964,7 +1964,7 @@ def _row_slab_norms():
     :class:`MagnusConvergenceWarning` still receives the stack maximum, so the warning is
     unchanged.  Not re-entrant; nothing inside the engine's level opens it again.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Yields
     ------
@@ -3371,7 +3371,7 @@ def magnus_expansion_multislab(
         :class:`magnus.oscprob.UnmarkedDiscontinuityWarning`; breakpoints
         outside the chain are ignored.  If None (default), nothing changes.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
 
     Returns
     -------

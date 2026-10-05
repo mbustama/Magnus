@@ -244,11 +244,12 @@ The ``strategy`` parameter
 The functions listed at the top of this page accept a ``strategy`` keyword with
 three values:
 
-``'magnus'`` Use only the Magnus-expansion engines, never the adiabatic one:
-   the two-flavor interaction picture where it applies (two-level Hamiltonians
-   on an exponential profile; see :doc:`engines`), the energy-batched scan or
-   the general adaptive slab refinement.  It also turns off the cumulative
-   baseline scan; see :ref:`strategy='magnus' <strategy-magnus>`.
+``'magnus'``
+   Use only the Magnus-expansion engines, never the adiabatic one: the
+   two-flavor interaction picture where it applies (two-level Hamiltonians on an
+   exponential profile; see :doc:`engines`), the energy-batched scan or the
+   general adaptive slab refinement.  It also turns off the cumulative baseline
+   scan; see :ref:`strategy='magnus' <strategy-magnus>`.
 
 ``'hybrid'``
    Try :func:`magnus.adiabatic.hybrid_propagator` in addition to the Magnus

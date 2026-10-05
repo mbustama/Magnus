@@ -1210,7 +1210,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a recipe that raised (`d13=` for `dCP=`) and `abs(U)**2.T`, which does not parse; the
   dispatch order under `strategy='auto'`, which is not silent when the hybrid declines an
   undeclared jump, and does not try the interaction picture first; `average=True` described
-  as the decohered limit where it has returned a phase average since 1.1.1; the runtime
+  as the decohered limit where it returns a phase average; the runtime
   dependencies (five, not three: matplotlib and numba were missing, as in
   `src/requirements.txt`); the location format of the Earth wrappers; the matrix-exponential
   backends, unitary to round-off rather than by construction; stale counts, `Returns`/`Raises`

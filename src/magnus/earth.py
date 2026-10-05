@@ -102,7 +102,7 @@ def density_matter_func_prem(r: Union[float, np.ndarray],
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``density_matter_ocean``, which replaces the density of
        PREM's outermost shell.  Left as None, the profile is unchanged.
 
@@ -202,7 +202,7 @@ def _depths_or_zero(source_depth: Optional[float],
     from sending a None down the general branch, where it would surface as a TypeError
     from ``float(None)`` instead of this package's descriptive ValueError.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     return (0.0 if source_depth is None else source_depth,
             0.0 if detector_depth is None else detector_depth)
@@ -247,10 +247,6 @@ def _check_dms(name: str, dms, where: str, lo: float, hi: float) -> float:
     (issue #160 §3).
 
     .. versionadded:: 1.2.0
-
-    .. versionchanged:: 1.2.0
-       Converts through the unchecked conversion, so a longitude beyond 360 degrees is refused
-       naming the caller's argument rather than 'degrees' (issue #160 §3).
     """
     try:
         d, m, s = dms
@@ -292,7 +288,7 @@ def _validated_endpoint_radii(costhz: float, source_depth: float, detector_depth
     1.2.0 the public entry points refuse it on the surface branch as well, through
     :func:`_check_costhz` (issue #160 §3).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     R = gd.EARTH_RADIUS
 
@@ -338,7 +334,7 @@ def distance_traveled_inside_earth(costhz: float, source_depth: Optional[float]=
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth`` and ``detector_depth``.  Their defaults of
        zero reproduce the surface-to-surface chord bit for bit, through
        the same expression as before.
@@ -457,7 +453,7 @@ def earth_radial_distance_from_depth(costhz: float, l: Union[float, np.ndarray],
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth`` and ``detector_depth``.  Their defaults of
        zero reproduce the surface-to-surface chord bit for bit, through
        the same expression as before.
@@ -596,7 +592,7 @@ def prem_layer_edges_along_chord(costhz: float, source_depth: Optional[float]=0.
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Added ``source_depth`` and ``detector_depth``.  Their defaults of
        zero reproduce the surface-to-surface chord bit for bit, through
        the same expression as before.
@@ -712,7 +708,7 @@ def dms_to_decimal(degrees: float, minutes: float, seconds: float) -> float:
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The minutes and seconds now follow the sign of the coordinate.  They
        used to be added as given, so ``(-88, 15, 26)``, the form the built-in
        location table uses, came out :math:`-87.743^\circ` and moved every
