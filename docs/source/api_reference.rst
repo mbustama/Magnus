@@ -1,17 +1,17 @@
 API reference
 =============
 
-Generated from the docstrings, module by module. Every public function,
-class and module-level constant Magνs ships appears here with its full
-signature, its parameters and what it returns.
+This reference is generated from the docstrings, module by module. Every
+public function, class and module-level constant Magνs ships appears here with
+its full signature, its parameters and what it returns.
 
 This is the exhaustive view. Four other pages are usually the faster way in:
 
 * :doc:`recipes` — what the package can compute, with the code that computes it.
 * :doc:`functions` — the whole ``osc_prob_*`` family laid out by environment and
   flavor count, for when you know roughly what you want but not its name.
-* :doc:`engines` — how the engines choose between themselves.
-* :doc:`performance` — the population every tuned constant was measured on.
+* :doc:`engines` — which engine answers a call, and how the choice is made.
+* :doc:`performance` — the tuned constants and the populations they were measured on.
 
 Constants are documented where they live rather than collected into a table of
 their own, because each one's docstring carries the measurement that set it —

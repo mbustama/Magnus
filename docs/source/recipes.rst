@@ -1,7 +1,7 @@
 Numerical recipes
 =================
 
-What **Magνs** can compute, with the code that computes it.
+This page shows what **Magνs** can compute, with the code that computes it.
 
 Each recipe below is a few lines.  The short ones run when this page is built, so
 the output shown is what the current code produces.  Most recipes have a longer
@@ -19,7 +19,7 @@ and flavor count.
 One probability
 ---------------
 
-The simplest call: an energy, a baseline, and the default oscillation
+The simplest call takes an energy and a baseline and uses the default oscillation
 parameters.
 
 .. jupyter-execute::
@@ -34,10 +34,13 @@ parameters.
     print('P_ee   = %.6f' % np.asarray(P)[0][0])     # 0.928948
     print('P_mue  = %.6f' % np.asarray(P)[1][0])     # 0.031266
 
-The return is the probability matrix, indexed ``P[nu_i][nu_f]``: the *initial*
+The return value is the probability matrix, indexed ``P[nu_i][nu_f]``: the *initial*
 flavor first. Pass ``nu_i`` and ``nu_f`` to get a single channel instead of the
-matrix. Full walk-through:
-`notebook 01 <https://github.com/mbustama/Magnus/blob/main/notebooks/01_magnus_introduction.ipynb>`_.
+matrix. Full walk-through: `notebook 01`_.
+
+.. _notebook 01:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   01_magnus_introduction.ipynb
 
 
 .. _recipe-evolution-operator:
@@ -82,7 +85,7 @@ A scan, without a loop
 
 Pass arrays, and the whole scan is one call.  The engines batch over the energy
 axis, so for a position-dependent Hamiltonian the matter profile is built once for
-the whole scan rather than once per point.  This is the largest saving available.
+the whole scan rather than once per point.  Batching is the largest saving available.
 
 .. jupyter-execute::
 
@@ -103,15 +106,17 @@ A batched call returns ``(n_points, d, d)``, with the point index **first**, so
 
    Three-flavor vacuum oscillations.
 
-Writing your own ``H_func`` so that it accepts an *array* of positions saves a
-further factor of several: see :ref:`write-h-func-vectorized` below.
+Writing your own ``H_func`` so that it accepts an *array* of positions can save a
+further factor of up to about 5, depending on how many slabs the call needs: see
+:ref:`write-h-func-vectorized` below.
 
 
 Through the Earth
 -----------------
 
 Give the zenith angle and the chord length.  The PREM density profile along the
-chord, and slab edges at its layer boundaries, are set up automatically.
+chord is set up automatically, with mandatory slab edges at its layer boundaries, so
+the quadrature never integrates across a density discontinuity.
 
 .. jupyter-execute::
 
@@ -126,8 +131,8 @@ chord, and slab edges at its layer boundaries, are set up automatically.
     print('P_mue   = %.6f' % P[1][0])                 # 0.132224
 
 A detector underground is the same call with its depth named.  The zenith angle
-is measured at the detector, so the baseline follows from the geometry and is
-computed rather than given.  A buried detector also sees downward-going
+is measured at the detector.  The baseline follows from the angle and the depth, so
+it is computed rather than given.  A buried detector also sees downward-going
 neutrinos, which cross its overburden; a detector on the surface does not.
 
 .. jupyter-execute::
@@ -144,12 +149,11 @@ neutrinos, which cross its overburden; a detector on the surface does not.
 
 PREM's outermost shell is 3 km of global-average ocean, which does not describe a
 detector under rock or ice.  Replace its density with ``density_matter_ocean``,
-and its composition with ``electron_fraction_ocean``.  Both matter for a
+and its composition with ``electron_fraction_ocean``.  Both settings matter for a
 trajectory close to horizontal, which can spend its whole length inside that
 shell.
 
-The PREM layer boundaries are inserted as mandatory slab edges automatically, so
-the quadrature never integrates across a density discontinuity. Notebooks
+Notebooks
 `02 <https://github.com/mbustama/Magnus/blob/main/notebooks/02_magnus_2nu_vacuum_matter.ipynb>`_
 and
 `03 <https://github.com/mbustama/Magnus/blob/main/notebooks/03_magnus_3nu_vacuum_matter.ipynb>`_
@@ -186,15 +190,19 @@ baseline, and ``magnus.earth.loc_coords_dms`` lists the sites.
                 E_beam, loc_ini='fermilab', loc_fin=site, nu_i=gd.NUMU, nu_f=gd.NUE))
         print('fermilab -> %-9s %6.0f km   P_mue:' % (site, L_km), np.round(P_site, 4))
 
-`Notebook 04 <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_
-draws these, with T2K, Hyper-K and ESS.
+`Notebook 04`_ draws these, with T2K, Hyper-K and ESS.
+
+.. _Notebook 04:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   04_magnus_long_baseline.ipynb
 
 
 DUNE: neutrinos and antineutrinos through PREM
 ----------------------------------------------
 
-The full appearance and disappearance spectra at DUNE, Fermilab to the Homestake
-mine, over 200 energies: one call for neutrinos and one for antineutrinos.
+This recipe computes the full appearance and disappearance spectra at DUNE, Fermilab
+to the Homestake mine, at 200 energies, with one call for neutrinos and one for
+antineutrinos.
 
 .. jupyter-execute::
 
@@ -223,8 +231,8 @@ mine, over 200 energies: one call for neutrinos and one for antineutrinos.
     print('P_mue = %.4f, P_mue-bar = %.4f' % (P_nu[i, 1, 0], P_nubar[i, 1, 0]))   # 0.0799, 0.0143
     print('both spectra: %.1f ms' % (1e3*(t1 - t0)))
 
-The two spectra take a few milliseconds together once warm (under 10 ms on a CI runner); the
-first call of a session costs a few hundred milliseconds more, spent on set-up.
+The two spectra take a few milliseconds together after the first call (under 10 ms on a CI
+runner); the first call of a session costs a few hundred milliseconds more, spent on setup.
 The gap between ``P_mue`` and ``P_mue-bar`` is the matter effect together with
 :math:`\delta_{\rm CP}`: the chord is 1285 km, and the default ordering is normal.
 
@@ -262,9 +270,9 @@ A profile of your own
 ---------------------
 
 Any callable returning a density as a function of position works.  The Sun's
-exponential profile ships as a helper, :func:`magnus.matter.exp_density_profile`;
+exponential profile is available as a helper, :func:`magnus.matter.exp_density_profile`;
 at two flavors, a profile built with it can use the faster interaction-picture
-engine (:doc:`engines`).  Twelve published standard solar models ship as well,
+engine (:doc:`engines`).  Twelve published standard solar models are also included,
 and the Sun wrappers take them by name (see :doc:`solar_models`).
 
 .. jupyter-execute::
@@ -288,7 +296,7 @@ Notebooks
 and
 `14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
 do this with a real tabulated solar model and with a supernova shock front, and
-measure where the package's accuracy runs out on each.
+measure where the package's accuracy breaks down in each case.
 
 .. figure:: ../../img/gallery/gallery_shock.png
    :width: 80%
@@ -321,10 +329,13 @@ instantaneous value. Ask for it directly rather than averaging a scan by hand.
     print('phase-averaged     = %.6f' % avg[0][0])    # 0.410154
 
 This matters for accuracy as well as for physics.  An error in the *phase* of
-the oscillation disappears under averaging; an error in its *amplitude*, the
+the oscillation disappears under averaging; an error in its *mean*, the
 probability around which it oscillates, does not.  See
-:doc:`averaged_probability`, and
-`notebook 10 <https://github.com/mbustama/Magnus/blob/main/notebooks/10_magnus_averaged_probability.ipynb>`_.
+:doc:`averaged_probability`, and `notebook 10`_.
+
+.. _notebook 10:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   10_magnus_averaged_probability.ipynb
 
 .. figure:: ../../img/gallery/gallery_averaged.png
    :width: 90%
@@ -336,7 +347,7 @@ probability around which it oscillates, does not.  See
 Flavor composition of astrophysical neutrinos
 ---------------------------------------------
 
-From a source 100 Mpc away every oscillation has averaged out, so the flavor
+From a source 100 Mpc away, every oscillation has averaged out, so the flavor
 composition at Earth is the source composition times the averaged probability
 matrix.
 
@@ -374,10 +385,10 @@ two successive levels agree.
     print('slab edges used : %d   (PREM boundaries included)' % info['n_slab_edges'])
     print('tolerance met   : %s' % info['tolerance_achieved'])
 
-The tolerance is a stopping criterion, not a guarantee: the ladder halts when two levels agree,
-and never estimates the error of the answer it returns. Usually that is conservative; it is not
-always. The ``rtol`` entry of :func:`magnus.oscprob.osc_prob` says what it does and does not
-promise, and :ref:`what-rtol-atol-control` gives the measured detail.
+The tolerance is a stopping rule, not a guarantee: the ladder halts when two levels agree,
+and never estimates the error of the answer it returns. The stopping rule is usually
+conservative, but not always. The ``rtol`` entry of :func:`magnus.oscprob.osc_prob` says
+what it does and does not promise, and :ref:`what-rtol-atol-control` gives the measured detail.
 
 ``convergence_info`` reports what the ladder did — including
 ``tolerance_achieved``, which is the programmatic form of
@@ -390,7 +401,7 @@ Choosing a strategy, and seeing which engine answered
 
 ``strategy='auto'``, the default, picks the engine from the phase of the request, its
 shape and the tolerance.  At the default tolerance, an energy scan goes to the
-energy-batched scan.  A single point goes to the general Magnus ladder, unless its phase
+energy-batched engine.  A single point goes to the general Magnus ladder, unless its phase
 exceeds 1e4 or it needs too many slabs; then it goes to the adiabatic propagator with
 Magnus patches.  :ref:`dispatch-order` has the full table.  ``'hybrid'`` forces the
 adiabatic propagator, and ``'magnus'`` keeps to the Magnus engines.  The choice affects
@@ -406,9 +417,12 @@ faster but less accurate, and raises ``ToleranceNotAchievedWarning``.
     print('engine that answered:', report['engine'])
 
 Pass ``strategy_info`` whenever you want to know which of the engines produced a
-number. See :doc:`adiabatic_strategy`, and
-`notebook 12 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_,
-which times ``'auto'``, ``'hybrid'`` and ``'magnus'`` against ``solve_ivp``.
+number. See :doc:`adiabatic_strategy`, and `notebook 12`_, which times ``'auto'``,
+``'hybrid'`` and ``'magnus'`` against ``solve_ivp``.
+
+.. _notebook 12:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   12_magnus_adiabatic_hybrid_strategy.ipynb
 
 Checking an answer two ways
 ---------------------------
@@ -436,23 +450,23 @@ is reported, never raised; read it before trusting a number that matters.
 When a spread is large, look first at ``check['unverified']``: the engines that
 reported missing the tolerance.  A spread involving one of them points at that engine,
 and ``check['max_spread_verified']`` gives the spread among the others.  For example, on
-the Sun at 1 MeV, the hybrid engine certified an answer 3.8e-5 from a fine reference,
-while the slab ladder, stopped at its cap of 20 000 slabs, was 1.9e-3 from it.  The
-spread was 1.9e-3, and the ladder was listed as unverified.
+the Sun at 1 MeV, the hybrid engine certifies an answer 3.8e-5 from a fine reference,
+while the slab ladder, stopped at its cap of 20 000 slabs, is 1.9e-3 from it.  The
+spread is then 1.9e-3, and ``unverified`` lists the ladder.
 
 
-Telling it where the profile is not smooth
-------------------------------------------
+Declaring where the profile is not smooth
+-----------------------------------------
 
 High-order quadrature converges at its nominal order only inside a smooth slab.
 If your profile has a jump or a kink, pass its position as a mandatory slab edge;
-no number of slabs fixes one that straddles it.
+no number of slabs repairs a slab that straddles the jump.
 
 .. figure:: ../../img/paper/declaring_edges.svg
    :width: 90%
    :alt: Declaring a density discontinuity
 
-   What a density jump does to a slab, and the two ways of declaring it.  Nothing
+   What a density jump does to a slab, and the two ways of declaring it.  With nothing
    declared, one slab straddles the jump and the quadrature sees a straight line across
    it (shaded).  ``t_breakpoints`` adds the jump to the refinement grid;
    ``t_slab_edges`` replaces the grid.  From the Magνs paper.
@@ -474,15 +488,18 @@ castle-wall profile, or a tabulated model with a discontinuous derivative.  On a
 declares the jumps itself (:ref:`warning-catalogue`), so passing them only skips that
 search.  The exception is a single phase-averaged point (``average=True``).  There,
 declaring a shock front changes the engine: across 18 shock configurations, it
-improved 7 results and worsened 11, so check such a point a second way.
-`Notebook 14 <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_
-is that measurement.
+improves 7 results and worsens 11, so check such a point a second way.
+`Notebook 14`_ is that measurement.
+
+.. _Notebook 14:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   14_magnus_supernova_shock.ipynb
 
 A layered profile, exactly
 --------------------------
 
-A piecewise-constant profile — a castle wall — is exact once its slab edges are
-declared: inside each layer the Hamiltonian is constant, and one exponential per
+The probability for a piecewise-constant profile — a castle wall — is exact once its
+slab edges are declared: inside each layer the Hamiltonian is constant, and one exponential per
 layer is the whole answer.
 
 .. jupyter-execute::
@@ -505,8 +522,11 @@ layer is the whole answer.
         print('nubar=%-5s P_mue at 1, 2, 4 GeV:' % nubar, np.round(P_cw, 4))
 
 The same mean density arranged differently gives different probabilities;
-`notebook 18 <https://github.com/mbustama/Magnus/blob/main/notebooks/18_magnus_unusual_density_profiles.ipynb>`_
-compares four arrangements.
+`notebook 18`_ compares four arrangements.
+
+.. _notebook 18:
+   https://github.com/mbustama/Magnus/blob/main/notebooks/
+   18_magnus_unusual_density_profiles.ipynb
 
 
 New physics
@@ -582,16 +602,16 @@ repeated at each refinement level.
                          rtol=1e-8, atol=1e-8)
 
 The trailing ``[..., None, None]`` turns one potential per position into a stack of
-matrices, so NumPy broadcasts instead of Python looping.  The output is bit-identical,
+matrices, so NumPy broadcasts instead of looping in Python.  The output is bit-identical,
 and the gain grows with the number of positions the ladder evaluates: about 5× for the
 call above, which ends at 378 slabs, and about 2× at the default tolerance, which ends
 at 22.  On a call that needs only a few slabs, the gain is negligible.  A scalar-only
-``H_func`` raises :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session.
+``H_func`` issues :class:`~magnus.magnus.ScalarHamiltonianWarning` once per session.
 
 The builders in :mod:`magnus.hamiltonians` do this for you: each takes its energy, ``VCC``
-or position as a number or an array, and an array returns a stack of matrices, one per
-entry.  ``hams.hamiltonian_3nu_nsi`` builds only the NSI term, so a full, vectorized
-NSI matter Hamiltonian is
+or position as a number or an array, and given an array, it returns a stack of matrices,
+one per entry.  ``hams.hamiltonian_3nu_nsi`` builds only the NSI term, so a full, vectorized
+NSI matter Hamiltonian is:
 
 .. code-block:: python
 

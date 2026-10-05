@@ -2,13 +2,13 @@ Magnus expansion terms to any order
 ===================================
 
 The numerical core writes out orders 1 to 6 of the Magnus expansion explicitly in
-Python, which is fast and keeps them checkable by eye, and generates orders 7 to 10
-from the recursion; it stops at order 10.  :mod:`magnus.expansionterms`
-derives the same terms symbolically, in exact rational arithmetic, at any order.
+Python, which is fast and keeps them checkable by eye.  It generates orders 7 to 10
+from the recursion.  :mod:`magnus.expansionterms` derives the same terms symbolically,
+in exact rational arithmetic, at any order.
 
-That serves two purposes.  It lets the hard-coded coefficients be *checked*
-rather than trusted — the test suite regenerates them and compares — and it lets
-you inspect an order beyond the implemented ceiling without running anything.
+The symbolic derivation serves two purposes.  It lets the hard-coded coefficients be
+*checked* rather than trusted — the test suite regenerates them and compares — and it
+lets you inspect an order beyond the implemented ceiling without running a propagation.
 
 .. contents::
    :local:
@@ -39,8 +39,8 @@ with the :math:`S_n^{(j)}` defined recursively in terms of the lower-order
 
 Two facts about this recursion matter in practice.
 
-**Odd Bernoulli numbers vanish.**  :math:`B_j = 0` for every odd :math:`j \geq 3`,
-so whole commutator groups drop out and only :math:`j = 1, 2, 4, 6, 8, \ldots`
+**Odd Bernoulli numbers vanish.**  The Bernoulli number :math:`B_j` vanishes for every
+odd :math:`j \geq 3`, so whole commutator groups drop out and only :math:`j = 1, 2, 4, 6, 8, \ldots`
 contribute.  The surviving coefficients are the ones the numerical core hard-codes:
 
 .. math::
@@ -51,8 +51,8 @@ contribute.  The surviving coefficients are the ones the numerical core hard-cod
    \frac{B_6}{6!} = \frac{1}{30240} , \quad
    \frac{B_8}{8!} = -\frac{1}{1209600} .
 
-**Every term is a right-nested chain.**  Unrolling the recursion, each term of
-:math:`\Omega_n` has the form
+**Every term is a right-nested chain.**  Unrolling the recursion shows that each term
+of :math:`\Omega_n` has the form
 
 .. math::
 
@@ -61,13 +61,13 @@ contribute.  The surviving coefficients are the ones the numerical core hard-cod
 
 carrying the coefficient :math:`B_j/j!`.  The terms of the :math:`j`-th group are
 indexed by the *compositions* of :math:`n-1` into :math:`j` positive
-parts, of which there are :math:`\binom{n-2}{j-1}`.  So
+parts, of which there are :math:`\binom{n-2}{j-1}`.  Hence, the number of terms is
 
 .. math::
 
    \#\,\Omega_n = \sum_{j\,:\,B_j \neq 0} \binom{n-2}{j-1} ,
 
-which is what the implementation for orders 7 and above iterates over directly,
+which is what the implementation for orders 7 to 10 iterates over directly,
 rather than storing the 244 expressions of orders 7 to 10.
 
 How many terms there are
@@ -79,15 +79,14 @@ How many terms there are
 
     {n: et.count_terms(n) for n in range(1, 13)}
 
-The count roughly doubles per order.  This is why the implemented ceiling
-(:data:`magnus.magnus.MAGNUS_EXP_ORDER_MAX`, currently 10) is a deliberate choice:
-the terms remain easy to *generate* far beyond it, but the work per slab grows with
-their number.
+The count roughly doubles per order.  The implemented ceiling,
+:data:`magnus.magnus.MAGNUS_EXP_ORDER_MAX` = 10, is chosen for this reason: the terms
+remain easy to *generate* far beyond it, but the work per slab grows with their number.
 
 The expansion, written out
 --------------------------
 
-Orders 1 through 6, which the numerical core spells out inline:
+The numerical core spells out orders 1 through 6 inline:
 
 .. jupyter-execute::
 
@@ -131,8 +130,7 @@ Checking the implementation against the derivation
 --------------------------------------------------
 
 This module shares no code with the numerical core, so agreement between the two is
-an independent check.  The hard-coded
-group factors:
+an independent check.  The hard-coded group factors agree with the derived ones:
 
 .. jupyter-execute::
 
@@ -146,19 +144,20 @@ group factors:
 ``tests/test_expansionterms.py`` goes further: it evaluates the generated terms
 numerically on a sampled :math:`A(l)` and compares them, order by order, against
 what :func:`magnus.magnus.magnus_expansion` produces internally.  They agree to a
-relative 1e-11 at every order from 1 to 10, the round-off of the quadrature that
-evaluates them, which covers both the hand-written
-low orders and the generated high ones in a single check.
+relative precision of 1e-11 at every order from 1 to 10, the accuracy of the quadrature
+that evaluates them.  This single check covers both the hand-written low orders and the
+generated high ones.
 
 Choosing an order
 -----------------
 
 A higher order makes the error fall faster with the slab width.  The table below was
-measured on a single slab with a smooth Hamiltonian, against a tight-tolerance ODE
-solution.  It uses the cumulative-quadrature methods, on which ``magnus_exp_order`` is the
-index of the last term kept, and the order delivered is higher (see the table in
-:doc:`methodology`).  The error of a single slab carries one more power of :math:`h` than
-the error over the whole trajectory.
+measured on a single slab with a smooth three-flavor Hamiltonian, against a tight-tolerance
+ODE solution.  It uses the cumulative-quadrature method ``'simpson'``, for which
+``magnus_exp_order`` is the index of the last term kept and the delivered order is higher
+(see the table in :doc:`methodology`).  The error of a single slab carries one more power of
+:math:`h` than the error over the whole trajectory: order 4, which delivers order 6 over a
+trajectory, converges as :math:`h^7` on one slab.
 
 .. list-table::
    :header-rows: 1
@@ -168,16 +167,16 @@ the error over the whole trajectory.
      - Observed convergence rate
      - Cost per slab, relative to order 6
    * - 4
-     - :math:`\sim h^{6.6}`
+     - :math:`\sim h^{7.1}`
      - 0.25
    * - 6
-     - :math:`\sim h^{8.3}`
+     - :math:`\sim h^{9.1}`
      - 1
    * - 7
-     - :math:`\sim h^{8.0}`
+     - :math:`\sim h^{9.1}`
      - 2.7
    * - 8
-     - :math:`\sim h^{10.2}`
+     - :math:`\sim h^{11.3}`
      - 5.0
    * - 10
      - measurement floor
@@ -191,18 +190,18 @@ Magνs warns (``magnus.magnus.MagnusHighOrderCostWarning``) when an order above 
 requested *on the quadrature path*, for exactly this reason.  The collocation schemes
 are unaffected: order 8 there costs four Hamiltonian evaluations and six commutators.
 
-Second, and more fundamentally, the Magnus series converges only while
-:math:`\int \lVert A \rVert\, dl < \pi`.  Beyond that radius **no** order helps, and
-the answer is narrower slabs — see :doc:`methodology` and
-``magnus.magnus.MagnusConvergenceWarning``.
+Second, and more fundamentally, the Magnus series is guaranteed to converge only while
+:math:`\int \lVert A \rVert\, dl < \pi`.  This bound is sufficient, not necessary.  Beyond
+it, a higher order is not guaranteed to help, and the remedy is narrower slabs — see
+:doc:`methodology` and ``magnus.magnus.MagnusConvergenceWarning``.
 
 .. note::
-   Orders above 8 require ``integration_method='trapezoid'`` or ``'simpson'``.
-   The Gauss-Legendre collocation schemes (``'gl'``, the default) are
-   separately derived integrators :cite:p:`Blanes2000,Blanes2002`, not products
-   of this recursion, and are implemented up to order 8; requesting more from
-   them raises a :class:`ValueError` rather than quietly returning an order-8
-   result.
+   Odd orders and orders above 8 require ``integration_method='trapezoid'`` or
+   ``'simpson'``.  The Gauss–Legendre collocation schemes (``'gl'``, the default)
+   are separately derived integrators :cite:p:`Blanes2000,Blanes2002`, not
+   products of this recursion, and exist only for orders 2, 4, 6 and 8.  Any
+   other order raises a :class:`ValueError` rather than quietly returning a
+   result of a different order.
 
 API
 ---

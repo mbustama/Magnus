@@ -5,9 +5,11 @@ Usage and examples
 
 These pages walk through the calls to Magνs for the cases a user is most likely to
 meet, and then through a set of longer examples.  They follow the usage section of the
-Magνs paper, section by section, with each snippet and figure.  Every figure is computed
-in `notebook 28 <https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb>`__,
-and each section links the notebook that develops its topic in full.
+Magνs paper section by section and reproduce each of its snippets and figures.  Every figure
+is computed in `notebook 28`__, and each section links the notebook that develops its topic
+in full.
+
+__ https://github.com/mbustama/Magnus/blob/main/notebooks/28_magnus_paper_figures.ipynb
 
 .. toctree::
    :maxdepth: 1

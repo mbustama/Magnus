@@ -8,17 +8,17 @@ Against other codes
 Magνs is not the fastest way to compute every oscillation probability, and this page
 says where it is not.  It follows the cross-code comparison of the Magνs paper, whose
 source is in `resources/paper/ <https://github.com/mbustama/Magnus/tree/main/resources/paper>`_:
-eight codes on three setups, NuOscProbExact at two to five flavors, and the cost of an
-averaged solar probability, all computed in notebook 28.  It ends with which code to use
-when.  Every code is timed in one process on one machine.
+eight codes on three setups, Magνs against NuOscProbExact at two to five flavors, and the cost
+of an averaged solar probability, all computed in notebook 28.  It ends with advice on which
+code to use for which problem.  Every code is timed in one process on one machine.
 
 .. warning::
 
    **Absolute timings are a property of the machine and are worth little on
    their own.**  Read the *ratios* within a row, and read a tolerance sweep
-   only within one code's own curve.  "Code A is faster than code B" does not
-   survive a change of hardware; "tightening this dial costs 20% and buys four
-   orders of magnitude" does.
+   only within one code's own curve.  A claim that one code is faster than another
+   may not hold on different hardware; a claim that tightening one setting costs 20%
+   and gains four orders of magnitude in accuracy usually does.
 
 Eight codes, three setups
 -------------------------
@@ -30,8 +30,8 @@ Eight codes, three setups
    Error against time per probability, for eight codes: constant density (top), a
    core-crossing Earth chord at :math:`\cos\theta_z = -0.9` at three flavors
    (middle), and the same chord with one sterile state (bottom).  Magνs and
-   NuOscProbExact appear twice on the Earth panels because each has two dials, a
-   slab count and a tolerance.
+   NuOscProbExact appear twice on the Earth panels because each has two settings,
+   a slab count and a tolerance.
 
 The codes are GLoBES, Prob3++, nuCraft, NuFast-LBL, NuFast-Earth, NuOscProbExact,
 nuSQuIDS and Magνs, with a second-order analytic expansion for reference.  Each is
@@ -54,8 +54,8 @@ chiefly the constant that fixes :math:`V_{\rm CC}`, so two codes can both reach
   crossing with NuOscProbExact moves up to about :math:`10^{-5}`, because its slab
   cost grows eightfold at four flavors against under threefold for Magνs.
 
-Against NuOscProbExact, two to five flavors
--------------------------------------------
+Magνs against NuOscProbExact, two to five flavors
+-------------------------------------------------
 
 .. figure:: ../../img/paper/smooth_reach.svg
    :width: 100%
@@ -68,7 +68,7 @@ Against NuOscProbExact, two to five flavors
    (:ref:`quickstart-conventions`).  NuOscProbExact stops at four
    flavors.
 
-The closed form is the cheaper code at loose tolerances.  At tight tolerances it
+NuOscProbExact's closed form is the cheaper code at loose tolerances.  At tight tolerances it
 runs into an accuracy floor that more slabs cannot lower, and Magνs reaches past it.
 
 The averaged solar probability
@@ -79,9 +79,9 @@ The averaged solar probability
    :alt: Cost of an averaged solar survival probability
 
    Time for one averaged :math:`\nu_e` survival probability at 5 MeV through the
-   tabulated BS2005-AGS,OP model, two to five flavors, with and without NSI and LIV:
-   Magνs against a DOP853 integration followed by an average over the last 1% of
-   the path.
+   tabulated BS2005-AGS,OP model (``'BS05-AGS-OP'`` in Magνs), two to five flavors,
+   with and without NSI and LIV: Magνs against a DOP853 integration followed by an
+   average over the last 1% of the path.
 
 Magνs computes the average directly, from one eigendecomposition at production and
 one at detection, and is four or more orders of magnitude faster than integrating
@@ -109,18 +109,18 @@ constant-density slabs handle well:
 
 * **The density varies continuously and fast against the oscillation length.**  A
   composition of constant-density slabs needs some :math:`10^4` steps per resonance crossing
-  in the Sun, where Magνs integrates across the slab.
+  in the Sun, whereas Magνs integrates across the slab.
 * **The profile has structure at a known place.**  A shock front, a layer boundary or a kink
   is passed as ``t_breakpoints``, which puts a slab edge on it at every refinement level.
-* **The problem has more than three flavors.**  At 3+1 NuOscProbExact finds its eigenvalues
+* **The problem has more than three flavors.**  At 3+1, NuOscProbExact finds its eigenvalues
   numerically, at eight times the cost per slab; past four flavors the SU(N) closed forms stop.
 * **The Hamiltonian has no closed form of its own.**  Nothing in Magνs assumes a form for
   :math:`H(l)` beyond Hermiticity, so a non-standard interaction, a Lorentz-violating
   background or a new Hamiltonian is passed as a matrix, with no change to the solver.
 * **The observable is an average.**  Phase-averaged probabilities and flavor compositions
   are returned directly rather than reconstructed from a scan (:doc:`averaged_probability`).
-* **The accuracy lies below where a slab composition floors.**  On a core-crossing PREM chord
-  NuOscProbExact stops near :math:`2 \times 10^{-10}`; Magνs reaches further.  Both are far
+* **The required accuracy is below the floor of a slab composition.**  On a core-crossing PREM
+  chord, NuOscProbExact stops near :math:`2 \times 10^{-10}`; Magνs reaches further.  Both are far
   below the percent level that matters in a data analysis.
 
 Elsewhere another code may be cheaper:
@@ -142,8 +142,8 @@ Elsewhere another code may be cheaper:
    * - Earth chord, accuracy no better than about :math:`10^{-6}`
      - NuOscProbExact
      - Twenty times cheaper per slab; Magνs overtakes it below about :math:`10^{-6}`
-       (:math:`10^{-5}` at 3+1), because its error falls as the fourth power of the slab
-       width against the second
+       (:math:`10^{-5}` at 3+1), because the error of Magνs falls as the fourth power of the
+       slab width, against the second for NuOscProbExact
    * - Decay, decoherence, collective effects
      - nuSQuIDS
      - They need a density matrix; no unitary solver here, Magνs included, represents them
@@ -160,7 +160,7 @@ reads exactly like an accuracy difference until you look.
 
 .. seealso::
 
-   Notebook 28 computes every figure on this page.  `Notebook 25
+   `Notebook 25
    <https://github.com/mbustama/Magnus/blob/main/notebooks/25_magnus_against_other_codes.ipynb>`_
    compares Magνs with NuOscProbExact and nuSQuIDS in more detail, from the frozen
    datasets in ``notebooks/external_*.json``: batching, the compiled kernel, the solar

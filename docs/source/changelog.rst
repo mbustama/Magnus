@@ -3,7 +3,7 @@ Changelog
 
 This page renders the project's root `CHANGELOG.md
 <https://github.com/mbustama/Magnus/blob/main/CHANGELOG.md>`_ directly, so
-there is a single source of truth kept up to date in one place.
+the changelog has a single source.
 
 .. Skipping the file's own "# Changelog" heading: it would otherwise nest a
    second, identical entry under this page's title in the sidebar.  The two

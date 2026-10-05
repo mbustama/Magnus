@@ -37,17 +37,17 @@ Replace ``version`` with the one you used.
 What to say in the text
 -----------------------
 
-Enough for a reader to know what was computed and how precisely. In practice
-that is three things:
+State enough for a reader to know what was computed and how precisely. In
+practice, that is three things:
 
 #. **The version**, as above.
 #. **The tolerance you asked for** (``rtol``/``atol``, or the fixed ``n_slabs``
    and ``n_tpts_per_slab`` if you disabled the refinement). Note that these are
-   a stopping criterion rather than a bound on the error — see
+   a stopping rule rather than a bound on the error — see
    :ref:`what-rtol-atol-control` — so quoting them describes the *request*, not
    the achieved accuracy.
-#. **The strategy**, if you did not use the default. ``strategy='auto'`` and
-   ``strategy='magnus'`` can differ by far more than the tolerance on solar
+#. **The strategy**, if you did not use the default. The strategies ``'auto'``
+   and ``'magnus'`` can differ by far more than the tolerance on solar
    configurations, so it is worth stating which one produced the numbers.
 
 If accuracy is central to your result, pass ``convergence_info={}`` to the call

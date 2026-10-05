@@ -4,14 +4,14 @@ Installation and requirements
 Requirements
 ------------
 
-Magνs requires **Python 3.10+**.  Dependencies:
+Magνs requires **Python 3.10+**.  It depends on the following packages:
 
 * ``numpy >= 1.22``
 * ``scipy >= 1.9`` (stacked-input ``scipy.linalg.expm`` and
   ``scipy.integrate.cumulative_trapezoid``; ``cumulative_simpson`` is used
   when available, from SciPy 1.12)
 * ``joblib >= 1.2`` (used to parallelize probability scans over energy/baseline
-  points; a single-core install works fine with ``n_jobs=1``, the default)
+  points; a single-core install works with ``n_jobs=1``, the default)
 * ``matplotlib >= 3.5`` (for :mod:`magnus.plotting`, imported lazily)
 * ``numba >= 0.59`` (the compiled matrix-exponential kernels of
   :mod:`magnus.expmkernels`)
@@ -19,9 +19,9 @@ Magνs requires **Python 3.10+**.  Dependencies:
 See :download:`src/requirements.txt <../../src/requirements.txt>`.
 
 Magνs is licensed under the GNU General Public License v3.0 only
-(``GPL-3.0-only``); see :doc:`index` for a summary, and the ``LICENSE``
-file in the repository root, which is also shipped inside the installed
-distribution, for the full text.
+(``GPL-3.0-only``); :doc:`index` has a summary.  The full text is in the
+``LICENSE`` file in the repository root, which also ships inside the installed
+distribution.
 
 Installation
 ------------
@@ -36,11 +36,11 @@ This installs the dependencies and the ``magnus`` command-line
 calculator (see :doc:`cli`).
 
 .. note::
-   The distribution is published as **magnuspy**, because ``magnus`` was
-   already taken on PyPI.  The import package and the command-line tool are
+   The distribution is published as **magnuspy**, because the name ``magnus`` is
+   taken on PyPI.  The import package and the command-line tool are
    both **magnus**: ``pip install magnuspy``, then ``import magnus``.
 
-For most users that is the whole installation.  A dedicated virtual environment
+For most users, that is the whole installation.  A dedicated virtual environment
 (``conda`` or ``venv``) is supported but not required.
 
 The PyPI package does not include the notebooks or the test suite.  The notebooks have
@@ -56,9 +56,8 @@ not yet released, clone the repository and install from it:
    pip install -e ".[test]"          # plus what the tests need
 
 The notebooks are in ``notebooks/``; opening them interactively also needs a Jupyter front
-end, such as JupyterLab.  Wherever these
-pages cite a file under ``tests/``, ``docs/`` or ``notebooks/``, it is in such a checkout (or
-on GitHub), not in the installed package.
+end, such as JupyterLab.  Wherever these pages cite a file under ``tests/``, ``docs/`` or
+``notebooks/``, it is in such a checkout (or on GitHub), not in the installed package.
 
 Either way, one command confirms it worked:
 
@@ -98,24 +97,25 @@ configured correctly for your system:
    pytest tests/ -n auto
 
 The suite has about 2400 tests and takes a few minutes spread over all cores.
-``-n auto`` comes from ``pytest-xdist``, which the ``test`` extra installs.  CI runs
-the same suite on Python 3.10 to 3.13 on every push, and the badge on :doc:`index`
+The ``-n auto`` option comes from ``pytest-xdist``, which the ``test`` extra installs.
+CI runs the same suite on Python 3.10–3.13 on every push, and the badge on :doc:`index`
 shows the result.
 
 **What passing means.**  The suite checks the package against closed forms, an
-independent ODE solver, an independently generated expansion, and properties that must
-hold exactly; :ref:`what-accuracy-means` lists each check and its result.  It also
-fixes the conventions that would give self-consistent but wrong answers if changed:
-the slab ordering, the sign of the antineutrino potential, the mass ordering and the
-channel indexing (:ref:`conventions`).  Finally,
+independent ODE solver, expansion terms generated independently from the recursion, and
+properties that must hold exactly; :ref:`what-accuracy-means` lists each check and its
+result.  It also pins down the conventions that would give self-consistent but wrong
+answers if changed: the slab ordering, the sign of the antineutrino potential, the mass
+ordering and the channel indexing (:ref:`conventions`).  Finally,
 ``tests/test_documented_examples.py`` runs the code blocks in ``README.md`` and the
 :doc:`quickstart`.  The ``jupyter-execute`` examples in these pages are run by the
 documentation build rather than by pytest, and the notebooks by their own CI job.
 
 Some tests are skipped, and that is expected.  Tests that need an optional tool skip
-when it is absent.  In an unpacked sdist, the tests of the repository rather than the
-library (the documentation, the notebooks, the paper's assets and the CI workflows) skip
-too, because the sdist does not ship those files; each states this in its skip reason.
+when it is absent.  In an unpacked sdist, the tests that cover the repository rather than
+the library (the documentation, the notebooks, the paper's assets and the CI workflows)
+are also skipped, because the sdist does not ship those files.  Each one states this in
+its skip reason.
 
 Measuring test coverage
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,9 +150,10 @@ number, not on every change.
 File tree
 ---------
 
-The top level of the repository, and the package under ``src/``.  The complete
-listing, with a comment on every tracked file, is ``TREE`` in
-``tests/test_file_tree.py``, which generates this block.
+The tree below shows the top level of the repository and the package under ``src/``.
+The complete listing, with a comment on every tracked file, is ``TREE`` in
+``tests/test_file_tree.py``, which generates this tree and checks it against the
+tracked files.
 
 .. code-block:: text
 
@@ -168,9 +169,8 @@ listing, with a comment on every tracked file, is ``TREE`` in
    ├── fig/                            # Plots produced by the example notebooks
    ├── img/                            # Figures used by the documentation
    ├── notebooks/                      # Numbered Jupyter notebooks -- see docs/source/tutorials.rst
-   ├── pyproject.toml                  # Build system, dependencies, and the `magnus` console-script entry point
+   ├── pyproject.toml                  # Build system, dependencies and the `magnus` console-script entry point
    ├── resources/                      # Paper sources and benchmark drivers, kept in the repository but not distributed
-   ├── tools/                          # Standalone utilities that are not part of the package
    ├── src/                            # The package itself -- the only thing a `pip install` delivers
    │   ├── magnus/                     # Main Python package
    │   │   ├── __init__.py             # Imports the twelve public modules and expmkernels, and exposes __version__
@@ -184,7 +184,7 @@ listing, with a comment on every tracked file, is ``TREE`` in
    │   │   │   └── solar_models/       # Twelve standard solar models: three columns each, with provenance
    │   │   ├── earth.py                # PREM density profile, chord/zenith-angle geometry
    │   │   ├── expansionterms.py       # Generates the Omega_k terms symbolically, to any order
-   │   │   ├── expmkernels.py          # Compiled Cayley-Hamilton matrix exponential for 2x2/3x3 (the numba backend)
+   │   │   ├── expmkernels.py          # Compiled Cayley–Hamilton matrix exponential for 2×2/3×3 (the numba backend)
    │   │   ├── globaldefs.py           # Units, physical constants, NuFIT parameter sets
    │   │   ├── hamiltonians/           # 2nu-5nu Hamiltonians: vacuum, matter, NSI, LIV (the only subpackage)
    │   │   │   ├── __init__.py         # Explicit named imports from the four hamiltonians{2,3,4,5}nu.py modules
@@ -204,4 +204,5 @@ listing, with a comment on every tracked file, is ``TREE`` in
    │   │   ├── solarmodels.py          # Tabulated standard solar models, as profiles for the Sun wrappers
    │   │   └── version.py              # Resolves the version from pyproject.toml (internal)
    │   └── requirements.txt            # The five runtime dependencies: numpy, scipy, joblib, matplotlib, numba
-   └── tests/                          # Test suite (pytest; runs in CI)
+   ├── tests/                          # Test suite (pytest; runs in CI)
+   └── tools/                          # Standalone utilities that are not part of the package

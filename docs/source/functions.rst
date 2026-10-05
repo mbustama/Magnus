@@ -11,17 +11,17 @@ environment and scenario, with the name for each flavor count.  Use it when you
 know what you want ("3-flavor, matter, with NSI") but not the function's name;
 :doc:`api_reference` documents each one in full.
 
-Two groups of functions are not listed here.  The layers below the wrappers (the
+Two groups of functions are not listed in the tables.  The layers below the wrappers (the
 scenario functions, ``osc_prob_energy_baseline`` and ``osc_prob``) are described in
 :doc:`architecture`.  The closed-form functions ``osc_prob_2nu_vacuum_std``,
-``osc_prob_2nu_matter_std`` and ``osc_prob_3nu_vacuum_std``, used to validate the
+``osc_prob_2nu_matter_std`` and ``osc_prob_3nu_vacuum_std``, which validate the
 numerical ones, are in :mod:`magnus.oscprob`.  :doc:`cli` is the command-line
 calculator that wraps the same functions.
 
-Every function below returns a full :math:`d \times d` probability matrix
-(:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
-and ``nu_f`` are both given; every one also accepts ``nubar=True`` to
-compute the antineutrino probability. Standard oscillation parameters
+Every function in the tables below returns a full :math:`d \times d` probability
+matrix (:math:`P[i][j] = P(\nu_i \to \nu_j)`), or a single channel if ``nu_i``
+and ``nu_f`` are both given.  Each of them also accepts ``nubar=True`` to
+compute the antineutrino probability.  Standard oscillation parameters
 left unset default to the NuFIT 6.1 best fit (normal ordering)
 :cite:p:`Esteban:2024eli`;
 sterile-sector parameters (4th/5th flavor) default to zero mixing.
@@ -29,7 +29,7 @@ sterile-sector parameters (4th/5th flavor) default to zero mixing.
 Vacuum
 ------
 
-No matter potential — the flavor Hamiltonian is the vacuum mass/mixing
+There is no matter potential: the flavor Hamiltonian is the vacuum mass/mixing
 term, evaluated once and scaled by :math:`1/E`.
 
 .. list-table::
@@ -59,18 +59,20 @@ explicitly; see :doc:`cli`).
 Pseudo-Dirac neutrinos in vacuum, with a sterile partner on any of the three
 mass states, have their own function,
 :py:func:`~magnus.oscprob.osc_prob_pseudo_dirac_vacuum`.  It takes the pairing
-and the splittings, and returns :math:`(3 + n_\text{pairs})`-dimensional
-probabilities.  Its ``average=True`` forms each pair phase from its splitting,
-and stays exact where the generic route loses a small splitting; see
+and the splittings and returns a :math:`(3+n_\text{pairs})\times(3+n_\text{pairs})`
+probability matrix.  Its ``average=True`` forms each pair's phase from its splitting
+directly, so it stays exact for splittings too small for the generic route to
+resolve; see
 :ref:`the note on pseudo-Dirac pairs <avg-pseudo-dirac>`.
 
 Matter, constant density
 ------------------------
 
-A user-supplied matter density, uniform along the trajectory.  ``rho`` is in
+These functions take a user-supplied matter density, uniform along the trajectory.
+``rho`` is in
 natural units, eV\ :sup:`4`: pass ``2.8*gd.UNIT_G_PER_CM3``, or pass ``2.8``
 together with ``density_matter_is_in_g_per_cm3=True``, but not both.
-``electron_fraction``, the electrons per atomic mass unit :math:`Y_e`
+``electron_fraction``, the number of electrons per atomic mass unit :math:`Y_e`
 (:ref:`quickstart-conventions`), is 0.5 unless given.
 The command line's ``--rho`` is in g cm\ :sup:`-3`.
 
@@ -102,7 +104,7 @@ The command line's ``--rho`` is in g cm\ :sup:`-3`.
 Matter, exponential density
 ---------------------------
 
-A user-supplied matter density profile
+These functions take a user-supplied matter density profile
 :math:`\rho(l) = \rho_{\rm central}\, e^{-l/l_{\rm scale}}`, with ``rho_central``
 in the same units as ``rho`` above and ``l_scale`` in eV\ :sup:`-1`.
 
@@ -134,15 +136,16 @@ in the same units as ``rho`` above and ``l_scale`` in eV\ :sup:`-1`.
 Earth
 -----
 
-The Preliminary Reference Earth Model (PREM) density profile, along a
-chord specified either by the cosine of the zenith angle (plus a
+These functions use the Preliminary Reference Earth Model (PREM) density profile
+along a chord specified either by the cosine of the zenith angle (plus a
 baseline) or by two named locations (``loc_ini``/``loc_fin``; see
 :data:`magnus.earth.loc_coords_dms` for the predefined sites).
 A value of :math:`\cos\theta_z = -1` is straight up through the Earth's center and 0 is
 horizontal; :func:`magnus.earth.distance_traveled_inside_earth` gives the chord
-length for a zenith angle.  The electron fraction :math:`Y_e`, the electrons per atomic mass unit
-(:ref:`quickstart-conventions`), is set per layer (0.4656 in the core, 0.4957 in the
-mantle), and ``electron_fraction_core`` and its siblings override it.
+length for a zenith angle.  The electron fraction :math:`Y_e`, the number of electrons per
+atomic mass unit (:ref:`quickstart-conventions`), is set per layer (0.4656 in the core,
+0.4957 in the mantle).  ``electron_fraction_core``, ``electron_fraction_mantle`` and the
+other ``electron_fraction_*`` keywords override it.
 
 Both named locations lie on the surface.  Either end of the trajectory can
 instead be put underground with ``source_depth`` and ``detector_depth``,
@@ -152,7 +155,8 @@ detector, so a buried detector also sees downward-going neutrinos
 surface does not.  Naming ``detector_depth`` fixes where the trajectory ends, so
 the baseline is computed rather than given.  A third keyword,
 ``density_matter_ocean``, replaces the density of PREM's outermost shell, a
-global-average ocean that does not describe a detector under rock or ice.
+global-average ocean that does not describe a detector under rock or ice, and
+``electron_fraction_ocean`` sets its composition.
 
 .. list-table::
    :header-rows: 1
@@ -182,13 +186,13 @@ global-average ocean that does not describe a detector under rock or ice.
 Sun
 ---
 
-The built-in exponentially falling solar electron-density profile (see
-:func:`magnus.oscprob.osc_prob_sun`), from an initial radial
+These functions use the built-in exponentially falling solar electron-density profile
+(see :func:`magnus.oscprob.osc_prob_sun`), from an initial radial
 position ``L0`` (0 is the center) to a final radial position ``L``, both in
 eV\ :sup:`-1`; ``gd.SUN_RADIUS*gd.UNIT_KM`` is the surface.  A solar-neutrino
 measurement is the phase-averaged probability: pass ``average=True``.
-Every one takes ``density_profile`` to use one of twelve tabulated standard
-solar models instead (see :doc:`solar_models`).
+Every function in the table below takes ``density_profile`` to use one of twelve
+tabulated standard solar models instead (see :doc:`solar_models`).
 
 .. list-table::
    :header-rows: 1
@@ -218,19 +222,21 @@ solar models instead (see :doc:`solar_models`).
 Generic entry points
 --------------------
 
-For anything the tables above don't cover — any other number of flavors,
-or a Hamiltonian that doesn't fit the vacuum/matter/NSI/LIV mold — three
+For anything the tables above do not cover — any other number of flavors,
+or a Hamiltonian that does not fit the vacuum/matter/NSI/LIV mold — four
 functions accept an arbitrary user-supplied Hamiltonian directly:
 
 * :py:func:`~magnus.oscprob.osc_prob` — the general Magnus ladder, the base layer:
   any Hamiltonian, any dimension, any environment you build yourself.
+* :py:func:`~magnus.oscprob.osc_prob_energy_baseline` — like ``osc_prob``,
+  but takes an energy and a baseline and accepts arrays of either.
 * :py:func:`~magnus.oscprob.osc_prob_earth` — like ``osc_prob``,
   but handles the Earth-crossing geometry and PREM potential for you.
 * :py:func:`~magnus.oscprob.osc_prob_sun` — like ``osc_prob``,
   but handles the solar density profile for you.
 
-The ``osc_prob_{N}nu_*`` functions above call these three internally; see
-:doc:`architecture`.
+The ``osc_prob_{N}nu_*`` functions above are built on ``osc_prob_energy_baseline``
+and ``osc_prob``; see :doc:`architecture`.
 
 
 Returning the evolution operator
@@ -238,27 +244,26 @@ Returning the evolution operator
 
 Every function above returns probabilities.  Observables built from amplitudes,
 such as the mass-eigenstate content of the state that leaves a star, need the
-evolution operator instead.  For those, pass ``return_evolution_operator=True`` to
+evolution operator.  For those, pass ``return_evolution_operator=True`` to
 any of the functions, and the call returns the pair ``(P, U)`` instead of ``P``
 alone; :ref:`recipe-evolution-operator` shows a worked example.
 
 ``P`` is exactly what the call returns without the keyword, so ``nu_i``, ``nu_f``
-and the batching over arrays keep their meaning.  ``U`` is the evolution operator
-over the same interval, in the flavor basis, complex and unitary, with
-``U[final, initial]`` the amplitude from the initial to the final flavor, so that
-``P == (abs(U)**2).T``.  For arrays of points it has shape ``(n, d, d)``, and
-``P == np.swapaxes(abs(U)**2, -1, -2)``.
+and the batching over arrays keep their meaning.  ``U`` is the complex, unitary
+evolution operator over the same interval, in the flavor basis.  ``U[final, initial]``
+is the amplitude from the initial to the final flavor, so ``P == (abs(U)**2).T``.  For
+arrays of points it has shape ``(n, d, d)``, and ``P == np.swapaxes(abs(U)**2, -1, -2)``.
 
 The operator comes from the general Magnus ladder, the only engine that forms it.
 With the keyword set, the ladder compares the operator itself between refinement
 levels, at the same ``rtol`` and ``atol``, so its phases converge as well as its
 moduli.  The specialized engines of :doc:`engines` are skipped for the call, and a
-baseline scan is computed point by point.  Two combinations raise an error,
-because they form no operator: ``average=True`` and ``strategy='hybrid'``.
+baseline scan is computed point by point.  Two combinations raise an error
+because neither forms an operator: ``average=True`` and ``strategy='hybrid'``.
 
 The phase average is also available when you pass your own Hamiltonian.  ``average=True`` on
-``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` returns what
-it returns on a wrapper, by the same three routes: closed form, adiabatic
+``osc_prob_energy_baseline``, ``osc_prob_earth`` and ``osc_prob_sun`` behaves as it does
+on a wrapper and uses the same three routes: closed form, adiabatic
 transport, or an energy-window average across declared discontinuities.  The same
 keywords apply: ``average_spread`` sets the spread, ``average_n_samples`` the
 number of energies in a window average, and ``average_initial_state`` the starting

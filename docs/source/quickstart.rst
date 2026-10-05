@@ -73,7 +73,7 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
      - :math:`\sin\theta`
      - none (``angles=`` accepts other forms; see below)
    * - CP phases
-     - radian
+     - radians
      - none
 
 .. _quickstart-conventions:
@@ -81,10 +81,16 @@ eV\ :sup:`-1`, so that the product :math:`HL` is dimensionless.
 Conventions
 -----------
 
-They are the standard ones, stated here so that you can check them against other codes.
+Magνs uses the standard conventions, stated here so that you can check them against other
+codes.
 
 * **Mixing matrix**: the PDG parametrization,
-  :math:`\mathbb{R} = \mathbb{R}_{23}(\theta_{23})\,\mathbb{R}_{13}(\theta_{13},\delta_{\rm CP})\,\mathbb{R}_{12}(\theta_{12})`,
+
+  .. math::
+
+     \mathbb{R} = \mathbb{R}_{23}(\theta_{23})\,\mathbb{R}_{13}(\theta_{13},\delta_{\rm CP})\,
+     \mathbb{R}_{12}(\theta_{12}),
+
   with :math:`\mathbb{R}_{e3} = \sin\theta_{13}\,e^{-i\delta_{\rm CP}}`.
 * **Mass splittings**: ``D21`` :math:`= m_2^2 - m_1^2` and ``D31``
   :math:`= m_3^2 - m_1^2`.  The ordering is the sign of ``D31``: positive is
@@ -98,7 +104,7 @@ They are the standard ones, stated here so that you can check them against other
   functions use one value per layer (0.4656 in the core, 0.4957 in the mantle);
   :doc:`functions` lists them.
 
-:ref:`conventions` gives the details, and :ref:`coming-from-other-codes` sets them
+:doc:`conventions` gives the details, and :ref:`coming-from-other-codes` sets them
 beside those of GLoBES, Prob3++ and nuSQuIDS.
 
 .. _glossary:
@@ -113,7 +119,7 @@ Terms used throughout
 * **Engine**: the algorithm that answers a call (the ladder, an energy-batched scan,
   a closed form, ...).  Magνs picks one from the shape of the request; :doc:`engines`
   lists them.
-* **Strategy**: the ``strategy`` argument, which chooses between the Magnus-expansion
+* **Strategy**: the ``strategy`` argument, which chooses among the Magnus-expansion
   engines only (``'magnus'``), the hybrid (``'hybrid'``) and letting Magνs decide
   (``'auto'``, the default).
 * **Hybrid**: transport along the instantaneous eigenstates where the profile is
@@ -132,7 +138,7 @@ Choosing the oscillation parameters
 Pass any parameter by name to override the default: ``s12``, ``s23``, ``s13``
 (sines), ``dCP`` (radians), ``D21``, ``D31`` (eV\ :sup:`2`).
 :func:`~magnus.globaldefs.load_nufit_params` returns exactly these six, for every
-NuFIT release from 1.0 to 6.1:
+NuFIT release, 1.0–6.1:
 
 .. code-block:: python
 
@@ -261,16 +267,16 @@ batched call; an oscillogram is one such call per zenith angle:
            nu_i=gd.NUMU, nu_f=gd.NUMU)
        for c in cos_grid])                                   # shape (50, 50)
 
-Earth and Sun calls can print a ``MagnusConvergenceWarning``.  It reports that a
+Earth and Sun calls can issue a ``MagnusConvergenceWarning``.  It reports that a
 slab of the integration grid is wide, not that the result is wrong;
 :doc:`diagnostics` explains every warning and what to do about it.
 
 The Sun
 -------
 
-For solar neutrinos you almost always want the **phase-averaged** probability,
+For solar neutrinos, you almost always want the **phase-averaged** probability,
 which is what a detector with a finite energy resolution measures.  Pass
-``average=True``; without it you get the value at one exact energy and distance,
+``average=True``; without it, you get the value at one exact energy and distance,
 which oscillates rapidly:
 
 .. code-block:: python
@@ -362,8 +368,8 @@ Any Hermitian matrix function of position, of any dimension, goes through
 
    These are the NuFIT 6.1 values as published, rounded to two decimals, so this
    Hamiltonian agrees with the loader's to about 1e-4.  ``load_nufit_params``
-   returns sines unless it is given the same ``angles``, so pass the same value
-   to both.
+   also accepts ``angles`` and returns sines without it; pass the same value to
+   both functions.
 
 Where next
 ----------

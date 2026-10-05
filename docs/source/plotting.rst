@@ -16,10 +16,10 @@ What it draws
      - Layout
    * - :func:`~magnus.plotting.plot_curves`
      - Curves against any swept variable, with an optional relative-error
-       subpanel: the shape of most of the notebooks' figures.  Also serves the
+       subpanel: the shape of most of the notebooks' figures.  It also draws the
        convergence and error studies.
    * - :func:`~magnus.plotting.plot_probability_vs_baseline`
-     - The same, preset to a logarithmic baseline axis and a unit ordinate.
+     - The same, preset to a logarithmic baseline axis and an ordinate from 0 to 1.
    * - :func:`~magnus.plotting.plot_probability_vs_energy`
      - The same, against neutrino energy.
    * - :func:`~magnus.plotting.plot_curves_stacked`
@@ -48,8 +48,8 @@ What it draws
 Installation
 ------------
 
-Nothing to do: Matplotlib is a dependency of Magνs, so ``pip install magnuspy``
-brings it and :mod:`magnus.plotting` is available straight away.
+No separate step is needed: Matplotlib is a dependency of Magνs, so
+``pip install magnuspy`` installs it and :mod:`magnus.plotting` is available immediately.
 
 .. code-block:: python
 
@@ -82,8 +82,8 @@ A first figure
         legend_title='Calculation method',
     )
 
-Note that ``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
-which returns exactly the six mixing parameters.  Unpacking
+``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
+which returns exactly the six oscillation parameters.  Unpacking
 ``gd.OSC_PARAMS_PREDEFINED[...]`` instead would also forward its ``name`` and
 ``description`` strings, which the probability functions reject.
 
@@ -168,7 +168,7 @@ that unit.
         energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
         xscale='linear')
 
-**CP violation as a bi-probability plot**, Fermilab to Homestake at 2 GeV, both
+**CP violation as a biprobability plot**, Fermilab to Homestake at 2 GeV, both
 orderings:
 
 .. jupyter-execute::
@@ -219,10 +219,9 @@ Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 ``subplots_kw``, and, per curve, any
 :class:`~matplotlib.lines.Line2D` keyword.
 
-No function accepts unknown keywords, so a misspelled keyword raises an error.  Every
-keyword either appears in a signature, where a misspelling raises a :class:`TypeError`,
-or goes into a dictionary for one Matplotlib call, which then raises an error naming
-the key.  The three functions that take extra keywords
+No function accepts unknown keywords.  A misspelled keyword in a signature raises a
+:class:`TypeError`; one inside a pass-through dictionary makes Matplotlib raise an error
+naming the key.  The three functions that take extra keywords
 (``plot_probability_vs_baseline``, ``plot_probability_vs_energy`` and
 ``plot_probability_with_average``) pass them to a function that applies the same
 check:
@@ -267,8 +266,8 @@ House style
 The module sets the text and tick sizes it draws with
 (:data:`~magnus.plotting.HOUSE_RC`: 25-point axis labels, 23-point tick labels, ticks
 pointing in on all four sides), so a figure looks the same in a script, a notebook or
-these pages; it reads no ``matplotlibrc``.  A size you have changed yourself, in
-``rcParams`` or a style, is kept.  Font family and LaTeX rendering follow your
+these pages.  A size you have changed yourself, in ``rcParams``, a style or a
+``matplotlibrc``, is kept.  Font family and LaTeX rendering follow your
 Matplotlib settings.  The other house values are exposed as
 :data:`~magnus.plotting.HOUSE_FIGSIZE`,
 :data:`~magnus.plotting.HOUSE_LEGEND_KW`,

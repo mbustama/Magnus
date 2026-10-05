@@ -5,9 +5,9 @@ Engines and dispatch
    :local:
    :depth: 2
 
-Which engine answers a call, how the choice is made, and why each one
-exists.  See :doc:`performance` for what they cost and :doc:`diagnostics`
-for what to do when one warns.
+This page explains which engine answers a call, how the choice is made, and why each one
+exists.  See :doc:`performance` for what they cost and :doc:`diagnostics` for what to do
+when one warns.
 
 .. _the-engines:
 
@@ -23,11 +23,9 @@ The engines
    whatever no other engine takes.  Each row sketches what its engine does along the
    trajectory; shading is the matter density.  From the Magνs paper.
 
-Seven engines can answer a request.  They are tried in a fixed order, from the most
-specialized to the most general, and the first whose conditions the request meets answers
-it; an engine whose conditions are not met declines, and the request passes to the next.
-The general Magnus ladder, last, accepts every request.  Several engines share machinery,
-which is why `Independence, and why it matters`_ follows the table.
+Seven engines can answer a request, from the most specialized to the most general, and the
+first whose conditions the request meets answers it.  Several engines share machinery, which
+is why `Independence, and why it matters`_ follows the table.
 
 .. list-table::
    :header-rows: 1
@@ -76,8 +74,8 @@ which is why `Independence, and why it matters`_ follows the table.
      - **Energy-batched scan** (``'separable'``)
      - One set of slabs shared by every energy: the potential is sampled once per refinement
        level, and the energy is a batch dimension.
-     - Many energies at one baseline, with ``H`` = energy-dependent part + ``V_CC(l)`` times a
-       fixed matrix.
+     - Many energies at one baseline, with ``H`` = energy-dependent part +
+       :math:`V_{\rm CC}(l)` times a fixed matrix.
      - Per-point baselines, user slab edges, parallel or logged runs, a constant potential
        (engine 4 takes it).
    * - 6
@@ -116,15 +114,16 @@ groups them into families:
   three walk slabs with :func:`magnus.magnus.magnus_expansion_multislab`, and the cumulative
   scan additionally *sizes* its grid from an ordinary adaptive :func:`magnus.oscprob.osc_prob`
   probe, so it inherits that path's stopping rule as well.
-* ``'interaction-picture'`` — the two-flavor fast path. Same Magnus core, but the fast
+* ``'interaction-picture'`` — the two-flavor fast path. It uses the same Magnus core, but the fast
   vacuum phase is factored out analytically first, so what it must resolve is a different
   function.
-* ``'adiabatic'`` — the hybrid strategy. A different method, whose blind spots are
+* ``'adiabatic'`` — the hybrid strategy. It is a different method, whose blind spots are
   the resonance detector's, not the quadrature's.
 * ``'phase-average'`` — the phase average. It propagates only across non-adiabatic
   windows, with the hybrid's Magnus patch, and carries every stretch between them
-  analytically, so it shares no quadrature with the ladder; what it shares with the others
-  is the eigendecomposition of the same ``H``.
+  analytically.  The patch uses the ladder's Magnus slab kernel
+  (:func:`magnus.magnus.magnus_expansion_multislab`), but only inside those windows; what the
+  phase average shares with the others is the eigendecomposition of the same ``H``.
 * ``'exact'`` — ``expm`` and the constant-Hamiltonian engine, independent of the rest.
 
 Two engines in the same family can be wrong in the same way at the same time. Their
@@ -164,7 +163,7 @@ engines in a fixed order, falling through on ``NotImplemented``:
        *and it converges*
      - interaction picture
      - The vacuum phase is factored out, so the oscillation is never resolved slab by slab
-   * - ``V_CC`` does not vary along the trajectory
+   * - :math:`V_{\rm CC}` does not vary along the trajectory
      - constant Hamiltonian
      - The series terminates at its first term, so the answer is one exponential
    * - Many energies at a single baseline
@@ -189,9 +188,9 @@ whose docstring records the measurements behind its value:
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` = 8. Under
   ``strategy='auto'`` the hybrid strategy stands aside for a baseline scan of at least this
   many points, because the cumulative scan answers all of them from one traversal.  The
-  cumulative scan is the cheaper of the two at every size measured.  The threshold is not lower
-  because, below it, the request would not always reach the cumulative scan: it goes to the
-  next engine that applies.
+  cumulative scan is the cheaper of the two at the median at every size measured.  A lower
+  threshold would not help: below 8 points, the hybrid's request does not always pass to the
+  cumulative scan, but to whichever engine applies next.
 * :data:`magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT` = 2. The same threshold
   below a tolerance of 1e-6, where the hybrid strategy is the slower route for a baseline scan.
 * :data:`magnus.oscprob.CUMULATIVE_AUTO_MIN_POINTS` = 2. Below this there is no prefix to
@@ -199,9 +198,9 @@ whose docstring records the measurements behind its value:
 
 .. _auto-ladder-route:
 
-**The ladder route of** ``'auto'``.  On a smooth profile the hybrid strategy's cost is its
+**The ladder route of** ``'auto'``.  On a smooth profile, the hybrid strategy's cost is its
 window search, which does not follow the tolerance, so at a loose tolerance on a moderate phase
-it is the slower route, by one to two orders of magnitude.  So, at a tolerance
+it is the slower route, by one to two orders of magnitude.  Therefore, at a tolerance
 ``min(rtol, atol)`` of :data:`magnus.oscprob.AUTO_LADDER_MIN_TOLERANCE` = 1e-6 or looser,
 ``'auto'`` hands a request to the ladder ahead of the hybrid when both of these hold:
 
@@ -225,18 +224,18 @@ baseline, with a phase limit that shrinks with the tolerance and the order.  The
 ``AUTO_LADDER_MAX_PHASE*(tol/1e-6)**(1/p)``, with ``p`` the requested ``magnus_exp_order``,
 capped at :data:`magnus.oscprob.AUTO_LADDER_TIGHT_MAX_PHASE` = 2000 rad so that partial solar
 chords stay on the hybrid.  It shrinks because the ladder's slab count grows as
-``tol**(-1/p)``, while the cost of the hybrid's window search does not depend on the tolerance.
+``tol**(-1/p)`` and the hybrid's cost does not.
 The limit applies to an energy scan as well.  At these tolerances, the ladder runs at the
 requested tolerance itself, because its levels are deep in the asymptotic regime, where the
 difference between two of them already overestimates the error of the finer one.  For
 example, at ``rtol = 1e-12``, ``atol = 1e-14`` and ``magnus_exp_order = 8``, the limit is
 1000 rad, and the four curves of the validation example in :doc:`diagnostics` have phases of
-10 to 78 rad, so they take this route.  A baseline scan goes to the cumulative scan at such
+10–78 rad, so they take this route.  A baseline scan goes to the cumulative scan at such
 tolerances.
 
-**Which engine answers a request.**  Put together, the rules above give the engine that
-answers each kind of request to a scenario function or a wrapper under ``strategy='auto'``, by
-the shape of the request and the tolerance, ``min(rtol, atol)``.  A Hamiltonian of your own
+**Which engine answers a request.**  The table below combines these rules.  For each request
+shape and tolerance ``min(rtol, atol)``, it gives the engine that answers a scenario function or
+a wrapper under ``strategy='auto'``.  A Hamiltonian of your own
 reaches fewer engines; see `The engines`_.  "Many energies" are at one
 baseline, and "baselines" are at one energy.  "Too many slabs" means that the ladder would
 start with more than a quarter of its slab cap, as across the Sun.  "The tightened limit" is
@@ -248,7 +247,7 @@ the adiabatic engine first below 1e-6.  ``strategy_info`` reports the engine tha
    :widths: 28 36 36
 
    * - Request
-     - Tolerance >= 1e-6 (includes the default, 1e-3)
+     - Tolerance ≥ 1e-6 (includes the default, 1e-3)
      - Tolerance < 1e-6
    * - ``average=True``
      - averaged probability
@@ -265,7 +264,7 @@ the adiabatic engine first below 1e-6.  ``strategy_info`` reports the engine tha
      - energy-batched scan; adiabatic with too many slabs
      - energy-batched scan if the phase is within the tightened limit; otherwise, or with too
        many slabs, adiabatic, and if that cannot certify, the energy-batched scan
-   * - Smooth ``H``, 2 to 7 baselines
+   * - Smooth ``H``, 2–7 baselines
      - cumulative scan; adiabatic if the phase exceeds 1e4 or with too many slabs
      - cumulative scan
    * - Smooth ``H``, 8 or more baselines
@@ -279,13 +278,13 @@ the adiabatic engine first below 1e-6.  ``strategy_info`` reports the engine tha
 
 Passing ``strategy='magnus'`` uses only the Magnus engines: it keeps an energy scan on the
 energy-batched scan whatever its phase, and it turns off the cumulative scan, so a baseline
-scan is computed point by point.  This reproduces the results of releases that predate the
-adiabatic engine, but it is not the fast choice for a baseline scan.
+scan is computed point by point.  This forces every result through the Magnus quadrature, but
+it is not the fast choice for a baseline scan.
 
 **The accuracy changes in a step at each threshold.**  Adding one baseline to a scan that sits
-just below a threshold (from 7 to 8 baselines at 1e-6 and looser, from 1 to 2 below) changes the
-answer, because it changes the engine.  In the cases measured, the step was toward the more
-accurate answer, by up to six orders of magnitude; the docstring of
+immediately below a threshold (from 7 to 8 baselines at 1e-6 and looser, from 1 to 2 below)
+changes the answer, because it changes the engine.  In the cases measured, the step was toward
+the more accurate answer, by up to six orders of magnitude; the docstring of
 :data:`~magnus.oscprob.HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS` has the measurement.
 
 **Seeing which engine answered.**  Falling through from one engine to the next raises no

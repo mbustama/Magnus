@@ -3,7 +3,7 @@ Standard solar models
 
 The Sun entry points — ``osc_prob_{2,3,4,5}nu_sun[_nsi|_liv]`` and
 :func:`~magnus.oscprob.osc_prob_sun` — describe the Sun by an exponential fit to its
-electron density unless told otherwise.  ``density_profile`` puts a published standard
+electron density by default.  ``density_profile`` puts a published standard
 solar model in its place, from tables that ship with the package.
 
 .. versionadded:: 1.1.1
@@ -46,7 +46,7 @@ solar model in its place, from tables that ship with the package.
      - 0–1
      - :cite:`Herrera:2023b23`
 
-Names are matched without regard to case, and ``'exp'`` is the default.
+Names are case-insensitive.  The default is ``'exp'``.
 
 .. jupyter-execute::
 
@@ -62,9 +62,8 @@ Names are matched without regard to case, and ``'exp'`` is the default.
         print('%-10s <P_ee> = %.4f' % (profile, P_ee))
     # exp 0.2971, BP04 0.3183, B16-GS98 0.3187, B23-AAG21 0.3191
 
-``L0`` is the radius where the neutrino is produced, 0 or more, and a scalar: ``L``
-may be an array of end points, but ``L0`` may not, so for several production points call
-once per point.
+``L0`` is the production radius and must be a nonnegative scalar.  ``L`` may be an array
+of end points, but ``L0`` may not; for several production points, make one call per point.
 
 From the command line, ``magnus --environment sun`` takes the same names through
 ``--density-profile`` (see :doc:`cli`).  `Notebook 13
@@ -74,7 +73,8 @@ and the exponential fit is off by up to 0.1, at 2.5 MeV (0.02 at 10 MeV, as abov
 
 .. figure:: ../../img/paper/solar_models.svg
    :width: 90%
-   :alt: Two tabulated solar models and the exponential fit, and their averaged survival probabilities
+   :alt: Two tabulated solar models and the exponential fit, and their averaged survival
+         probabilities
 
    Top: the tabulated ``'BS05-AGS-OP'`` and ``'B16-GS98'`` models and the exponential fit
    the Sun functions use by default, with the ratio of each to ``'BS05-AGS-OP'``.  Bottom:
@@ -106,7 +106,13 @@ electron-density tables follow, is 0.4 to 0.8% higher.  Notebooks 13 and 28 comp
 
 For the wrappers with sterile states, the neutral-current term needs the
 neutron-to-proton ratio, helium's neutrons over all the protons, from the same atomic
-masses: :math:`n_n/n_p = [2(1 - X)/m_{\rm He}]/[X/m_{\rm H} + 2(1 - X)/m_{\rm He}]`.  With a solar model and
+masses:
+
+.. math::
+
+   \frac{n_n}{n_p} = \frac{2(1 - X)/m_{\rm He}}{X/m_{\rm H} + 2(1 - X)/m_{\rm He}} .
+
+With a solar model and
 ``ratio_number_neutrons_to_protons`` left at its default, ``None``, the wrappers take it
 from the same table, radius by radius; a value or a callable passed explicitly is used
 instead.  The exponential fit carries no composition, so with it the ratio defaults to 1.0.
@@ -118,13 +124,14 @@ Hamiltonian with sterile states that wants the composition can take it from
 Outside the table
 -----------------
 
-Only the B23 tables start at the center, and the older ones stop short of the surface.
+Only the B23 tables start at the center, and the Bahcall tables (BP2000 to BS05) stop short
+of the surface.
 Below the first row, the density holds its first value, since the core is flat.  Past the
 last row, it continues along the logarithmic slope of the last tabulated interval, so that
 it keeps falling rather than stopping at a constant or dropping to zero.  That is a
-continuation, not a model of the outer Sun: continued from 0.95 :math:`R_\odot`, BP2000
-and BP04 reach about :math:`1.6\times10^{-3}` g cm\ :sup:`-3` at the surface, where B16 and
-B23, which are tabulated there, give about :math:`1.7\times10^{-7}`.
+continuation, not a model of the outer Sun.  Continued from 0.95 :math:`R_\odot`, BP2000
+and BP04 reach about :math:`1.6\times10^{-3}` g cm\ :sup:`−3` at the surface, whereas B16
+and B23, which are tabulated there, give about :math:`1.7\times10^{-7}` g cm\ :sup:`−3`.
 
 ``stop_at_table_edge=True`` refuses the continuation.  A baseline that ends past the last
 row returns NaN, with a :class:`~magnus.oscprob.SolarModelRangeWarning` naming the edge,
@@ -156,11 +163,11 @@ Coherent probabilities through a table
 
 The interpolated profile has a kink at every row, and the Bahcall tables, printed to four
 significant figures, step through the flat core.  The phase-averaged probability
-(``average=True``) showed no sign of it: on all twelve models at 1, 5, 10 and 20 MeV, from the
-center to 0.9 :math:`R_\odot`, it raised no warning.
+(``average=True``) is unaffected: on all twelve models at 1, 5, 10 and 20 MeV, from the
+center to 0.9 :math:`R_\odot`, it issues no warning.
 
 A coherent probability over most of the Sun can be affected.  The hybrid engine may then
-fail to certify it and pass it to the slab ladder, which reaches its slab cap and raises
+fail to certify it and pass it to the slab ladder, which reaches its slab cap and issues
 :class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  On the same grid, 4 of the 48
 coherent calls did so (BP04 and BS05-OP at 10 and 20 MeV).  Their answers were still
 accurate: on eleven cases, those four among them, every default answer was within
@@ -186,7 +193,7 @@ oscillation:
     print('P_ee = %.9f' % P_ee)    # 0.126766302
 
 On the same eleven cases this came within :math:`4\times10^{-9}` of the reference, with no
-:class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two still raised
+:class:`~magnus.oscprob.ToleranceNotAchievedWarning`.  Two issued
 :class:`~magnus.magnus.MagnusConvergenceWarning`, which reports a slab width rather than an
 error (see :doc:`diagnostics`).  The measurements are in
 ``docs/dev/adversarial_batteries/solar_model_engines.py`` and ``solar_model_coherent.py``, in a
@@ -201,8 +208,8 @@ taken from, the date, the SHA-256 of the original file, and its terms of use.  E
 in ``magnus/data/solar_models/``, carries the same in its header, above the authors'
 original header.  The Bahcall tables come from the IAS archive, whose terms ask only for a
 note on how they are used; the B16 tables from the Internet Archive's copy of the authors'
-page, which is no longer online; and the B23 tables from their Zenodo release, under
-CC-BY-4.0.  If you use a model, cite its paper.
+page, which is offline; and the B23 tables from their Zenodo release, under
+CC BY 4.0.  If you use a model, cite its paper.
 
 ``tools/build_solar_model_tables.py`` rebuilds the tables from the original files, and with
 ``--check`` verifies that the committed ones are exactly what those files give.  It refuses
