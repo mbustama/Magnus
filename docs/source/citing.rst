@@ -27,12 +27,18 @@ the version you used — results can depend on it, and Magνs records its own:
      title   = {{Mag$\\nu$s: neutrino oscillation probabilities for any
                  Hermitian Hamiltonian, any number of flavors, and any
                  matter profile}},
+     doi     = {10.5281/zenodo.23160508},
      url     = {https://github.com/mbustama/Magnus},
      version = {|release|},
      year    = {2026}
    }
 
 Replace ``version`` with the one you used.
+
+The DOI above, `10.5281/zenodo.23160508 <https://doi.org/10.5281/zenodo.23160508>`_, is the
+Zenodo concept DOI: it resolves to the latest version.  Each version also has a DOI of its
+own, listed on that page; version 1.2.0 is
+`10.5281/zenodo.23160509 <https://doi.org/10.5281/zenodo.23160509>`_.
 
 What to say in the text
 -----------------------

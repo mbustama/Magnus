@@ -7,6 +7,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![codecov](https://codecov.io/gh/mbustama/Magnus/branch/main/graph/badge.svg)](https://codecov.io/gh/mbustama/Magnus)
 [![PyPI](https://img.shields.io/pypi/v/magnuspy.svg)](https://pypi.org/project/magnuspy/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23160508.svg)](https://doi.org/10.5281/zenodo.23160508)
 [![Downloads](https://pepy.tech/badge/magnuspy)](https://pepy.tech/project/magnuspy)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -328,7 +329,8 @@ version you used, since results can depend on it.  The
 entry.
 
 Mauricio Bustamante (2026).  *Magνs: neutrino oscillation probabilities for any
-Hermitian Hamiltonian, any number of flavors, and any matter profile*.  GitHub repository:
+Hermitian Hamiltonian, any number of flavors, and any matter profile*.  Zenodo,
+[doi:10.5281/zenodo.23160508](https://doi.org/10.5281/zenodo.23160508).  GitHub repository:
 https://github.com/mbustama/Magnus.
 
 **Methodology references:**

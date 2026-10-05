@@ -6,11 +6,19 @@ authors:
   - family-names: Bustamante
     given-names: Mauricio
     email: mbustamante@gmail.com
+doi: "10.5281/zenodo.23160508"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23160508"
+    description: "Concept DOI: resolves to the latest version"
+  - type: doi
+    value: "10.5281/zenodo.23160509"
+    description: "Version 1.2.0"
 repository-code: "https://github.com/mbustama/Magnus"
 url: "https://mbustama.github.io/Magnus/"
 abstract: >-
   Neutrino oscillation probabilities computed with the Magnus expansion, for an
-  arbitrary number of flavours and any Hamiltonian, time-dependent or not.  Every
+  arbitrary number of flavors and any Hamiltonian, time-dependent or not.  Every
   truncation of the series lives in the Lie algebra, so the evolution operator it
   exponentiates is unitary exactly rather than to the accuracy of the truncation.
 keywords:
