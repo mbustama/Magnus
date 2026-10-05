@@ -248,7 +248,7 @@ def test_sun_docs_say_L0_is_a_single_radius():
     rst = os.path.join(os.path.dirname(__file__), '..', 'docs', 'source', 'solar_models.rst')
     if os.path.exists(rst):
         text = ' '.join(open(rst).read().split())
-        assert 'may not, so for several production points call once per point' in text
+        assert 'may not; for several production points, make one call per point' in text
 
 
 @pytest.mark.parametrize('energy, L', [
