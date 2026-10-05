@@ -636,7 +636,7 @@ smallest front the engine gets wrong.  Across the roughly 5,000 averaged calls t
 make, it escalates 16 pixels of paper Figure 5f and nothing else; three of those change, each
 to within 0.001 of a decohered reference.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -645,7 +645,7 @@ def _sudden_transfer(H_func: Callable, l_a: float, l_b: float) -> float:
 
     See :data:`SUDDEN_TRANSFER_THRESHOLD`.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     V_a = np.linalg.eigh(np.asarray(H_func(l_a), dtype=complex))[1]
     V_b = np.linalg.eigh(np.asarray(H_func(l_b), dtype=complex))[1]
@@ -659,7 +659,7 @@ def _unseen_features(H_func: Callable, l0: float, l1: float, n_probe: int) -> Li
 
     See :data:`SUDDEN_TRANSFER_THRESHOLD`.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     ls, flagged, _ = adiabatic._concentrated_intervals(H_func, float(l0), float(l1), n_probe)
     return [(float(ls[i]), float(ls[i + 1])) for i in flagged
@@ -675,7 +675,7 @@ def _crossing_from_windows(
 ) -> Tuple[np.ndarray, bool]:
     r"""Level-to-level probabilities across ``windows``, each patched exactly; see :func:`level_crossing_matrix`.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     crossing = np.eye(d)
     converged = True
@@ -797,7 +797,7 @@ def averaged_probabilities_adiabatic(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Checks for features narrower than the probe spacing that could move probability, and
        takes the windows from :func:`magnus.adiabatic.hybrid_propagator` where it finds one
        (issue #60).  The report gains ``'escalated'``, ``'resolved'`` and ``'certified'``.
@@ -845,7 +845,7 @@ def averaged_probabilities_adiabatic(
     V1 = np.linalg.eigh(H1)[1]
 
     # One search on n_probe points is all the windows usually need, and it is exactly what
-    # this function did before 1.1.1.  It cannot see a front narrower than the probe spacing:
+    # this function did before 1.2.0.  It cannot see a front narrower than the probe spacing:
     # on a supernova shock ray every such front was missed, P^cross came out the identity, and
     # the fully adiabatic answer was returned wrong by up to 0.56, silently (issue #60).  Where
     # the profile has a feature that sharp and able to move probability, take the windows from
@@ -935,7 +935,7 @@ typical resolution of neutrino detectors and telescopes.  Mixing, crossing ampli
 eigenbases at the two ends of the path stay at the central energy: this averages phases, not
 probabilities, so a result without interference is returned unchanged.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -953,7 +953,7 @@ of the same definition on five solar chords from 10 GeV to 10 TeV: at 0.1 the er
 ``tests/test_phase_average.py`` 0.03 leaves 3.4e-04 and 0.01 leaves 5.1e-07, hence 0.01; the cost
 falls only on calls whose phases survive the spread, since the others never reach this search.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -991,7 +991,7 @@ twenty chords through the solar core (30 GeV to 3 TeV, :math:`b = 0.05` to :math
 the probability moves by at most 4.6e-06 from its value at 1e-5, and the call is 2.4 times
 faster at the median (0.9 to 6.3).
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1005,7 +1005,7 @@ much.  Like :data:`PHASE_AVERAGE_PATCH_ATOL`, it is the default of that function
 call, and the entry points of :mod:`magnus.oscprob` pass the tighter of ``rtol`` and ``atol``
 instead.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1016,7 +1016,7 @@ Largest :math:`|\sigma\, \partial P / \partial\sigma|` a phase-averaged probabil
 before :mod:`magnus.oscprob` warns that it depends on the spread.  That derivative is the change
 per e-fold of :math:`\sigma`; the threshold is the default tolerance of the package.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -1112,7 +1112,7 @@ def phase_averaged_probabilities_constant_hamiltonian(
     :math:`\sigma = 10\%`, a phase of 30 rad about one per cent, and a phase of 40 rad
     :math:`3\times10^{-4}`.  See :data:`AVG_PHASE_SPREAD`.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -1487,14 +1487,7 @@ def phase_averaged_probabilities_adiabatic(
     are estimated on a few points: where every interference term would be pruned anyway, as for a
     neutrino produced in the solar core, the result is the decohered start's, bit for bit.
 
-    .. versionadded:: 1.1.1
-
-    .. versionchanged:: 1.1.1
-       Takes ``rho0``; the default start is the flavor state, where it was decohered (issue #73).
-
-    .. versionchanged:: 1.2.0
-       Raises ``RuntimeError`` rather than lay more than :data:`PHASE_AVERAGE_MAX_GRID_NODES`
-       energy nodes across its windows (issue #148).
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------

@@ -1,12 +1,12 @@
 How to cite
-============
+===========
 
 If Magνs contributed to work you are publishing, please cite it. A citation is
 what makes the effort of maintaining a package visible, and it lets a reader
 reproduce what you did.
 
 Cite the software
-------------------
+-----------------
 
 Until the accompanying paper is available, cite the software itself, including
 the version you used — results can depend on it, and Magνs records its own:
@@ -24,37 +24,38 @@ the version you used — results can depend on it, and Magνs records its own:
 
    @software{Magnus,
      author  = {Bustamante, Mauricio},
-     title   = {{Mag$\\nu$s: neutrino oscillation probabilities via the
-                 Magnus expansion}},
+     title   = {{Mag$\\nu$s: neutrino oscillation probabilities for any
+                 Hermitian Hamiltonian, any number of flavors, and any
+                 matter profile}},
      url     = {https://github.com/mbustama/Magnus},
      version = {|release|},
      year    = {2026}
    }
 
-Replace ``version`` with the one you actually ran.
+Replace ``version`` with the one you used.
 
 What to say in the text
-------------------------
+-----------------------
 
-Enough for a reader to know what was computed and how precisely. In practice
-that is three things:
+State enough for a reader to know what was computed and how precisely. In
+practice, that is three things:
 
 #. **The version**, as above.
 #. **The tolerance you asked for** (``rtol``/``atol``, or the fixed ``n_slabs``
    and ``n_tpts_per_slab`` if you disabled the refinement). Note that these are
-   a stopping criterion rather than a bound on the error — see
+   a stopping rule rather than a bound on the error — see
    :ref:`what-rtol-atol-control` — so quoting them describes the *request*, not
    the achieved accuracy.
-#. **The strategy**, if you did not use the default. ``strategy='auto'`` and
-   ``strategy='magnus'`` can differ by far more than the tolerance on solar
+#. **The strategy**, if you did not use the default. The strategies ``'auto'``
+   and ``'magnus'`` can differ by far more than the tolerance on solar
    configurations, so it is worth stating which one produced the numbers.
 
 If accuracy is central to your result, pass ``convergence_info={}`` to the call
-and read the dict afterwards: it reports what the refinement ladder actually did,
+and read the dict afterwards: it reports what the refinement ladder did,
 including whether it converged or hit a cap.
 
 Citing the method
-------------------
+-----------------
 
 The Magnus expansion itself, and the Gauss–Legendre collocation integrators
 Magνs uses by default, are due to others. The :doc:`references` page has the
@@ -63,7 +64,7 @@ Blanes, Casas, Oteo and Ros :cite:p:`Blanes2009`, and the high-order integrators
 of Blanes, Casas and Ros :cite:p:`Blanes2000`.
 
 Related software
------------------
+----------------
 
 If your Hamiltonian is constant or piecewise constant, `NuOscProbExact
 <https://github.com/mbustama/NuOscProbExact>`_ solves that case in closed form

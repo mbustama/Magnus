@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "Magnus: neutrino oscillation probabilities via the Magnus expansion"
+title: "Magνs: neutrino oscillation probabilities for any Hermitian Hamiltonian, any number of flavors, and any matter profile"
 message: "If you use this software in academic work, please cite it."
 type: software
 authors:

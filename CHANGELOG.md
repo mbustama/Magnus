@@ -201,7 +201,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   tests read API from later releases (`Figure.get_supylabel`, the `figure.labelsize` rcParam,
   the legend's `_ncols`), and one relied on 3.6's legend keeping more columns than entries, so
   they failed at matplotlib 3.5.0 while the library itself worked.  They now check the same
-  behaviour through what 3.5 has; the runtime floor is unchanged.
+  behavior through what 3.5 has; the runtime floor is unchanged.
 - **Averaging an energy-independent Hamiltonian says why no average applies** (issue #144 §3).
   A matrix, or a function of position alone, has no energy dependence for a spread to act on,
   so a pair of levels neither decohered nor coherent stays that way; the warning said only
@@ -364,9 +364,9 @@ and the project uses [Semantic Versioning](https://semver.org/).
   `plot_probability_with_profile` in compute mode left the probability panel's ordinate empty;
   it now gets the channel's label, as `plot_probability_vs_energy` gives, unless
   `panel_ylabels` or `shared_ylabel` is passed.
-- **An oscillogram computed for antineutrinos is labelled as one** (issue #145 §1).
+- **An oscillogram computed for antineutrinos is labeled as one** (issue #145 §1).
   `plot_oscillogram(..., wrapper_kw=dict(nubar=True))` computed the antineutrino grid but
-  labelled its colour bar and annotation with the neutrino channel.
+  labeled its color bar and annotation with the neutrino channel.
 - **Small pseudo-Dirac splittings keep their precision** (issue #165 §1).
   `hamiltonian_pseudo_dirac_vacuum_energy_independent` formed each splitting-dependent entry as
   `(m2_j + delta) - m2_j` at the scale of `m2_j`, so `delta = 1e-18` eV^2 kept one or two digits
@@ -868,7 +868,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   system a matter effect it does not have.  Its crude-settings demonstration
   moved to the 1-2 sector, with its error stated (up to 2e-2 at one slab per
   layer and first order, against 1e-5 at the default tolerance).  Notebook
-  05's best-fit markers are labelled NuFIT 6.1, the parameters they use (they
+  05's best-fit markers are labeled NuFIT 6.1, the parameters they use (they
   said NuFit 6.0), and notebook 01's text says the same of its parameters.
   Notebook 05's check against the closed-form vacuum formula now draws its
   own markers: it drew the Magnus markers of the cell before, and its unused
@@ -1210,7 +1210,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   a recipe that raised (`d13=` for `dCP=`) and `abs(U)**2.T`, which does not parse; the
   dispatch order under `strategy='auto'`, which is not silent when the hybrid declines an
   undeclared jump, and does not try the interaction picture first; `average=True` described
-  as the decohered limit where it has returned a phase average since 1.1.1; the runtime
+  as the decohered limit where it returns a phase average; the runtime
   dependencies (five, not three: matplotlib and numba were missing, as in
   `src/requirements.txt`); the location format of the Earth wrappers; the matrix-exponential
   backends, unitary to round-off rather than by construction; stale counts, `Returns`/`Raises`
@@ -1252,7 +1252,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   **This changes what an Earth call returns by default at four and five
   flavors.**  `ratio_number_neutrons_to_protons` defaults to `None` on the twelve
   Earth wrappers, resolving to the layered composition; passing a scalar
-  explicitly reproduces the old behaviour exactly.  No signature changed: the
+  explicitly reproduces the old behavior exactly.  No signature changed: the
   parameter accepts a callable as well, and the general (non-Earth) entry points
   keep their scalar default, having no layered composition to resolve.
 
@@ -1587,7 +1587,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
   finite-window mean is an estimator with a bias of its own, and on a profile
   whose density varies across the window that bias does not shrink as the window
   widens -- on the solar ray the window mean drifts 0.5924 -> 0.6023 between six
-  and forty-eight oscillation lengths, *away* from a limit rather than towards
+  and forty-eight oscillation lengths, *away* from a limit rather than toward
   one.  So the ratio is meaningful only at fixed matter conditions, as in
   notebook 23, and the page now says so.  To obtain the averaged probability,
   ask for it: `average=True` evaluates the decohered limit in closed form and
@@ -2934,7 +2934,7 @@ that history is the most useful record of *why* the code looks the way it does.
   function, as `**OSC_PARAMS_PREDEFINED['OSC_PARAMS_DEFAULT']`, now raises a
   `ValueError` naming the two offending keys and pointing at
   `globaldefs.load_nufit_params`. Those entries carry `name` and `description`
-  strings alongside the six mixing parameters; unchecked, they travelled the
+  strings alongside the six mixing parameters; unchecked, they traveled the
   shared `**kwargs` chain until `magnus_expansion_multislab` rejected them,
   naming the one function in the chain with nothing to do with the mistake. The
   check sits in the four middle-layer functions rather than further down,

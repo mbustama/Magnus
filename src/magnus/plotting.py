@@ -1358,7 +1358,7 @@ def plot_probability_with_profile(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Computes the probabilities through the Earth wrappers when given
        ``trajectories``; ``profiles`` and ``panels`` default to None.
 
@@ -2049,7 +2049,7 @@ def plot_biprobability(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Computes the probabilities through the Earth wrappers when given
        ``configurations``; markers may name a phase (``'dcp'``); ``nu_i`` and
        ``nu_f`` set the default axis labels.
@@ -2446,7 +2446,7 @@ def plot_oscillogram(
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        ``probability`` is optional: without it, the oscillogram is computed through
        the Earth wrappers.  Adds ``num_flavors``, ``osc_params``, the
        electron-fraction keywords, ``wrapper_kw`` and ``return_probability``.

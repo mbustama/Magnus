@@ -630,7 +630,7 @@ def hamiltonian_5nu_matter_td(l: float, VCC_func: Callable,
         :math:`r = n_n/n_p` of the medium, as in :func:`hamiltonian_5nu_matter`: a number, or
         a function of position, evaluated at ``l``.  Default: 1.0 (isoscalar matter).
 
-        .. versionchanged:: 1.1.1
+        .. versionchanged:: 1.2.0
            Added (issue #121).  Without it, this function equalled
            :func:`hamiltonian_5nu_matter` only at :math:`r = 1`.
 
@@ -742,7 +742,7 @@ def hamiltonian_5nu_nsi_td(l: float, VCC_func: Callable, eps_ee: float, eps_em: 
     Same as :func:`hamiltonian_5nu_nsi`, but evaluates the position-dependent matter potential
     ``VCC_func(l)`` first.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
        Issue #121: every other builder existed at two to five flavors; this one existed only up
        to four.
 

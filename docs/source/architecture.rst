@@ -7,7 +7,7 @@ Code architecture
 
 This page describes how the code under ``src/magnus/`` is organized: the modules, the path a
 request takes through them, the four layers of ``magnus.oscprob``, and how to add a wrapper or a
-scenario of your own.  It follows Sec. 5 of the Magνs paper.
+scenario of your own.  It follows the code-description section of the Magνs paper.
 :doc:`engines` covers the engines a request can reach, and :doc:`methodology` the numerical
 method; this page is about the *code*.
 
@@ -16,12 +16,12 @@ The path of a request
 
 .. figure:: ../../img/paper/architecture.svg
    :width: 100%
-   :alt: The modules of Magnus and the path of a request through them
+   :alt: The modules of Magνs and the path of a request through them
 
    The modules of Magνs and the path of a request through them.  A Hamiltonian enters from
    the left, either supplied by the user as a function of position or built by
    ``hamiltonians`` for one of the implemented scenarios, with the density profile provided
-   by ``matter``, ``earth``, or ``solarmodels``.  The request is handled in ``oscprob``,
+   by ``matter``, ``earth`` or ``solarmodels``.  The request is handled in ``oscprob``,
    which chooses the engine (:doc:`engines`) and runs the refinement ladder.  From there it
    goes through ``magnus``, which evaluates the expansion slab by slab and contains no
    physics, or through ``avgprob`` and ``adiabatic``, which evaluate no slabs outside the
@@ -33,16 +33,16 @@ A request arrives at ``oscprob`` and leaves it for ``magnus``, which evaluates t
 slab by slab; for ``avgprob``, which computes the phase average (:doc:`averaged_probability`);
 or for ``adiabatic``, which transports the state along the instantaneous eigenstates
 (:doc:`adiabatic_strategy`).  The last two return to ``magnus`` only to cross a non-adiabatic
-window with a Magnus patch.  Magνs picks the route from the form of the request; the user does
-not.
+window with a Magnus patch.  Magνs picks the route from the form of the request, unless the
+user sets ``strategy``.
 
 The numerical core is kept apart from the physics.  ``magnus.magnus`` imports nothing that
-concerns neutrinos: at module level it imports only ``expmkernels``, the compiled matrix
-exponential, and ``_validate``, the argument checks, and it reaches ``oscprob`` only for a
-warning class, imported inside the one function that raises it.  It is numerical linear algebra on an arbitrary matrix-valued function
-:math:`A(l)`, so it is tested against the recursion of :doc:`expansion_terms` without any of
-the probability code.  The physics, the environments and the core meet in one module,
-``oscprob``.
+concerns neutrinos.  At module level, it imports only ``expmkernels``, the compiled matrix
+exponential, and ``_validate``, the argument checks; it imports one warning class from
+``oscprob`` inside the function that issues it.  It is numerical linear algebra on any
+matrix-valued function :math:`A(l)`, so it is tested against the recursion of
+:doc:`expansion_terms` without any of the probability code.  The physics, the environments and
+the core meet in one module, ``oscprob``.
 
 Modules
 -------
@@ -63,7 +63,7 @@ modules share (:ref:`input-checks`); ``__main__.py``, which runs the command lin
      - The Magnus expansion: collocation integrators, cumulative quadrature, slab
        composition, the unitary exponential
    * - ``expmkernels``
-     - Compiled kernels for the exponential: Cayley--Hamilton at 2×2 and 3×3, a batched
+     - Compiled kernels for the exponential: Cayley–Hamilton at 2×2 and 3×3, a batched
        Jacobi solver at 4×4 and 5×5
    * - ``expansionterms``
      - The recursion of the Magnus terms, in exact rational arithmetic, at any order
@@ -93,10 +93,10 @@ modules share (:ref:`input-checks`); ``__main__.py``, which runs the command lin
    * - ``cli``
      - The ``magnus`` console script (:doc:`cli`)
 
-``magnus/__init__.py`` lists twelve of them in ``submodules``/``__all__``, so ``import
-magnus`` makes ``magnus.oscprob``, ``magnus.earth`` and the rest available; ``expmkernels``
-is left out as an implementation detail of ``magnus.magnus``, and ``cli`` as the entry point
-of the console script.  The import graph, generated from the source:
+``magnus/__init__.py`` lists twelve of them in ``submodules``/``__all__``, so ``import magnus``
+makes ``magnus.oscprob``, ``magnus.earth`` and the rest available; ``expmkernels`` is left out
+as an implementation detail of ``magnus.magnus``, and ``cli`` as the entry point of the console
+script.  The import graph below is generated from the source:
 
 .. figure:: _static/module_layout.svg
    :width: 100%
@@ -110,11 +110,10 @@ Three edges in that graph are worth knowing before changing an import:
 
 * ``hamiltonians4nu`` and ``hamiltonians5nu`` import ``magnus.matter`` for
   :func:`~magnus.matter.matter_potential_projector`, so that the sterile entry of the matter
-  term has one definition.  A second copy written by hand once gave a wrong answer on the NSI
-  route.
+  term has a single definition, shared by every route.
 * ``globaldefs`` imports ``magnus.hamiltonians`` inside a function, not at module scope.
-  Moving it to the top closes the loop ``globaldefs -> hamiltonians -> matter ->
-  globaldefs``, and the package no longer imports.
+  Moving it to the top closes the loop
+  ``globaldefs -> hamiltonians -> matter -> globaldefs``, and the package fails to import.
 * ``plotting`` imports only ``_validate`` at import time; ``globaldefs`` is imported when
   needed, the functions that compute through the Earth wrappers import ``earth`` and
   ``oscprob`` when called, and Matplotlib is
@@ -135,48 +134,49 @@ calling the one below it:
    wrapper, which turns its named arguments into a parameter dictionary for the scenario
    function of the second layer.  That function builds the Hamiltonian and, for the matter
    scenarios, tries the first five engines of :doc:`engines`, in order (``osc_prob_vacuum``
-   needs only the averaged probability and the constant engine); if none applies, it passes
-   the Hamiltonian to
-   ``osc_prob_energy_baseline``, which tries the cumulative scan over baselines and otherwise
-   calls ``osc_prob`` once per point.  ``osc_prob`` is the seventh engine, the general
-   Magnus ladder.  The fourteen environment-and-scenario names exist at each of the four
-   flavor counts, :math:`4 \times 14 = 56` wrappers.  From the Magνs paper.
+   needs only the averaged probability and the constant engine).  If none applies, it passes
+   the Hamiltonian to ``osc_prob_energy_baseline``, which tries the cumulative scan over
+   baselines and otherwise calls ``osc_prob`` once per point.  ``osc_prob`` is the seventh
+   engine, the general Magnus ladder.  The fourteen environment-and-scenario names exist at
+   each of the four flavor counts, giving :math:`4 \times 14 = 56` wrappers.  From the Magνs
+   paper.
 
-#. **Wrappers.**  The named functions, such as ``osc_prob_3nu_matter_constant_density``.
-   Each exists so that the parameters have names a reader and an editor can see (``s12``,
-   ``rho``, ``eps_em``); it converts them into the parameter dictionary of the second layer
-   and calls the scenario function there.
+#. **Wrappers.**  They are the named functions, such as
+   ``osc_prob_3nu_matter_constant_density``. Each exists so that the parameters have names
+   that a reader and an IDE can see (``s12``, ``rho``, ``eps_em``); it converts them into the
+   parameter dictionary of the second layer and calls the scenario function there.
 #. **Scenario functions.**  ``osc_prob_vacuum``, ``osc_prob_matter_std_potential``,
    ``osc_prob_matter_nsi`` and ``osc_prob_liv``, one per scenario and each for any number of
-   flavors.  Each builds the Hamiltonian for its scenario and tries, in order, the engines
-   that exploit its structure.  The matter scenario functions try the phase average, the
-   adiabatic transport with Magnus patches, the interaction-picture expansion (two flavors
-   on an exponential profile), the constant-Hamiltonian engine, and the energy-batched scan;
-   ``osc_prob_vacuum`` needs only the phase average and the constant-Hamiltonian engine.
-   If none applies, it passes the Hamiltonian to the third layer.
-#. **``osc_prob_energy_baseline``.**  It receives the Hamiltonian with the arrays of energies
+   flavors.  Each builds the Hamiltonian for its scenario and tries, in order, the engines that
+   exploit its structure.  The matter scenario functions try the phase average, the adiabatic
+   transport with Magnus patches, the interaction-picture expansion (two flavors on an
+   exponential profile), the constant-Hamiltonian engine and the energy-batched scan;
+   ``osc_prob_vacuum`` needs only the phase average and the constant-Hamiltonian engine. If
+   none applies, it passes the Hamiltonian to the third layer.
+#. ``osc_prob_energy_baseline``.  It receives the Hamiltonian with the arrays of energies
    and baselines, and tries the cumulative scan over baselines.  If that does not apply, it
    calls ``osc_prob`` once per point, in parallel if ``n_jobs`` asks for it, seeding the
    refinement of each point from the converged slab count of the previous one.
-#. **``osc_prob``.**  The general Magnus ladder: one probability matrix, with the refinement
-   ladder of :doc:`methodology`, reached only when no engine above it applies.  It can also be
-   called directly with any Hamiltonian, as a function of position or a matrix.
+#. ``osc_prob``.  It is the general Magnus ladder, which computes one probability matrix with
+   the refinement ladder of :doc:`methodology`.  It is reached only when no engine above it
+   applies, and it can also be called directly with any Hamiltonian, as a function of position
+   or a matrix.
 
 ``osc_prob_earth`` and ``osc_prob_sun`` take a Hamiltonian of the user's own through the same
-Earth and Sun geometry the wrappers use, and pass a curated set of arguments on to an internal
-function, ``_osc_prob_with_potential``, rather than through ``**kwargs``.
+Earth and Sun geometry the wrappers use, and pass a curated set of arguments to an internal
+function, ``_osc_prob_with_potential``, instead of forwarding ``**kwargs``.
 
-The refinement keywords (``n_slabs``, ``max_n_slabs``, ``t_breakpoints``,
-``magnus_exp_order``, ``integration_method``, ``rtol``, ``atol``, ``strict_convergence``,
-``n_jobs`` and the rest) are declared by ``osc_prob`` and the layers between it and the wrappers, but not by the
-wrappers, which receive them through ``**kwargs``.  They do not appear in a wrapper's
-signature, and ``help()`` on a wrapper does not list them; its docstring names them and
-refers to ``osc_prob``.
+The refinement keywords (``n_slabs``, ``max_n_slabs``, ``t_breakpoints``, ``magnus_exp_order``,
+``integration_method``, ``rtol``, ``atol``, ``strict_convergence``, ``n_jobs`` and the rest)
+are declared by ``osc_prob`` and the layers between it and the wrappers, but not by the
+wrappers, which receive them through ``**kwargs``.  They do not appear in a wrapper's signature,
+and ``help()`` on a wrapper does not list them; its docstring names them and refers to
+``osc_prob``.
 
 .. _layer-contract:
 
 The layer contract: what a wrapper must **not** do
-------------------------------------------------------
+--------------------------------------------------
 
 Every wrapper ends in ``**kwargs`` and must **not** redeclare any of the
 refinement and logging keywords that the layers below it own:
@@ -191,8 +191,8 @@ refinement and logging keywords that the layers below it own:
 This is a correctness requirement: copies of these keywords in each wrapper would drift
 apart, while with one declaration a default is changed in one place.
 
-Two permanent tests in ``tests/test_oscprob.py`` enforce this contract in
-CI, and will fail if it is ever violated again:
+Two guard tests in ``tests/test_oscprob.py`` run in CI.  The first enforces this contract,
+and the second guards the consistency of each wrapper family:
 
 * ``test_no_wrapper_redeclares_standard_refinement_kwargs`` — inspects
   every ``osc_prob_{2,3,4,5}nu_*`` function's signature via
@@ -206,10 +206,10 @@ If you are adding a wrapper and find yourself typing
 ``rtol: Optional[float] = 1.e-3`` in its signature, that is a signal you
 are working at the wrong layer: forward it through ``**kwargs`` instead.
 
-``return_evolution_operator`` and ``average`` follow the same rule, and show
-why the rule pays: declared by ``osc_prob_energy_baseline`` and the generic
-entry points, every one of the 56 ``osc_prob_{N}nu_*`` wrappers got them for
-free through ``**kwargs``.
+Two names in that list, ``return_evolution_operator`` and ``average``, select the output
+rather than the refinement.  They are declared by ``osc_prob_energy_baseline`` and the generic
+entry points, and every one of the 56 ``osc_prob_{N}nu_*`` wrappers accepts them through
+``**kwargs`` without further code.
 
 ``return_evolution_operator`` is declared by the core, ``osc_prob``, as well.
 The specialized engines answer with probabilities only, so when it is set the
@@ -217,13 +217,12 @@ entry points disable them for the call (through the same ``_engine_probe``
 mechanism the cross-check uses) and the general ladder answers.
 
 ``average`` is not declared by ``osc_prob``, which computes one point.  The
-passthrough guard reads its accepted keywords off the signatures, so a keyword
-that only the batching layer declares would pass the guard on ``osc_prob`` and
-fail deep inside the engine; ``osc_prob`` therefore refuses ``average`` and
-``cumulative`` by name.
+check on unknown keywords reads the accepted names from the signatures, so a
+keyword declared only by a higher layer would pass it and fail later, inside the
+engine.  To prevent that, ``osc_prob`` refuses ``average`` and ``cumulative`` by name.
 
 Data flow: how the Hamiltonian and potential are built
------------------------------------------------------------
+------------------------------------------------------
 
 The matter potential and the Hamiltonian are built once per call (not
 once per slab), then passed down as a single callable:
@@ -237,43 +236,46 @@ once per slab), then passed down as a single callable:
 
 
 Every intermediate object here is a plain Python callable
-(``VCC_func: l -> float``, ``H_func: l -> ndarray``); nothing is
-precomputed on a grid before reaching ``osc_prob``, which is what lets
-:func:`magnus.magnus.probe_eval_mode` decide, once, whether ``H_func``
-can be evaluated on a vectorized array of positions (silent
-vectorization -- see :doc:`methodology`) or must be called one position
-at a time.
+(``VCC_func: l -> float``, ``H_func: l -> ndarray``), and nothing is
+precomputed on a grid before ``osc_prob``.  This lets
+:func:`magnus.magnus.probe_eval_mode` decide, once, whether ``H_func`` accepts
+an array of positions or must be called one position at a time (see
+:doc:`methodology`).
 
 How to add your own wrapper
-------------------------------
+---------------------------
 
-Suppose you want to add support for a new environment, e.g. a
-user-supplied radial density profile for 3-flavor NSI oscillations,
+Suppose you want to add support for a new environment, e.g., a
+user-supplied radial density profile for three-flavor NSI oscillations,
 ``osc_prob_3nu_matter_nsi_custom_density``. The existing
 ``osc_prob_3nu_matter_nsi_exp_density`` (in ``magnus.oscprob``) is the
-closest sibling to copy from. The recipe:
+closest sibling to copy from. The recipe is:
 
 #. **Pick the right scenario function.** You are adding an environment
    (a new ``rho_func``), not a new physics scenario, so you call the
    existing ``osc_prob_matter_nsi`` — you do **not** need to touch
    ``magnus.hamiltonians`` or the Magnus core at all.
 
-#. **Name only the parameters specific to your scenario.** Your
-   function's signature should have: the standard positional physics
-   inputs (``energy``, ``L``), whatever parametrizes *your* density
-   profile (e.g. a ``density_func: Callable`` the user supplies
-   directly), the standard oscillation parameters for 3 flavors
-   (``s12, s23, s13, dCP, D21, D31``, all ``Optional[float] = None``),
-   the standard NSI parameters (``eps_ee, eps_em, ...``), the standard
-   trailing parameters every wrapper has
-   (``ratio_number_neutrons_to_protons``, ``electron_fraction``,
-   ``nubar``, ``nu_i``, ``nu_f``, ``validate_input``, ``save_log``,
-   ``filename_log``, ``file_log``, ``close_file_log_upon_exit``,
-   ``verbose``), and end with ``**kwargs``.
+#. **Name only the parameters specific to your scenario.**  Your
+   function's signature should have, in order:
+
+   * the positional physics inputs, ``energy`` and ``L``;
+   * whatever parametrizes *your* density profile, e.g., a
+     ``density_func: Callable`` supplied by the user;
+   * the standard three-flavor oscillation parameters,
+     ``s12, s23, s13, dCP, D21, D31``, all ``Optional[float] = None``;
+   * the standard NSI parameters, ``eps_ee, eps_em, ...``;
+   * the trailing parameters of the matter wrappers (vacuum and solar wrappers omit
+     some of the composition parameters): ``ratio_number_neutrons_to_protons``,
+     ``electron_fraction``, ``nubar``, ``nu_i``, ``nu_f``, ``validate_input``,
+     ``save_log``, ``filename_log``, ``file_log``, ``close_file_log_upon_exit``,
+     ``verbose`` and ``angles``;
+   * ``**kwargs``, last.
 
 #. **Do not name any of the 15 refinement/logging kwargs listed in**
    :ref:`layer-contract` **above.** They flow through ``**kwargs``
-   automatically. This is what the two permanent guard tests check.
+   automatically.  This is what the first guard test,
+   ``test_no_wrapper_redeclares_standard_refinement_kwargs``, checks.
 
 #. **Write the body as a single call down**, packaging your named
    parameters into the ``osc_params``/``nsi_params`` dicts that
@@ -317,19 +319,19 @@ closest sibling to copy from. The recipe:
                **kwargs
            )
 
-   ``angles`` is worth a word: it is a pure pass-through, and every wrapper in the
+   The ``angles`` keyword is a pure pass-through: every wrapper in the
    package forwards it unexamined to the layer below, which is where the four
-   conventions are interpreted.  A wrapper that accepts it and forgets to forward it
-   compiles, documents itself correctly and silently ignores the caller, so
+   conventions are interpreted.  A wrapper that accepts it but does not forward it
+   would run and silently ignore the user's choice, so
    ``tests/test_angles.py`` asserts that every public function taking ``angles`` also
    reads it.
 
 #. **Add it to the family-consistency tests.** ``test_oscprob.py``
    parametrizes several checks over "every osc_prob wrapper family" by
-   name pattern; add your new function's family prefix alongside its
-   3 siblings (2nu/4nu/5nu, if you are adding all four) so the same
+   name pattern.  Add your new function's family prefix alongside its
+   three siblings (2nu/4nu/5nu, if you are adding all four), so that the same
    unitarity/``nubar``-sensitivity/API-shape checks cover it
-   automatically instead of needing bespoke tests.
+   without bespoke tests.
 
 #. **Run the two guard tests** described in :ref:`layer-contract` before
    opening a pull request:
@@ -343,14 +345,13 @@ closest sibling to copy from. The recipe:
 How to add your own scenario
 ----------------------------
 
-If your new function needs genuinely new *physics* (not just a new
-environment) -- e.g. a Hamiltonian term that does not fit
-vacuum/matter/NSI/LIV -- then the right layer to extend is the second, the scenario functions: a new
-``osc_prob_<scenario>`` function, generic in ``num_flavors``, that builds the
-Hamiltonian as a function of energy (and of position, in matter) and hands it
+If your new function needs new *physics*, such as a Hamiltonian term that does not fit
+vacuum, matter, NSI or LIV, rather than only a new environment, extend the second layer.
+Write a new scenario function, ``osc_prob_<scenario>``, generic in ``num_flavors``.  It
+builds the Hamiltonian as a function of energy, and of position in matter, and hands it
 to ``osc_prob_energy_baseline``. That call is what gives your function arrays of
-energies and baselines, warm starts, the refinement keywords, ``average=True``,
-and the cumulative scan over baselines, with no further work.
+energies and baselines, warm starts, the refinement keywords, ``average=True`` and the
+cumulative scan over baselines, with no further work.
 
 The example below adds an :math:`L_e - L_\mu` long-range potential: a term
 :math:`v_{\rm LRI}\,{\rm diag}(1, -1, 0, \ldots)` that does not depend on
@@ -462,29 +463,26 @@ new term switched off, it returns what ``osc_prob_matter_std_potential`` does:
     print('P(nu_mu -> nu_e), term off:', np.round(np.asarray(P_off)[:, gd.NUMU, gd.NUE], 4))
     print('P(nu_mu -> nu_e), term on: ', np.round(np.asarray(P_on)[:, gd.NUMU, gd.NUE], 4))
 
-What a function written this way does **not** get is the batched engines.
-The shipped scenario functions try the phase average, the adiabatic transport
-with Magnus patches, the interaction-picture expansion, the constant-Hamiltonian
-engine and the energy-batched scan themselves, before calling
-``osc_prob_energy_baseline`` (see :doc:`engines`); a new function that goes
-straight to ``osc_prob_energy_baseline`` is answered, unless ``average=True``,
-by the cumulative scan or, point by point, by the general Magnus ladder. The
-answer is the same to the tolerance; the cost is not. On a scan of 200 energies
-from 0.3 to 10 GeV over the example profile above, with the term off, the
-shipped ``osc_prob_matter_std_potential`` (answered by the energy-batched scan)
-took 6 ms and ``osc_prob_lri`` took 88 ms, 15 times longer (warm, best of three,
-on one machine). To recover that speed, a scenario function has to dispatch to
-the batched engines as the shipped ones do; ``osc_prob_liv`` is the model to
-follow.
+What a function written this way does **not** get is the energy-batched scan and
+the other engines that the shipped scenario functions try themselves before
+calling ``osc_prob_energy_baseline`` (see :doc:`engines`).  A new function that goes
+straight to ``osc_prob_energy_baseline`` is answered, unless ``average=True``, by
+the cumulative scan or, point by point, by the general Magnus ladder. The answer
+is the same to the tolerance; the cost is not. On a scan of 200 energies at
+0.3–10 GeV, over the example profile above, with the term off, the shipped
+``osc_prob_matter_std_potential`` (answered by the energy-batched scan) took 6 ms
+and ``osc_prob_lri`` took 88 ms, 15 times longer (warm, best of three, on one
+machine). To recover that speed, a scenario function has to dispatch to those
+engines as the shipped ones do; ``osc_prob_liv`` is the model to follow.
 
 To make the new scenario part of the package rather than your own code, add a
 matching ``hamiltonian_<n>nu_<scenario>`` builder in ``magnus.hamiltonians`` for
 each flavor count you support, move the function into ``magnus.oscprob`` next to
-``osc_prob_liv``, and only then add wrappers on top of it, as in the previous
+``osc_prob_liv``.  Only then add wrappers on top of it, as in the previous
 section.
 
 Where things live: a quick lookup
--------------------------------------
+---------------------------------
 
 .. list-table::
    :header-rows: 1
@@ -506,14 +504,15 @@ Where things live: a quick lookup
    * - A named parameter exposed to end users for one (flavor count,
        environment, scenario) combination
      - the matching ``osc_prob_{N}nu_{scenario}`` wrapper
-   * - The Magnus term recursion, the Gauss-Legendre integrators, or the
+   * - The Magnus term recursion, the Gauss–Legendre integrators, or the
        matrix exponential itself
-     - ``magnus.magnus`` (:doc:`methodology`)
+     - ``magnus.magnus`` (:doc:`methodology`); the general term recursion is in
+       ``magnus.expansionterms`` and the compiled exponential in ``magnus.expmkernels``
    * - The PREM density profile or Earth chord/zenith geometry
      - ``magnus.earth``
    * - A generic density profile, electron number density, or the
-       :math:`V_{CC}` potential construction
+       :math:`V_{\rm CC}` potential construction
      - ``magnus.matter``
    * - A physical constant, unit conversion, or a predefined oscillation
-       parameter set (e.g. NuFIT 6.0)
+       parameter set (e.g., NuFIT 6.1)
      - ``magnus.globaldefs``

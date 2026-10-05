@@ -2,12 +2,11 @@ Pre-packaged plotting tools
 ===========================
 
 This page documents :mod:`magnus.plotting`, a small set of functions that
-produce the figures the example notebooks use, so that a plot costs one call
-rather than thirty lines of Matplotlib.  See :doc:`tutorials` for the
-notebooks it was extracted from.
+draw the figures of the example notebooks, each in one call.  See
+:doc:`tutorials` for the notebooks.
 
 What it draws
----------------
+-------------
 
 .. list-table::
    :header-rows: 1
@@ -17,10 +16,10 @@ What it draws
      - Layout
    * - :func:`~magnus.plotting.plot_curves`
      - Curves against any swept variable, with an optional relative-error
-       subpanel: the shape of most of the notebooks' figures.  Also serves the
+       subpanel: the shape of most of the notebooks' figures.  It also draws the
        convergence and error studies.
    * - :func:`~magnus.plotting.plot_probability_vs_baseline`
-     - The same, preset to a logarithmic baseline axis and a unit ordinate.
+     - The same, preset to a logarithmic baseline axis and an ordinate from 0 to 1.
    * - :func:`~magnus.plotting.plot_probability_vs_energy`
      - The same, against neutrino energy.
    * - :func:`~magnus.plotting.plot_curves_stacked`
@@ -47,17 +46,17 @@ What it draws
        can be overridden.
 
 Installation
---------------
+------------
 
-Nothing to do: Matplotlib is a dependency of Magνs, so ``pip install magnuspy``
-brings it and :mod:`magnus.plotting` is available straight away.
+No separate step is needed: Matplotlib is a dependency of Magνs, so
+``pip install magnuspy`` installs it and :mod:`magnus.plotting` is available immediately.
 
 .. code-block:: python
 
     from magnus import plotting
 
 A first figure
-----------------
+--------------
 
 .. jupyter-execute::
 
@@ -83,13 +82,13 @@ A first figure
         legend_title='Calculation method',
     )
 
-Note that ``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
-which returns exactly the six mixing parameters.  Splatting
+``osc`` comes from :func:`magnus.globaldefs.load_nufit_params`,
+which returns exactly the six oscillation parameters.  Unpacking
 ``gd.OSC_PARAMS_PREDEFINED[...]`` instead would also forward its ``name`` and
 ``description`` strings, which the probability functions reject.
 
 Adding the error subpanel
----------------------------
+-------------------------
 
 Passing ``residual`` adds the short lower panel the notebooks use to compare a
 Magnus result against a closed-form one.  The two panels then share their
@@ -127,7 +126,7 @@ so they read as a single figure:
     )
 
 The other layouts
--------------------
+-----------------
 
 Three of the functions can compute the probabilities themselves, through the
 Earth wrappers: :func:`~magnus.plotting.plot_probability_with_profile`,
@@ -169,7 +168,7 @@ that unit.
         energy=5.0*gd.UNIT_GEV, nu_i=gd.NUMU, nu_f=gd.NUE, num_flavors=3,
         xscale='linear')
 
-**CP violation as a bi-probability plot**, Fermilab to Homestake at 2 GeV, both
+**CP violation as a biprobability plot**, Fermilab to Homestake at 2 GeV, both
 orderings:
 
 .. jupyter-execute::
@@ -208,25 +207,24 @@ computed; their docstrings have an example each.
 .. _plotting-api-conventions:
 
 API conventions
------------------
+---------------
 
 Named arguments, and no catch-all
-""""""""""""""""""""""""""""""""""""
+"""""""""""""""""""""""""""""""""
 
-Each function takes **named arguments for the things every figure has** --
-data, labels, limits, scales, tick spacings, title, legend placement, output
-path -- and **explicit pass-through dictionaries for the long tail** of
+Each function takes **named arguments for the things every figure has**
+(data, labels, limits, scales, tick spacings, title, legend placement, output
+path) and **explicit pass-through dictionaries for the long tail** of
 Matplotlib settings: ``legend_kw``, ``grid_kw``, ``savefig_kw``,
 ``subplots_kw``, and, per curve, any
 :class:`~matplotlib.lines.Line2D` keyword.
 
-None of them has a catch-all that accepts unknown names, since a catch-all accepts a
-misspelled keyword in silence.  The three that take extra keywords
+No function accepts unknown keywords.  A misspelled keyword in a signature raises a
+:class:`TypeError`; one inside a pass-through dictionary makes Matplotlib raise an error
+naming the key.  The three functions that take extra keywords
 (``plot_probability_vs_baseline``, ``plot_probability_vs_energy`` and
-``plot_probability_with_average``) pass them on to a strict function, so a typo still
-raises.  Every keyword either appears in a signature, so a typo is a :class:`TypeError` at
-the call site, or lands in a dictionary destined for one specific Matplotlib call, so a
-typo is an error from that call naming the offending key.  Nothing is swallowed:
+``plot_probability_with_average``) pass them to a function that applies the same
+check:
 
 .. jupyter-execute::
 
@@ -236,7 +234,7 @@ typo is an error from that call naming the offending key.  Nothing is swallowed:
         print(type(error).__name__, '->', error)
 
 Curves
-"""""""""
+""""""
 
 ``curves`` is a sequence, one entry per line.  An entry is either a bare
 ordinate array or a dictionary carrying the ordinate under ``'y'`` plus any
@@ -245,15 +243,15 @@ Line2D keyword.  Entries without an explicit color take the ``'C0'``,
 conventionally given ``color='k', ls='--'``.
 
 Returning ``(fig, ax)``
-""""""""""""""""""""""""""
+"""""""""""""""""""""""
 
-Every function returns both, so that a pre-packaged figure is a starting
-point rather than a dead end.  Each call creates its own figure: there is no
+Every function returns both, so that the figure can be edited further.  Each
+call creates its own figure: there is no
 ``ax=`` argument for drawing into existing axes.  ``subplots_kw`` cannot set
 ``nrows`` or ``ncols``, which the layout fixes, nor ``figsize``, which has its own
 ``figsize=`` argument.  ``ax`` is a single
 :class:`~matplotlib.axes.Axes` for the single-panel layouts and an array for
-the multi-panel ones -- with a residual subpanel, ``ax[0]`` is the main panel
+the multi-panel ones — with a residual subpanel, ``ax[0]`` is the main panel
 and ``ax[1]`` the residual:
 
 .. jupyter-execute::
@@ -263,22 +261,22 @@ and ``ax[1]`` the residual:
     ax.set_title('annotated after the fact', fontsize=20)
 
 House style
-"""""""""""""
+"""""""""""
 
 The module sets the text and tick sizes it draws with
 (:data:`~magnus.plotting.HOUSE_RC`: 25-point axis labels, 23-point tick labels, ticks
 pointing in on all four sides), so a figure looks the same in a script, a notebook or
-these pages; it reads no ``matplotlibrc``.  A size you have changed yourself, in
-``rcParams`` or a style, is kept.  Font family and LaTeX rendering are left to your
+these pages.  A size you have changed yourself, in ``rcParams``, a style or a
+``matplotlibrc``, is kept.  Font family and LaTeX rendering follow your
 Matplotlib settings.  The other house values are exposed as
 :data:`~magnus.plotting.HOUSE_FIGSIZE`,
 :data:`~magnus.plotting.HOUSE_LEGEND_KW`,
 :data:`~magnus.plotting.HOUSE_GRID_KW` and
-:data:`~magnus.plotting.HOUSE_SAVEFIG_KW`, so a caller can build on them
+:data:`~magnus.plotting.HOUSE_SAVEFIG_KW`, so a user can build on them
 rather than restate them.
 
 Labels
---------
+------
 
 :func:`~magnus.plotting.prob_label` builds the LaTeX for a probability from a
 flavor pair, the sterile states included:
@@ -292,7 +290,7 @@ flavor pair, the sterile states included:
     print(prob_label(gd.NUE, gd.NUS1))
 
 Saving
---------
+------
 
 Pass ``savefig`` to write the figure; ``savefig_kw`` is merged over
 :data:`~magnus.plotting.HOUSE_SAVEFIG_KW`, which is ``dpi=200``.  The

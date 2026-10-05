@@ -40,9 +40,9 @@ Magνs: neutrino oscillations via the Magnus expansion
    :alt: Code style: ruff
 
 **Magνs** computes neutrino oscillation probabilities for two to five flavors, or
-for any Hamiltonian you write, in vacuum, in matter, through the Earth and through
-the Sun.  Its evolution operator is exactly unitary by construction, so every
-probability is non-negative and every row sums to one, at any accuracy setting.
+for any Hermitian Hamiltonian, in vacuum, in matter, through the Earth and through
+the Sun.  Its evolution operator is unitary to round-off at any accuracy setting,
+so every probability is non-negative and every row sums to one.
 
 .. tip::
    **New here?**  Install it with ``pip install magnuspy``, then compute your first
@@ -61,12 +61,13 @@ probability is non-negative and every row sums to one, at any accuracy setting.
    the Sun, antineutrinos, new physics and a Hamiltonian of your own.
 
 .. important::
-   **Important Links:**
+   **Where to start**
 
    * :doc:`Quick start <quickstart>` and :doc:`installation`
    * :doc:`What it can compute, with code <recipes>`
-   * `GitHub Repository <https://github.com/mbustama/Magnus>`_
-   * `Example Notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_ (see also :doc:`tutorials` for a guided tour)
+   * `GitHub repository <https://github.com/mbustama/Magnus>`_
+   * `Example notebooks <https://github.com/mbustama/Magnus/tree/main/notebooks>`_
+     (:doc:`tutorials` gives a guided tour)
    * :doc:`How to cite <citing>`
 
 **Flexible.**  The Hamiltonian is an argument, not an assumption.  Standard
@@ -75,56 +76,53 @@ states, pseudo-Dirac pairs and a model of your own all go through the same call.
 Two to five flavors ship ready-made; the generic entry points take any dimension
 and any profile, given as a function of position.
 
-**Fast.**  An energy scan is one batched call rather than a loop, worth about an order
-of magnitude per probability; an oscillogram (probability over energy and zenith angle) is one such call per zenith angle.  The median call over 164 Earth, solar, vacuum and constant-density configurations is **2 ms**, warm, on the laptop
-behind every timing in the paper; the first call of a session adds 0.1 to 0.3 s of set-up.
-:doc:`performance` has the rest.
+**Fast.**  An energy scan is one batched call rather than a loop; batching makes
+each probability one to two orders of magnitude cheaper.  The cost of a probability
+follows how fast the density varies, not how many times the neutrino oscillates.
+:ref:`performance` has the timings.
 
-**Accurate.**  Internally, Magνs propagates the evolution operator with the
-**Magnus expansion**: it exponentiates truncated integrals of the Hamiltonian over
-a chain of slabs, short consecutive stretches of the path, and every truncation is exactly unitary.  Asked for it, it agrees with an
-independent integration to a few parts in :math:`10^{12}` at two to five
-flavors.  Where it cannot certify its own answer, it says so.
+**Accurate.**  Magνs propagates the evolution operator with the **Magnus expansion**: it
+exponentiates truncated integrals of the Hamiltonian over a chain of slabs, short consecutive
+stretches of the path.  At a tight tolerance, it agrees with an independent integration to a few
+parts in :math:`10^{12}` at two to five flavors.  Where it cannot certify its own answer, it
+says so.
 
 .. hint::
-   **How do I say that?** Just like the name **Magnus** — the Greek letter
-   **ν** (nu), the neutrino's symbol, simply stands in for the "nu"
-   syllable.  (And since most of this package was written while the author
-   was based in Denmark, you are equally welcome to say it `the Danish way
-   <https://translate.google.com/?sl=da&tl=en&text=Magnus&op=translate>`_.)
+   **How do I say that?** It is pronounced like the name **Magnus**: the Greek
+   letter **ν** (nu), the neutrino's symbol, stands in for the "nu" syllable.
 
 What it can compute
---------------------
+-------------------
 
-* Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth Model (PREM), any of
-  twelve tabulated standard solar models, a supernova shock front, or any density
-  you supply.
-* The **phase-averaged** probability a solar or astrophysical experiment actually
+* Oscillations through a **varying profile**: the layers of the Preliminary Reference Earth
+  Model (PREM), any of twelve tabulated standard solar models, a supernova shock front, or any
+  density you supply.
+* The **phase-averaged** probability a solar or astrophysical experiment
   measures, over its energy resolution, without resolving the oscillation.
 * The **evolution operator** itself, alongside the probabilities, for observables
   built from amplitudes.
 * The same probabilities **from a shell**, with no Python, through the ``magnus``
   command.
 
-What it has been used for
---------------------------
+Examples
+--------
 
 Each of these is one call with a different Hamiltonian, profile or observable.
 
 * **Beam experiments** — appearance probabilities along the DUNE, T2K, Hyper-K and
-  ESS chords (the straight paths through the Earth between source and detector), from two named sites (`notebook 04
+  ESS chords through the Earth, from two named sites (`notebook 04
   <https://github.com/mbustama/Magnus/blob/main/notebooks/04_magnus_long_baseline.ipynb>`_).
 * **Atmospheric oscillograms** — probability over zenith angle and energy, one
   batched energy scan per zenith angle (`notebook 06
   <https://github.com/mbustama/Magnus/blob/main/notebooks/06_magnus_oscillograms.ipynb>`_).
-* **Solar neutrinos** — twelve standard solar models, taken by name, and the
-  averaged probability an experiment sees (`notebook 13
+* **Solar neutrinos** — standard solar models taken by name, and the averaged
+  probability an experiment sees (`notebook 13
   <https://github.com/mbustama/Magnus/blob/main/notebooks/13_magnus_tabulated_solar_model.ipynb>`_).
-* **Supernova shock fronts** — where a travelling discontinuity changes the
+* **Supernova shock fronts** — where a traveling discontinuity changes the
   conversion probability itself (`notebook 14
   <https://github.com/mbustama/Magnus/blob/main/notebooks/14_magnus_supernova_shock.ipynb>`_).
-* **Astrophysical flavor composition**, including pseudo-Dirac pairs that stay
-  coherent after everything else has averaged (`notebook 29
+* **Astrophysical flavor composition** — pseudo-Dirac pairs that stay coherent
+  after everything else has averaged (`notebook 29
   <https://github.com/mbustama/Magnus/blob/main/notebooks/29_magnus_pseudo_dirac.ipynb>`_).
 * **A Hamiltonian of your own** — a long-range :math:`L_e - L_\mu` interaction
   sourced by the Sun's electrons, a cavity in the Earth's crust, geoneutrinos, or
@@ -137,13 +135,12 @@ guided tour.
 .. _what-accuracy-means:
 
 What "accurate" means here
----------------------------
+--------------------------
 
 Magνs is a numerical integrator, so its error depends on how finely it discretizes.  One
-property is exact regardless: every truncation of the Magnus series is anti-Hermitian, so the
-evolution operator is unitary at any order, any tolerance and any slab count, and the
-probabilities add up to one to round-off.  The rest is measured, in layers that are
-independent on purpose:
+property holds regardless: every truncation of the Magnus series is anti-Hermitian, so the
+evolution operator is unitary at any order, any tolerance and any slab count.  The rest is
+measured against checks that are independent of one another:
 
 .. list-table::
    :header-rows: 1
@@ -176,37 +173,31 @@ random smooth profiles (each within three times the tolerance), none on 150 piec
 profiles with declared edges, and none on 164 Earth, solar, vacuum and constant-density
 configurations.
 
-**And the caveat.**  ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the refinement ladder
-(:ref:`glossary`) stops once two successive answers agree.  Two slab counts can be wrong by the same amount and
-still agree, which is how a silent miss happens.  At the default ``rtol = atol = 1e-3`` a
-probability through the Earth is usually far more accurate than that: on eight chords at six
-energies, the median difference from the same call at 1e-7 is about 1e-6, and the largest
-about 1e-3.  :ref:`what-rtol-atol-control` gives the details, and :doc:`diagnostics` what each
-warning means.
+The tolerances ``rtol`` and ``atol`` are a stopping rule, not a guarantee: the refinement ladder
+(:ref:`glossary`) stops once two successive answers agree.  Two slab counts can be wrong by the
+same amount and still agree, which is how a silent miss happens.  At the default
+``rtol = atol = 1e-3``, a probability through the Earth is usually far more accurate than that:
+on eight chords at six energies, the median difference from the same call at 1e-7 is about
+1e-6, and the largest about 1e-3.  :ref:`what-rtol-atol-control` gives the details, and
+:doc:`diagnostics` what each warning means.
 
 .. _when-is-magnus-a-win:
 
 When is Magνs the right tool?
 -----------------------------
 
-Three advantages follow from the method, whatever the Hamiltonian contains.  Magνs is
-**robust**: the evolution operator is exactly unitary.  It is **fast** without giving up
-accuracy: its cost follows the profile, not the phase, where an ODE solver pays for every
-radian it resolves, and a scan over energy or baseline is one batched call on compiled
-kernels (an oscillogram, one such call per zenith angle).  And it is **flexible**: the Hamiltonian is a callable that returns a Hermitian matrix
-of any size, so five flavors, non-standard interactions, a Lorentz-violating background and a
-new interaction are the same call.
-
-Where the accumulated phase is extreme and the profile varies slowly, as in the Sun, Magνs
-transports the state along the instantaneous eigenstates and keeps the expansion for the narrow
-windows where that fails (:doc:`adiabatic_strategy`); it decides the hand-over itself.  When to
-reach for Magνs, and when another code is cheaper, is set out with the measurements in
-:ref:`when-to-use-magnus`.
+Magνs takes any density profile, any number of flavors and any Hermitian Hamiltonian.  Among
+the public codes compared in :doc:`comparison`, it is the cheapest to reach high accuracy on the
+core-crossing Earth chord measured there.  Where the accumulated phase is extreme and the profile
+varies slowly, as in the Sun, it transports the state along the instantaneous eigenstates and
+keeps the expansion for the narrow windows where that fails (:doc:`adiabatic_strategy`).  Magνs
+decides the handoff itself.
+:ref:`when-to-use-magnus` sets out, with measurements, when another code is cheaper.
 
 .. _when-is-magnus-not-the-right-tool:
 
 When is Magνs not the right tool?
--------------------------------------
+---------------------------------
 
 Some limits belong to the method, and no implementation would remove them:
 
@@ -218,84 +209,82 @@ Some limits belong to the method, and no implementation would remove them:
   flavor content of the neutrinos, so the problem is nonlinear.  In Magνs the Hamiltonian is
   fixed before the propagation.  Magνs could be the propagator inside a self-consistent
   iteration, but it does not ship one.
-* **A feature narrower than every grid.**  Every engine (the algorithm that answers a call; :ref:`glossary`) samples the Hamiltonian on a grid of
-  positions, so a feature narrower than the finest grid is missed by all of them together.
-  The matter scenario functions scan the profile for such features and warn, naming the
-  breakpoints to declare; the scan catches most, not all.
+* **A feature narrower than every grid.**  Every engine (the algorithm that answers a call;
+  :ref:`glossary`) samples the Hamiltonian on a grid of positions, so a feature narrower than
+  the finest grid is missed by every engine.  Magνs scans the profile for such features
+  and warns, naming the breakpoints to declare, but the scan does not catch every one.
 
-Others belong to the implementation: at constant density the exponential comes wrapped in a
-general solver's dispatch and validation, so a code built for that case alone is cheaper;
-the structural diagnostics cannot see density fluctuations spread over every scale, for which
-the slab-count floor ``n_slabs`` should be raised; and two nearly identical requests can be
-answered by different engines, so the error can step between them (:doc:`engines`).
+Others belong to the implementation:
+
+* **Constant density.**  The exponential comes wrapped in a general solver's dispatch and
+  validation, so a code built for that case alone is cheaper.
+* **Fluctuations at every scale.**  The structural diagnostics cannot see density
+  fluctuations spread over every scale; for those, raise the slab-count floor ``n_slabs``.
+* **Engine changes.**  Two nearly identical requests can be answered by different engines,
+  so the error can change in a step between them (:doc:`engines`).
 
 .. _what-magnus-is-not:
 
-Magνs is also not a flux, cross-section or detector code, not a fitting framework, and not an
-event generator: it computes oscillation probabilities, and hands them to whatever does the
-rest.
+Magνs is also not a flux, cross-section or detector code, not a fitting framework and not an
+event generator: it computes oscillation probabilities only.
 
 .. _performance:
 
 Performance
-------------
+-----------
 
 A single three-flavor probability through the Earth takes about 2 ms at the default
-tolerance, and across 164 Earth, solar, vacuum and constant-density configurations the
-median call takes 2 ms and the slowest under a second.  These are per call, on one laptop, with the first call of the session
-discarded: that one also loads the compiled kernels, 0.1 to 0.3 s, or about 2 s the first time
-on a machine, when they compile.  The configurations are
-``docs/dev/adversarial_batteries/battery10_coverage.py`` and the timing harness is
-``timing.py`` beside it (in a source checkout).  Four things set the cost:
+tolerance.  Over 164 Earth, solar, vacuum and constant-density configurations, the median
+call takes 2 ms and the slowest under a second.  These times are per call, on one laptop,
+and exclude the first call of a session.  That call also loads the compiled kernels, which
+takes 0.1–0.3 s, or about 2 s on a machine's first run, when they compile.  The
+configurations are ``docs/dev/adversarial_batteries/battery10_coverage.py`` and the timing
+harness is ``timing.py`` beside it (in a source checkout).  Four things affect the cost; the
+third is automatic:
 
-* **Pass arrays.**  Every wrapper accepts arrays of energies, of baselines, or both, and then
-  shares work across the points: worth one to two orders of magnitude, at every number of
-  flavors from two to five.
+* **Pass arrays.**  Every wrapper accepts arrays of energies, of baselines or both, and then
+  shares work across the points, which makes it one to two orders of magnitude faster than a
+  loop, at every number of flavors from two to five.
 * **Write your** ``H_func`` **to accept an array of positions.**  It is then called once per
-  refinement stage rather than once per quadrature node: several times faster, with identical
-  output.  A scalar-only Hamiltonian raises ``ScalarHamiltonianWarning``.
+  refinement stage rather than once per quadrature node, which is several times faster, with
+  identical output (:ref:`write-h-func-vectorized`).
 * **Earth chords are symmetric.**  The Hamiltonian is evaluated on the first half of the chord
-  and mirrored, which makes an expensive Hamiltonian about 1.5 times faster.  This one is
-  automatic.
-* **Ask for worker processes where no batched engine applies.**  ``n_jobs=10`` makes a
-  per-point scan 2 to 3 times faster.  Where a batched engine applies, ``n_jobs > 1`` sends
-  the scan to the per-point path instead, about ten times slower on 5 000 energies, so one
+  and mirrored, which makes a call with an expensive Hamiltonian about 1.5× faster.
+* **Ask for worker processes where no batched engine applies.**  Ten workers (``n_jobs=10``)
+  make a per-point scan 2–3× faster.  Where a batched engine applies, ``n_jobs > 1`` sends
+  the scan to the per-point path instead, about 10× slower on 5000 energies, so one
   process is the right default.
 
 The refinement ladder works against these savings: it computes every slab count below the one
-that converges.  On an Earth chord that makes a call about three to four times slower than one given the
-right slab count in advance.  :doc:`performance` has the rest.
+that converges.  On an Earth chord, that makes a call about 3–4× slower than one
+given the right slab count in advance.  :doc:`performance` has the rest.
 
 Salient features
------------------
+----------------
 
-* **Any number of flavors, any Hamiltonian**: dedicated, validated wrappers
-  for 2ν, 3ν, 4ν (3+1 sterile), and 5ν (3+2 sterile) systems (see
-  :doc:`functions` for the full listing), plus a fully generic entry point
-  (``osc_prob``) that accepts an arbitrary Hermitian Hamiltonian of any
+* **Any number of flavors, any Hamiltonian**: validated wrappers for 2ν, 3ν,
+  4ν (3+1) and 5ν (3+2) systems (:doc:`functions`), plus a
+  generic entry point, ``osc_prob``, that takes a Hermitian Hamiltonian of any
   dimension.
-* **Vacuum, matter, Earth, and Sun**: constant-density matter, exponentially
+* **Vacuum, matter, Earth and Sun**: constant-density matter, exponentially
   falling density profiles, the Earth (`Preliminary Reference Earth Model
   <https://doi.org/10.1016/0031-9201(81)90046-7>`_, including chords between
-  named detector sites), the Sun on an exponential fit or any of twelve standard
-  solar models (:doc:`solar_models`), or any density profile you supply.
-* **Beyond the Standard Model**: non-standard neutrino interactions (NSI)
-  for every flavor count and matter environment above, and Lorentz-invariance
-  violation (LIV) for every flavor count and environment, vacuum included.
-* **Magnus expansion to order 10**, with the term recursion verified
-  term-by-term against the literature, and three integration methods.  The
-  default, **Gauss-Legendre collocation integrators**, reaches orders
-  2/4/6/8 from only 1/2/3/4 Hamiltonian evaluations per slab.  Cumulative
+  named detector sites), the Sun on an exponential fit or a tabulated standard
+  solar model (:doc:`solar_models`), or any density profile you supply.
+* **Magnus expansion to order 10**, with every term checked against terms
+  generated independently from the recursion, and three integration methods.
+  The default **Gauss–Legendre collocation integrators** reach orders 2, 4, 6
+  and 8 from only 1, 2, 3 and 4 Hamiltonian evaluations per slab.  Cumulative
   trapezoid and Simpson quadrature reach order 10.  A density jump or kink is
   declared with ``t_breakpoints`` and becomes a slab edge, where every method
   keeps its order.
-* **Exact unitarity**, adaptive refinement to a requested tolerance with
-  physics-informed starting slab counts and warm starts across scans, slab
-  edges aligned with density discontinuities, and an energy-batched scan
-  engine for standard/NSI/LIV Hamiltonians.
-* **Automatic vectorization**: Hamiltonian and density-profile functions that
-  accept position arrays are detected and used automatically; one that takes a
-  single position still works, more slowly, and raises
+* **Adaptive refinement** to a requested tolerance, starting from a slab count
+  estimated from the accumulated phase and, across a scan, from the previous
+  point's count; slab edges on density discontinuities; and an energy-batched
+  scan engine for standard, NSI and LIV Hamiltonians.
+* **Vectorized Hamiltonians**: a Hamiltonian or density function that accepts an
+  array of positions is detected and evaluated on whole arrays; one that takes a
+  single position still works, more slowly, and issues
   ``ScalarHamiltonianWarning``.
 
 .. toctree::
@@ -309,7 +298,7 @@ Salient features
 .. toctree::
    :maxdepth: 2
    :hidden:
-   :caption: Using Magnus:
+   :caption: Using Magνs:
 
    recipes
    examples
@@ -346,19 +335,19 @@ Salient features
    changelog
 
 Author
--------
+------
 
-Magnus was written by Mauricio Bustamante (mbustamante@gmail.com).  Bug reports
+Magνs was written by Mauricio Bustamante (mbustamante@gmail.com).  Bug reports
 and questions are best raised as `GitHub issues
 <https://github.com/mbustama/Magnus/issues>`_, which leave a public record
 others can find.
 
 Citing
--------
+------
 
-If Magnus contributed to work you are publishing, please cite it, and say which
-version you used -- results can depend on it.  :doc:`citing` has the BibTeX
-entry and the two or three things worth stating in the text.
+If Magνs contributed to work you are publishing, please cite it and say which
+version you used, since results can depend on it.  :doc:`citing` has the BibTeX
+entry and what to state in the text: the version, the tolerance and the strategy.
 
 License
 -------
@@ -368,7 +357,7 @@ Magνs is released under the `GNU General Public License v3.0 only
 ships with the source, as ``LICENSE`` in the repository root, and inside the
 installed distribution.
 
-You are free to use, study, modify, and redistribute it, including for
+You are free to use, study, modify and redistribute it, including for
 commercial purposes, provided that derivative works are distributed under the
 same license and with source available.  If you are unsure whether your
 intended use is compatible, read the license itself rather than this summary.

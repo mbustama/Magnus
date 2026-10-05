@@ -752,7 +752,7 @@ def vcc_func_from_rho_func(
         was declared in.  A density that would trip the guard is deliberately not cached,
         so the warning fires on every call rather than only the first.
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        Raises ValueError when ``density_matter_is_in_g_per_cm3`` and
        ``density_is_of_number_of_electrons`` are both True (issue #112).
     """

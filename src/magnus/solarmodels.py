@@ -63,7 +63,7 @@ Routine listings
     * electron_density_profile - Electron number density along a radial path
     * neutron_to_proton_ratio_profile - Neutron-to-proton ratio along a radial path
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 __author__ = "Mauricio Bustamante"
@@ -84,14 +84,14 @@ EXPONENTIAL = 'exp'
 r"""str: The ``density_profile`` value that selects the exponential fit to the Sun's electron
 density, which is the default of every Sun wrapper.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 SOLAR_MODELS = ('BP2000', 'BP04', 'BS05-OP', 'BS05-AGS-OP', 'B16-GS98', 'B16-AGSS09met',
                 'B23-GS98', 'B23-AGSS09', 'B23-C11', 'B23-AAG21', 'B23-MB22m', 'B23-MB22p')
 r"""tuple of str: The standard solar models that ship with the package, oldest first.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 _BY_KEY = {name.lower(): name for name in SOLAR_MODELS}
@@ -117,7 +117,7 @@ def _per_atomic_mass_unit(X):
 def available_solar_models() -> Tuple[str, ...]:
     r"""The names of the standard solar models that ship with the package.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -138,7 +138,7 @@ def available_solar_models() -> Tuple[str, ...]:
 def canonical_name(name: str) -> str:
     r"""A solar model's name as the package spells it; the match ignores case.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -198,7 +198,7 @@ def _parse(name: str) -> Tuple[Dict[str, str], np.ndarray]:
 def load_solar_model(name: str) -> Dict[str, np.ndarray]:
     r"""The tabulated radius, mass density and hydrogen mass fraction of one standard solar model.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -223,7 +223,7 @@ def load_solar_model(name: str) -> Dict[str, np.ndarray]:
 def solar_model_info(name: str) -> Dict[str, object]:
     r"""Reference, source, terms of use and radial range of one standard solar model.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -261,7 +261,7 @@ def solar_model_info(name: str) -> Dict[str, object]:
 def table_edge(name: str) -> float:
     r"""Distance from the centre of the Sun to a model's last tabulated radius.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -292,11 +292,7 @@ def electron_density_profile(name: str) -> Callable:
     tabulated radius it holds its first value; past the last, it continues along the logarithmic
     slope of the last interval (see the module notes).
 
-    .. versionadded:: 1.1.1
-
-    .. versionchanged:: 1.2.0
-       Counts electrons with the atomic masses of hydrogen and helium.  It divided by the mean
-       free-nucleon mass, :math:`n_e = \rho(1 + X)/(2 m_N)`, 0.1 to 0.4% low (issue #168).
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -348,11 +344,7 @@ def neutron_to_proton_ratio_profile(name: str) -> Callable:
     2(1 - X)/m_{\rm He}]`, the ratio the sterile states' matter term needs.  :math:`X` is
     interpolated linearly, and held at its first and last tabulated values outside the table.
 
-    .. versionadded:: 1.1.1
-
-    .. versionchanged:: 1.2.0
-       From the atomic masses of hydrogen and helium, like the electron density.  It was
-       :math:`(1 - X)/(1 + X)`, counting mass numbers, 0.4% lower at the centre (issue #168).
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------

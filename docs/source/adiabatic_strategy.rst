@@ -6,49 +6,51 @@ Adiabatic + Magnus hybrid strategy
    :depth: 2
 
 
-This page documents the ``strategy`` parameter accepted by
-:func:`magnus.oscprob.osc_prob_matter_std_potential`,
-:func:`magnus.oscprob.osc_prob_matter_nsi`, :func:`magnus.oscprob.osc_prob_liv`,
-and every wrapper built on them (every ``osc_prob_*_sun``,
-``osc_prob_*_sun_nsi``, and ``osc_prob_*_sun_liv`` function, and every
-``osc_prob_*_matter_exp_density`` function), as well as the fully generic,
-arbitrary-Hamiltonian entry points :func:`magnus.oscprob.osc_prob_sun` and
-:func:`magnus.oscprob.osc_prob_earth`: what problem it solves, the
-numerical method behind it (:mod:`magnus.adiabatic`), and the evidence used
-to validate it. See :ref:`when-is-magnus-a-win` and :doc:`methodology` for
-the plain Magnus-expansion machinery this strategy sits alongside.
+This page documents the ``strategy`` parameter: the problem it solves, the method
+behind it (:mod:`magnus.adiabatic`) and the evidence that validates it. The parameter
+is accepted by the matter scenario functions
+(:func:`~magnus.oscprob.osc_prob_matter_std_potential`,
+:func:`~magnus.oscprob.osc_prob_matter_nsi` and :func:`~magnus.oscprob.osc_prob_liv`),
+by every wrapper built on them, and by the generic entry points
+:func:`~magnus.oscprob.osc_prob_sun` and :func:`~magnus.oscprob.osc_prob_earth`.
+:doc:`methodology` describes the plain Magnus expansion that this strategy
+complements.
 
 The problem: extreme accumulated phase
-------------------------------------------
+--------------------------------------
 
 The plain Magnus engine (:doc:`methodology`) partitions a trajectory into
-slabs and is exact, to any desired order, within each one -- but it must
-still *resolve* however many radians of phase accumulate inside a slab. For
+slabs and is accurate to any desired order within each one, but it must
+still *resolve* however many radians of phase accumulate inside a slab.  For
 an :math:`\rm MeV`-scale solar neutrino crossing most of the Sun's radius,
 the vacuum term alone (:math:`\Delta m^2/2E`, growing as :math:`1/E`)
-accumulates :math:`\mathcal{O}(10^3\text{--}10^6)` radians. Reaching a
-requested tolerance then requires a very large number of slabs; if a
-refinement cap is hit first, ``osc_prob`` returns its best estimate but
-raises ``ToleranceNotAchievedWarning`` -- correctly signaling that the
-result may be inaccurate, but not, by itself, a solution.
+accumulates :math:`\mathcal{O}(10^3\text{–}10^6)` radians.  Reaching a
+requested tolerance then requires a very large number of slabs.  If a
+refinement cap is reached first, ``osc_prob`` returns its best estimate and
+issues ``ToleranceNotAchievedWarning``: the warning is correct, but the answer
+remains unverified.
 
-Physically, however, nothing is actually happening quickly here: away from
-a level crossing, the flavor content evolves *adiabatically*, tracking the
-instantaneous eigenstates of the Hamiltonian smoothly as the matter
-potential falls off. This is precisely the regime the Mikheyev-Smirnov-Wolfenstein
-(MSW) effect describes for solar neutrinos :cite:p:`GiuntiKim`: away from
-the resonance, the evolution is adiabatic and computable from the
-instantaneous eigenbasis alone, with no need to resolve the fast oscillation
-phase at all. The hybrid strategy in :mod:`magnus.adiabatic` automates
-exactly this: use adiabatic transport where it is valid, and reserve an
-exact (Magnus) computation for the narrow region, if any, where it is not.
+Physically, however, the Hamiltonian changes slowly.  Away from a level crossing,
+the state evolves *adiabatically*, following the instantaneous eigenstates of the
+Hamiltonian as the matter potential falls.  This is the regime of the
+Mikheyev–Smirnov–Wolfenstein (MSW) effect for solar neutrinos
+:cite:p:`GiuntiKim`: outside the resonance region, the evolution follows from the
+instantaneous eigenbasis alone, with no need to resolve the oscillation phase.
+The hybrid strategy of :mod:`magnus.adiabatic` uses adiabatic transport where it
+is valid, and a Magnus computation in the narrow regions, if any, where it is
+not.
 
 Adiabatic transport
-------------------------
+-------------------
 
-Let :math:`\mathbb{H}(l)` be diagonalized at each position, :math:`\mathbb{H}(l) = \mathbb{V}(l)\,
-\mathrm{diag}(\lambda_1(l), \ldots, \lambda_d(l))\, \mathbb{V}(l)^\dagger`. The
-adiabatic theorem says that, as long as no two eigenvalues become
+Let :math:`\mathbb{H}(l)` be diagonalized at each position:
+
+.. math::
+
+   \mathbb{H}(l) = \mathbb{V}(l)\, \mathrm{diag}(\lambda_1(l), \ldots, \lambda_d(l))\,
+   \mathbb{V}(l)^\dagger .
+
+The adiabatic theorem says that, as long as no two eigenvalues become
 (nearly) degenerate along the trajectory, a state that starts as the
 :math:`k`-th eigenstate stays the :math:`k`-th eigenstate, up to a phase:
 
@@ -65,23 +67,24 @@ original (flavor) basis, this is
 
 .. math::
 
-   \mathbb{U}_{\rm adiabatic}(l_1, l_0) = \mathbb{V}(l_1)\, \mathrm{diag}\!\left(e^{-i\Phi_k(l_1)}\right)\, \mathbb{V}(l_0)^\dagger .
+   \mathbb{U}_{\rm adiabatic}(l_1, l_0) = \mathbb{V}(l_1)\,
+   \mathrm{diag}\!\left(e^{-i\Phi_k(l_1)}\right)\, \mathbb{V}(l_0)^\dagger .
 
-:func:`magnus.adiabatic.adiabatic_propagator` computes exactly this,
-integrating :math:`\Phi_k` with Simpson's rule over a grid of diagonalized
-Hamiltonians. It never has to resolve the accumulated phase step by step
-the way a Magnus slab or an ODE solver does -- :math:`\Phi_k` is a smooth,
-slowly-varying integral regardless of how large it eventually gets -- so its
-cost is essentially independent of how many e-folds of the density profile
-the trajectory spans. The geometric phase needs no separate formula: at each
-grid step, :math:`\mathbb{V}`'s columns are phase-fixed by maximizing the (real,
-positive) overlap with the previous step's eigenvectors -- a discrete
-realization of parallel transport that captures :math:`\gamma_k` implicitly,
-for genuinely complex Hamiltonians (nonzero CP-violating phases) exactly as
-well as real ones. The result is exactly unitary by construction (a diagonal
-phase conjugated by unitary matrices), independent of how fine the grid is;
-grid density only controls how well the discretized integral and parallel
-transport approximate the continuum adiabatic limit.
+:func:`magnus.adiabatic.adiabatic_propagator` computes this, integrating
+:math:`\Phi_k` with Simpson's rule over a grid of diagonalized Hamiltonians.
+The phase :math:`\Phi_k` is a smooth integral however large it grows, so the propagator
+does not resolve the phase step by step, as a Magnus slab or an ODE solver
+must, and its cost barely depends on the length of the trajectory.
+
+The geometric phase needs no separate formula.  At each grid step, the phase
+of every column of :math:`\mathbb{V}` is fixed by making its overlap with the
+previous step's eigenvector real and positive.  This is a discrete form of
+parallel transport, and it captures :math:`\gamma_k` for complex Hamiltonians,
+with CP-violating phases, as well as for real ones.
+
+The result is unitary, being a diagonal phase between unitary matrices,
+however coarse the grid.  The grid sets only how closely the discretized
+integral and transport approach the adiabatic limit.
 
 .. figure:: _static/adiabatic_avoided_crossing.svg
    :width: 92%
@@ -95,103 +98,96 @@ transport approximate the continuum adiabatic limit.
    avoid crossing, with minimum gap :math:`2\varepsilon` at :math:`l_\star`.
    An adiabatic trajectory (blue) stays on its eigenvalue branch through the
    crossing; a diabatic trajectory (gold) instead follows the original
-   (bare, dashed) levels straight through -- the sudden, non-adiabatic
+   (bare, dashed) levels straight through — the sudden, non-adiabatic
    transition the local Magnus patch exists to capture.
 
 Detecting resonances without differentiating eigenvectors
-----------------------------------------------------------------
+---------------------------------------------------------
 
-Adiabatic transport breaks down where two eigenvalues nearly cross: the
-gap between them becomes small, and the state can no longer
-"keep up" with how fast the instantaneous eigenbasis rotates. Locating
-these points, and quantifying how badly adiabaticity is violated there,
-needs the derivative of the eigenvalues and eigenvectors along the
-trajectory -- but eigenvectors are only defined up to a phase (and, at a
-near-degeneracy, up to an arbitrary rotation within the near-degenerate
-subspace), so differentiating them directly by finite differences is
-numerically fragile. The **Hellmann-Feynman theorem** avoids this
-entirely: for a normalized eigenvector :math:`|v_k(l)\rangle` of
+Adiabatic transport breaks down where two eigenvalues nearly cross: the gap
+between them becomes small, and the state cannot follow the rotation of the
+instantaneous eigenbasis.  Locating these points, and measuring how far from
+adiabatic they are, needs the derivatives of the eigenvalues and eigenvectors
+along the trajectory.  Eigenvectors, however, are defined only up to a phase,
+and near a degeneracy only up to a rotation, so differentiating them by finite
+differences is unreliable.  The **Hellmann–Feynman theorem** avoids this: for a
+normalized eigenvector :math:`|v_k(l)\rangle` of
 :math:`\mathbb{H}(l)`,
 
 .. math::
 
-   \frac{d\lambda_k}{dl} = \left\langle v_k(l) \right| \frac{d\mathbb{H}}{dl} \left| v_k(l) \right\rangle ,
+   \frac{d\lambda_k}{dl}
+   = \left\langle v_k(l) \right| \frac{d\mathbb{H}}{dl} \left| v_k(l) \right\rangle ,
    \qquad
    \left\langle v_j(l) \right| \frac{d\mathbb{H}}{dl} \left| v_k(l) \right\rangle
    = (\lambda_k - \lambda_j)\left\langle v_j \left| \frac{dv_k}{dl} \right.\right\rangle
-   \ \ (j\neq k) ,
+   \ \ (j\neq k) .
 
-exact identities that need only :math:`d\mathbb{H}/dl` -- an ordinary derivative of
-the (smooth, gauge-independent) Hamiltonian itself, not of its eigenvectors.
-:func:`magnus.adiabatic.find_resonance_candidates` uses the first identity
-to locate every position where some pair of levels' gap is stationary
-(:math:`d(\lambda_j-\lambda_k)/dl = 0`, an exact critical point, refined to
-machine precision by bisection), scanning *every* pair :math:`(j,k)`, for a
-Hamiltonian of any dimension. Because every pair is scanned, no number of
-*simultaneous* resonances defeats the search: a crossing between one pair is
-never masked by a window belonging to another (verified at 2, 3, 4 and 5
-flavors against a dense per-pair :math:`\gamma` scan). What bounds the search
-is instead the **probe grid**: candidates are bracketed on ``n_probe`` linear
-samples, so a feature much narrower than :math:`(l_1-l_0)/n_\text{probe}` can
-be stepped over entirely and reported as no resonance at all. Supply
-``t_breakpoints`` at a known narrow feature, or raise ``n_probe``. The second
-identity then gives an exact,
-gauge-independent **adiabaticity parameter**, the Landau-Zener-like
+These exact identities require only :math:`d\mathbb{H}/dl`, which is smooth and
+gauge-independent, and not the derivative of the eigenvectors.
+
+:func:`magnus.adiabatic.find_resonance_candidates` uses the first identity to
+locate every position where the gap between a pair of levels is stationary,
+:math:`d(\lambda_j-\lambda_k)/dl = 0`, refined to machine precision by bisection.
+It scans *every* pair :math:`(j,k)`, at any dimension, so simultaneous resonances
+do not hide one another; this was verified at 2, 3, 4 and 5 flavors against a
+dense per-pair scan of the adiabaticity parameter :math:`\gamma_{jk}` (defined below).
+
+The search is limited by the **probe grid**.  Candidates are bracketed on
+``n_probe`` evenly spaced samples, so a feature much narrower than
+:math:`(l_1-l_0)/n_\text{probe}` can fall between two samples and go unseen.  For a
+known narrow feature, supply ``t_breakpoints`` there (which routes the request to the
+general Magnus method), or raise ``n_probe0`` or ``max_n_probe`` when calling
+:func:`magnus.adiabatic.hybrid_propagator` directly.
+
+The second identity gives an exact, gauge-independent **adiabaticity parameter**,
+similar to the Landau–Zener one:
 
 .. math::
 
-   \gamma_{jk}(l) = \frac{\left|\left\langle v_j(l)\right| d\mathbb{H}/dl \left|v_k(l)\right\rangle\right|}{\left(\lambda_k(l) - \lambda_j(l)\right)^2} ,
+   \gamma_{jk}(l) = \frac{\left|\left\langle v_j(l)\right| d\mathbb{H}/dl
+   \left|v_k(l)\right\rangle\right|}{\left(\lambda_k(l) - \lambda_j(l)\right)^2} .
 
-with :math:`\gamma_{jk} \gg 1` signaling a genuinely non-adiabatic
-(sharp/diabatic) crossing and :math:`\gamma_{jk} \ll 1` a safely adiabatic
-one. Both quantities are evaluated from :math:`\mathbb{H}(l)` and its
-eigendecomposition alone, so they apply identically to a hand-built toy
-Hamiltonian, a real 3-flavor standard-oscillation Hamiltonian, or a 5-flavor
-(3+2 sterile) Hamiltonian with NSI and LIV terms -- nothing about the
-detector assumes any particular structure.
+A crossing with :math:`\gamma_{jk} \gg 1` is non-adiabatic, and one with
+:math:`\gamma_{jk} \ll 1` is adiabatic.  Both quantities come from
+:math:`\mathbb{H}(l)` and its eigendecomposition alone, so they apply to any
+Hamiltonian, from a two-level model to five flavors with NSI and LIV terms.
 
-A gap extremum is where the *gap* is stationary, which need not be where
-:math:`\gamma_{jk}` peaks, so :func:`magnus.adiabatic.find_nonadiabatic_windows`
-also sweeps :math:`\gamma_{jk}` along the probe grid and opens a window over every
-contiguous stretch above the threshold.
+A gap extremum need not coincide with the peak of :math:`\gamma_{jk}`.  For this reason,
+:func:`magnus.adiabatic.find_nonadiabatic_windows` also sweeps :math:`\gamma_{jk}` along the
+probe grid and opens a window over every contiguous stretch above the threshold.
 
 .. important::
 
-   :math:`d\mathbb{H}/dl` is computed with an **ordinary real finite difference**,
+   The derivative :math:`d\mathbb{H}/dl` is computed with an **ordinary real finite difference**,
    not complex-step differentiation (:math:`\mathrm{Im}[\mathbb{H}(l+ih)]/h`), which is
    valid only for functions that are real at real input: :math:`\mathbb{H}(l)` is
    complex whenever a CP-violating phase is nonzero.
 
 Growing and merging non-adiabatic windows
-----------------------------------------------
+-----------------------------------------
 
-A candidate with :math:`\gamma_{jk}` above a threshold marks a position
-that needs an exact patch, but not, by itself, a *window*: the region over
-which adiabaticity is violated has a physical width that has nothing to do
-with the arbitrary spacing of the search grid used to locate the
-candidate in the first place. :func:`magnus.adiabatic.find_nonadiabatic_windows` grows a window
-outward from each candidate by doubling the step size until
-:math:`\gamma_{jk}` drops back below threshold, then pads it by a safety
-factor -- a physical width, not a search-grid artifact (verified directly:
-the same physical case gives the same window regardless of how fine or
-coarse the initial search grid was). Windows from different candidates
-that end up overlapping or touching are merged into one, so that two
-resonances close enough together (or a resonance revisited from the
-"other side" by level repulsion near another crossing) are patched as a
-single contiguous region rather than double-counted, under-patched, or
-silently dropped.
+A candidate with :math:`\gamma_{jk}` above a threshold marks a position that
+needs a Magnus patch, but it does not fix the *window* the patch must cover.  The
+region where adiabaticity fails has a physical width, unrelated to the spacing
+of the search grid.  To find it, :func:`magnus.adiabatic.find_nonadiabatic_windows`
+grows a window outward from each candidate, doubling the step, until
+:math:`\gamma_{jk}` falls below the threshold, and then pads it by a safety
+factor.  The same physical case gives the same window whatever the search grid.
+
+Windows that overlap or touch are merged.  Two nearby resonances are then
+patched as one region, rather than counted twice or left partly uncovered.
 
 Patching, and composing the pieces exactly
-------------------------------------------------
+------------------------------------------
 
-Inside a non-adiabatic window :math:`[l_b, l_c]`, adiabatic transport is
-simply not trusted; instead, the package's own Magnus kernel
-(:func:`magnus.magnus.magnus_expansion_multislab`) computes the evolution
-operator there directly, at order 6 by default, doubling the number of slabs until
-two successive levels agree to :math:`\min(10^{-7}, (\text{atol} + \text{rtol})/10)`.
-Since :math:`[l_b, l_c]` is narrow by construction (that is
-exactly what "window" means here), this exact computation is cheap even
-though the plain Magnus method would be slow over the *whole* trajectory.
+Inside a non-adiabatic window :math:`[l_b, l_c]`, adiabatic transport is not
+used.  Instead, the Magnus kernel (:func:`magnus.magnus.magnus_expansion_multislab`)
+computes the evolution operator directly, at order 6 by default, doubling the
+number of slabs until two successive levels agree to
+:math:`\min(10^{-7}, (\text{atol} + \text{rtol})/10)`.  The window is narrow, so
+this computation is cheap, although the same method would be slow over the whole
+trajectory.
 
 The full hybrid propagator over :math:`[l_0, l_1]` with windows
 :math:`[l_b^{(1)}, l_c^{(1)}], \ldots, [l_b^{(n)}, l_c^{(n)}]` is then
@@ -202,13 +198,10 @@ assembled by the **exact composition law** of quantum evolution,
    \mathbb{U}(l_1, l_0) = \mathbb{U}_{\rm ad}(l_1, l_c^{(n)}) \cdots
    \mathbb{U}_{\rm patch}(l_c^{(1)}, l_b^{(1)})\, \mathbb{U}_{\rm ad}(l_b^{(1)}, l_0) ,
 
-which holds regardless of which method computed each factor -- the same
-principle the plain Magnus engine already relies on to chain ordinary
-slabs (:doc:`methodology`). Every factor here (:math:`\mathbb{U}_{\rm ad}` from
-:func:`~magnus.adiabatic.adiabatic_propagator`, :math:`\mathbb{U}_{\rm patch}` from the Magnus kernel)
-is exactly unitary by construction, so the composed :math:`\mathbb{U}` is exactly
-unitary too, regardless of how accurate the adiabatic approximation
-actually is anywhere along the way.
+which holds whichever method computed each factor; the plain Magnus engine
+chains its slabs the same way (:doc:`methodology`).  Every factor is unitary,
+so the product is unitary too, however accurate the adiabatic approximation is
+along the way.
 
 .. figure:: _static/adiabatic_segmentation.svg
    :width: 96%
@@ -224,67 +217,60 @@ actually is anywhere along the way.
    with an exact local Magnus computation.
 
 Self-certification
-------------------------
+------------------
 
-None of the tolerances above -- the adiabaticity threshold, the density of
-the grid used to integrate the dynamical phase, or the density of the
-probe grid used to *locate* candidates -- has a single value that is safe
-for an arbitrary Hamiltonian: a threshold comfortably conservative for one
-case can under-patch another.
-:func:`magnus.adiabatic.hybrid_propagator` therefore never trusts a single
-evaluation: it repeats the entire computation with the threshold tightened
-(divided by 3) and the two grid densities doubled, together, comparing
-successive results, and only reports the result as certified once two
-successive levels agree within the requested ``rtol``/``atol`` -- the same
-successive-refinement discipline :func:`magnus.oscprob.osc_prob` already
-uses for its own slab count. Because a window that does not move between
-levels holds the same patch in both, that comparison cannot see a patch's
-own error, so every patch is converged on its own, to the tolerance above.
-If a local patch itself fails to converge
-within its own slab cap, or the refinement loop exhausts its iteration
-budget without two levels agreeing, the propagator returns its best
-estimate (still exactly unitary) but reports it as **not** certified.  The limits are
-``min_threshold``, ``max_n_probe`` and ``max_n_points`` for the threshold and the two grids,
-and twelve passes (``max_iters``); they are arguments of
+Three settings control the strategy: the adiabaticity threshold, the grid that
+integrates the dynamical phase and the probe grid that locates candidates.  No
+single value of any of them is safe for every Hamiltonian: a threshold that is
+conservative for one case can leave a crossing unpatched in another.  Instead of
+relying on one value, :func:`magnus.adiabatic.hybrid_propagator` repeats the
+whole computation, each time dividing the threshold by 3 and doubling both
+grids.  It certifies the result only once two successive levels agree within the
+requested ``rtol`` and ``atol``, as :func:`magnus.oscprob.osc_prob` does for its
+slab count.
+
+A window that does not move between levels holds the same patch in both, so
+this comparison cannot see a patch's own error.  Each patch is instead
+converged separately, to the tolerance above.  If a patch fails to converge
+within its slab cap, or the levels never agree, the propagator returns its best
+estimate, still unitary, and reports it as **not** certified.  The refinement caps are
+``min_threshold``, ``max_n_probe`` and ``max_n_points``, for the threshold and
+the two grids, and ``max_iters`` (12 passes by default).  They are arguments of
 :func:`magnus.adiabatic.hybrid_propagator`, and ``osc_prob`` uses their defaults.
 
 The ``strategy`` parameter
---------------------------------
+--------------------------
 
-``osc_prob_matter_std_potential``, ``osc_prob_matter_nsi``, and
-``osc_prob_liv`` (and, transitively, every wrapper built on them), as well
-as ``osc_prob_sun`` and ``osc_prob_earth`` (for a fully arbitrary
-user-supplied Hamiltonian), accept a ``strategy`` keyword with three values:
+The functions listed at the top of this page accept a ``strategy`` keyword with
+three values:
 
 ``'magnus'``
    Use only the Magnus-expansion engines, never the adiabatic one: the
-   two-flavor interaction picture where it applies (two-level Hamiltonians on
-   an exponential profile; see :doc:`engines`), the energy-batched scan, or the
+   two-flavor interaction picture where it applies (two-level Hamiltonians on an
+   exponential profile; see :doc:`engines`), the energy-batched scan or the
    general adaptive slab refinement.  It also turns off the cumulative baseline
    scan; see :ref:`strategy='magnus' <strategy-magnus>`.
 
 ``'hybrid'``
-   Additionally try :func:`magnus.adiabatic.hybrid_propagator` for any
-   point where the matter potential is position-dependent and no
-   ``t_slab_edges``/breakpoints were supplied (a piecewise-discontinuous
-   profile such as PREM breaks the finite-difference diagnostics this
-   method relies on) and a target tolerance was requested (the method is
-   fundamentally adaptive; it has no "run once, fixed" mode). If the
-   result fails to self-certify for at least one requested point, the
-   best-effort result is still returned, together with
-   ``HybridCertificationWarning`` (a subclass of
-   ``ToleranceNotAchievedWarning``, so existing code filtering on the
-   parent class also catches it).
+   Try :func:`magnus.adiabatic.hybrid_propagator` in addition to the Magnus
+   engines, at every point where the matter potential depends on position,
+   provided that no slab edges or breakpoints were supplied and that a
+   tolerance was requested.  Breakpoints mark a discontinuous profile, such as
+   PREM, on which the finite-difference diagnostics fail.  The method refines
+   adaptively, so it needs a tolerance.  If any point fails to certify, the
+   result is still returned, with ``HybridCertificationWarning``, a subclass of
+   ``ToleranceNotAchievedWarning``.
 
 ``'auto'`` (default)
-   Try ``'hybrid'`` under the same conditions; if it does not apply, or if
-   any requested point fails to self-certify, the whole request falls back to
-   the ``'magnus'`` engines.  The fallback raises no warning, except when the hybrid declines because of an
-   undeclared density jump, which raises ``UnmarkedDiscontinuityWarning``.
+   Try ``'hybrid'`` under the same conditions; if it does not apply, or if any
+   requested point fails to self-certify, the whole request falls back to the
+   ``'magnus'`` engines.  The fallback issues no warning, except when the hybrid
+   declines because of an undeclared density jump, which issues
+   ``UnmarkedDiscontinuityWarning``.
 
    Two rules can route a request elsewhere before the hybrid is tried.  A
    moderate accumulated phase goes to the Magnus ladder (the
-   :ref:`ladder route <auto-ladder-route>`), and a baseline scan at one energy of at
+   :ref:`ladder route <auto-ladder-route>`).  A baseline scan at one energy of at
    least ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS`` points (at least
    ``HYBRID_YIELDS_TO_CUMULATIVE_MIN_POINTS_TIGHT`` below a tolerance of 1e-6)
    goes to the cumulative scan, which answers every baseline from a single
@@ -295,70 +281,67 @@ Unlike the two-flavor interaction-picture fast path, the hybrid strategy
 has **no restriction on the number of flavors**: the resonance detector and
 adiabatic propagator make no assumption about the Hamiltonian's dimension
 or structure. It composes correctly with any number of simultaneous or
-sequential resonances, of any kind (standard MSW, NSI-induced, or
+sequential resonances, of any kind (standard MSW, NSI-induced or
 otherwise), between any pair of levels, **provided each is visible on the
-probe grid** -- see the two limits below.
+probe grid** — see the two limits below.
 
 .. warning::
 
-   Two things this strategy cannot see.  The first makes it decline to
-   certify; the second can return a wrong answer reported as certified:
+   This strategy cannot detect two kinds of feature.  The first makes it
+   decline to certify; the second can return a wrong answer reported as
+   certified:
 
-   * **A profile that is not smooth at the probe scale.** Every diagnostic
-     here finite-differences :math:`\mathbb{H}(l)` between probe points. On a density
-     step, a kink, or any feature sharp compared with the probe spacing,
-     those derivatives are meaningless. ``hybrid_propagator`` measures
-     this directly and declines to certify, so
-     :func:`magnus.oscprob.osc_prob` falls through to the
+   * **A profile that is not smooth at the probe scale.** Every diagnostic here
+     finite-differences :math:`\mathbb{H}(l)` between probe points. On a density
+     step, a kink or any feature sharp compared with the probe spacing, those
+     derivatives are meaningless. ``hybrid_propagator`` measures this directly and
+     declines to certify, so :func:`magnus.oscprob.osc_prob` falls through to the
      general Magnus path, which handles such profiles correctly. Passing
      ``t_breakpoints`` at the discontinuities is better still.
    * **A bump narrower than the probe spacing**, which rises and falls between
      two probe points: neither the probe nor its refinement samples it, so
-     :math:`\gamma` looks small and no window opens. Measured on a Gaussian
-     resonance of width :math:`10^{-5}(l_1-l_0)`, the returned probability was
-     wrong by 2.9e-02 while reporting ``certified=True``. The general Magnus
+     :math:`\gamma` looks small and no window opens.  On a Gaussian resonance of
+     width :math:`3\times10^{-5}(l_1-l_0)`, the returned probability was wrong by
+     2.9e-2 although the result reported ``certified=True``.  The general Magnus
      path is no better here (it misses the feature too, though it does warn).
      If a narrow feature's position is known, pass ``t_breakpoints``.
 
-     A **step** narrower than the probe spacing is not in this class (issue
-     #100): its full height lies between two probe
-     points, so the change of :math:`\mathbb{H}` across that interval is far steeper
-     than the derivatives measured at its ends.  Before certifying,
-     ``hybrid_propagator`` compares the two on every probe interval, on arrays
-     it has already computed, evaluates :math:`\gamma` exactly at the steepest
-     point of any interval where the chord is more than twice as steep, and, if
-     that point could move the answer by the tolerance, repeats the refinement
-     with it examined from the first level.  A repeated pass looks again, on
-     the finest probe grid too, so a profile with more such steps than one look
-     examines is covered over several passes.  Measured on a shock of width 0.8
-     (in units of the inverse vacuum splitting) on a path of :math:`3\times10^5`,
-     the result certified went from 0.153 to 0.4921, against 0.4922.  Where
-     nothing is found, the result certified is bit-for-bit the one before.
+     A **step** narrower than the probe spacing is detected.  Its full height
+     lies between two probe points, so the change of :math:`\mathbb{H}` across that
+     interval is much larger than the derivatives at its ends predict.  Before
+     certifying, ``hybrid_propagator`` compares the two on every probe interval.
+     Where the change is more than twice the prediction, it evaluates
+     :math:`\gamma` at the steepest point; if that point could move the answer by
+     the tolerance, it repeats the refinement with the point included from the
+     first level.  Later passes check again, so a profile with many such steps is
+     covered over several passes.  For a shock of width 0.8 (in units of the
+     inverse vacuum splitting) on a path of length :math:`3\times10^5` in the same
+     units, this check moved the certified result from 0.153 to 0.4921, against a
+     true 0.4922.  Where no step is found, this check does not alter the result.
 
 .. code-block:: python
 
    import magnus.oscprob as oscprob
    import magnus.globaldefs as gd
 
-   # 8 MeV, 90% of the way through the Sun: deep in the regime that used to
-   # need a very large slab count (and could hit ToleranceNotAchievedWarning)
-   # under strategy='magnus'.
+   # 8 MeV, 90% of the way through the Sun: under strategy='magnus' this
+   # needs a very large slab count, and can issue ToleranceNotAchievedWarning.
    P = oscprob.osc_prob_3nu_sun(
        8.0 * gd.UNIT_MEV, 0.9 * gd.SUN_RADIUS * gd.UNIT_KM, 0.0,
        strategy='auto',  # the default; shown explicitly here for clarity
    )
 
 Validation
---------------
+----------
 
-Every claim above is checked directly against a tight-tolerance
-``scipy.integrate.solve_ivp`` (``DOP853``) solution of the same
-Schrödinger equation, across a validation grid designed to exercise every
-qualitatively different case: zero resonances (purely adiabatic), one
-resonance, two well-separated resonances, and two resonances close enough
-together that their windows must merge; real 3-, 4-, and 5-flavor
-Hamiltonians (standard oscillations and BSM/NSI-induced resonances); and
-both real and genuinely complex (CP-violating) Hamiltonians.
+Every claim above is checked against a tight-tolerance
+``scipy.integrate.solve_ivp`` (``DOP853``) solution of the same Schrödinger
+equation.  The validation grid covers each qualitatively different case:
+
+* zero resonances (purely adiabatic), one resonance, two well-separated
+  resonances and two resonances close enough that their windows merge;
+* 3-, 4- and 5-flavor Hamiltonians, with standard and NSI-induced resonances;
+* real and complex (CP-violating) Hamiltonians.
 
 .. list-table::
    :header-rows: 1
@@ -366,108 +349,94 @@ both real and genuinely complex (CP-violating) Hamiltonians.
 
    * - Case
      - Windows
-     - Speedup vs. ``solve_ivp``
+     - Speed-up vs. ``solve_ivp``
      - Unitarity
      - Max abs. error
    * - Standard 3ν (18 MeV, 0.9 :math:`R_\odot`-scale baseline)
      - 0
-     - ~3,600x
+     - ~3600×
      - :math:`6.7\times10^{-16}`
      - :math:`2.3\times10^{-4}`
    * - BSM (NSI) 3ν, engineered resonance
      - 1
-     - ~88x
+     - ~88×
      - :math:`1.8\times10^{-12}`
      - :math:`9.0\times10^{-4}`
    * - Standard 4ν (3+1 sterile)
      - 0
-     - ~4,670x
+     - ~4670×
      - :math:`8.9\times10^{-16}`
      - :math:`2.0\times10^{-4}`
    * - BSM (NSI) 4ν, engineered resonance
      - 1
-     - ~60x
+     - ~60×
      - :math:`1.6\times10^{-13}`
      - :math:`1.4\times10^{-4}`
    * - Standard 5ν (3+2 sterile)
      - 0
-     - ~4,800x
+     - ~4800×
      - :math:`1.1\times10^{-15}`
      - :math:`2.0\times10^{-4}`
    * - BSM (NSI) 5ν, engineered resonance
      - 1
-     - ~52x
+     - ~52×
      - :math:`1.7\times10^{-13}`
      - :math:`1.4\times10^{-4}`
    * - Synthetic, two independent resonances (kept separate)
      - 2
-     - ~30x
+     - ~30×
      - :math:`4.5\times10^{-13}`
      - :math:`3.2\times10^{-4}`
    * - Synthetic, two nearby resonances (merged into one window)
      - 1
-     - ~91x
+     - ~91×
      - :math:`1.3\times10^{-13}`
      - :math:`2.9\times10^{-3}`
 
 .. figure:: _static/adiabatic_speedup.svg
    :width: 96%
    :align: center
-   :alt: Bar chart of measured speedup versus solve_ivp across the
-         validation grid, log scale, ranging from about 4,800x for the
-         fastest case down to about 30x for the slowest.
+   :alt: Bar chart of measured speed-up versus solve_ivp across the
+         validation grid, log scale, ranging from about 4800× for the
+         fastest case down to about 30× for the slowest.
 
-   Measured speedup versus a tight-tolerance ``solve_ivp`` ground truth
+   Measured speed-up versus a tight-tolerance ``solve_ivp`` ground truth
    across the validation grid (log scale), plotting exactly the numbers in
-   the table above -- ``tests/test_adiabatic_validation_table.py`` holds the
-   two against each other, so they cannot drift apart. Purely adiabatic
-   cases (green) are fastest, since no exact patch is ever computed; cases
-   needing one or more Magnus patches (red) are still 30-90x faster than
-   direct integration, dominated by the (still cheap, since the window is
-   narrow) patch computation and the self-certification refinement loop.
+   the table above — ``tests/test_adiabatic_validation_table.py`` holds the
+   two against each other, so they cannot drift apart.  Purely adiabatic
+   cases (green) are fastest, since no exact patch is ever computed.  Cases
+   needing one or more Magnus patches (red) are 30–91× faster than direct
+   integration.  Their cost is dominated by the patch computation, which is
+   cheap because the window is narrow, and by the self-certification loop.
 
-Speedups for the patched cases are smaller because a patch, and the
-certification loop around it, is real Magnus work, while a purely adiabatic
-case computes no patch at all.  The purely adiabatic 5ν case has the largest
-speedup because it is also where ``solve_ivp`` is slowest: a larger Hamiltonian
-does nothing to shorten its work.  Across every case the unitarity is exact, and
-the agreement with direct integration is at the :math:`10^{-4}` level, reaching
-:math:`2.9\times10^{-3}` only for the two merged resonances.
+Patched cases are slower because each patch, and the certification loop around it, requires a
+Magnus computation.  The purely adiabatic 5ν case has the largest speed-up because it is also
+where ``solve_ivp`` is slowest: the cost of ``solve_ivp`` grows with the dimension of the
+Hamiltonian, while the adiabatic transport cost barely does.  Across every case, the result is
+unitary to :math:`2\times10^{-12}` or better, and the agreement with direct integration is at
+the :math:`10^{-4}` level, reaching :math:`2.9\times10^{-3}` only for the two merged resonances.
 
 Limitations and scope
---------------------------
+---------------------
 
-- The hybrid strategy requires a genuinely **smooth** Hamiltonian: the
-  finite-difference Hellmann-Feynman diagnostics assume :math:`d\mathbb{H}/dl` is
-  well-defined everywhere on the trajectory. A piecewise profile with
-  genuine discontinuities (the Earth's PREM layers) is out of scope for
-  now; requesting ``t_slab_edges`` or density-discontinuity breakpoints
-  disables the hybrid dispatch and falls back to the general method,
-  unconditionally.
-- The strategy is fundamentally adaptive (self-certifying): it does not
-  apply when no target tolerance is requested at all (``rtol`` and
-  ``atol`` both ``None``), since there is no hybrid analogue of "run once
-  with a fixed slab count."
+- The hybrid strategy requires a **smooth** Hamiltonian: the finite-difference
+  Hellmann–Feynman diagnostics assume that :math:`d\mathbb{H}/dl` exists
+  everywhere on the trajectory.  It does not handle a profile with
+  discontinuities, such as the layers of PREM; supplying ``t_slab_edges`` or
+  ``t_breakpoints`` sends the request to the general method.
+- The strategy certifies its result by refinement, so it does not apply when
+  no tolerance is requested (``rtol`` and ``atol`` both ``None``).
 
-:func:`magnus.oscprob.osc_prob_sun` and :func:`magnus.oscprob.osc_prob_earth`
-(the fully generic entry points, which accept an arbitrary user-supplied
-``H_func`` without assuming the separable vacuum-plus-matter-potential
-structure) also accept ``strategy``: nothing about
-:func:`magnus.adiabatic.hybrid_propagator` requires the
-separable structure the other wrappers build (it operates on any callable
-``H_func(l)``), so the same gating logic (smooth profile, requested
-tolerance) applies here too, evaluated directly on the user's own
-Hamiltonian. In practice this means:
+:func:`magnus.adiabatic.hybrid_propagator` works on any callable ``H_func(l)``, so the same two
+conditions apply to a Hamiltonian supplied to :func:`magnus.oscprob.osc_prob_sun` or
+:func:`magnus.oscprob.osc_prob_earth`: a smooth profile and a requested tolerance.  In
+practice:
 
-- ``osc_prob_sun`` engages the hybrid strategy exactly as readily as the
-  standard/NSI/LIV Sun wrappers, since its density profile has no
-  breakpoints.
-- ``osc_prob_earth`` almost always falls back to the ``'magnus'``
-  strategies regardless of what is requested, since ``t_breakpoints`` (the
-  PREM layer-boundary crossings) is essentially always non-empty for a
-  real Earth-crossing trajectory -- this is the correct, principled
-  consequence of the smoothness requirement above, not a special case
-  written in for ``osc_prob_earth`` specifically.
+- ``osc_prob_sun`` uses the hybrid strategy as readily as the Sun wrappers,
+  since its density profile has no breakpoints.
+- ``osc_prob_earth`` almost always uses the ``'magnus'`` engines, whatever is
+  requested, because a chord through the Earth crosses PREM layer boundaries,
+  which become breakpoints.
 
 See :doc:`methodology` for the plain Magnus-expansion machinery this
 strategy sits alongside, and :doc:`architecture` for where

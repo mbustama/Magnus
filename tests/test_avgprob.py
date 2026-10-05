@@ -1092,7 +1092,7 @@ def test_a_sharp_feature_that_cannot_move_probability_is_left_alone():
 
 
 def test_a_smooth_profile_gets_exactly_the_unescalated_answer():
-    """Where nothing is escalated the result is what it was before 1.1.1, bit for bit."""
+    """Where nothing is escalated the result is what it was before 1.2.0, bit for bit."""
     H, l1 = _exponential_H(SOLAR_ENERGY), 5.0*L_SCALE
     P, report = ap.averaged_probabilities_adiabatic(H, 0.0, l1)
     crossing, windows, _ = ap.level_crossing_matrix(H, 0.0, l1)

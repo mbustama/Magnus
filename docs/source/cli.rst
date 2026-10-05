@@ -6,27 +6,21 @@ Command-line calculator
    :depth: 2
 
 
-In addition to the Python API (:doc:`quickstart`), Magνs installs a
-``magnus`` command (equivalently, ``python -m magnus``) for computing a
-single oscillation probability directly from the shell, with no Python
-required. It wraps the same ``osc_prob_{2,3,4,5}nu_*`` functions used by
-the Python API: ``magnus`` picks the right one from
-``--flavors``/``--environment``/``--scenario`` and calls it with the flags
-you give (see :doc:`architecture` for how those functions themselves are
-organized).  Its one subcommand, ``prob``, is the default and may be
-omitted: ``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are
-the same call.  ``magnus --help`` prints the options of ``prob`` after its
-own, so ``magnus --help`` and ``magnus prob --help`` both list every flag.
+Magνs installs a ``magnus`` command (also run as ``python -m magnus``) that
+computes a single oscillation probability from the shell, without writing
+Python.  It picks one of the ``osc_prob_{2,3,4,5}nu_*`` functions from
+``--flavors``, ``--environment`` and ``--scenario``, and calls it with the flags
+you give.  Its one subcommand, ``prob``, is the default and may be omitted, so
+``magnus --flavors 3 ...`` and ``magnus prob --flavors 3 ...`` are the same call;
+``magnus --help`` lists every flag.
 
 .. note::
-   The CLI computes **one probability at a time** (a single energy and
-   baseline). For scans, plots, or fitting, use the Python API -- it is
-   the same underlying code, just called in a loop or with array
-   arguments (which Magνs evaluates in a single batched, vectorized pass;
-   see :doc:`methodology`).
+   The CLI computes **one probability at a time**, at a single energy and
+   baseline.  For scans, plots or fits, use the Python API, which runs the same
+   code and computes a scan in one batched call (:doc:`performance`).
 
 Installation
---------------
+------------
 
 ``pip install magnuspy`` installs the ``magnus`` command along with the package.
 From a checkout, ``pip install -e .`` does the same, and ``python -m magnus``
@@ -37,12 +31,12 @@ it reports the same number as ``magnus.__version__``, which is read
 from the ``version`` field of ``pyproject.toml``.
 
 Usage pattern
----------------
+-------------
 
 .. code-block:: text
 
-   magnus [prob] --flavors {2,3,4,5} --environment {vacuum,matter,earth,sun}
-                 --scenario {std,nsi,liv} [environment- and scenario-specific flags]
+   magnus [prob] [--flavors {2,3,4,5}] [--environment {vacuum,matter,earth,sun}]
+                 [--scenario {std,nsi,liv}] [environment- and scenario-specific flags]
                  --energy ENERGY [--energy-unit UNIT] [--baseline BASELINE] ...
 
 Unlike the Python API, the command line takes physical units: ``--energy`` in
@@ -53,9 +47,8 @@ are real on the command line; complex ones need the Python API.
 ``--environment`` selects the propagation medium; ``--scenario`` selects
 the physics on top of it. Not every combination exists: ``--scenario nsi``
 requires a matter potential to modify, so it is not available with
-``--environment vacuum`` (the CLI rejects this combination with a clear
-error rather than silently ignoring the epsilon flags). The full dispatch
-table:
+``--environment vacuum`` (see `Errors are explicit rather than silent`_).  The
+full dispatch table:
 
 .. list-table::
    :header-rows: 1
@@ -95,7 +88,7 @@ table:
      - ``osc_prob_{N}nu_sun[_nsi|_liv]``
 
 Examples
-----------
+--------
 
 .. The example blocks below are checked against the live CLI by
    tests/test_cli_examples_match.py.  Do not hand-edit their output: run
@@ -128,7 +121,7 @@ The same calculation, one channel only:
    P = 0.0085
 
 Earth crossing from the cosine of the zenith angle (equivalently, from two
-named locations -- see ``--loc-ini``/``--loc-fin`` below):
+named locations — see ``--loc-ini``/``--loc-fin`` below):
 
 .. code-block:: text
 
@@ -142,15 +135,15 @@ named locations -- see ``--loc-ini``/``--loc-fin`` below):
    nu_mu     0.0666  0.6870  0.2465
    nu_tau    0.0241  0.2230  0.7529
 
-The baseline, 10193.6 km, is the length of the chord at
+The baseline, 10 193.6 km, is the length of the chord at
 :math:`\cos\theta_z = -0.8`, which ``magnus.earth.distance_traveled_inside_earth``
 gives in Python.  That command also writes ``MagnusConvergenceWarning`` once to
 standard error:
-some slabs of this chord are wider than the sufficient condition for the series
-to converge.  It reports a slab width rather than an error; :doc:`diagnostics`
+some slabs of this chord are wider than the sufficient convergence condition
+allows.  The warning flags a slab width, not an inaccurate result; :doc:`diagnostics`
 gives its measured false-alarm rate and says what to do about it.
 
-The Sun, from the center to the surface (:math:`R_\odot` = 695 700 km), through a
+The Sun, from the center to the surface (:math:`R_\odot` = 695 700 km), through a
 tabulated standard solar model rather than the exponential fit (:doc:`solar_models`
 lists the twelve, and ``--density-profile`` takes their names in any case):
 
@@ -190,7 +183,7 @@ Constant-density matter with non-standard interactions:
    nu_tau    0.0009  0.0001  0.9989
 
 Vacuum with a (deliberately large, for illustration) Lorentz-invariance-violating
-term -- compare to the plain-vacuum result above at the same energy and baseline:
+term, to compare with the plain-vacuum result above at the same energy and baseline:
 
 .. code-block:: text
 
@@ -205,7 +198,7 @@ term -- compare to the plain-vacuum result above at the same energy and baseline
    nu_mu     0.1349  0.7013  0.1639
    nu_tau    0.3696  0.2477  0.3827
 
-A 3+2 sterile scenario (5 flavors), machine-readable output:
+Five flavors (3+2 sterile) with LIV through the Earth, as machine-readable JSON:
 
 .. code-block:: text
 
@@ -223,39 +216,39 @@ A 3+2 sterile scenario (5 flavors), machine-readable output:
      "probability": [[...], [...], [...], [...], [...]]
    }
 
-With ``s14 = s15 = s24 = s25 = s34 = s35 = 0`` (their defaults), the two
-sterile states stay perfectly decoupled from the three active flavors and
-from each other, as expected -- this exact check is one of the CLI's
-regression tests (``tests/test_cli.py``, in a source checkout).
+With ``s14 = s15 = s24 = s25 = s34 = s35 = 0`` and the sterile LIV angles
+``sxi14`` to ``sxi35`` at zero (their defaults), the two sterile states stay
+decoupled from the three active flavors and from each other.  One of the CLI's
+regression tests (``tests/test_cli.py``, in a source checkout) checks this.
 
 Choosing a propagation strategy
-------------------------------------
+-------------------------------
 
-For a position-dependent Hamiltonian -- ``--environment sun``,
-``--environment earth``, or ``--environment matter --density-profile exp`` --
-``--strategy`` selects how the evolution operator is propagated, exactly as the
-``strategy`` keyword does in the Python API (see :doc:`adiabatic_strategy` for
-the full description of the three values).  It defaults to ``auto`` and is
-ignored for vacuum and constant-density environments, whose Hamiltonians do not
-depend on position at all.
+For a position-dependent Hamiltonian (``--environment sun``, ``--environment earth``
+or ``--environment matter --density-profile exp``), ``--strategy`` selects how the
+evolution operator is propagated.  It works exactly as the ``strategy`` keyword does in
+the Python API (see :doc:`adiabatic_strategy` for the full description of the three
+values).  It defaults to ``auto``.  Vacuum and constant-density environments do not
+depend on position, so a non-default ``--strategy`` is rejected there.
 
-Since ``auto`` is the default, you need this flag only to *opt out* of the
-hybrid strategy (``--strategy magnus``, which uses only the Magnus ladder) or
-to force it and be warned when it cannot certify its own result
-(``--strategy hybrid``).
+Under ``auto``, a smooth profile whose estimated accumulated phase is at most
+1e4 rad, at a tolerance of 1e-6 or looser, goes to the Magnus ladder.  Any other
+request tries the hybrid strategy first and falls back to the Magnus engines if the hybrid
+strategy cannot certify its result (:ref:`dispatch-order` has the full table).  You need
+this flag only to keep to the Magnus engines (``--strategy magnus``) or to force the hybrid
+strategy and be warned when it cannot certify its own result (``--strategy hybrid``).
 
-Opting out is rarely what you want.  ``--strategy magnus`` resolves the
-oscillation phase slab by slab, and a low-energy solar neutrino accumulates an extreme amount of
-it, so that is the route that runs into a refinement cap and raises
-``ToleranceNotAchievedWarning``.  `Notebook 12
+``--strategy magnus`` is rarely what you want.  It resolves the oscillation phase slab by
+slab.  A low-energy solar neutrino accumulates a very large phase, so this route reaches a
+refinement cap and issues ``ToleranceNotAchievedWarning``.  `Notebook 12
 <https://github.com/mbustama/Magnus/blob/main/notebooks/12_magnus_adiabatic_hybrid_strategy.ipynb>`_
 times all three against ``solve_ivp`` from two to five flavors, with and
 without NSI, printing the error beside each time.
 
 Errors are explicit rather than silent
-------------------------------------------
+--------------------------------------
 
-Missing a required flag, or an invalid combination, produces a clear
+A missing required flag or an invalid flag combination produces a clear
 message and a non-zero exit code instead of a wrong answer or a raw
 traceback:
 
@@ -270,18 +263,18 @@ traceback:
    usage: magnus [-h] [-V] {prob} ...
    magnus: error: --sth and --dm2 are both required for --flavors 2.
 
-At two flavors the table's rows and columns are labelled ``0`` and ``1`` rather than by
+At two flavors, the table's rows and columns are labeled ``0`` and ``1`` rather than by
 flavor: a two-flavor system stands for whichever pair ``--sth`` and ``--dm2`` describe, and
 ``--nu-i``/``--nu-f`` take 0 or 1 accordingly.
 
 Full flag reference
-----------------------
+-------------------
 
 .. The block below is generated from src/magnus/cli.py by docs/regen_cli_help.py
    and checked by lint.yml.  Edit the argparse help strings in cli.py, then run
    `python3 docs/regen_cli_help.py`; edits made here are reverted.
 
-The complete, current ``--help`` output (every flag is grouped by what it
+The complete ``magnus prob --help`` output (every flag is grouped by what it
 configures):
 
 .. code-block:: text
@@ -327,7 +320,7 @@ configures):
                            Propagation environment (default: vacuum).
      --scenario {std,nsi,liv}
                            Physics scenario on top of the environment: 'std' (Standard
-                           Model), 'nsi' (non-standard interactions), or 'liv' (Lorentz-
+                           Model), 'nsi' (non-standard interactions) or 'liv' (Lorentz-
                            invariance violation). 'nsi' is not available with --environment
                            vacuum. Default: std.
      --density-profile PROFILE
@@ -346,11 +339,11 @@ configures):
      --energy ENERGY       Neutrino energy.
      --energy-unit {eV,keV,MeV,GeV,TeV,PeV}
                            Unit of --energy (default: GeV).
-     --baseline BASELINE   Baseline / final position. Required for vacuum, matter, and sun,
-                           and for earth when using --costhz, unless --source-depth or
-                           --detector-depth is given, which computes it. Computed
-                           automatically for earth when both --loc-ini and --loc-fin are
-                           given instead. --detector-depth requires it to be omitted.
+     --baseline BASELINE   Baseline (final position). Required for vacuum, matter and sun.
+                           For earth, give it with --costhz, or omit it when --detector-
+                           depth or --source-depth is given (the baseline is then computed)
+                           or when --loc-ini and --loc-fin are given. Must be omitted with
+                           --detector-depth.
      --l0 L0               Initial position (used by --environment sun and --density-
                            profile exp). Default: 0.0.
      --baseline-unit {eV-1,km,cm}
@@ -377,7 +370,7 @@ configures):
 
    Earth (--environment earth):
      --costhz COSTHZ       Cosine of the neutrino zenith angle.
-     --loc-ini LOC_INI     Initial location name (e.g. fermilab); see
+     --loc-ini LOC_INI     Initial location name (e.g., fermilab); see
                            magnus.earth.loc_coords_dms. Must be given together with --loc-
                            fin, as an alternative to --costhz.
      --loc-fin LOC_FIN     Final location name; see --loc-ini.
@@ -399,14 +392,15 @@ configures):
 
    Standard oscillation parameters (2-flavor):
      --angles {sin,sin2,rad,deg}
-                           Convention for every mixing angle below (--sth, --s12..,
-                           --sxi..): sin (default) their sines, sin2 their sines squared --
-                           the form global fits report -- rad the angles in radians, deg in
-                           degrees. Under deg the CP phases (--dcp, --d14, ...) are read as
+                           Convention for every mixing angle below (--sth, --s12, ...,
+                           --sxi, ...): 'sin' (default) takes sines, 'sin2' squared sines
+                           (the form global fits report), 'rad' radians and 'deg' degrees.
+                           Under 'deg' the CP phases (--dcp, --d14, ...) are read as
                            degrees too; otherwise they stay in radians.
      --sth STH             Mixing angle theta, in the convention set by --angles (required
                            for --flavors 2).
-     --dm2 DM2             Mass-squared difference Delta m^2 (required for --flavors 2).
+     --dm2 DM2             Mass-squared difference Delta m^2 [eV^2] (required for --flavors
+                           2).
 
    Standard oscillation parameters (3+ flavors):
      --s12 S12             Mixing angle theta_12, per --angles. Default: NuFIT 6.1.
@@ -414,16 +408,15 @@ configures):
      --s13 S13             Mixing angle theta_13, per --angles. Default: NuFIT 6.1.
      --dcp DCP             delta_CP [radian, or degree with --angles deg]. Default: NuFIT
                            6.1.
-     --dm21 D21            Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.
-     --dm31 D31            Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.
+     --dm21 D21            Mass-squared difference Delta m^2_21 [eV^2]. Default: NuFIT 6.1.
+     --dm31 D31            Mass-squared difference Delta m^2_31 [eV^2]. Default: NuFIT 6.1.
      --osc-params-set NAME
                            Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31
-                           left unspecified: one per NuFIT release, in normal ordering
-                           (..._NO) or inverted (..._IO), and for releases from 4.0 on with
-                           (..._SK_) or without (..._NOSK_) Super-Kamiokande atmospheric
-                           data. OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO. Pass an unknown
-                           name to see the full list, which is
-                           globaldefs.OSC_PARAMS_PREDEFINED.
+                           left unspecified: one per NuFIT release, mass ordering (..._NO
+                           or ..._IO) and, from release 4.0 on, inclusion (..._SK_) or
+                           exclusion (..._NOSK_) of Super-Kamiokande atmospheric data.
+                           OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO. The full list is
+                           globaldefs.OSC_PARAMS_PREDEFINED; an unknown name prints it.
 
    Additional sterile mixing (4+ flavors):
      --s14 S14             Mixing angle theta_14, per --angles. Default: 0.0.
@@ -431,7 +424,7 @@ configures):
      --s24 S24             Mixing angle theta_24, per --angles. Default: 0.0.
      --d24 D24             delta_24 [radian, or degree with --angles deg]. Default: 0.0.
      --s34 S34             Mixing angle theta_34, per --angles. Default: 0.0.
-     --dm41 D41            Mass-squared difference Delta m^2_41. Default: 0.0.
+     --dm41 D41            Mass-squared difference Delta m^2_41 [eV^2]. Default: 0.0.
 
    Additional sterile mixing (5 flavors):
      --s15 S15             Mixing angle theta_15, per --angles. Default: 0.0.
@@ -439,7 +432,7 @@ configures):
      --s25 S25             Mixing angle theta_25, per --angles. Default: 0.0.
      --s35 S35             Mixing angle theta_35, per --angles. Default: 0.0.
      --d35 D35             delta_35 [radian, or degree with --angles deg]. Default: 0.0.
-     --dm51 D51            Mass-squared difference Delta m^2_51. Default: 0.0.
+     --dm51 D51            Mass-squared difference Delta m^2_51 [eV^2]. Default: 0.0.
 
    NSI parameters (--scenario nsi):
      --eps-aa EPS_AA       2-flavor diagonal NSI coupling.
@@ -471,27 +464,27 @@ configures):
      --sxi13 SXI13         LIV mixing angle xi_13, per --angles.
      --dxicp DXICP         (3/4/5nu) LIV CP-violation phase of the 1-3 rotation [radian, or
                            degree with --angles deg].
-     --dxi13 DXI13         (4/5nu) Former name of --dxicp; still accepted, with a warning.
+     --dxi13 DXI13         (4/5nu) Deprecated alias of --dxicp; issues a FutureWarning.
      --sxi14 SXI14         (4/5nu) LIV mixing angle xi_14, per --angles.
-     --dxi14 DXI14         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg].
+     --dxi14 DXI14         (4/5nu) LIV CP-violation phase of the 1-4 rotation [radian, or
+                           degree with --angles deg].
      --sxi24 SXI24         (4/5nu) LIV mixing angle xi_24, per --angles.
-     --dxi24 DXI24         (4/5nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg].
+     --dxi24 DXI24         (4/5nu) LIV CP-violation phase of the 2-4 rotation [radian, or
+                           degree with --angles deg].
      --sxi34 SXI34         (4/5nu) LIV mixing angle xi_34, per --angles.
      --sxi15 SXI15         (5nu) LIV mixing angle xi_15, per --angles.
-     --dxi15 DXI15         (5nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg].
+     --dxi15 DXI15         (5nu) LIV CP-violation phase of the 1-5 rotation [radian, or
+                           degree with --angles deg].
      --sxi25 SXI25         (5nu) LIV mixing angle xi_25, per --angles.
      --sxi35 SXI35         (5nu) LIV mixing angle xi_35, per --angles.
-     --dxi35 DXI35         (5nu) LIV CP-violation phase [radian, or degree with --angles
-                           deg].
-     --b1 B1               LIV eigenvalue b1.
-     --b2 B2               LIV eigenvalue b2.
-     --b3 B3               LIV eigenvalue b3.
-     --b4 B4               LIV eigenvalue b4.
-     --b5 B5               LIV eigenvalue b5.
-     --liv-lambda LAMBDA   LIV energy scale Lambda. Default: 1.0.
+     --dxi35 DXI35         (5nu) LIV CP-violation phase of the 3-5 rotation [radian, or
+                           degree with --angles deg].
+     --b1 B1               LIV eigenvalue b1 [eV].
+     --b2 B2               LIV eigenvalue b2 [eV].
+     --b3 B3               LIV eigenvalue b3 [eV].
+     --b4 B4               LIV eigenvalue b4 [eV].
+     --b5 B5               LIV eigenvalue b5 [eV].
+     --liv-lambda LAMBDA   LIV energy scale Lambda [eV]. Default: 1.0.
      --n-liv N_LIV         Power of the energy dependence of the LIV operator. Default: 0.
 
    Channel selection:
@@ -509,24 +502,26 @@ configures):
                            1-4 Hamiltonian evaluations per slab and matches its quadrature
                            order to the expansion order, so it is both the fastest and the
                            most accurate for a smooth Hamiltonian. 'trapezoid'/'simpson'
-                           sample a uniform grid of 100 points per slab instead (the
-                           library default; the CLI does not expose it), and at a declared
-                           breakpoint sample each side of a jump with its own values.
-                           Default: gl.
+                           instead sample a uniform grid of points in each slab, starting
+                           from 100 points per slab (the library default, which the CLI
+                           cannot change). At a declared breakpoint, they sample each side
+                           of a jump separately. Default: gl.
      --rtol RTOL           Relative tolerance on the agreement between successive
-                           refinement levels -- a stopping rule, not a guaranteed accuracy.
+                           refinement levels: a stopping rule, not a guaranteed accuracy.
                            Default: 1e-3.
      --atol ATOL           Absolute tolerance on the same agreement; see --rtol. Default:
                            1e-3.
      --n-jobs N_JOBS       Number of parallel joblib workers. Default: 1.
      --strategy {auto,hybrid,magnus}
-                           How to propagate a position-dependent Hamiltonian: 'magnus' uses
-                           only the Magnus-expansion machinery; 'hybrid' also tries
-                           adiabatic transport with a Magnus patch at each non-adiabatic
-                           window, warning if it cannot certify the result; 'auto' tries
-                           hybrid and falls back to magnus without a warning, except for an
-                           undeclared density jump. Ignored for vacuum and constant-density
-                           environments. Default: auto.
+                           How to propagate a position-dependent Hamiltonian. 'magnus' uses
+                           only the Magnus-expansion engines. 'hybrid' also tries adiabatic
+                           transport with a Magnus patch at each non-adiabatic window and
+                           warns if it cannot certify the result. 'auto' sends a smooth
+                           profile whose estimated accumulated phase is at most 1e4 rad (at
+                           a tolerance of 1e-6 or looser) to the Magnus ladder. Otherwise,
+                           it tries hybrid and falls back to the Magnus engines without a
+                           warning, except for an undeclared density jump. Vacuum and
+                           constant-density environments accept only 'auto'. Default: auto.
      --verbose {0,1,2}     Verbosity level. Default: 0.
 
    Output:
@@ -536,7 +531,7 @@ configures):
                            value; ignored with --json. Default: 4.
 
 Implementation notes
------------------------
+--------------------
 
 ``magnus`` does not reimplement any physics: it calls the matching
 ``osc_prob_{N}nu_*`` wrapper with the flags you passed (see :func:`magnus.cli.main`).

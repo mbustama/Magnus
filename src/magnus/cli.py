@@ -150,7 +150,7 @@ r"""tuple of str: Module-level constant
 The subcommands :func:`build_parser` registers.  The first, ``prob``, is the default:
 a command line that names none runs it (issue #138).
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -160,7 +160,7 @@ def _with_default_subcommand(argv):
     ``magnus --flavors 3 ...`` becomes ``magnus prob --flavors 3 ...``.  An empty command
     line, ``-h``/``--help`` and ``-V``/``--version`` are left to the top-level parser.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
 
     Parameters
     ----------
@@ -185,7 +185,7 @@ class _HelpWithDefaultSubcommand(argparse.Action):
     ``magnus --help`` is looking for; printing only the subcommand list would send them to
     ``magnus prob --help`` for every option (issue #138).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -208,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
         subcommand, which :func:`main` supplies when none is given, and its ``-h`` prints
         the help of ``prob`` after its own.
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The epilog names ``prob`` as the default subcommand, and ``magnus -h`` also prints
        the options of ``prob`` (issue #138).
 
@@ -237,7 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
         help='Propagation environment (default: vacuum).')
     g_env.add_argument('--scenario', choices=['std', 'nsi', 'liv'], default='std',
         help="Physics scenario on top of the environment: 'std' (Standard Model), "
-             "'nsi' (non-standard interactions), or 'liv' (Lorentz-invariance violation). "
+             "'nsi' (non-standard interactions) or 'liv' (Lorentz-invariance violation). "
              "'nsi' is not available with --environment vacuum. Default: std.")
     g_env.add_argument('--density-profile', type=_density_profile, choices=DENSITY_PROFILES,
         default=None, metavar='PROFILE',
@@ -255,10 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
     g_kin.add_argument('--energy-unit', choices=list(ENERGY_UNITS), default='GeV',
         help='Unit of --energy (default: GeV).')
     g_kin.add_argument('--baseline', type=_finite_float, default=None,
-        help='Baseline / final position. Required for vacuum, matter, and sun, and for earth '
-             'when using --costhz, unless --source-depth or --detector-depth is given, which '
-             'computes it. Computed automatically for earth when both --loc-ini and --loc-fin '
-             'are given instead. --detector-depth requires it to be omitted.')
+        help='Baseline (final position). Required for vacuum, matter and sun. For earth, '
+             'give it with --costhz, or omit it when --detector-depth or --source-depth is '
+             'given (the baseline is then computed) or when --loc-ini and --loc-fin are '
+             'given. Must be omitted with --detector-depth.')
     g_kin.add_argument('--l0', type=_finite_float, default=0.0,
         help='Initial position (used by --environment sun and --density-profile exp). '
              'Default: 0.0.')
@@ -288,7 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     g_earth.add_argument('--costhz', type=_finite_float, default=None,
         help='Cosine of the neutrino zenith angle.')
     g_earth.add_argument('--loc-ini', default=None,
-        help='Initial location name (e.g. fermilab); see magnus.earth.loc_coords_dms. '
+        help='Initial location name (e.g., fermilab); see magnus.earth.loc_coords_dms. '
              'Must be given together with --loc-fin, as an alternative to --costhz.')
     g_earth.add_argument('--loc-fin', default=None,
         help='Final location name; see --loc-ini.')
@@ -314,14 +314,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     g_osc = p.add_argument_group('Standard oscillation parameters (2-flavor)')
     g_osc.add_argument('--angles', default='sin', choices=list(gd.ANGLE_CONVENTIONS),
-        help='Convention for every mixing angle below (--sth, --s12.., --sxi..): sin (default) '
-             'their sines, sin2 their sines squared -- the form global fits report -- rad the '
-             'angles in radians, deg in degrees. Under deg the CP phases (--dcp, --d14, ...) '
-             'are read as degrees too; otherwise they stay in radians.')
+        help="Convention for every mixing angle below (--sth, --s12, ..., --sxi, ...): 'sin' "
+             "(default) takes sines, 'sin2' squared sines (the form global fits report), 'rad' "
+             "radians and 'deg' degrees. Under 'deg' the CP phases (--dcp, --d14, ...) are "
+             "read as degrees too; otherwise they stay in radians.")
     g_osc.add_argument('--sth', type=_finite_float, default=None,
         help='Mixing angle theta, in the convention set by --angles (required for --flavors 2).')
     g_osc.add_argument('--dm2', type=_finite_float, default=None, dest='Dm2',
-        help='Mass-squared difference Delta m^2 (required for --flavors 2).')
+        help='Mass-squared difference Delta m^2 [eV^2] (required for --flavors 2).')
 
     g_osc3 = p.add_argument_group('Standard oscillation parameters (3+ flavors)')
     g_osc3.add_argument('--s12', type=_finite_float, default=None, help='Mixing angle theta_12, per --angles. Default: NuFIT 6.1.')
@@ -330,9 +330,9 @@ def build_parser() -> argparse.ArgumentParser:
     g_osc3.add_argument('--dcp', type=_finite_float, default=None, dest='dCP',
         help='delta_CP [radian, or degree with --angles deg]. Default: NuFIT 6.1.')
     g_osc3.add_argument('--dm21', type=_finite_float, default=None, dest='D21',
-        help='Mass-squared difference Delta m^2_21. Default: NuFIT 6.1.')
+        help='Mass-squared difference Delta m^2_21 [eV^2]. Default: NuFIT 6.1.')
     g_osc3.add_argument('--dm31', type=_finite_float, default=None, dest='D31',
-        help='Mass-squared difference Delta m^2_31. Default: NuFIT 6.1.')
+        help='Mass-squared difference Delta m^2_31 [eV^2]. Default: NuFIT 6.1.')
     g_osc3.add_argument('--osc-params-set', default='OSC_PARAMS_DEFAULT',
         dest='default_osc_params_set_name',
         choices=sorted(gd.OSC_PARAMS_PREDEFINED),
@@ -343,10 +343,10 @@ def build_parser() -> argparse.ArgumentParser:
         # release, ordering and SK variant it is some 2500 characters of help, twice over.
         metavar='NAME',
         help='Predefined set used to fill in any of s12/s23/s13/dCP/D21/D31 left unspecified: '
-             'one per NuFIT release, in normal ordering (..._NO) or inverted (..._IO), and for '
-             'releases from 4.0 on with (..._SK_) or without (..._NOSK_) Super-Kamiokande '
-             'atmospheric data.  OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO.  Pass an unknown name to '
-             'see the full list, which is globaldefs.OSC_PARAMS_PREDEFINED.')
+             'one per NuFIT release, mass ordering (..._NO or ..._IO) and, from release 4.0 on, '
+             'inclusion (..._SK_) or exclusion (..._NOSK_) of Super-Kamiokande atmospheric '
+             'data.  OSC_PARAMS_DEFAULT is NuFIT 6.1 SK NO.  The full list is '
+             'globaldefs.OSC_PARAMS_PREDEFINED; an unknown name prints it.')
 
     g_osc4 = p.add_argument_group('Additional sterile mixing (4+ flavors)')
     g_osc4.add_argument('--s14', type=_finite_float, default=0.0, help='Mixing angle theta_14, per --angles. Default: 0.0.')
@@ -355,7 +355,7 @@ def build_parser() -> argparse.ArgumentParser:
     g_osc4.add_argument('--d24', type=_finite_float, default=0.0, help='delta_24 [radian, or degree with --angles deg]. Default: 0.0.')
     g_osc4.add_argument('--s34', type=_finite_float, default=0.0, help='Mixing angle theta_34, per --angles. Default: 0.0.')
     g_osc4.add_argument('--dm41', type=_finite_float, default=0.0, dest='D41',
-        help='Mass-squared difference Delta m^2_41. Default: 0.0.')
+        help='Mass-squared difference Delta m^2_41 [eV^2]. Default: 0.0.')
 
     g_osc5 = p.add_argument_group('Additional sterile mixing (5 flavors)')
     g_osc5.add_argument('--s15', type=_finite_float, default=0.0, help='Mixing angle theta_15, per --angles. Default: 0.0.')
@@ -364,7 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
     g_osc5.add_argument('--s35', type=_finite_float, default=0.0, help='Mixing angle theta_35, per --angles. Default: 0.0.')
     g_osc5.add_argument('--d35', type=_finite_float, default=0.0, help='delta_35 [radian, or degree with --angles deg]. Default: 0.0.')
     g_osc5.add_argument('--dm51', type=_finite_float, default=0.0, dest='D51',
-        help='Mass-squared difference Delta m^2_51. Default: 0.0.')
+        help='Mass-squared difference Delta m^2_51 [eV^2]. Default: 0.0.')
 
     g_nsi = p.add_argument_group('NSI parameters (--scenario nsi)')
     g_nsi.add_argument('--eps-aa', type=_finite_float, default=0.0, help='2-flavor diagonal NSI coupling.')
@@ -397,24 +397,24 @@ def build_parser() -> argparse.ArgumentParser:
     g_liv.add_argument('--dxicp', type=_finite_float, default=None, dest='dxiCP',
         help='(3/4/5nu) LIV CP-violation phase of the 1-3 rotation [radian, or degree with --angles deg].')
     g_liv.add_argument('--dxi13', type=_finite_float, default=None,
-        help='(4/5nu) Former name of --dxicp; still accepted, with a warning.')
+        help='(4/5nu) Deprecated alias of --dxicp; issues a FutureWarning.')
     g_liv.add_argument('--sxi14', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_14, per --angles.')
-    g_liv.add_argument('--dxi14', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--dxi14', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase of the 1-4 rotation [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi24', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_24, per --angles.')
-    g_liv.add_argument('--dxi24', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--dxi24', type=_finite_float, default=0.0, help='(4/5nu) LIV CP-violation phase of the 2-4 rotation [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi34', type=_finite_float, default=0.0, help='(4/5nu) LIV mixing angle xi_34, per --angles.')
     g_liv.add_argument('--sxi15', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_15, per --angles.')
-    g_liv.add_argument('--dxi15', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
+    g_liv.add_argument('--dxi15', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase of the 1-5 rotation [radian, or degree with --angles deg].')
     g_liv.add_argument('--sxi25', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_25, per --angles.')
     g_liv.add_argument('--sxi35', type=_finite_float, default=0.0, help='(5nu) LIV mixing angle xi_35, per --angles.')
-    g_liv.add_argument('--dxi35', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase [radian, or degree with --angles deg].')
-    g_liv.add_argument('--b1', type=_finite_float, default=0.0, help='LIV eigenvalue b1.')
-    g_liv.add_argument('--b2', type=_finite_float, default=0.0, help='LIV eigenvalue b2.')
-    g_liv.add_argument('--b3', type=_finite_float, default=0.0, help='LIV eigenvalue b3.')
-    g_liv.add_argument('--b4', type=_finite_float, default=0.0, help='LIV eigenvalue b4.')
-    g_liv.add_argument('--b5', type=_finite_float, default=0.0, help='LIV eigenvalue b5.')
+    g_liv.add_argument('--dxi35', type=_finite_float, default=0.0, help='(5nu) LIV CP-violation phase of the 3-5 rotation [radian, or degree with --angles deg].')
+    g_liv.add_argument('--b1', type=_finite_float, default=0.0, help='LIV eigenvalue b1 [eV].')
+    g_liv.add_argument('--b2', type=_finite_float, default=0.0, help='LIV eigenvalue b2 [eV].')
+    g_liv.add_argument('--b3', type=_finite_float, default=0.0, help='LIV eigenvalue b3 [eV].')
+    g_liv.add_argument('--b4', type=_finite_float, default=0.0, help='LIV eigenvalue b4 [eV].')
+    g_liv.add_argument('--b5', type=_finite_float, default=0.0, help='LIV eigenvalue b5 [eV].')
     g_liv.add_argument('--liv-lambda', type=_finite_float, default=1.0, dest='Lambda',
-        help='LIV energy scale Lambda. Default: 1.0.')
+        help='LIV energy scale Lambda [eV]. Default: 1.0.')
     g_liv.add_argument('--n-liv', type=int, default=0,
         help='Power of the energy dependence of the LIV operator. Default: 0.')
 
@@ -433,23 +433,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Quadrature method. 'gl' (Gauss-Legendre collocation) needs only 1-4 Hamiltonian "
              "evaluations per slab and matches its quadrature order to the expansion order, so "
              "it is both the fastest and the most accurate for a smooth Hamiltonian. "
-             "'trapezoid'/'simpson' sample a uniform grid of 100 points per slab instead "
-             "(the library default; the CLI does not expose it), "
-             "and at a declared breakpoint sample each side of a jump with its own values. "
+             "'trapezoid'/'simpson' instead sample a uniform grid of points in each slab, "
+             "starting from 100 points per slab (the library default, which the CLI cannot "
+             "change). At a declared breakpoint, they sample each side of a jump separately. "
              "Default: gl.")
     g_num.add_argument('--rtol', type=_finite_float, default=1.e-3,
-        help='Relative tolerance on the agreement between successive refinement levels -- a stopping rule, not a guaranteed accuracy. Default: 1e-3.')
+        help='Relative tolerance on the agreement between successive refinement levels: a stopping rule, not a guaranteed accuracy. Default: 1e-3.')
     g_num.add_argument('--atol', type=_finite_float, default=1.e-3,
         help='Absolute tolerance on the same agreement; see --rtol. Default: 1e-3.')
     g_num.add_argument('--n-jobs', type=int, default=1, dest='n_jobs',
         help='Number of parallel joblib workers. Default: 1.')
     g_num.add_argument('--strategy', choices=['auto', 'hybrid', 'magnus'], default='auto',
-        help="How to propagate a position-dependent Hamiltonian: 'magnus' uses only the "
-             "Magnus-expansion machinery; 'hybrid' also tries adiabatic transport with a "
-             "Magnus patch at each non-adiabatic window, warning if it cannot certify the "
-             "result; 'auto' tries hybrid and falls back to magnus without a warning, except "
-             "for an undeclared density jump. Ignored for "
-             "vacuum and constant-density environments. Default: auto.")
+        help="How to propagate a position-dependent Hamiltonian. 'magnus' uses only the "
+             "Magnus-expansion engines. 'hybrid' also tries adiabatic transport with a "
+             "Magnus patch at each non-adiabatic window and warns if it cannot certify the "
+             "result. 'auto' sends a smooth profile whose estimated accumulated phase is at "
+             "most 1e4 rad (at a tolerance of 1e-6 or looser) to the Magnus ladder. "
+             "Otherwise, it tries hybrid and falls back to the Magnus engines without a "
+             "warning, except for an undeclared density jump. Vacuum and constant-density "
+             "environments accept only 'auto'. Default: auto.")
     g_num.add_argument('--verbose', type=int, default=0, choices=[0, 1, 2],
         help='Verbosity level. Default: 0.')
 
@@ -584,7 +586,7 @@ def _env_kwargs(environment: str, density_profile: str, args: argparse.Namespace
     Every invalid combination of flags exits here rather than downstream, so the message
     names the flags the user typed rather than the library's parameters.
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The sun branch forwards the density profile and ``--stop-at-table-edge``, and a
        solar model or ``--stop-at-table-edge`` outside ``--environment sun`` is refused.
 
@@ -825,7 +827,7 @@ def main(argv=None) -> int:
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        ``prob`` is optional (issue #138).
 
     Parameters

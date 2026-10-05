@@ -3071,7 +3071,7 @@ def test_the_unpacking_helper_returns_an_array_past_the_predefined_maximum():
 
 
 # ---------------------------------------------------------------------------
-# Underground source and detector (1.1.1)
+# Underground source and detector (1.2.0)
 # ---------------------------------------------------------------------------
 
 def test_an_earth_wrapper_computes_the_baseline_for_a_buried_detector():

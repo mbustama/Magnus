@@ -189,7 +189,7 @@ That window spans the path, and the phase average across it did not finish (issu
 averaged route of :mod:`magnus.oscprob` now takes such decoupled states out before it reaches
 this module (``oscprob._decoupled_degenerate_flavors``).
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -705,7 +705,7 @@ bracket unless the derivative peaks in between; a step hidden between two probe 
 chord steeper than both ends by the ratio of the interval to the step's width, however narrow
 the step.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -717,7 +717,7 @@ those whose chord carries the largest jump relative to the gap first.  Intervals
 a window are not counted, and :func:`hybrid_propagator` looks again after each restart (see
 :data:`SHARP_MAX_ROUNDS`), so a profile with more steps than this is covered over several looks.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -729,7 +729,7 @@ between the probe points, at most :data:`SHARP_MAX_POINTS` new ones each time.  
 staircase of 32 hidden steps: with a single look it certified an answer 1.8e-02 off; two looks
 cover it.  A path that still shows new sharp features after this many is not certified.
 
-.. versionadded:: 1.1.1
+.. versionadded:: 1.2.0
 """
 
 
@@ -764,7 +764,7 @@ def _sharp_feature_points(H_func: Callable, probe: Dict, tol: float,
     bump that rises and falls between two probe points, leaving the chord unchanged; that is
     :func:`find_hidden_features`' job.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     Hs, dH, lam, ls = probe.get('H'), probe['dH'], probe['lam'], probe['ls']
     if Hs is None or len(ls) < 2 or lam.shape[-1] < 2 or not ls[-1] > ls[0]:
@@ -847,7 +847,7 @@ def _concentrated_intervals(H_func: Callable, l0: float, l1: float,
     Returns the probe grid, the indices ``i`` of the concentrated intervals
     ``[ls[i], ls[i+1]]``, and each interval's total variation.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     ls = np.linspace(l0, l1, n_probe)
     mids = 0.5*(ls[:-1] + ls[1:])
@@ -1210,7 +1210,7 @@ def _dH_dl_on_grid(H_func: Callable, ls: np.ndarray, h: float,
     at every probe point and at every bisection step, and one Python call per position was most
     of the time an averaged solar call spent (issue #64).
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     ls = np.asarray(ls, dtype=float)
     lm, lp = ls - h, ls + h
@@ -1296,7 +1296,7 @@ def find_resonance_candidates(H_func: Callable, l0: float, l1: float,
         If given, filled in place with the probe-grid quantities this function had to compute
         anyway -- ``'ls'`` (the grid), ``'lam'``, ``'W'`` (eigenvalues and eigenvectors, shapes
         ``(n, d)`` and ``(n, d, d)``), ``'dH'`` and ``'H'`` (the Hamiltonians, shape
-        ``(n, d, d)``; added in 1.1.1). :func:`find_nonadiabatic_windows` sweeps
+        ``(n, d, d)``; added in 1.2.0). :func:`find_nonadiabatic_windows` sweeps
         :math:`\gamma` on exactly this grid with exactly this finite-difference step, so
         without this it would recompute all of it: ~600 extra Hamiltonian evaluations and a
         second eigendecomposition, which measured as **1.4x** on an ordinary single-point solar
@@ -1449,7 +1449,7 @@ def _point_adiabaticity_many(H_func: Callable, ls: List[float], js: List[int], k
     The Hamiltonians, their derivatives and the eigendecompositions are batched; the coupling and
     the gap are still formed per point, written exactly as ``_point_adiabaticity`` writes them.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     if len(ls) == 0:
         return []
@@ -1504,7 +1504,7 @@ def _estimate_window_bounds_many(H_func: Callable, stars: List[Tuple[float, int,
     Every window edge is still found by the same doubling search, step for step; what is batched
     is the adiabaticity evaluated at each round, over every search still running.
 
-    .. versionadded:: 1.1.1
+    .. versionadded:: 1.2.0
     """
     # One search per (star, side), in the order grow(-1) then grow(+1) for each star.
     searches = [(l_star, j, k, sign) for (l_star, j, k) in stars for sign in (-1.0, +1.0)]
@@ -1560,7 +1560,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        A pair whose gap ``eigh`` cannot resolve scores :math:`\gamma = \infty` (see
        :data:`DEGENERACY_ULPS`); it used to take a gap of exactly 0.0.  Adds
        ``'gamma_unpatched'`` to ``info``.
@@ -1597,7 +1597,7 @@ def find_nonadiabatic_windows(H_func: Callable, l0: float, l1: float,
         :func:`hybrid_propagator` passes the sharp features found between the probe points
         (issue #100).  Default: None.
 
-        .. versionadded:: 1.1.1
+        .. versionadded:: 1.2.0
 
     Returns
     -------
@@ -1912,7 +1912,7 @@ def hybrid_propagator(H_func: Callable, l0: float, l1: float, rtol: Optional[flo
 
     .. versionadded:: 1.0.0
 
-    .. versionchanged:: 1.1.1
+    .. versionchanged:: 1.2.0
        The adiabaticity requirement applies to the stretch outside every window, not only to a
        result with no window at all; and a degenerate pair, including an exact crossing, always
        gets a window (see :data:`DEGENERACY_ULPS`).  Every Magnus patch converges to
