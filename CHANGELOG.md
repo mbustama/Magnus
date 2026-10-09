@@ -5,6 +5,17 @@ All notable changes to Magνs are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **The paper, [arXiv:2610.07159](https://arxiv.org/abs/2610.07159).**  The README and the
+  docs landing page carry an arXiv badge, and the landing page also carries the Zenodo DOI
+  badge that the README already had.  "How to cite", in the README and on the docs' citing
+  page, asks for the paper and for the version of the software used, and the citing page
+  gives the paper's BibTeX entry as INSPIRE holds it.  `CITATION.cff` names the paper as its
+  `preferred-citation`, so GitHub's "Cite this repository" offers it.
+
 ## [1.2.0] - 2026-10-05
 
 ### Fixed
