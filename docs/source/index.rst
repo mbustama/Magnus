@@ -31,6 +31,14 @@ Magνs: neutrino oscillations via the Magnus expansion
    :target: https://pypi.org/project/magnuspy/
    :alt: PyPI
 
+.. image:: https://img.shields.io/badge/arXiv-2610.07159-b31b1b.svg
+   :target: https://arxiv.org/abs/2610.07159
+   :alt: arXiv
+
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.23160508.svg
+   :target: https://doi.org/10.5281/zenodo.23160508
+   :alt: DOI
+
 .. image:: https://pepy.tech/badge/magnuspy
    :target: https://pepy.tech/project/magnuspy
    :alt: Downloads
