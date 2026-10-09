@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: "Magνs: neutrino oscillation probabilities for any Hermitian Hamiltonian, any number of flavors, and any matter profile"
-message: "If you use this software in academic work, please cite it."
+message: "If you use this software in academic work, please cite the paper that describes it, and the version of the software you used."
 type: software
 authors:
   - family-names: Bustamante
@@ -31,6 +31,20 @@ keywords:
 license: GPL-3.0-only
 version: 1.2.0
 date-released: "2026-10-05"
+
+# The paper that describes Magνs.  GitHub's "Cite this repository" offers this entry.
+# Once the paper is published, replace `journal` and `doi` with the journal's.
+preferred-citation:
+  type: article
+  title: "Magνs: neutrino oscillation probabilities for any Hermitian Hamiltonian, any number of flavors, and any matter profile"
+  authors:
+    - family-names: Bustamante
+      given-names: Mauricio
+  journal: "arXiv preprint arXiv:2610.07159"
+  year: 2026
+  month: 10
+  doi: "10.48550/arXiv.2610.07159"
+  url: "https://arxiv.org/abs/2610.07159"
 
 # The method this package implements, and the Earth model it ships.  Cited here as well
 # as in README.md and docs/source/refs.bib so that a tool reading only this file still
