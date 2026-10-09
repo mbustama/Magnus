@@ -3,13 +3,35 @@ How to cite
 
 If Magνs contributed to work you are publishing, please cite it. A citation is
 what makes the effort of maintaining a package visible, and it lets a reader
-reproduce what you did.
+reproduce what you did. Please cite both the paper that describes Magνs and the
+version of the software you used.
+
+Cite the paper
+--------------
+
+The paper, `arXiv:2610.07159 <https://arxiv.org/abs/2610.07159>`_, describes the
+method, its implementation, and its validation. Its entry on `INSPIRE
+<https://inspirehep.net/literature/3212165>`_ is
+
+.. code-block:: bibtex
+
+   @article{Bustamante:2026yce,
+       author = "Bustamante, Mauricio",
+       title = "{Magnus: neutrino oscillation probabilities for any Hermitian Hamiltonian, any number of flavors, and any matter profile}",
+       eprint = "2610.07159",
+       archivePrefix = "arXiv",
+       primaryClass = "hep-ph",
+       month = "10",
+       year = "2026"
+   }
+
+After the paper appears in a journal, take the updated entry from INSPIRE.
 
 Cite the software
 -----------------
 
-Until the accompanying paper is available, cite the software itself, including
-the version you used — results can depend on it, and Magνs records its own:
+Cite also the version of the software you used, since results can depend on it.
+Magνs records its own version:
 
 .. code-block:: python
 
