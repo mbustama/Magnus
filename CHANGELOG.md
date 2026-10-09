@@ -10,11 +10,15 @@ and the project uses [Semantic Versioning](https://semver.org/).
 ### Added
 
 - **The paper, [arXiv:2610.07159](https://arxiv.org/abs/2610.07159).**  The README and the
-  docs landing page carry an arXiv badge, and the landing page also carries the Zenodo DOI
-  badge that the README already had.  "How to cite", in the README and on the docs' citing
-  page, asks for the paper and for the version of the software used, and the citing page
-  gives the paper's BibTeX entry as INSPIRE holds it.  `CITATION.cff` names the paper as its
-  `preferred-citation`, so GitHub's "Cite this repository" offers it.
+  docs landing page carry an arXiv badge.  "How to cite", in the README and on the docs'
+  citing page, asks for the paper and for the version of the software used, and the citing
+  page gives the paper's BibTeX entry as INSPIRE holds it.  `CITATION.cff` names the paper as
+  its `preferred-citation`, so GitHub's "Cite this repository" offers it.
+- **A Zenodo DOI, [10.5281/zenodo.23160508](https://doi.org/10.5281/zenodo.23160508).**  This
+  concept DOI resolves to the latest version; version 1.2.0 has its own,
+  [10.5281/zenodo.23160509](https://doi.org/10.5281/zenodo.23160509).  The README and the docs
+  landing page carry a DOI badge, `CITATION.cff` lists both DOIs, and the software's BibTeX
+  entry on the docs' citing page gives the concept DOI.
 
 ## [1.2.0] - 2026-10-05
 
